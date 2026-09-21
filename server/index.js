@@ -1,5 +1,7 @@
 const path = require('path');
+const fs = require('fs');
 const http = require('http');
+const https = require('https');
 const crypto = require('crypto');
 const express = require('express');
 const session = require('express-session');
@@ -13,8 +15,17 @@ const store = require('./store');
 const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
+// iOS Safari only exposes the camera (getUserMedia) on a secure context: HTTPS, or the
+// literal hostname "localhost". Plain http://<lan-ip>:3000 will not work from an iPhone.
+// Drop a cert/key at certs/cert.pem + certs/key.pem (e.g. via mkcert) to serve HTTPS instead.
+const certPath = process.env.HTTPS_CERT || path.join(__dirname, '..', 'certs', 'cert.pem');
+const keyPath = process.env.HTTPS_KEY || path.join(__dirname, '..', 'certs', 'key.pem');
+const useHttps = fs.existsSync(certPath) && fs.existsSync(keyPath);
+
 const app = express();
-const server = http.createServer(app);
+const server = useHttps
+  ? https.createServer({ cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) }, app)
+  : http.createServer(app);
 const io = new Server(server);
 
 const sessionMiddleware = session({
@@ -183,5 +194,12 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Snap web sunucusu http://localhost:${PORT} adresinde çalışıyor`);
+  const scheme = useHttps ? 'https' : 'http';
+  console.log(`Snap web sunucusu ${scheme}://localhost:${PORT} adresinde çalışıyor`);
+  if (!useHttps) {
+    console.log(
+      'Not: iPhone/Safari, yerel ağ IP\'si üzerinden (http://192.168.x.x) kamera erişimine izin vermez. ' +
+      'Telefondan test için certs/cert.pem + certs/key.pem oluşturup HTTPS ile çalıştır (README\'ye bak).'
+    );
+  }
 });
