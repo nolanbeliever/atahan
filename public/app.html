@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>Snap</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👻</text></svg>" />
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="app-body">
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="me">
+          <div class="avatar" id="my-avatar"></div>
+          <div>
+            <div class="me-name" id="my-name"></div>
+            <div class="me-username" id="my-username"></div>
+          </div>
+        </div>
+        <button class="icon-btn" id="logout-btn" title="Çıkış yap">⎋</button>
+      </div>
+
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Kullanıcı adıyla arkadaş ekle" autocomplete="off" />
+        <div class="search-results hidden" id="search-results"></div>
+      </div>
+
+      <div id="requests-section" class="hidden">
+        <div class="section-label">Arkadaşlık İstekleri</div>
+        <div id="requests-list"></div>
+      </div>
+
+      <div class="section-label">Sohbetler</div>
+      <div class="friend-list" id="friend-list">
+        <p class="empty-hint">Henüz arkadaşın yok. Yukarıdan kullanıcı adıyla ara ve ekle!</p>
+      </div>
+    </aside>
+
+    <!-- Chat panel -->
+    <section class="chat-panel" id="chat-panel">
+      <div class="chat-placeholder" id="chat-placeholder">
+        <span>👻</span>
+        <p>Sohbet etmek için bir arkadaş seç</p>
+      </div>
+
+      <div class="chat-active hidden" id="chat-active" style="display:flex; flex-direction:column; flex:1; min-height:0;">
+        <div class="chat-header">
+          <button class="icon-btn back-btn" id="back-btn">←</button>
+          <div class="avatar sm" id="chat-avatar"></div>
+          <div>
+            <div class="n" id="chat-name"></div>
+            <div class="u" id="chat-username"></div>
+          </div>
+        </div>
+        <div class="messages" id="messages"></div>
+        <div class="reply-banner hidden" id="reply-banner">
+          <div class="rb-content" id="reply-banner-content"></div>
+          <button id="reply-cancel-btn">✕</button>
+        </div>
+        <div class="composer">
+          <button class="cam-btn" id="open-camera-btn" title="Snap gönder">📷</button>
+          <input type="text" id="text-input" placeholder="Mesaj yaz..." autocomplete="off" />
+          <button class="send-btn" id="send-text-btn" disabled>➤</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Camera overlay -->
+  <div class="overlay hidden" id="camera-overlay">
+    <div class="camera-video-wrap" id="camera-video-wrap">
+      <div class="camera-permission" id="camera-permission">
+        <span>📷</span>
+        <h2>Kamera İzni Gerekli</h2>
+        <p>Snap gönderebilmek için kameranı kullanmamıza izin ver. Tarayıcı izin isteyecek, "İzin ver" seçeneğine tıkla.</p>
+        <button class="primary-btn" id="request-camera-btn">Kamerayı Aç</button>
+        <p class="auth-error" id="camera-error"></p>
+      </div>
+      <video id="camera-video" autoplay playsinline muted class="hidden"></video>
+      <img id="captured-image" class="hidden" alt="Çekilen snap" />
+      <input type="text" id="snap-caption" class="caption-input hidden" placeholder="Bir başlık ekle..." maxlength="120" />
+    </div>
+    <div class="overlay-topbar">
+      <button class="icon-btn" id="close-camera-btn">✕</button>
+      <button class="icon-btn hidden" id="switch-camera-btn" title="Kamerayı değiştir">🔄</button>
+    </div>
+    <div class="camera-controls" id="shutter-controls">
+      <button class="shutter-btn" id="shutter-btn"></button>
+    </div>
+    <div class="preview-controls hidden" id="preview-controls">
+      <button class="retake-btn" id="retake-btn">↺ Tekrar Çek</button>
+      <button class="send-snap-btn" id="send-snap-btn">Gönder ➤</button>
+    </div>
+  </div>
+
+  <!-- Snap viewer -->
+  <div class="snap-viewer hidden" id="snap-viewer">
+    <div class="timer-bar"><div class="timer-fill" id="viewer-timer-fill"></div></div>
+    <img id="viewer-image" alt="Snap" />
+    <div class="viewer-caption hidden" id="viewer-caption"></div>
+    <div class="viewer-bottom">
+      <button class="icon-btn" id="viewer-close-btn">✕</button>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toast-stack"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

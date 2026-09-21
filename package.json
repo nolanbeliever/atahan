@@ -1,0 +1,29 @@
+{
+  "name": "atahan",
+  "version": "1.0.0",
+  "description": "Snapchat benzeri web uygulaması: kamera izni, snap ve mesajlaşma",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nolanbeliever/atahan.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nolanbeliever/atahan/issues"
+  },
+  "homepage": "https://github.com/nolanbeliever/atahan#readme",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "better-sqlite3-session-store": "^0.1.0",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "socket.io": "^4.8.3"
+  }
+}

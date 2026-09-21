@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>Snap • Giriş</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👻</text></svg>" />
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="auth-body">
+  <div class="auth-wrap">
+    <div class="auth-logo">
+      <span class="ghost">👻</span>
+      <h1>Snap</h1>
+    </div>
+
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button class="tab-btn active" data-tab="login">Giriş Yap</button>
+        <button class="tab-btn" data-tab="register">Kayıt Ol</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <input type="text" id="login-username" placeholder="Kullanıcı adı" autocomplete="username" required />
+        <input type="password" id="login-password" placeholder="Şifre" autocomplete="current-password" required />
+        <p class="auth-error" id="login-error"></p>
+        <button type="submit" class="primary-btn">Giriş Yap</button>
+      </form>
+
+      <form id="register-form" class="auth-form hidden">
+        <input type="text" id="register-name" placeholder="Adın" autocomplete="name" required />
+        <input type="text" id="register-username" placeholder="Kullanıcı adı" autocomplete="username" required />
+        <input type="password" id="register-password" placeholder="Şifre (en az 6 karakter)" autocomplete="new-password" required />
+        <p class="auth-error" id="register-error"></p>
+        <button type="submit" class="primary-btn">Hesap Oluştur</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/auth.js"></script>
+</body>
+</html>
