@@ -21,27 +21,9 @@ npm start
 
 Sunucu varsayılan olarak `http://localhost:3000` adresinde çalışır. Kamera erişimi için tarayıcının `localhost`'u güvenli kaynak (secure context) olarak kabul ettiğinden emin ol; canlı bir sunucuya taşırken HTTPS kullanılmalı.
 
-## iPhone/iPad'den test etme (kamera için HTTPS şart)
+## iPhone'dan aynı WiFi üzerinden test etme (kamera için HTTPS şart)
 
-iOS Safari, kamera erişimine yalnızca **HTTPS** veya gerçek `localhost` üzerinden izin verir. Bilgisayarının yerel ağ IP'si üzerinden düz `http://192.168.x.x:3000` ile açarsan kamera izni istemi hiç çıkmaz.
-
-### Yöntem A — Cloudflare Quick Tunnel (en kolay, hesap gerekmez)
-
-Bilgisayarında `npm start` çalışırken, **ikinci bir terminalde**:
-
-```bash
-npx cloudflared tunnel --url http://localhost:3000
-```
-
-Birkaç saniye içinde terminalde `https://<rastgele-isim>.trycloudflare.com` şeklinde bir adres belirir. Bunu doğrudan iPad/iPhone Safari'sinde açabilirsin — sertifika kurmana, profil yüklemene, aynı WiFi'da olmana bile gerek yok, gerçek bir HTTPS adresi olduğu için kamera izni normal şekilde çalışır. Tünel yalnızca terminal açıkken çalışır ve adres her çalıştırışında değişir; kalıcı bir adres değildir, ama test için en hızlı yoldur.
-
-> Not: Link'i bilen herkes uygulamana erişebilir (kayıt/giriş zaten koruma sağlar ama link'i başkalarıyla paylaşma).
-
-Açtıktan sonra Safari'de paylaş simgesine dokun → **Ana Ekrana Ekle**; uygulama kendi simgesiyle, Safari çubukları olmadan tam ekran açılır.
-
-### Yöntem B — mkcert ile yerel ağ sertifikası (kalıcı LAN adresi)
-
-Aynı WiFi'daki `http://192.168.x.x:3000` adresini HTTPS'e çevirip her seferinde aynı adresi kullanmak istersen [mkcert](https://github.com/FiloSottile/mkcert) ile yerel, güvenilir bir sertifika oluştur:
+iOS Safari, kamera erişimine yalnızca **HTTPS** veya gerçek `localhost` üzerinden izin verir. Bilgisayarının yerel ağ IP'si üzerinden düz `http://192.168.x.x:3000` ile açarsan kamera izni istemi hiç çıkmaz. Bunu çözmek için [mkcert](https://github.com/FiloSottile/mkcert) ile yerel, güvenilir bir sertifika oluştur:
 
 1. **mkcert kur** (bilgisayarında):
    - macOS: `brew install mkcert`
