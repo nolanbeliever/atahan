@@ -3,7 +3,9 @@
    space; the caller's canvas context is expected to already carry the mirror transform when
    the front camera is active, so filter graphics land in the same place as the mirrored video. */
 (function () {
-  const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+  // The maintainer's own GitHub Pages host for pretrained weights — more reliable than
+  // proxying raw files out of the repo via jsdelivr's /gh/ endpoint.
+  const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
 
   const FILTERS = [
     { id: 'none', emoji: '🚫', label: 'Yok' },

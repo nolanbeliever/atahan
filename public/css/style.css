@@ -667,7 +667,7 @@ input { font-family: inherit; }
   flex-shrink: 0;
 }
 .best-friend-star.active { color: var(--yellow); }
-.best-friend-star:disabled { opacity: 0.3; }
+.best-friend-star.dim { opacity: 0.3; }
 
 /* ---------- Chat background picker ---------- */
 

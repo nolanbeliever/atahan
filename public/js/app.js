@@ -368,7 +368,9 @@ function updateBestFriendButton() {
   const isBest = me.bestFriendId === activeFriendId;
   btn.textContent = isBest ? '★' : '☆';
   btn.classList.toggle('active', isBest);
-  btn.disabled = !me.plusActive;
+  // Never use the native `disabled` attribute here: it would silently swallow the click
+  // before toggleBestFriend() gets a chance to re-check fresh Plus status from the server.
+  btn.classList.toggle('dim', !me.plusActive);
   btn.title = me.plusActive ? 'En sevdiğim arkadaş' : 'En sevdiğim arkadaş seçimi Plus üyelere özel';
 }
 
@@ -643,7 +645,11 @@ async function requestCamera() {
     if (!SnapFilters.isLoaded()) {
       $('filter-loading').classList.remove('hidden');
       SnapFilters.loadModels()
-        .catch(() => toast('Filtreler yüklenemedi, ağ bağlantını kontrol et.'))
+        .then(() => toast('Filtreler hazır ✅ Bir filtre seç ve yüzünü kameraya göster.'))
+        .catch((err) => {
+          console.error('Filter model load failed:', err);
+          toast('Filtreler yüklenemedi (ağ bağlantısı sorunu). Kamera yine çalışır.');
+        })
         .finally(() => $('filter-loading').classList.add('hidden'));
     }
   } catch (err) {
@@ -703,7 +709,17 @@ async function sendSnap() {
 
 /* ---------- Best friend / chat background (Plus) ---------- */
 
+// The in-memory `me` object can be stale if Plus was granted from another tab/device
+// (e.g. via the admin panel) without reloading this one — re-check with the server
+// before trusting a cached "not Plus" state.
+async function refreshMe() {
+  const { user } = await getJSON('/api/auth/me');
+  if (user) { me = user; applyMeUI(); }
+  return me;
+}
+
 async function toggleBestFriend() {
+  await refreshMe();
   if (!me.plusActive) { toast('En sevdiğim arkadaş seçimi Snapchat Plus üyelerine özel.'); return; }
   if (!activeFriendId) return;
   const isBest = me.bestFriendId === activeFriendId;
@@ -721,6 +737,7 @@ async function toggleBestFriend() {
 }
 
 async function openBgPicker() {
+  await refreshMe();
   if (!me.plusActive) { toast('Sohbet arka planları Snapchat Plus üyelerine özel.'); return; }
   if (!chatBackgrounds.length) {
     const { backgrounds } = await getJSON('/api/profile/chat-backgrounds');
