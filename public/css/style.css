@@ -765,8 +765,23 @@ input { font-family: inherit; }
   align-items: center;
   justify-content: center;
   color: white;
+  position: relative;
 }
 .filter-chip.active { border-color: var(--yellow); background: rgba(255,252,0,0.2); }
+.filter-chip.locked { opacity: 0.55; border-color: rgba(255,215,0,0.4); }
+.filter-lock-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  font-size: 12px;
+  background: rgba(0,0,0,0.75);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .filter-loading {
   position: absolute;

@@ -377,7 +377,9 @@ function updateBestFriendButton() {
 function applyChatBackground() {
   const box = $('messages');
   box.className = 'messages';
-  if (me.chatBackground) box.classList.add(me.chatBackground);
+  // CSS rules are .messages.bg-<name> — the stored value has no "bg-" prefix, so it must
+  // be added here (this mismatch was the bug: the class was applied but never matched any rule).
+  if (me.chatBackground) box.classList.add('bg-' + me.chatBackground);
 }
 
 function closeConversation() {
@@ -581,21 +583,38 @@ function renderFilterStrip() {
   const strip = $('filter-strip');
   strip.innerHTML = '';
   for (const f of SnapFilters.list) {
+    const locked = f.plus && !me.plusActive;
     const chip = document.createElement('button');
-    chip.className = 'filter-chip' + (f.id === currentFilterId ? ' active' : '');
+    chip.className = 'filter-chip' + (f.id === currentFilterId ? ' active' : '') + (locked ? ' locked' : '');
     chip.textContent = f.emoji;
-    chip.title = f.label;
-    chip.addEventListener('click', () => {
+    chip.title = locked ? `${f.label} — Snapchat Plus'a özel` : f.label;
+    if (locked) {
+      const badge = document.createElement('span');
+      badge.className = 'filter-lock-badge';
+      badge.textContent = '🔒';
+      chip.appendChild(badge);
+    }
+    chip.addEventListener('click', async () => {
+      if (locked) {
+        await refreshMe();
+        if (f.plus && !me.plusActive) {
+          toast(`${f.label} filtresi Snapchat Plus'a özel ✨`);
+          return;
+        }
+        renderFilterStrip(); // plus turned out to be active after refresh; redraw unlocked
+      }
       currentFilterId = f.id;
       strip.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
-      chip.classList.add('active');
+      const freshChip = strip.querySelector(`[data-filter-id="${f.id}"]`);
+      (freshChip || chip).classList.add('active');
     });
+    chip.dataset.filterId = f.id;
     strip.appendChild(chip);
   }
   strip.classList.remove('hidden');
 }
 
-function openCamera() {
+async function openCamera() {
   $('camera-overlay').classList.remove('hidden');
   $('camera-permission').classList.remove('hidden');
   $('camera-video').classList.add('hidden');
@@ -609,6 +628,7 @@ function openCamera() {
   $('camera-error').textContent = '';
   capturedDataUrl = null;
   currentFilterId = 'none';
+  refreshMe(); // don't block camera opening on this; filter strip re-renders once it lands
 
   if (navigator.permissions && navigator.permissions.query) {
     navigator.permissions.query({ name: 'camera' }).then((status) => {

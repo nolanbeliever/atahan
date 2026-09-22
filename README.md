@@ -7,7 +7,9 @@ Snapchat'ten esinlenilmiş, tarayıcıda çalışan bir web uygulaması.
 - Kullanıcı kaydı ve girişi
 - Kullanıcı adıyla arkadaş arama, arkadaşlık isteği gönderme/kabul etme
 - Kamera izni isteme; izin verilirse canlı kamera açılır
-- **Yüz takipli kamera filtreleri** (gözlük, çiçek taç, köpek, kedi) — face-api.js ile gerçek zamanlı yüz takibi, çekilen snap'e gömülü olarak kaydedilir
+- **Yüz takipli kamera filtreleri** — face-api.js ile gerçek zamanlı yüz takibi, çekilen snap'e gömülü olarak kaydedilir
+  - Ücretsiz: gözlük, çiçek taç, köpek, kedi, tavşan, bıyık
+  - Snapchat Plus'a özel: taç 👑, melek halosu 😇, şeytan boynuzu 😈, alev 🔥
 - Fotoğraf çekip **snap** olarak arkadaşa gönderme (tek seferlik görüntüleme — açıldıktan sonra sunucudan silinir)
 - Galeriden fotoğraf yükleyip snap olarak gönderme
 - Metin mesajı gönderme
