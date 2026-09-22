@@ -26,7 +26,10 @@
             <div class="me-username" id="my-username"></div>
           </div>
         </div>
-        <button class="icon-btn" id="logout-btn" title="Çıkış yap">⎋</button>
+        <div style="display:flex; gap:8px;">
+          <button class="icon-btn hidden" id="admin-link-btn" title="Admin paneli">🛠️</button>
+          <button class="icon-btn" id="logout-btn" title="Çıkış yap">⎋</button>
+        </div>
       </div>
 
       <div class="search-box">
@@ -56,10 +59,12 @@
         <div class="chat-header">
           <button class="icon-btn back-btn" id="back-btn">←</button>
           <div class="avatar sm" id="chat-avatar"></div>
-          <div>
+          <div style="flex:1; min-width:0;">
             <div class="n" id="chat-name"></div>
             <div class="u" id="chat-username"></div>
           </div>
+          <button class="best-friend-star" id="best-friend-btn" title="En sevdiğim arkadaş">☆</button>
+          <button class="icon-btn" id="bg-picker-btn" title="Sohbet arka planı">🎨</button>
         </div>
         <div class="messages" id="messages"></div>
         <div class="reply-banner hidden" id="reply-banner">
@@ -67,6 +72,8 @@
           <button id="reply-cancel-btn">✕</button>
         </div>
         <div class="composer">
+          <button class="upload-btn" id="upload-photo-btn" title="Galeriden fotoğraf gönder">🖼️</button>
+          <input type="file" id="upload-photo-input" accept="image/*" class="hidden" />
           <button class="cam-btn" id="open-camera-btn" title="Snap gönder">📷</button>
           <input type="text" id="text-input" placeholder="Mesaj yaz..." autocomplete="off" />
           <button class="send-btn" id="send-text-btn" disabled>➤</button>
@@ -86,13 +93,16 @@
         <p class="auth-error" id="camera-error"></p>
       </div>
       <video id="camera-video" autoplay playsinline muted class="hidden"></video>
+      <canvas id="camera-canvas" class="hidden"></canvas>
       <img id="captured-image" class="hidden" alt="Çekilen snap" />
+      <div class="filter-loading hidden" id="filter-loading">Filtreler yükleniyor…</div>
       <input type="text" id="snap-caption" class="caption-input hidden" placeholder="Bir başlık ekle..." maxlength="120" />
     </div>
     <div class="overlay-topbar">
       <button class="icon-btn" id="close-camera-btn">✕</button>
       <button class="icon-btn hidden" id="switch-camera-btn" title="Kamerayı değiştir">🔄</button>
     </div>
+    <div class="filter-strip hidden" id="filter-strip"></div>
     <div class="camera-controls" id="shutter-controls">
       <button class="shutter-btn" id="shutter-btn"></button>
     </div>
@@ -112,9 +122,20 @@
     </div>
   </div>
 
+  <!-- Chat background picker (Plus) -->
+  <div class="bg-picker-overlay hidden" id="bg-picker-overlay">
+    <div class="bg-picker-sheet">
+      <h3>Sohbet Arka Planı ✨ Plus</h3>
+      <div class="bg-swatches" id="bg-swatches"></div>
+      <button class="primary-btn" id="bg-picker-close-btn">Kapat</button>
+    </div>
+  </div>
+
   <div class="toast-stack" id="toast-stack"></div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script src="/js/filters.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

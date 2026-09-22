@@ -13,6 +13,8 @@ let cameraStream = null;
 let capturedDataUrl = null;
 let currentFacingMode = 'user';
 let pendingViewerTimer = null;
+let currentFilterId = 'none';
+let chatBackgrounds = [];
 
 const els = {};
 
@@ -77,16 +79,21 @@ async function init() {
     return;
   }
   me = meRes.user;
-  $('my-name').textContent = me.displayName;
-  $('my-username').textContent = '@' + me.username;
-  const av = $('my-avatar');
-  av.style.background = me.avatarColor;
-  av.textContent = initials(me.displayName);
+  applyMeUI();
 
   connectSocket();
   bindUI();
   await Promise.all([loadFriends(), loadInbox()]);
   renderSidebar();
+}
+
+function applyMeUI() {
+  $('my-name').innerHTML = escapeHtml(me.displayName) + (me.plusActive ? ' <span class="plus-badge">✨ PLUS</span>' : '');
+  $('my-username').textContent = '@' + me.username;
+  const av = $('my-avatar');
+  av.style.background = me.avatarColor;
+  av.textContent = initials(me.displayName);
+  $('admin-link-btn').classList.toggle('hidden', !me.isAdmin);
 }
 
 function connectSocket() {
@@ -123,6 +130,26 @@ function connectSocket() {
   socket.on('friend:accepted', ({ by }) => {
     toast(`${by.displayName} arkadaşlık isteğini kabul etti`);
     loadFriends().then(renderSidebar);
+  });
+
+  socket.on('friend:streak', ({ friendId, streak }) => {
+    const f = friendsData.accepted.find((x) => x.id === friendId);
+    if (f) f.streak = streak;
+    renderSidebar();
+    if (activeFriendId === friendId) updateChatStreakBadge();
+  });
+
+  socket.on('plus:updated', ({ plusUntil, reason, streak }) => {
+    me.plusUntil = plusUntil;
+    me.plusActive = !!(plusUntil && new Date(plusUntil).getTime() > Date.now());
+    applyMeUI();
+    if (reason === 'streak') {
+      toast(`🎉 ${streak} günlük streak! 1 haftalık Snapchat Plus kazandınız!`);
+    } else if (me.plusActive) {
+      toast('✨ Snapchat Plus üyeliğin güncellendi!');
+    } else {
+      toast('Snapchat Plus üyeliğin sona erdi.');
+    }
   });
 }
 
@@ -198,10 +225,13 @@ function renderSidebar() {
       const t = new Date(lastMsg.createdAt + 'Z').getTime();
       unread = lastMsg.senderId !== me.id && t > getLastRead(f.id);
     }
+    const streakHtml = f.streak > 0 ? `<span class="streak-badge">🔥${f.streak}</span>` : '';
+    const bestHtml = f.isBestFriend ? ' ⭐' : '';
+    const plusHtml = f.plusActive ? ' <span class="plus-badge">✨</span>' : '';
     row.innerHTML = `
       <div class="avatar sm" style="background:${f.avatarColor}">${initials(f.displayName)}</div>
       <div class="name-block">
-        <div class="n">${escapeHtml(f.displayName)}</div>
+        <div class="n">${escapeHtml(f.displayName)}${bestHtml}${plusHtml}${streakHtml}</div>
         <div class="preview${unread ? ' unread' : ''}">${escapeHtml(previewText)}</div>
       </div>
       <div class="time">${lastMsg ? timeLabel(lastMsg.createdAt) : ''}</div>
@@ -308,12 +338,44 @@ async function openConversation(friendId) {
   $('chat-panel').classList.add('open');
   $('sidebar').classList.add('chat-open');
 
+  updateChatStreakBadge();
+  updateBestFriendButton();
+  applyChatBackground();
+
   if (!messagesByFriend.has(friendId)) {
     const { messages } = await getJSON(`/api/messages/${friendId}`);
     messagesByFriend.set(friendId, messages);
   }
   renderMessages(messagesByFriend.get(friendId));
   renderSidebar();
+}
+
+function updateChatStreakBadge() {
+  const existing = document.getElementById('chat-streak-badge');
+  if (existing) existing.remove();
+  const f = friendsData.accepted.find((x) => x.id === activeFriendId);
+  if (f && f.streak > 0) {
+    const badge = document.createElement('span');
+    badge.id = 'chat-streak-badge';
+    badge.className = 'streak-badge';
+    badge.textContent = `🔥${f.streak}`;
+    $('chat-name').appendChild(badge);
+  }
+}
+
+function updateBestFriendButton() {
+  const btn = $('best-friend-btn');
+  const isBest = me.bestFriendId === activeFriendId;
+  btn.textContent = isBest ? '★' : '☆';
+  btn.classList.toggle('active', isBest);
+  btn.disabled = !me.plusActive;
+  btn.title = me.plusActive ? 'En sevdiğim arkadaş' : 'En sevdiğim arkadaş seçimi Plus üyelere özel';
+}
+
+function applyChatBackground() {
+  const box = $('messages');
+  box.className = 'messages';
+  if (me.chatBackground) box.classList.add(me.chatBackground);
 }
 
 function closeConversation() {
@@ -513,17 +575,38 @@ function closeSnapViewer() {
 
 /* ---------- Camera ---------- */
 
+function renderFilterStrip() {
+  const strip = $('filter-strip');
+  strip.innerHTML = '';
+  for (const f of SnapFilters.list) {
+    const chip = document.createElement('button');
+    chip.className = 'filter-chip' + (f.id === currentFilterId ? ' active' : '');
+    chip.textContent = f.emoji;
+    chip.title = f.label;
+    chip.addEventListener('click', () => {
+      currentFilterId = f.id;
+      strip.querySelectorAll('.filter-chip').forEach((c) => c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+    strip.appendChild(chip);
+  }
+  strip.classList.remove('hidden');
+}
+
 function openCamera() {
   $('camera-overlay').classList.remove('hidden');
   $('camera-permission').classList.remove('hidden');
   $('camera-video').classList.add('hidden');
+  $('camera-canvas').classList.add('hidden');
   $('captured-image').classList.add('hidden');
   $('snap-caption').classList.add('hidden');
   $('snap-caption').value = '';
   $('shutter-controls').classList.remove('hidden');
   $('preview-controls').classList.add('hidden');
+  $('filter-strip').classList.add('hidden');
   $('camera-error').textContent = '';
   capturedDataUrl = null;
+  currentFilterId = 'none';
 
   if (navigator.permissions && navigator.permissions.query) {
     navigator.permissions.query({ name: 'camera' }).then((status) => {
@@ -541,15 +624,35 @@ async function requestCamera() {
     });
     $('camera-permission').classList.add('hidden');
     const video = $('camera-video');
+    const canvas = $('camera-canvas');
     video.srcObject = cameraStream;
-    video.classList.remove('hidden');
+    await new Promise((resolve) => {
+      if (video.readyState >= 2 && video.videoWidth) return resolve();
+      video.onloadedmetadata = () => resolve();
+    });
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.classList.remove('hidden');
     $('switch-camera-btn').classList.remove('hidden');
+
+    SnapFilters.start(video, canvas, {
+      getFilterId: () => currentFilterId,
+      getFacingMode: () => currentFacingMode,
+    });
+    renderFilterStrip();
+    if (!SnapFilters.isLoaded()) {
+      $('filter-loading').classList.remove('hidden');
+      SnapFilters.loadModels()
+        .catch(() => toast('Filtreler yüklenemedi, ağ bağlantını kontrol et.'))
+        .finally(() => $('filter-loading').classList.add('hidden'));
+    }
   } catch (err) {
     $('camera-error').textContent = 'Kamera izni reddedildi veya kamera bulunamadı. Tarayıcı ayarlarından izin verip tekrar dene.';
   }
 }
 
 function stopCamera() {
+  SnapFilters.stop();
   if (cameraStream) {
     cameraStream.getTracks().forEach((t) => t.stop());
     cameraStream = null;
@@ -563,20 +666,11 @@ function closeCamera() {
 }
 
 function captureSnap() {
-  const video = $('camera-video');
-  if (!video.videoWidth) return;
-  const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext('2d');
-  if (currentFacingMode === 'user') {
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-  }
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  capturedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+  const canvas = $('camera-canvas');
+  if (!canvas.width) return;
+  capturedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-  video.classList.add('hidden');
+  canvas.classList.add('hidden');
   stopCamera();
   const img = $('captured-image');
   img.src = capturedDataUrl;
@@ -584,6 +678,7 @@ function captureSnap() {
   $('snap-caption').classList.remove('hidden');
   $('shutter-controls').classList.add('hidden');
   $('preview-controls').classList.remove('hidden');
+  $('filter-strip').classList.add('hidden');
   $('switch-camera-btn').classList.add('hidden');
 }
 
@@ -600,34 +695,98 @@ async function sendSnap() {
   if (!capturedDataUrl || !activeFriendId) return;
   const btn = $('send-snap-btn');
   btn.disabled = true;
+  const caption = $('snap-caption').value.trim();
+  await sendSnapImage(capturedDataUrl, caption);
+  btn.disabled = false;
+  closeCamera();
+}
+
+/* ---------- Best friend / chat background (Plus) ---------- */
+
+async function toggleBestFriend() {
+  if (!me.plusActive) { toast('En sevdiğim arkadaş seçimi Snapchat Plus üyelerine özel.'); return; }
+  if (!activeFriendId) return;
+  const isBest = me.bestFriendId === activeFriendId;
+  const newId = isBest ? null : activeFriendId;
   try {
-    const caption = $('snap-caption').value.trim();
+    const { user } = await postJSON('/api/profile/best-friend', { friendId: newId });
+    me.bestFriendId = user.bestFriendId;
+    updateBestFriendButton();
+    await loadFriends();
+    renderSidebar();
+    toast(isBest ? 'En sevdiğin arkadaş kaldırıldı.' : 'En sevdiğin arkadaş olarak ayarlandı ⭐');
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+async function openBgPicker() {
+  if (!me.plusActive) { toast('Sohbet arka planları Snapchat Plus üyelerine özel.'); return; }
+  if (!chatBackgrounds.length) {
+    const { backgrounds } = await getJSON('/api/profile/chat-backgrounds');
+    chatBackgrounds = backgrounds;
+  }
+  const grid = $('bg-swatches');
+  grid.innerHTML = '';
+  const noneSwatch = document.createElement('div');
+  noneSwatch.className = 'bg-swatch none' + (!me.chatBackground ? ' selected' : '');
+  noneSwatch.textContent = 'Yok';
+  noneSwatch.addEventListener('click', () => chooseBackground(null));
+  grid.appendChild(noneSwatch);
+  for (const bg of chatBackgrounds) {
+    const el = document.createElement('div');
+    el.className = `bg-swatch bg-${bg}` + (me.chatBackground === bg ? ' selected' : '');
+    el.addEventListener('click', () => chooseBackground(bg));
+    grid.appendChild(el);
+  }
+  $('bg-picker-overlay').classList.remove('hidden');
+}
+
+async function chooseBackground(bg) {
+  try {
+    const { user } = await postJSON('/api/profile/chat-background', { background: bg });
+    me.chatBackground = user.chatBackground;
+    applyChatBackground();
+    $('bg-picker-overlay').classList.add('hidden');
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+/* ---------- Upload photo from gallery ---------- */
+
+function handleUploadPhoto(file) {
+  if (!file || !activeFriendId) return;
+  const reader = new FileReader();
+  reader.onload = () => sendSnapImage(reader.result, '');
+  reader.readAsDataURL(file);
+}
+
+async function sendSnapImage(dataUrl, caption) {
+  if (!dataUrl || !activeFriendId) return;
+  try {
     const { message } = await postJSON('/api/messages', {
       receiverId: activeFriendId,
       type: 'snap',
-      imageData: capturedDataUrl,
+      imageData: dataUrl,
       caption,
       replyToId: replyingTo ? replyingTo.id : null,
     });
-    localImageCache.set(message.id, capturedDataUrl);
+    localImageCache.set(message.id, dataUrl);
     message.hasImage = true;
     const isNew = addMessageIfNew(activeFriendId, message);
     inboxByFriend.set(activeFriendId, message);
     if (isNew) {
       appendMessageDOM(message);
     } else {
-      // socket echo already rendered this row before the HTTP response resolved;
-      // refresh it now that the locally-cached snap image is available.
       const row = document.querySelector(`[data-msg-id="${message.id}"]`);
       if (row) updateSnapCardEl(row, message);
     }
     replyingTo = null;
     updateReplyBanner();
     renderSidebar();
-    closeCamera();
   } catch (e) {
     toast(e.message);
-    btn.disabled = false;
   }
 }
 
@@ -667,6 +826,18 @@ function bindUI() {
   $('switch-camera-btn').addEventListener('click', switchCamera);
 
   $('viewer-close-btn').addEventListener('click', closeSnapViewer);
+
+  $('admin-link-btn').addEventListener('click', () => { window.location.href = '/admin.html'; });
+  $('best-friend-btn').addEventListener('click', toggleBestFriend);
+  $('bg-picker-btn').addEventListener('click', openBgPicker);
+  $('bg-picker-close-btn').addEventListener('click', () => $('bg-picker-overlay').classList.add('hidden'));
+
+  $('upload-photo-btn').addEventListener('click', () => $('upload-photo-input').click());
+  $('upload-photo-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    handleUploadPhoto(file);
+    e.target.value = '';
+  });
 }
 
 init();

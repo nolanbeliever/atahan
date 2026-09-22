@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>Snap • Admin</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👻</text></svg>" />
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body class="admin-body">
+  <div class="admin-wrap">
+    <header class="admin-header">
+      <div class="admin-title">
+        <span class="ghost">👻</span>
+        <h1>Admin Paneli</h1>
+      </div>
+      <a href="/app.html" class="pill-btn add" style="text-decoration:none;">← Uygulamaya dön</a>
+    </header>
+
+    <p class="admin-hint" id="admin-hint">Yükleniyor…</p>
+
+    <div class="auth-card" id="change-password-card" style="max-width:360px; margin-bottom:24px;">
+      <h3 style="margin-top:0;">Kendi şifreni değiştir</h3>
+      <form id="change-password-form" class="auth-form">
+        <input type="password" id="cp-current" placeholder="Mevcut şifre" autocomplete="current-password" required />
+        <input type="password" id="cp-new" placeholder="Yeni şifre (en az 6 karakter)" autocomplete="new-password" required />
+        <p class="auth-error" id="cp-error"></p>
+        <button type="submit" class="primary-btn">Şifreyi Güncelle</button>
+      </form>
+    </div>
+
+    <table class="admin-table hidden" id="admin-table">
+      <thead>
+        <tr>
+          <th>Kullanıcı</th>
+          <th>Rol</th>
+          <th>Plus Durumu</th>
+          <th>İşlem</th>
+        </tr>
+      </thead>
+      <tbody id="admin-rows"></tbody>
+    </table>
+  </div>
+
+  <div class="toast-stack" id="toast-stack"></div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>

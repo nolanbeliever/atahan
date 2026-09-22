@@ -15,6 +15,15 @@ const store = require('./store');
 const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
+// Auto-provisioned admin account. Override via env vars in production — these defaults
+// are committed to a public repo, so anyone can read them.
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'adminruhi';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'hdabla';
+store.ensureAdminAccount({ username: ADMIN_USERNAME, displayName: 'Admin', password: ADMIN_PASSWORD });
+
+const PLUS_STREAK_MILESTONE_DAYS = 7;
+const CHAT_BACKGROUNDS = ['gradient-sunset', 'gradient-ocean', 'gradient-mint', 'gradient-berry', 'stars', 'confetti'];
+
 // iOS Safari only exposes the camera (getUserMedia) on a secure context: HTTPS, or the
 // literal hostname "localhost". Plain http://<lan-ip>:3000 will not work from an iPhone.
 // Drop a cert/key at certs/cert.pem + certs/key.pem (e.g. via mkcert) to serve HTTPS instead.
@@ -45,6 +54,18 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function requireAdmin(req, res, next) {
+  const user = req.session.userId && store.findUserById(req.session.userId);
+  if (!user || !user.is_admin) return res.status(403).json({ error: 'Bu alana erişimin yok.' });
+  next();
+}
+
+function requirePlus(req, res, next) {
+  const user = store.findUserById(req.session.userId);
+  if (!store.isPlusActive(user)) return res.status(403).json({ error: 'Bu özellik yalnızca Snapchat Plus üyeleri içindir.' });
+  next();
+}
+
 // ---------- Auth ----------
 
 app.post('/api/auth/register', (req, res) => {
@@ -64,7 +85,7 @@ app.post('/api/auth/register', (req, res) => {
   const passwordHash = bcrypt.hashSync(password, 10);
   const user = store.createUser({ username, displayName, passwordHash });
   req.session.userId = user.id;
-  res.json({ user: store.publicUser(user) });
+  res.json({ user: store.privateUser(user) });
 });
 
 app.post('/api/auth/login', (req, res) => {
@@ -74,7 +95,7 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json({ error: 'Kullanıcı adı veya şifre hatalı.' });
   }
   req.session.userId = user.id;
-  res.json({ user: store.publicUser(user) });
+  res.json({ user: store.privateUser(user) });
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -84,7 +105,21 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/api/auth/me', (req, res) => {
   if (!req.session.userId) return res.json({ user: null });
   const user = store.findUserById(req.session.userId);
-  res.json({ user: store.publicUser(user) });
+  if (!user) return res.json({ user: null });
+  res.json({ user: store.privateUser(user) });
+});
+
+app.post('/api/auth/change-password', requireAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  const user = store.findUserById(req.session.userId);
+  if (!bcrypt.compareSync(currentPassword || '', user.password_hash)) {
+    return res.status(401).json({ error: 'Mevcut şifre yanlış.' });
+  }
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'Yeni şifre en az 6 karakter olmalı.' });
+  }
+  store.updatePasswordHash(user.id, bcrypt.hashSync(newPassword, 10));
+  res.json({ ok: true });
 });
 
 // ---------- Users / Friends ----------
@@ -117,6 +152,52 @@ app.post('/api/friends/:id/respond', requireAuth, (req, res) => {
     io.to(`user:${otherId}`).emit('friend:accepted', { by: store.publicUser(store.findUserById(req.session.userId)) });
   }
   res.json({ ok: true, row });
+});
+
+// ---------- Profile (Plus perks) ----------
+
+app.get('/api/profile/chat-backgrounds', requireAuth, (req, res) => {
+  res.json({ backgrounds: CHAT_BACKGROUNDS });
+});
+
+app.post('/api/profile/chat-background', requireAuth, requirePlus, (req, res) => {
+  const { background } = req.body || {};
+  if (background !== null && !CHAT_BACKGROUNDS.includes(background)) {
+    return res.status(400).json({ error: 'Geçersiz arka plan.' });
+  }
+  const user = store.setChatBackground(req.session.userId, background);
+  res.json({ user: store.privateUser(user) });
+});
+
+app.post('/api/profile/best-friend', requireAuth, requirePlus, (req, res) => {
+  const { friendId } = req.body || {};
+  const fid = friendId ? Number(friendId) : null;
+  if (fid && !store.areFriends(req.session.userId, fid)) {
+    return res.status(400).json({ error: 'Yalnızca arkadaşlarını en sevdiğin arkadaş olarak seçebilirsin.' });
+  }
+  const user = store.setBestFriend(req.session.userId, fid);
+  res.json({ user: store.privateUser(user) });
+});
+
+// ---------- Admin ----------
+
+app.get('/api/admin/users', requireAdmin, (req, res) => {
+  res.json({ users: store.listAllUsersForAdmin() });
+});
+
+app.post('/api/admin/users/:id/grant-plus', requireAdmin, (req, res) => {
+  const days = Number((req.body || {}).days) || 7;
+  const user = store.grantPlus(Number(req.params.id), days);
+  if (!user) return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+  io.to(`user:${user.id}`).emit('plus:updated', { plusUntil: user.plus_until });
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/users/:id/revoke-plus', requireAdmin, (req, res) => {
+  const user = store.revokePlus(Number(req.params.id));
+  if (!user) return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+  io.to(`user:${user.id}`).emit('plus:updated', { plusUntil: null });
+  res.json({ ok: true });
 });
 
 // ---------- Messages / Snaps ----------
@@ -164,6 +245,27 @@ app.post('/api/messages', requireAuth, (req, res) => {
   const payload = store.publicMessage(msg);
   io.to(`user:${rid}`).emit('message:new', payload);
   io.to(`user:${senderId}`).emit('message:new', payload);
+
+  const streakResult = store.recordMessageForStreak(senderId, rid);
+  if (streakResult) {
+    io.to(`user:${senderId}`).emit('friend:streak', { friendId: rid, streak: streakResult.streak });
+    io.to(`user:${rid}`).emit('friend:streak', { friendId: senderId, streak: streakResult.streak });
+    if (streakResult.milestoneHit) {
+      const userA = store.grantPlus(streakResult.userA, PLUS_STREAK_MILESTONE_DAYS);
+      const userB = store.grantPlus(streakResult.userB, PLUS_STREAK_MILESTONE_DAYS);
+      io.to(`user:${streakResult.userA}`).emit('plus:updated', {
+        plusUntil: userA.plus_until,
+        reason: 'streak',
+        streak: streakResult.streak,
+      });
+      io.to(`user:${streakResult.userB}`).emit('plus:updated', {
+        plusUntil: userB.plus_until,
+        reason: 'streak',
+        streak: streakResult.streak,
+      });
+    }
+  }
+
   res.json({ message: payload });
 });
 

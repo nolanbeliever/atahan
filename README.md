@@ -7,10 +7,19 @@ Snapchat'ten esinlenilmiş, tarayıcıda çalışan bir web uygulaması.
 - Kullanıcı kaydı ve girişi
 - Kullanıcı adıyla arkadaş arama, arkadaşlık isteği gönderme/kabul etme
 - Kamera izni isteme; izin verilirse canlı kamera açılır
+- **Yüz takipli kamera filtreleri** (gözlük, çiçek taç, köpek, kedi) — face-api.js ile gerçek zamanlı yüz takibi, çekilen snap'e gömülü olarak kaydedilir
 - Fotoğraf çekip **snap** olarak arkadaşa gönderme (tek seferlik görüntüleme — açıldıktan sonra sunucudan silinir)
+- Galeriden fotoğraf yükleyip snap olarak gönderme
 - Metin mesajı gönderme
 - Hem snap'lere hem mesajlara **yanıt verme**
+- **Streak**: karşılıklı her gün snap/mesaj atan arkadaşlar için 🔥 seri sayacı; her 50 günde bir taraflara 1 haftalık Snapchat Plus hediye edilir
+- **Snapchat Plus**: özel sohbet arka planları, en sevdiğin arkadaşı (⭐) seçme
+- **Admin paneli** (`/admin.html`): kullanıcılara elle Plus verme/kaldırma
 - Socket.IO ile gerçek zamanlı teslimat ve bildirimler
+
+### ⚠️ Admin hesabı hakkında
+
+Sunucu ilk açılışta otomatik olarak `adminruhi` / `hdabla` bilgileriyle bir admin hesabı oluşturur (istersen `ADMIN_USERNAME` / `ADMIN_PASSWORD` ortam değişkenleriyle değiştirebilirsin). Bu repo **public** olduğu için varsayılan şifre GitHub'da herkese açıktır — deploy ettikten hemen sonra admin hesabıyla giriş yapıp `/admin.html` sayfasındaki "Kendi şifreni değiştir" formundan şifreyi değiştir.
 
 ## Çalıştırma
 
@@ -63,4 +72,5 @@ iOS Safari, kamera erişimine yalnızca **HTTPS** veya gerçek `localhost` üzer
 
 - `server/` — Express + Socket.IO backend, SQLite (better-sqlite3) veritabanı
 - `public/` — Vanilla HTML/CSS/JS frontend (derleme adımı yok), `manifest.webmanifest` ve `img/icon-180.png` "Ana Ekrana Ekle" desteği için
+- `public/js/filters.js` — yüz takipli kamera filtreleri; [face-api.js](https://github.com/justadudewhohacks/face-api.js) kütüphanesini ve model dosyalarını jsDelivr CDN'den kullanıcının kendi tarayıcısında yükler (internet bağlantısı gerekir; yüklenemezse kamera yine çalışır, sadece filtreler pasif kalır)
 - `certs/` — (gitignore'lu) yerel HTTPS için mkcert sertifikaları, yukarıdaki adımlarla kendin oluşturursun
