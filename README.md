@@ -1,4 +1,4 @@
-# Snap
+# Snoop
 
 Snapchat'ten esinlenilmiş, tarayıcıda çalışan bir web uygulaması.
 
@@ -9,13 +9,13 @@ Snapchat'ten esinlenilmiş, tarayıcıda çalışan bir web uygulaması.
 - Kamera izni isteme; izin verilirse canlı kamera açılır
 - **Yüz takipli kamera filtreleri** — face-api.js ile gerçek zamanlı yüz takibi, çekilen snap'e gömülü olarak kaydedilir
   - Ücretsiz: gözlük, çiçek taç, köpek, kedi, tavşan, bıyık
-  - Snapchat Plus'a özel: taç 👑, melek halosu 😇, şeytan boynuzu 😈, alev 🔥
+  - Snoop Plus'a özel: taç 👑, melek halosu 😇, şeytan boynuzu 😈, alev 🔥
 - Fotoğraf çekip **snap** olarak arkadaşa gönderme (tek seferlik görüntüleme — açıldıktan sonra sunucudan silinir)
 - Galeriden fotoğraf yükleyip snap olarak gönderme
 - Metin mesajı gönderme
 - Hem snap'lere hem mesajlara **yanıt verme**
-- **Streak**: karşılıklı her gün snap/mesaj atan arkadaşlar için 🔥 seri sayacı; her 50 günde bir taraflara 1 haftalık Snapchat Plus hediye edilir
-- **Snapchat Plus**: özel sohbet arka planları, en sevdiğin arkadaşı (⭐) seçme
+- **Streak**: karşılıklı her gün snap/mesaj atan arkadaşlar için 🔥 seri sayacı; her 50 günde bir taraflara 1 haftalık Snoop Plus hediye edilir
+- **Snoop Plus**: özel sohbet arka planları, en sevdiğin arkadaşı (⭐) seçme
 - **Admin paneli** (`/admin.html`): kullanıcılara elle Plus verme/kaldırma
 - Socket.IO ile gerçek zamanlı teslimat ve bildirimler
 

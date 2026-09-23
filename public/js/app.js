@@ -144,11 +144,11 @@ function connectSocket() {
     me.plusActive = !!(plusUntil && new Date(plusUntil).getTime() > Date.now());
     applyMeUI();
     if (reason === 'streak') {
-      toast(`🎉 ${streak} günlük streak! 1 haftalık Snapchat Plus kazandınız!`);
+      toast(`🎉 ${streak} günlük streak! 1 haftalık Snoop Plus kazandınız!`);
     } else if (me.plusActive) {
-      toast('✨ Snapchat Plus üyeliğin güncellendi!');
+      toast('✨ Snoop Plus üyeliğin güncellendi!');
     } else {
-      toast('Snapchat Plus üyeliğin sona erdi.');
+      toast('Snoop Plus üyeliğin sona erdi.');
     }
   });
 }
@@ -214,7 +214,7 @@ function renderSidebar() {
     const lastMsg = inboxByFriend.get(f.id);
     const row = document.createElement('div');
     row.className = 'friend-row' + (activeFriendId === f.id ? ' active' : '');
-    let previewText = 'Sohbete başla 👻';
+    let previewText = 'Sohbete başla 🔍';
     let unread = false;
     if (lastMsg) {
       if (lastMsg.type === 'snap') {
@@ -587,7 +587,7 @@ function renderFilterStrip() {
     const chip = document.createElement('button');
     chip.className = 'filter-chip' + (f.id === currentFilterId ? ' active' : '') + (locked ? ' locked' : '');
     chip.textContent = f.emoji;
-    chip.title = locked ? `${f.label} — Snapchat Plus'a özel` : f.label;
+    chip.title = locked ? `${f.label} — Snoop Plus'a özel` : f.label;
     if (locked) {
       const badge = document.createElement('span');
       badge.className = 'filter-lock-badge';
@@ -598,7 +598,7 @@ function renderFilterStrip() {
       if (locked) {
         await refreshMe();
         if (f.plus && !me.plusActive) {
-          toast(`${f.label} filtresi Snapchat Plus'a özel ✨`);
+          toast(`${f.label} filtresi Snoop Plus'a özel ✨`);
           return;
         }
         renderFilterStrip(); // plus turned out to be active after refresh; redraw unlocked
@@ -740,7 +740,7 @@ async function refreshMe() {
 
 async function toggleBestFriend() {
   await refreshMe();
-  if (!me.plusActive) { toast('En sevdiğim arkadaş seçimi Snapchat Plus üyelerine özel.'); return; }
+  if (!me.plusActive) { toast('En sevdiğim arkadaş seçimi Snoop Plus üyelerine özel.'); return; }
   if (!activeFriendId) return;
   const isBest = me.bestFriendId === activeFriendId;
   const newId = isBest ? null : activeFriendId;
@@ -758,7 +758,7 @@ async function toggleBestFriend() {
 
 async function openBgPicker() {
   await refreshMe();
-  if (!me.plusActive) { toast('Sohbet arka planları Snapchat Plus üyelerine özel.'); return; }
+  if (!me.plusActive) { toast('Sohbet arka planları Snoop Plus üyelerine özel.'); return; }
   if (!chatBackgrounds.length) {
     const { backgrounds } = await getJSON('/api/profile/chat-backgrounds');
     chatBackgrounds = backgrounds;

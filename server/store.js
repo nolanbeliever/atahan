@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const db = require('./db');
 
-const AVATAR_COLORS = ['#FFFC00', '#7C4DFF', '#00C2A8', '#FF6B6B', '#4D9DE0', '#FF8FAB', '#F4A259'];
+const AVATAR_COLORS = ['#00E5B8', '#7C4DFF', '#00C2A8', '#FF6B6B', '#4D9DE0', '#FF8FAB', '#F4A259'];
 
 function randomColor() {
   return AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];

@@ -62,7 +62,7 @@ function requireAdmin(req, res, next) {
 
 function requirePlus(req, res, next) {
   const user = store.findUserById(req.session.userId);
-  if (!store.isPlusActive(user)) return res.status(403).json({ error: 'Bu özellik yalnızca Snapchat Plus üyeleri içindir.' });
+  if (!store.isPlusActive(user)) return res.status(403).json({ error: 'Bu özellik yalnızca Snoop Plus üyeleri içindir.' });
   next();
 }
 
@@ -297,7 +297,7 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, () => {
   const scheme = useHttps ? 'https' : 'http';
-  console.log(`Snap web sunucusu ${scheme}://localhost:${PORT} adresinde çalışıyor`);
+  console.log(`Snoop web sunucusu ${scheme}://localhost:${PORT} adresinde çalışıyor`);
   if (!useHttps) {
     console.log(
       'Not: iPhone/Safari, yerel ağ IP\'si üzerinden (http://192.168.x.x) kamera erişimine izin vermez. ' +

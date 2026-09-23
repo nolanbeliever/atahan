@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: snap
+    name: snoop
     env: node
     plan: free
     buildCommand: npm install

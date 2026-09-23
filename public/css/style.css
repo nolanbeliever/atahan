@@ -1,5 +1,5 @@
 :root {
-  --yellow: #FFFC00;
+  --accent: #00E5B8;
   --bg: #0e0e10;
   --bg-elevated: #17171a;
   --bg-card: #1f1f23;
@@ -41,7 +41,7 @@ input { font-family: inherit; }
 
 .auth-logo { text-align: center; margin-bottom: 24px; }
 .auth-logo .ghost { font-size: 56px; display: block; }
-.auth-logo h1 { color: var(--yellow); font-size: 32px; margin: 4px 0 0; letter-spacing: 1px; }
+.auth-logo h1 { color: var(--accent); font-size: 32px; margin: 4px 0 0; letter-spacing: 1px; }
 
 .auth-card {
   background: var(--bg-elevated);
@@ -61,7 +61,7 @@ input { font-family: inherit; }
   font-weight: 600;
   font-size: 14px;
 }
-.tab-btn.active { color: var(--yellow); border-bottom-color: var(--yellow); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 .auth-form { display: flex; flex-direction: column; gap: 10px; }
 
@@ -74,10 +74,10 @@ input { font-family: inherit; }
   font-size: 15px;
   outline: none;
 }
-.auth-form input:focus { border-color: var(--yellow); }
+.auth-form input:focus { border-color: var(--accent); }
 
 .primary-btn {
-  background: var(--yellow);
+  background: var(--accent);
   color: #14140f;
   border: none;
   border-radius: 10px;
@@ -171,7 +171,7 @@ input { font-family: inherit; }
   color: var(--text);
   outline: none;
 }
-.search-box input:focus { border-color: var(--yellow); }
+.search-box input:focus { border-color: var(--accent); }
 
 .search-results {
   position: absolute;
@@ -205,7 +205,7 @@ input { font-family: inherit; }
   font-size: 12px;
   font-weight: 700;
 }
-.pill-btn.accept { background: var(--yellow); color: #14140f; }
+.pill-btn.accept { background: var(--accent); color: #14140f; }
 .pill-btn.decline { background: var(--bg); color: var(--text-dim); border: 1px solid var(--border); }
 .pill-btn.add { background: var(--purple); color: white; }
 .pill-btn:disabled { opacity: 0.5; }
@@ -233,7 +233,7 @@ input { font-family: inherit; }
 .friend-row .name-block { flex: 1; min-width: 0; cursor: pointer; }
 .friend-row .n { font-weight: 700; font-size: 15px; }
 .friend-row .preview { color: var(--text-dim); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.friend-row .preview.unread { color: var(--yellow); font-weight: 700; }
+.friend-row .preview.unread { color: var(--accent); font-weight: 700; }
 .friend-row .time { font-size: 11px; color: var(--text-dim); }
 
 .empty-hint { padding: 20px 16px; color: var(--text-dim); font-size: 13px; text-align: center; }
@@ -318,7 +318,7 @@ input { font-family: inherit; }
   gap: 8px;
   padding: 12px 16px;
   border-radius: 16px;
-  background: var(--yellow);
+  background: var(--accent);
   color: #14140f;
   font-weight: 700;
   font-size: 13.5px;
@@ -327,7 +327,7 @@ input { font-family: inherit; }
 }
 .snap-card.opened { background: var(--bg-card); color: var(--text-dim); cursor: default; font-weight: 600; }
 .msg-row.own .snap-card { background: var(--bg-card); color: var(--text-dim); cursor: default; }
-.msg-row.own .snap-card.pending { color: var(--yellow); }
+.msg-row.own .snap-card.pending { color: var(--accent); }
 
 .msg-meta { font-size: 10.5px; color: var(--text-dim); margin-top: 3px; }
 .msg-actions { display: flex; gap: 10px; margin-top: 3px; }
@@ -338,7 +338,7 @@ input { font-family: inherit; }
   font-size: 11px;
   padding: 0;
 }
-.msg-actions button:hover { color: var(--yellow); }
+.msg-actions button:hover { color: var(--accent); }
 
 .reply-banner {
   display: flex;
@@ -374,7 +374,7 @@ input { font-family: inherit; }
 .composer input[type="text"]:focus { border-color: var(--purple); }
 
 .composer .cam-btn {
-  background: var(--yellow);
+  background: var(--accent);
   color: #14140f;
   border: none;
   width: 42px;
@@ -521,7 +521,7 @@ input { font-family: inherit; }
 }
 .snap-viewer img { width: 100%; height: 100%; object-fit: contain; flex: 1; min-height: 0; background: black; }
 .snap-viewer .timer-bar { height: 3px; background: rgba(255,255,255,0.2); }
-.snap-viewer .timer-fill { height: 100%; background: var(--yellow); width: 100%; transition: width linear; }
+.snap-viewer .timer-fill { height: 100%; background: var(--accent); width: 100%; transition: width linear; }
 .snap-viewer .viewer-caption {
   position: absolute;
   bottom: 90px;
@@ -582,7 +582,7 @@ input { font-family: inherit; }
 }
 .admin-title { display: flex; align-items: center; gap: 10px; }
 .admin-title .ghost { font-size: 32px; }
-.admin-title h1 { font-size: 22px; color: var(--yellow); margin: 0; }
+.admin-title h1 { font-size: 22px; color: var(--accent); margin: 0; }
 .admin-hint { color: var(--text-dim); font-size: 14px; }
 
 .admin-table {
@@ -666,7 +666,7 @@ input { font-family: inherit; }
   line-height: 1;
   flex-shrink: 0;
 }
-.best-friend-star.active { color: var(--yellow); }
+.best-friend-star.active { color: var(--accent); }
 .best-friend-star.dim { opacity: 0.3; }
 
 /* ---------- Chat background picker ---------- */
@@ -702,7 +702,7 @@ input { font-family: inherit; }
   cursor: pointer;
   position: relative;
 }
-.bg-swatch.selected { border-color: var(--yellow); }
+.bg-swatch.selected { border-color: var(--accent); }
 .bg-swatch.none { background: var(--bg-card); display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 12px; }
 
 .bg-gradient-sunset { background: linear-gradient(135deg, #ff9a56, #ff6b9d, #a855f7); }
@@ -713,7 +713,7 @@ input { font-family: inherit; }
 .bg-confetti {
   background:
     radial-gradient(circle, #ff5a5a 3px, transparent 4px) 0 0/24px 24px,
-    radial-gradient(circle, #FFFC00 3px, transparent 4px) 12px 12px/24px 24px,
+    radial-gradient(circle, #00E5B8 3px, transparent 4px) 12px 12px/24px 24px,
     radial-gradient(circle, #7C4DFF 3px, transparent 4px) 6px 18px/24px 24px,
     #17171a;
 }
@@ -734,7 +734,7 @@ input { font-family: inherit; }
 .messages.bg-confetti {
   background:
     radial-gradient(circle, #ff5a5a22 3px, transparent 4px) 0 0/26px 26px,
-    radial-gradient(circle, #FFFC0022 3px, transparent 4px) 13px 13px/26px 26px,
+    radial-gradient(circle, #00E5B822 3px, transparent 4px) 13px 13px/26px 26px,
     radial-gradient(circle, #7C4DFF22 3px, transparent 4px) 6px 19px/26px 26px,
     var(--bg);
 }
@@ -767,7 +767,7 @@ input { font-family: inherit; }
   color: white;
   position: relative;
 }
-.filter-chip.active { border-color: var(--yellow); background: rgba(255,252,0,0.2); }
+.filter-chip.active { border-color: var(--accent); background: rgba(0,229,184,0.2); }
 .filter-chip.locked { opacity: 0.55; border-color: rgba(255,215,0,0.4); }
 .filter-lock-badge {
   position: absolute;
