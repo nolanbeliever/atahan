@@ -201,6 +201,27 @@ app.post('/api/admin/users/:id/revoke-plus', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Gallery (private "Memories") ----------
+
+app.get('/api/gallery', requireAuth, (req, res) => {
+  res.json({ items: store.getGalleryItems(req.session.userId) });
+});
+
+app.post('/api/gallery', requireAuth, (req, res) => {
+  const { imageData, caption } = req.body || {};
+  if (!imageData || !imageData.startsWith('data:image/')) {
+    return res.status(400).json({ error: 'Geçersiz görüntü.' });
+  }
+  const item = store.addGalleryItem(req.session.userId, imageData, caption ? caption.trim() : null);
+  res.json({ item });
+});
+
+app.delete('/api/gallery/:id', requireAuth, (req, res) => {
+  const ok = store.deleteGalleryItem(Number(req.params.id), req.session.userId);
+  if (!ok) return res.status(404).json({ error: 'Bulunamadı.' });
+  res.json({ ok: true });
+});
+
 // ---------- Messages / Snaps ----------
 
 app.get('/api/inbox', requireAuth, (req, res) => {

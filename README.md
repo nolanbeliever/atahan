@@ -9,7 +9,8 @@ Snapchat'ten esinlenilmiş, tarayıcıda çalışan bir web uygulaması.
 - Kamera izni isteme; izin verilirse canlı kamera açılır
 - **69 yüz takipli kamera filtresi** — face-api.js ile gerçek zamanlı yüz takibi; gözlük/aksesuar, uçuşan emoji tacı, hayvan kulakları, baş aksesuarı, bıyık/ağız efektleri ve tam kare renk efektleri (siyah-beyaz, sepya, neon, sinematik…) motorlarından üretiliyor, çekilen snap'e gömülü kaydediliyor. 20 tanesi Snoop Plus'a özel.
 - Fotoğraf çekip **snap** olarak arkadaşa gönderme (tek seferlik görüntüleme — açıldıktan sonra sunucudan silinir)
-- Galeriden fotoğraf yükleyip snap olarak gönderme
+- Telefon galerisinden fotoğraf yükleyip snap olarak gönderme
+- **Kendi özel galerin** (🖼️): kamerada çektiğin fotoğrafı kimseye göndermeden, sadece kendine ait galerine kaydedebilirsin — sadece sen görürsün, istediğinde silebilirsin
 - Metin mesajı gönderme
 - Hem snap'lere hem mesajlara **yanıt verme**
 - **Streak**: karşılıklı her gün snap/mesaj atan arkadaşlar için 🔥 seri sayacı; her 50 günde bir taraflara 1 haftalık Snoop Plus hediye edilir

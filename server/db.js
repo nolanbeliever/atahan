@@ -50,8 +50,17 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS gallery_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    image_data TEXT NOT NULL,
+    caption TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_messages_pair ON messages(sender_id, receiver_id);
   CREATE INDEX IF NOT EXISTS idx_friendships_pair ON friendships(user_a, user_b);
+  CREATE INDEX IF NOT EXISTS idx_gallery_user ON gallery_items(user_id);
 `);
 
 // Idempotent migrations for columns added after the initial CREATE TABLE (existing

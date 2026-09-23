@@ -27,6 +27,7 @@
           </div>
         </div>
         <div style="display:flex; gap:8px;">
+          <button class="icon-btn" id="gallery-btn" title="Galerim">🖼️</button>
           <button class="icon-btn hidden" id="admin-link-btn" title="Admin paneli">🛠️</button>
           <button class="icon-btn" id="logout-btn" title="Çıkış yap">⎋</button>
         </div>
@@ -109,6 +110,7 @@
     </div>
     <div class="preview-controls hidden" id="preview-controls">
       <button class="retake-btn" id="retake-btn">↺ Tekrar Çek</button>
+      <button class="save-gallery-btn" id="save-gallery-btn" title="Galeriye kaydet">💾</button>
       <button class="send-snap-btn" id="send-snap-btn">Gönder ➤</button>
     </div>
   </div>
@@ -170,6 +172,27 @@
         <button class="icon-btn" id="game-active-close-btn">✕</button>
       </div>
       <div id="game-active-body"></div>
+    </div>
+  </div>
+
+  <!-- Gallery (private Memories) -->
+  <div class="overlay hidden" id="gallery-overlay">
+    <div class="overlay-topbar">
+      <button class="icon-btn" id="gallery-close-btn">✕</button>
+    </div>
+    <div class="gallery-body">
+      <h2 class="gallery-title">Galerim</h2>
+      <p class="empty-hint" id="gallery-empty-hint">Henüz kaydedilmiş fotoğrafın yok.</p>
+      <div class="gallery-grid" id="gallery-grid"></div>
+    </div>
+  </div>
+
+  <!-- Gallery full-size viewer -->
+  <div class="snap-viewer hidden" id="gallery-viewer">
+    <img id="gallery-viewer-image" alt="Galeri fotoğrafı" />
+    <div class="viewer-bottom">
+      <button class="icon-btn" id="gallery-viewer-delete-btn" title="Sil">🗑️</button>
+      <button class="icon-btn" id="gallery-viewer-close-btn">✕</button>
     </div>
   </div>
 

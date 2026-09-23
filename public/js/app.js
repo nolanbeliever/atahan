@@ -675,6 +675,7 @@ async function openCamera() {
   $('camera-error').textContent = '';
   capturedDataUrl = null;
   currentFilterId = 'none';
+  resetSaveGalleryButton();
   refreshMe(); // don't block camera opening on this; filter strip re-renders once it lands
 
   if (navigator.permissions && navigator.permissions.query) {
@@ -753,6 +754,7 @@ function captureSnap() {
   $('preview-controls').classList.remove('hidden');
   $('filter-strip').classList.add('hidden');
   $('switch-camera-btn').classList.add('hidden');
+  resetSaveGalleryButton();
 }
 
 function retakeSnap() {
@@ -761,7 +763,31 @@ function retakeSnap() {
   $('snap-caption').classList.add('hidden');
   $('preview-controls').classList.add('hidden');
   $('shutter-controls').classList.remove('hidden');
+  resetSaveGalleryButton();
   requestCamera();
+}
+
+function resetSaveGalleryButton() {
+  const btn = $('save-gallery-btn');
+  btn.disabled = false;
+  btn.classList.remove('saved');
+  btn.textContent = '💾';
+}
+
+async function saveToGallery() {
+  if (!capturedDataUrl) return;
+  const btn = $('save-gallery-btn');
+  btn.disabled = true;
+  try {
+    const caption = $('snap-caption').value.trim();
+    await postJSON('/api/gallery', { imageData: capturedDataUrl, caption });
+    btn.classList.add('saved');
+    btn.textContent = '✅';
+    toast('Galerine kaydedildi');
+  } catch (e) {
+    btn.disabled = false;
+    toast(e.message);
+  }
 }
 
 async function sendSnap() {
@@ -973,6 +999,60 @@ function handleUploadPhoto(file) {
   reader.readAsDataURL(file);
 }
 
+/* ---------- Gallery (private Memories) ---------- */
+
+let galleryItems = [];
+
+async function openGallery() {
+  $('gallery-overlay').classList.remove('hidden');
+  try {
+    const { items } = await getJSON('/api/gallery');
+    galleryItems = items;
+    renderGalleryGrid();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+function renderGalleryGrid() {
+  const grid = $('gallery-grid');
+  grid.innerHTML = '';
+  $('gallery-empty-hint').classList.toggle('hidden', galleryItems.length > 0);
+  for (const item of galleryItems) {
+    const img = document.createElement('img');
+    img.src = item.imageData;
+    img.loading = 'lazy';
+    img.addEventListener('click', () => openGalleryViewer(item));
+    grid.appendChild(img);
+  }
+}
+
+function openGalleryViewer(item) {
+  $('gallery-viewer').dataset.itemId = item.id;
+  $('gallery-viewer-image').src = item.imageData;
+  $('gallery-viewer').classList.remove('hidden');
+}
+
+function closeGalleryViewer() {
+  $('gallery-viewer').classList.add('hidden');
+  $('gallery-viewer-image').src = '';
+}
+
+async function deleteCurrentGalleryItem() {
+  const id = Number($('gallery-viewer').dataset.itemId);
+  if (!id) return;
+  try {
+    const res = await fetch(`/api/gallery/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Silinemedi, tekrar dene.');
+    galleryItems = galleryItems.filter((it) => it.id !== id);
+    renderGalleryGrid();
+    closeGalleryViewer();
+    toast('Fotoğraf silindi');
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 async function sendSnapImage(dataUrl, caption) {
   if (!dataUrl || !activeFriendId) return;
   try {
@@ -1060,6 +1140,12 @@ function bindUI() {
     pendingInviteId = null;
   });
   $('game-active-close-btn').addEventListener('click', () => closeActiveGame(true));
+
+  $('save-gallery-btn').addEventListener('click', saveToGallery);
+  $('gallery-btn').addEventListener('click', openGallery);
+  $('gallery-close-btn').addEventListener('click', () => $('gallery-overlay').classList.add('hidden'));
+  $('gallery-viewer-close-btn').addEventListener('click', closeGalleryViewer);
+  $('gallery-viewer-delete-btn').addEventListener('click', deleteCurrentGalleryItem);
 }
 
 init();

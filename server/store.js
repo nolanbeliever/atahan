@@ -303,6 +303,39 @@ function getInbox(userId) {
   return messages.lastPerFriend.all({ me: userId });
 }
 
+/* ---------- Gallery (private "Memories") ---------- */
+
+const gallery = {
+  insert: db.prepare(`INSERT INTO gallery_items (user_id, image_data, caption) VALUES (?, ?, ?)`),
+  byId: db.prepare(`SELECT * FROM gallery_items WHERE id = ?`),
+  forUser: db.prepare(`SELECT * FROM gallery_items WHERE user_id = ? ORDER BY created_at DESC, id DESC`),
+  delete: db.prepare(`DELETE FROM gallery_items WHERE id = ? AND user_id = ?`),
+};
+
+function publicGalleryItem(item) {
+  if (!item) return null;
+  return {
+    id: item.id,
+    imageData: item.image_data,
+    caption: item.caption,
+    createdAt: item.created_at,
+  };
+}
+
+function addGalleryItem(userId, imageData, caption) {
+  const info = gallery.insert.run(userId, imageData, caption || null);
+  return publicGalleryItem(gallery.byId.get(info.lastInsertRowid));
+}
+
+function getGalleryItems(userId) {
+  return gallery.forUser.all(userId).map(publicGalleryItem);
+}
+
+function deleteGalleryItem(id, userId) {
+  const result = gallery.delete.run(id, userId);
+  return result.changes > 0;
+}
+
 module.exports = {
   publicUser,
   privateUser,
@@ -329,4 +362,7 @@ module.exports = {
   setBestFriend,
   getStreakForPair,
   recordMessageForStreak,
+  addGalleryItem,
+  getGalleryItems,
+  deleteGalleryItem,
 };
