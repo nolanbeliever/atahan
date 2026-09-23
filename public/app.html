@@ -74,6 +74,7 @@
         <div class="composer">
           <button class="upload-btn" id="upload-photo-btn" title="Galeriden fotoğraf gönder">🖼️</button>
           <input type="file" id="upload-photo-input" accept="image/*" class="hidden" />
+          <button class="upload-btn" id="open-games-btn" title="Oyun oyna">🎮</button>
           <button class="cam-btn" id="open-camera-btn" title="Snap gönder">📷</button>
           <input type="text" id="text-input" placeholder="Mesaj yaz..." autocomplete="off" />
           <button class="send-btn" id="send-text-btn" disabled>➤</button>
@@ -131,11 +132,53 @@
     </div>
   </div>
 
+  <!-- Game picker -->
+  <div class="game-overlay hidden" id="game-picker-overlay">
+    <div class="game-sheet">
+      <div class="game-sheet-header">
+        <h3>Oyunlar 🎮</h3>
+        <button class="icon-btn" id="game-picker-close-btn">✕</button>
+      </div>
+      <div id="game-list"></div>
+    </div>
+  </div>
+
+  <!-- Incoming game invite -->
+  <div class="game-overlay hidden" id="game-invite-overlay">
+    <div class="game-sheet game-invite-sheet">
+      <p id="game-invite-text"></p>
+      <div class="game-invite-actions">
+        <button class="pill-btn decline" id="game-invite-decline-btn">Reddet</button>
+        <button class="pill-btn accept" id="game-invite-accept-btn">Kabul Et</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Waiting for opponent to accept -->
+  <div class="game-overlay hidden" id="game-waiting-overlay">
+    <div class="game-sheet game-invite-sheet">
+      <p id="game-waiting-text">Davet gönderildi, bekleniyor…</p>
+      <button class="pill-btn decline" id="game-waiting-cancel-btn">İptal</button>
+    </div>
+  </div>
+
+  <!-- Active game (solo or multiplayer) -->
+  <div class="game-overlay hidden" id="game-active-overlay">
+    <div class="game-active-sheet">
+      <div class="game-active-header">
+        <div id="game-active-title">Oyun</div>
+        <button class="icon-btn" id="game-active-close-btn">✕</button>
+      </div>
+      <div id="game-active-body"></div>
+    </div>
+  </div>
+
   <div class="toast-stack" id="toast-stack"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <script src="/js/filters.js"></script>
+  <script src="/js/games.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

@@ -16,6 +16,11 @@ let pendingViewerTimer = null;
 let currentFilterId = 'none';
 let chatBackgrounds = [];
 
+let activeGameSessionId = null;
+let activeGameCleanup = null;
+let pendingInviteId = null;
+let incomingInvite = null;
+
 const els = {};
 
 /* ---------- Utilities ---------- */
@@ -150,6 +155,48 @@ function connectSocket() {
     } else {
       toast('Snoop Plus üyeliğin sona erdi.');
     }
+  });
+
+  socket.on('game:invited', (data) => {
+    incomingInvite = data;
+    const label = SnoopGames.multiplayerGames.find((g) => g.id === data.gameType);
+    $('game-invite-text').textContent = `${data.from.displayName} seni "${label ? label.label : data.gameType}" (${data.difficulty}) oyununa davet etti!`;
+    $('game-invite-overlay').classList.remove('hidden');
+  });
+
+  socket.on('game:declined', () => {
+    $('game-waiting-overlay').classList.add('hidden');
+    pendingInviteId = null;
+    toast('Davetin reddedildi.');
+  });
+
+  socket.on('game:start', (payload) => {
+    $('game-waiting-overlay').classList.add('hidden');
+    $('game-invite-overlay').classList.add('hidden');
+    pendingInviteId = null;
+    incomingInvite = null;
+    activeGameSessionId = payload.sessionId;
+    if (activeGameCleanup) { activeGameCleanup(); activeGameCleanup = null; }
+    const label = SnoopGames.multiplayerGames.find((g) => g.id === payload.gameType);
+    $('game-active-title').textContent = `${label ? label.label : payload.gameType} • ${payload.difficulty}`;
+    $('game-active-overlay').classList.remove('hidden');
+    renderActiveMultiplayerGame(payload);
+  });
+
+  socket.on('game:state', (payload) => {
+    if (payload.sessionId !== activeGameSessionId) return;
+    renderActiveMultiplayerGame(payload);
+  });
+
+  socket.on('game:over', ({ sessionId, winnerId }) => {
+    if (sessionId !== activeGameSessionId) return;
+    toast(winnerId === me.id ? '🏆 Oyunu kazandın!' : winnerId ? 'Oyunu kaybettin.' : 'Oyun berabere bitti.');
+  });
+
+  socket.on('game:opponent-left', ({ sessionId }) => {
+    if (sessionId !== activeGameSessionId) return;
+    toast('Rakibin oyundan ayrıldı.');
+    closeActiveGame(false);
   });
 }
 
@@ -790,6 +837,133 @@ async function chooseBackground(bg) {
   }
 }
 
+/* ---------- Games ---------- */
+
+function buildGameRow(g, isMultiplayer) {
+  const row = document.createElement('div');
+  row.className = 'game-row';
+  row.innerHTML = `
+    <div class="icon">${g.emoji}</div>
+    <div class="info"><div class="n">${escapeHtml(g.label)}</div><div class="tag">${isMultiplayer ? 'Arkadaşınla, gerçek zamanlı' : 'Tek kişilik'}</div></div>
+    <div class="diffs">
+      <button class="diff-btn kolay" data-diff="kolay">Kolay</button>
+      <button class="diff-btn orta" data-diff="orta">Orta</button>
+      <button class="diff-btn zor" data-diff="zor">Zor</button>
+    </div>
+  `;
+  row.querySelectorAll('[data-diff]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      $('game-picker-overlay').classList.add('hidden');
+      if (isMultiplayer) startMultiplayerInvite(g.id, btn.dataset.diff);
+      else startSoloGame(g.id, g.label, btn.dataset.diff);
+    });
+  });
+  return row;
+}
+
+function openGamePicker() {
+  const list = $('game-list');
+  list.innerHTML = '';
+
+  const soloHeader = document.createElement('div');
+  soloHeader.className = 'section-label';
+  soloHeader.style.padding = '4px 0';
+  soloHeader.textContent = 'Tek Kişilik';
+  list.appendChild(soloHeader);
+  for (const g of SnoopGames.soloGames) list.appendChild(buildGameRow(g, false));
+
+  const mpHeader = document.createElement('div');
+  mpHeader.className = 'section-label';
+  mpHeader.style.padding = '12px 0 4px';
+  mpHeader.textContent = 'Arkadaşınla (Gerçek Zamanlı)';
+  list.appendChild(mpHeader);
+  for (const g of SnoopGames.multiplayerGames) list.appendChild(buildGameRow(g, true));
+
+  $('game-picker-overlay').classList.remove('hidden');
+}
+
+function startSoloGame(gameId, label, difficulty) {
+  $('game-active-title').textContent = `${label} • ${difficulty}`;
+  const body = $('game-active-body');
+  body.innerHTML = '';
+  $('game-active-overlay').classList.remove('hidden');
+  if (activeGameCleanup) activeGameCleanup();
+  activeGameSessionId = null;
+  activeGameCleanup = SnoopGames.runSolo(gameId, body, difficulty, {
+    onScore: (score) => showSoloResult(label, score),
+  });
+}
+
+function showSoloResult(label, score) {
+  const body = $('game-active-body');
+  const banner = document.createElement('div');
+  banner.className = 'game-result-banner';
+  banner.textContent = `Bitti! Skor: ${score}`;
+  body.appendChild(banner);
+  if (activeFriendId) {
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'primary-btn';
+    shareBtn.textContent = 'Skoru arkadaşına gönder';
+    shareBtn.addEventListener('click', async () => {
+      try {
+        await postJSON('/api/messages', {
+          receiverId: activeFriendId,
+          type: 'text',
+          content: `🎮 ${label}'de ${score} skor yaptım!`,
+        });
+        toast('Skor gönderildi!');
+      } catch (e) {
+        toast(e.message);
+      }
+    });
+    body.appendChild(shareBtn);
+  }
+}
+
+function startMultiplayerInvite(gameId, difficulty) {
+  if (!activeFriendId) { toast('Önce bir arkadaşınla sohbet aç.'); return; }
+  const friend = friendsData.accepted.find((f) => f.id === activeFriendId);
+  $('game-waiting-text').textContent = `${friend ? friend.displayName : 'Arkadaşın'}a davet gönderildi, bekleniyor…`;
+  $('game-waiting-overlay').classList.remove('hidden');
+  socket.emit('game:invite', { toFriendId: activeFriendId, gameType: gameId, difficulty }, (res) => {
+    if (!res.ok) {
+      $('game-waiting-overlay').classList.add('hidden');
+      toast(res.error);
+      pendingInviteId = null;
+    } else {
+      pendingInviteId = res.inviteId;
+    }
+  });
+}
+
+function respondToInvite(accept) {
+  if (!incomingInvite) return;
+  $('game-invite-overlay').classList.add('hidden');
+  socket.emit('game:respond', { inviteId: incomingInvite.inviteId, accept }, (res) => {
+    if (!res.ok) toast(res.error);
+  });
+  incomingInvite = null;
+}
+
+function renderActiveMultiplayerGame(payload) {
+  const body = $('game-active-body');
+  SnoopGames.renderMultiplayer(payload.gameType, body, payload.state, me.id, (move) => {
+    socket.emit('game:move', { sessionId: activeGameSessionId, move }, (res) => {
+      if (!res.ok) toast(res.error);
+    });
+  });
+}
+
+function closeActiveGame(notifyServer) {
+  if (notifyServer && activeGameSessionId) {
+    socket.emit('game:leave', { sessionId: activeGameSessionId });
+  }
+  if (activeGameCleanup) { activeGameCleanup(); activeGameCleanup = null; }
+  activeGameSessionId = null;
+  $('game-active-overlay').classList.add('hidden');
+  $('game-active-body').innerHTML = '';
+}
+
 /* ---------- Upload photo from gallery ---------- */
 
 function handleUploadPhoto(file) {
@@ -875,6 +1049,17 @@ function bindUI() {
     handleUploadPhoto(file);
     e.target.value = '';
   });
+
+  $('open-games-btn').addEventListener('click', openGamePicker);
+  $('game-picker-close-btn').addEventListener('click', () => $('game-picker-overlay').classList.add('hidden'));
+  $('game-invite-accept-btn').addEventListener('click', () => respondToInvite(true));
+  $('game-invite-decline-btn').addEventListener('click', () => respondToInvite(false));
+  $('game-waiting-cancel-btn').addEventListener('click', () => {
+    $('game-waiting-overlay').classList.add('hidden');
+    if (pendingInviteId) socket.emit('game:invite-cancel', { inviteId: pendingInviteId });
+    pendingInviteId = null;
+  });
+  $('game-active-close-btn').addEventListener('click', () => closeActiveGame(true));
 }
 
 init();

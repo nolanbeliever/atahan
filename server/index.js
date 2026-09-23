@@ -11,6 +11,7 @@ const SqliteStore = require('better-sqlite3-session-store')(session);
 
 const db = require('./db');
 const store = require('./store');
+const games = require('./games');
 
 const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -285,6 +286,12 @@ app.post('/api/messages/:id/view', requireAuth, (req, res) => {
 
 io.engine.use(sessionMiddleware);
 
+function emitGameState(session, eventName) {
+  for (const playerId of session.players) {
+    io.to(`user:${playerId}`).emit(eventName, games.publicState(session, playerId));
+  }
+}
+
 io.on('connection', (socket) => {
   const req = socket.request;
   const userId = req.session && req.session.userId;
@@ -293,6 +300,81 @@ io.on('connection', (socket) => {
     return;
   }
   socket.join(`user:${userId}`);
+
+  socket.on('game:invite', (payload, ack) => {
+    try {
+      const { toFriendId, gameType, difficulty } = payload || {};
+      const fid = Number(toFriendId);
+      if (!store.areFriends(userId, fid)) throw new Error('Önce arkadaş olmalısınız.');
+      const invite = games.createInvite(userId, fid, gameType, difficulty);
+      const fromUser = store.publicUser(store.findUserById(userId));
+      io.to(`user:${fid}`).emit('game:invited', { inviteId: invite.id, from: fromUser, gameType, difficulty });
+      if (ack) ack({ ok: true, inviteId: invite.id });
+    } catch (err) {
+      if (ack) ack({ ok: false, error: err.message });
+    }
+  });
+
+  socket.on('game:respond', (payload, ack) => {
+    try {
+      const { inviteId, accept } = payload || {};
+      const invite = games.getInvite(inviteId);
+      if (!invite || invite.toId !== userId) throw new Error('Davet bulunamadı ya da süresi doldu.');
+      games.deleteInvite(inviteId);
+      if (!accept) {
+        io.to(`user:${invite.fromId}`).emit('game:declined', { inviteId });
+        if (ack) ack({ ok: true });
+        return;
+      }
+      const gameSession = games.createSession(invite.gameType, invite.difficulty, invite.fromId, invite.toId);
+      emitGameState(gameSession, 'game:start');
+      if (ack) ack({ ok: true, sessionId: gameSession.id });
+    } catch (err) {
+      if (ack) ack({ ok: false, error: err.message });
+    }
+  });
+
+  socket.on('game:invite-cancel', (payload) => {
+    const { inviteId } = payload || {};
+    const invite = games.getInvite(inviteId);
+    if (invite && invite.fromId === userId) games.deleteInvite(inviteId);
+  });
+
+  socket.on('game:move', (payload, ack) => {
+    try {
+      const { sessionId, move } = payload || {};
+      const result = games.applyMove(sessionId, userId, move);
+      if (result.error) throw new Error(result.error);
+      emitGameState(result.session, 'game:state');
+      if (result.gameOver) {
+        for (const playerId of result.session.players) {
+          io.to(`user:${playerId}`).emit('game:over', { sessionId, winnerId: result.winnerId });
+        }
+        games.deleteSession(sessionId);
+      }
+      if (ack) ack({ ok: true });
+    } catch (err) {
+      if (ack) ack({ ok: false, error: err.message });
+    }
+  });
+
+  socket.on('game:leave', (payload) => {
+    const { sessionId } = payload || {};
+    const gameSession = games.getSession(sessionId);
+    if (!gameSession) return;
+    const other = gameSession.players.find((p) => p !== userId);
+    if (other) io.to(`user:${other}`).emit('game:opponent-left', { sessionId });
+    games.deleteSession(sessionId);
+  });
+
+  socket.on('disconnect', () => {
+    const activeSessions = games.sessionsForPlayer(userId);
+    for (const gameSession of activeSessions) {
+      const other = gameSession.players.find((p) => p !== userId);
+      if (other) io.to(`user:${other}`).emit('game:opponent-left', { sessionId: gameSession.id });
+      games.deleteSession(gameSession.id);
+    }
+  });
 });
 
 server.listen(PORT, () => {

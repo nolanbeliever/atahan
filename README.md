@@ -7,15 +7,16 @@ Snapchat'ten esinlenilmiş, tarayıcıda çalışan bir web uygulaması.
 - Kullanıcı kaydı ve girişi
 - Kullanıcı adıyla arkadaş arama, arkadaşlık isteği gönderme/kabul etme
 - Kamera izni isteme; izin verilirse canlı kamera açılır
-- **Yüz takipli kamera filtreleri** — face-api.js ile gerçek zamanlı yüz takibi, çekilen snap'e gömülü olarak kaydedilir
-  - Ücretsiz: gözlük, çiçek taç, köpek, kedi, tavşan, bıyık
-  - Snoop Plus'a özel: taç 👑, melek halosu 😇, şeytan boynuzu 😈, alev 🔥
+- **69 yüz takipli kamera filtresi** — face-api.js ile gerçek zamanlı yüz takibi; gözlük/aksesuar, uçuşan emoji tacı, hayvan kulakları, baş aksesuarı, bıyık/ağız efektleri ve tam kare renk efektleri (siyah-beyaz, sepya, neon, sinematik…) motorlarından üretiliyor, çekilen snap'e gömülü kaydediliyor. 20 tanesi Snoop Plus'a özel.
 - Fotoğraf çekip **snap** olarak arkadaşa gönderme (tek seferlik görüntüleme — açıldıktan sonra sunucudan silinir)
 - Galeriden fotoğraf yükleyip snap olarak gönderme
 - Metin mesajı gönderme
 - Hem snap'lere hem mesajlara **yanıt verme**
 - **Streak**: karşılıklı her gün snap/mesaj atan arkadaşlar için 🔥 seri sayacı; her 50 günde bir taraflara 1 haftalık Snoop Plus hediye edilir
-- **Snoop Plus**: özel sohbet arka planları, en sevdiğin arkadaşı (⭐) seçme
+- **Snoop Plus**: özel sohbet arka planları, en sevdiğin arkadaşı (⭐) seçme, 20 özel filtre
+- **Oyunlar** (🎮): sohbet içinden erişilen, her biri kolay/orta/zor seviyeli 8 oyun
+  - Tek kişilik: Yılan, 2048, Hafıza, Reaksiyon Hızı, Köstebek Vur — skorunu arkadaşına mesaj olarak gönderebilirsin
+  - Gerçek zamanlı, arkadaşınla: XO, Taş-Kağıt-Makas, Matematik Düellosu — arkadaşını davet edip aynı anda oynuyorsunuz, sunucu hamleleri Socket.IO ile senkronize ediyor
 - **Admin paneli** (`/admin.html`): kullanıcılara elle Plus verme/kaldırma
 - Socket.IO ile gerçek zamanlı teslimat ve bildirimler
 
