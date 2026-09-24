@@ -12,6 +12,7 @@ const SqliteStore = require('better-sqlite3-session-store')(session);
 const db = require('./db');
 const store = require('./store');
 const games = require('./games');
+const avatar = require('../public/js/avatar');
 
 const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -177,6 +178,20 @@ app.post('/api/profile/best-friend', requireAuth, requirePlus, (req, res) => {
     return res.status(400).json({ error: 'Yalnızca arkadaşlarını en sevdiğin arkadaş olarak seçebilirsin.' });
   }
   const user = store.setBestFriend(req.session.userId, fid);
+  res.json({ user: store.privateUser(user) });
+});
+
+app.post('/api/profile/avatar', requireAuth, (req, res) => {
+  const input = (req.body || {}).config;
+  if (input === null) {
+    return res.json({ user: store.privateUser(store.setAvatarConfig(req.session.userId, null)) });
+  }
+  if (!input || typeof input !== 'object') return res.status(400).json({ error: 'Geçersiz avatar.' });
+  const { config, plusUsed } = avatar.sanitize(input);
+  if (plusUsed.length && !store.isPlusActive(store.findUserById(req.session.userId))) {
+    return res.status(403).json({ error: `${plusUsed.join(', ')} yalnızca Snoop Plus üyeleri içindir.` });
+  }
+  const user = store.setAvatarConfig(req.session.userId, config);
   res.json({ user: store.privateUser(user) });
 });
 

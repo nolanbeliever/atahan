@@ -1034,3 +1034,133 @@ input { font-family: inherit; }
 }
 .memory-card.flipped, .memory-card.matched { background: var(--accent); }
 .memory-card.matched { opacity: 0.5; }
+
+/* ---------- Bitmoji avatars ---------- */
+.avatar { flex-shrink: 0; overflow: hidden; }
+.avatar.has-bitmoji svg { display: block; width: 100%; height: 100%; }
+.my-avatar-btn {
+  border: 2px solid var(--accent);
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  width: 44px;
+  height: 44px;
+}
+
+.avatar-sheet { display: flex; flex-direction: column; max-height: 92vh; }
+.avatar-preview-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.avatar-preview {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 3px solid var(--accent);
+}
+.avatar-preview svg { display: block; }
+.avatar-preview-actions { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.avatar-plus-note { margin: 0; font-size: 12px; color: #f5c542; }
+.avatar-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  scrollbar-width: none;
+}
+.avatar-tab {
+  flex-shrink: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.avatar-tab.active { background: var(--accent); color: #0e0e10; border-color: var(--accent); font-weight: 700; }
+.avatar-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+  padding: 2px;
+  margin-bottom: 14px;
+}
+.avatar-option {
+  position: relative;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 6px 4px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.avatar-option.selected { border-color: var(--accent); }
+.avatar-option.plus { border-style: dashed; border-color: #b69cf0; }
+.avatar-option.plus.selected { border-style: solid; border-color: var(--accent); }
+.avatar-option-img { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; }
+.avatar-option-img svg { display: block; }
+.avatar-option-label { font-size: 11px; line-height: 1.2; text-align: center; color: var(--text-dim); }
+.avatar-option-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 12px;
+  background: rgba(0,0,0,0.55);
+  border-radius: 999px;
+  padding: 1px 4px;
+}
+
+/* ---------- Snoop Plus pricing ---------- */
+.pricing-reason {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(245,197,66,0.12);
+  color: #f5c542;
+  font-size: 14px;
+}
+.pricing-card {
+  border-radius: 18px;
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(124,77,255,0.35), rgba(0,229,184,0.25));
+  border: 1px solid rgba(255,255,255,0.12);
+  margin-bottom: 14px;
+}
+.pricing-name { font-weight: 700; font-size: 15px; color: var(--accent); }
+.pricing-price { font-size: 34px; font-weight: 800; margin: 4px 0 12px; }
+.pricing-price span { font-size: 16px; font-weight: 500; color: var(--text-dim); }
+.pricing-perks { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.pricing-status { margin-top: 14px; font-weight: 700; color: var(--accent); font-size: 14px; }
+.pricing-contact {
+  border: 2px dashed var(--accent);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.pricing-contact strong { display: block; margin-bottom: 4px; }
+.pricing-footnote { margin: 12px 0 0; text-align: center; font-size: 12px; color: var(--text-dim); }
+#avatar-random-btn { align-self: flex-start; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+.my-avatar-wrap { position: relative; flex-shrink: 0; }
+.avatar-edit-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  font-size: 11px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 3px;
+  pointer-events: none;
+}
+.avatar-tabs, .avatar-preview-row, .avatar-sheet .game-sheet-header, #avatar-save-btn { flex-shrink: 0; }

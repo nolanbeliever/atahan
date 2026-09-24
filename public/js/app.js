@@ -62,6 +62,22 @@ function initials(name) {
   return (name || '?').trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 }
 
+// Bitmoji-style SVG when the user designed one, colored initials otherwise.
+function avatarInner(u) {
+  return u.avatarConfig ? SnoopAvatar.render(u.avatarConfig) : escapeHtml(initials(u.displayName));
+}
+
+function avatarHtml(u, sizeClass = 'sm') {
+  const cls = `avatar ${sizeClass}${u.avatarConfig ? ' has-bitmoji' : ''}`;
+  return `<div class="${cls}" style="background:${u.avatarConfig ? 'transparent' : u.avatarColor}">${avatarInner(u)}</div>`;
+}
+
+function paintAvatar(el, u) {
+  el.classList.toggle('has-bitmoji', !!u.avatarConfig);
+  el.style.background = u.avatarConfig ? 'transparent' : u.avatarColor;
+  el.innerHTML = avatarInner(u);
+}
+
 function timeLabel(iso) {
   if (!iso) return '';
   const d = new Date(iso + 'Z');
@@ -95,9 +111,7 @@ async function init() {
 function applyMeUI() {
   $('my-name').innerHTML = escapeHtml(me.displayName) + (me.plusActive ? ' <span class="plus-badge">✨ PLUS</span>' : '');
   $('my-username').textContent = '@' + me.username;
-  const av = $('my-avatar');
-  av.style.background = me.avatarColor;
-  av.textContent = initials(me.displayName);
+  paintAvatar($('my-avatar'), me);
   $('admin-link-btn').classList.toggle('hidden', !me.isAdmin);
 }
 
@@ -230,7 +244,7 @@ function renderSidebar() {
       const row = document.createElement('div');
       row.className = 'list-row';
       row.innerHTML = `
-        <div class="avatar sm" style="background:${u.avatarColor}">${initials(u.displayName)}</div>
+        ${avatarHtml(u)}
         <div class="name-block"><div class="n">${escapeHtml(u.displayName)}</div><div class="u">@${escapeHtml(u.username)}</div></div>
         <button class="pill-btn accept">Kabul et</button>
         <button class="pill-btn decline">Reddet</button>
@@ -276,7 +290,7 @@ function renderSidebar() {
     const bestHtml = f.isBestFriend ? ' ⭐' : '';
     const plusHtml = f.plusActive ? ' <span class="plus-badge">✨</span>' : '';
     row.innerHTML = `
-      <div class="avatar sm" style="background:${f.avatarColor}">${initials(f.displayName)}</div>
+      ${avatarHtml(f)}
       <div class="name-block">
         <div class="n">${escapeHtml(f.displayName)}${bestHtml}${plusHtml}${streakHtml}</div>
         <div class="preview${unread ? ' unread' : ''}">${escapeHtml(previewText)}</div>
@@ -291,7 +305,7 @@ function renderSidebar() {
     const row = document.createElement('div');
     row.className = 'list-row';
     row.innerHTML = `
-      <div class="avatar sm" style="background:${f.avatarColor}">${initials(f.displayName)}</div>
+      ${avatarHtml(f)}
       <div class="name-block"><div class="n">${escapeHtml(f.displayName)}</div><div class="u">İstek gönderildi</div></div>
     `;
     list.appendChild(row);
@@ -337,7 +351,7 @@ function bindSearch() {
           else if (isOutgoing) btnHtml = '<span class="u">İstek gönderildi</span>';
           else if (isIncoming) btnHtml = '<span class="u">İstek bekliyor</span>';
           row.innerHTML = `
-            <div class="avatar sm" style="background:${u.avatarColor}">${initials(u.displayName)}</div>
+            ${avatarHtml(u)}
             <div class="name-block"><div class="n">${escapeHtml(u.displayName)}</div><div class="u">@${escapeHtml(u.username)}</div></div>
             ${btnHtml}
           `;
@@ -375,8 +389,7 @@ async function openConversation(friendId) {
   setLastRead(friendId);
 
   const f = friendsData.accepted.find((x) => x.id === friendId);
-  $('chat-avatar').style.background = f.avatarColor;
-  $('chat-avatar').textContent = initials(f.displayName);
+  paintAvatar($('chat-avatar'), f);
   $('chat-name').textContent = f.displayName;
   $('chat-username').textContent = '@' + f.username;
 
@@ -645,7 +658,7 @@ function renderFilterStrip() {
       if (locked) {
         await refreshMe();
         if (f.plus && !me.plusActive) {
-          toast(`${f.label} filtresi Snoop Plus'a özel ✨`);
+          openPricing(`${f.label} filtresi Snoop Plus'a özel.`);
           return;
         }
         renderFilterStrip(); // plus turned out to be active after refresh; redraw unlocked
@@ -813,7 +826,7 @@ async function refreshMe() {
 
 async function toggleBestFriend() {
   await refreshMe();
-  if (!me.plusActive) { toast('En sevdiğim arkadaş seçimi Snoop Plus üyelerine özel.'); return; }
+  if (!me.plusActive) { openPricing('En sevdiğim arkadaş seçimi Snoop Plus üyelerine özel.'); return; }
   if (!activeFriendId) return;
   const isBest = me.bestFriendId === activeFriendId;
   const newId = isBest ? null : activeFriendId;
@@ -831,7 +844,7 @@ async function toggleBestFriend() {
 
 async function openBgPicker() {
   await refreshMe();
-  if (!me.plusActive) { toast('Sohbet arka planları Snoop Plus üyelerine özel.'); return; }
+  if (!me.plusActive) { openPricing('Sohbet arka planları Snoop Plus üyelerine özel.'); return; }
   if (!chatBackgrounds.length) {
     const { backgrounds } = await getJSON('/api/profile/chat-backgrounds');
     chatBackgrounds = backgrounds;
@@ -860,6 +873,102 @@ async function chooseBackground(bg) {
     $('bg-picker-overlay').classList.add('hidden');
   } catch (e) {
     toast(e.message);
+  }
+}
+
+/* ---------- Avatar designer ---------- */
+
+let avatarDraft = null;
+let avatarTab = SnoopAvatar.CATEGORIES[0].key;
+
+async function openAvatarEditor() {
+  await refreshMe();
+  avatarDraft = { ...SnoopAvatar.DEFAULT, ...(me.avatarConfig || {}) };
+  renderAvatarTabs();
+  renderAvatarEditor();
+  $('avatar-overlay').classList.remove('hidden');
+}
+
+function renderAvatarTabs() {
+  const tabs = $('avatar-tabs');
+  tabs.innerHTML = '';
+  for (const cat of SnoopAvatar.CATEGORIES) {
+    const b = document.createElement('button');
+    b.className = 'avatar-tab' + (cat.key === avatarTab ? ' active' : '');
+    b.textContent = cat.label;
+    b.addEventListener('click', () => {
+      avatarTab = cat.key;
+      renderAvatarTabs();
+      renderAvatarEditor();
+      $('avatar-options').scrollTop = 0;
+    });
+    tabs.appendChild(b);
+  }
+}
+
+function draftUsesPlus() {
+  return SnoopAvatar.sanitize(avatarDraft).plusUsed.length > 0;
+}
+
+function renderAvatarEditor() {
+  $('avatar-preview').innerHTML = SnoopAvatar.render(avatarDraft);
+  $('avatar-plus-note').classList.toggle('hidden', me.plusActive || !draftUsesPlus());
+
+  const cat = SnoopAvatar.CATEGORIES.find((c) => c.key === avatarTab);
+  const grid = $('avatar-options');
+  grid.innerHTML = '';
+  // Plus-only items last for free users, so the free wardrobe comes first.
+  const options = me.plusActive ? cat.options : [...cat.options.filter((o) => !o.plus), ...cat.options.filter((o) => o.plus)];
+  for (const opt of options) {
+    const tile = document.createElement('button');
+    tile.className = 'avatar-option' + (avatarDraft[cat.key] === opt.id ? ' selected' : '') + (opt.plus ? ' plus' : '');
+    tile.dataset.optionId = opt.id;
+    tile.title = opt.label;
+    tile.innerHTML = `<div class="avatar-option-img">${SnoopAvatar.render({ ...avatarDraft, [cat.key]: opt.id })}</div>`
+      + `<div class="avatar-option-label">${escapeHtml(opt.label)}</div>`
+      + (opt.plus ? `<span class="avatar-option-badge">${me.plusActive ? '✨' : '🔒'}</span>` : '');
+    tile.addEventListener('click', () => {
+      avatarDraft[cat.key] = opt.id;
+      renderAvatarEditor();
+    });
+    grid.appendChild(tile);
+  }
+}
+
+async function saveAvatar() {
+  await refreshMe();
+  if (!me.plusActive && draftUsesPlus()) {
+    const locked = SnoopAvatar.sanitize(avatarDraft).plusUsed.join(', ');
+    openPricing(`${locked} Snoop Plus'a özel.`);
+    return;
+  }
+  try {
+    const { user } = await postJSON('/api/profile/avatar', { config: avatarDraft });
+    me = user;
+    applyMeUI();
+    $('avatar-overlay').classList.add('hidden');
+    toast('Avatarın kaydedildi 😎');
+  } catch (e) {
+    if (e.status === 403) openPricing(e.message);
+    else toast(e.message);
+  }
+}
+
+/* ---------- Snoop Plus pricing ---------- */
+
+async function openPricing(reason) {
+  const reasonEl = $('pricing-reason');
+  reasonEl.textContent = reason ? `🔒 ${reason}` : '';
+  reasonEl.classList.toggle('hidden', !reason);
+  $('pricing-overlay').classList.remove('hidden');
+  await refreshMe().catch(() => {});
+  const status = $('pricing-status');
+  if (me.plusActive && me.plusUntil) {
+    const until = new Date(me.plusUntil).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+    status.textContent = `✅ Plus üyesisin — ${until} tarihine kadar`;
+    status.classList.remove('hidden');
+  } else {
+    status.classList.add('hidden');
   }
 }
 
@@ -1140,6 +1249,16 @@ function bindUI() {
     pendingInviteId = null;
   });
   $('game-active-close-btn').addEventListener('click', () => closeActiveGame(true));
+
+  $('my-avatar').addEventListener('click', openAvatarEditor);
+  $('avatar-close-btn').addEventListener('click', () => $('avatar-overlay').classList.add('hidden'));
+  $('avatar-random-btn').addEventListener('click', () => {
+    avatarDraft = SnoopAvatar.randomConfig(me.plusActive);
+    renderAvatarEditor();
+  });
+  $('avatar-save-btn').addEventListener('click', saveAvatar);
+  $('pricing-btn').addEventListener('click', () => openPricing());
+  $('pricing-close-btn').addEventListener('click', () => $('pricing-overlay').classList.add('hidden'));
 
   $('save-gallery-btn').addEventListener('click', saveToGallery);
   $('gallery-btn').addEventListener('click', openGallery);

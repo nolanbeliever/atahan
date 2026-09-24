@@ -11,10 +11,12 @@ Snapchat'ten esinlenilmiş, tarayıcıda çalışan bir web uygulaması.
 - Fotoğraf çekip **snap** olarak arkadaşa gönderme (tek seferlik görüntüleme — açıldıktan sonra sunucudan silinir)
 - Telefon galerisinden fotoğraf yükleyip snap olarak gönderme
 - **Kendi özel galerin** (🖼️): kamerada çektiğin fotoğrafı kimseye göndermeden, sadece kendine ait galerine kaydedebilirsin — sadece sen görürsün, istediğinde silebilirsin
+- **Avatar tasarlama** (profil resmine dokun ✏️): Bitmoji tarzı avatar — 40 kıyafet, 15 saç modeli, 12 saç rengi, 8 ten tonu, göz/ağız/sakal, 14 aksesuar ve 12 arka plan; takım elbise, smokin, deri ceket, astronot, süper kahraman, taç gibi güzel parçalar Snoop Plus'a özel. Avatarın arkadaş listesinde, aramada ve sohbet başlığında görünür
+- **Snoop Plus fiyatlandırma** (✨): Snoop Plus aylık 200 TL — uygulamada ödeme yok, almak isteyenler adminlerle konuşur, admin `/admin.html`'den Plus verir
 - Metin mesajı gönderme
 - Hem snap'lere hem mesajlara **yanıt verme**
 - **Streak**: karşılıklı her gün snap/mesaj atan arkadaşlar için 🔥 seri sayacı; her 50 günde bir taraflara 1 haftalık Snoop Plus hediye edilir
-- **Snoop Plus**: özel sohbet arka planları, en sevdiğin arkadaşı (⭐) seçme, 20 özel filtre
+- **Snoop Plus**: özel sohbet arka planları, en sevdiğin arkadaşı (⭐) seçme, 20 özel filtre, özel avatar kıyafet ve aksesuarları
 - **Oyunlar** (🎮): sohbet içinden erişilen, her biri kolay/orta/zor seviyeli 8 oyun
   - Tek kişilik: Yılan, 2048, Hafıza, Reaksiyon Hızı, Köstebek Vur — skorunu arkadaşına mesaj olarak gönderebilirsin
   - Gerçek zamanlı, arkadaşınla: XO, Taş-Kağıt-Makas, Matematik Düellosu — arkadaşını davet edip aynı anda oynuyorsunuz, sunucu hamleleri Socket.IO ile senkronize ediyor

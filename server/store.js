@@ -28,7 +28,7 @@ const users = {
   byUsername: db.prepare(`SELECT * FROM users WHERE username = ? COLLATE NOCASE`),
   byId: db.prepare(`SELECT * FROM users WHERE id = ?`),
   search: db.prepare(
-    `SELECT id, username, display_name, avatar_color, plus_until FROM users
+    `SELECT id, username, display_name, avatar_color, avatar_config, plus_until FROM users
      WHERE username LIKE ? AND id != ? ORDER BY username LIMIT 20`
   ),
   listAll: db.prepare(`SELECT * FROM users ORDER BY created_at DESC`),
@@ -37,10 +37,20 @@ const users = {
   setPasswordHash: db.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`),
   setChatBackground: db.prepare(`UPDATE users SET chat_background = ? WHERE id = ?`),
   setBestFriend: db.prepare(`UPDATE users SET best_friend_id = ? WHERE id = ?`),
+  setAvatarConfig: db.prepare(`UPDATE users SET avatar_config = ? WHERE id = ?`),
 };
 
 function isPlusActive(u) {
   return !!(u.plus_until && new Date(u.plus_until).getTime() > Date.now());
+}
+
+function parseAvatarConfig(raw) {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 function publicUser(u) {
@@ -50,6 +60,7 @@ function publicUser(u) {
     username: u.username,
     displayName: u.display_name,
     avatarColor: u.avatar_color,
+    avatarConfig: parseAvatarConfig(u.avatar_config),
     plusActive: isPlusActive(u),
   };
 }
@@ -121,6 +132,11 @@ function setChatBackground(userId, background) {
 
 function setBestFriend(userId, friendId) {
   users.setBestFriend.run(friendId, userId);
+  return users.byId.get(userId);
+}
+
+function setAvatarConfig(userId, config) {
+  users.setAvatarConfig.run(config ? JSON.stringify(config) : null, userId);
   return users.byId.get(userId);
 }
 
@@ -337,6 +353,7 @@ function deleteGalleryItem(id, userId) {
 }
 
 module.exports = {
+  setAvatarConfig,
   publicUser,
   privateUser,
   createUser,

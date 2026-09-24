@@ -75,6 +75,7 @@ function ensureColumn(table, column, ddl) {
 ensureColumn('users', 'is_admin', 'is_admin INTEGER NOT NULL DEFAULT 0');
 ensureColumn('users', 'plus_until', 'plus_until TEXT');
 ensureColumn('users', 'chat_background', 'chat_background TEXT');
+ensureColumn('users', 'avatar_config', 'avatar_config TEXT');
 ensureColumn('users', 'best_friend_id', 'best_friend_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
 ensureColumn('friendships', 'streak_count', 'streak_count INTEGER NOT NULL DEFAULT 0');
 ensureColumn('friendships', 'last_bump_date', 'last_bump_date TEXT');

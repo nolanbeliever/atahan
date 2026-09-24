@@ -20,13 +20,17 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="me">
-          <div class="avatar" id="my-avatar"></div>
+          <div class="my-avatar-wrap">
+            <button class="avatar my-avatar-btn" id="my-avatar" title="Avatarını tasarla"></button>
+            <span class="avatar-edit-badge">✏️</span>
+          </div>
           <div>
             <div class="me-name" id="my-name"></div>
             <div class="me-username" id="my-username"></div>
           </div>
         </div>
         <div style="display:flex; gap:8px;">
+          <button class="icon-btn" id="pricing-btn" title="Snoop Plus">✨</button>
           <button class="icon-btn" id="gallery-btn" title="Galerim">🖼️</button>
           <button class="icon-btn hidden" id="admin-link-btn" title="Admin paneli">🛠️</button>
           <button class="icon-btn" id="logout-btn" title="Çıkış yap">⎋</button>
@@ -196,10 +200,59 @@
     </div>
   </div>
 
+  <!-- Avatar designer -->
+  <div class="game-overlay hidden" id="avatar-overlay">
+    <div class="game-sheet avatar-sheet">
+      <div class="game-sheet-header">
+        <h3>Avatarını Tasarla</h3>
+        <button class="icon-btn" id="avatar-close-btn">✕</button>
+      </div>
+      <div class="avatar-preview-row">
+        <div class="avatar-preview" id="avatar-preview"></div>
+        <div class="avatar-preview-actions">
+          <button class="pill-btn add" id="avatar-random-btn">🎲 Rastgele</button>
+          <p class="avatar-plus-note hidden" id="avatar-plus-note">🔒 Plus parça deniyorsun — kaydetmek için Snoop Plus gerekir.</p>
+        </div>
+      </div>
+      <div class="avatar-tabs" id="avatar-tabs"></div>
+      <div class="avatar-options" id="avatar-options"></div>
+      <button class="primary-btn" id="avatar-save-btn">Kaydet</button>
+    </div>
+  </div>
+
+  <!-- Snoop Plus pricing (no payment — admins grant it manually) -->
+  <div class="game-overlay hidden" id="pricing-overlay">
+    <div class="game-sheet pricing-sheet">
+      <div class="game-sheet-header">
+        <h3>✨ Snoop Plus</h3>
+        <button class="icon-btn" id="pricing-close-btn">✕</button>
+      </div>
+      <p class="pricing-reason hidden" id="pricing-reason"></p>
+      <div class="pricing-card">
+        <div class="pricing-name">Snoop Plus</div>
+        <div class="pricing-price">200 TL <span>/ ay</span></div>
+        <ul class="pricing-perks">
+          <li>👕 Özel avatar kıyafetleri, saçlar ve aksesuarlar</li>
+          <li>🎭 20 özel kamera filtresi</li>
+          <li>🎨 Özel sohbet arka planları</li>
+          <li>⭐ En sevdiğin arkadaşı seçme</li>
+          <li>✨ Profilinde Plus rozeti</li>
+        </ul>
+        <div class="pricing-status hidden" id="pricing-status"></div>
+      </div>
+      <div class="pricing-contact">
+        <strong>💬 Ödeme sistemi yok.</strong>
+        Snoop Plus almak isteyenler lütfen adminlerle konuşsun.
+      </div>
+      <p class="pricing-footnote">🔥 Bir arkadaşınla 50 günlük streak yaparsan 1 haftalık Plus hediye!</p>
+    </div>
+  </div>
+
   <div class="toast-stack" id="toast-stack"></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script src="/js/avatar.js"></script>
   <script src="/js/filters.js"></script>
   <script src="/js/games.js"></script>
   <script src="/js/app.js"></script>
