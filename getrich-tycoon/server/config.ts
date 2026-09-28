@@ -57,8 +57,10 @@ export interface ServerConfig {
   simulation: boolean;
   /** Login/register attempts allowed per IP per minute. */
   authRatePerMinute: number;
-  /** Trust X-Forwarded-For (only behind a reverse proxy that overwrites it). */
+  /** Derive client IPs from X-Forwarded-For (only when the server is reachable solely through a proxy). */
   trustProxy: boolean;
+  /** Refuse the SQLite fallback (hosts with an ephemeral disk would silently lose all progress). */
+  requireDatabaseUrl: boolean;
   /** New accounts allowed per IP per hour, and globally per hour. */
   registerPerHour: number;
   registerGlobalPerHour: number;
@@ -67,6 +69,7 @@ export interface ServerConfig {
 export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
   const env = (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test' ? process.env.NODE_ENV : 'development') as ServerConfig['env'];
   const level = (process.env.LOG_LEVEL ?? 'info') as LogLevel;
+  const onRender = process.env.RENDER === 'true';
   const cfg: ServerConfig = {
     port: int('PORT', 3000, 0, 65535),
     host: process.env.HOST ?? '0.0.0.0',
@@ -84,8 +87,10 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     clientDir: path.resolve(PROJECT_ROOT, 'dist/client'),
     simulation: process.env.DISABLE_SIMULATION !== 'true',
     authRatePerMinute: int('AUTH_RATE_PER_MINUTE', 10, 1, 100_000),
-    // Off unless explicitly enabled: if the port is reachable directly, X-Forwarded-For is spoofable.
-    trustProxy: process.env.TRUST_PROXY === 'true',
+    // Off unless enabled: if the port is reachable directly, X-Forwarded-For is spoofable. Render sets
+    // RENDER=true and only exposes services through its proxy, so it defaults to on there.
+    trustProxy: process.env.TRUST_PROXY ? process.env.TRUST_PROXY === 'true' : onRender,
+    requireDatabaseUrl: onRender,
     registerPerHour: int('REGISTER_PER_HOUR', 10, 1, 1_000_000),
     registerGlobalPerHour: int('REGISTER_GLOBAL_PER_HOUR', 500, 1, 1_000_000),
     ...overrides,

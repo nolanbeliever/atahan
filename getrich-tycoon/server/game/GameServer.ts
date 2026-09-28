@@ -20,6 +20,7 @@ import { APPEARANCE_OPTIONS } from '../auth';
 import type { ServerConfig } from '../config';
 import * as repo from '../db/repo';
 import { GameError } from '../errors';
+import { normalizeIp, resolveClientIp } from '../http/clientIp';
 import { KeyedMutex } from '../locks';
 import { createLogger } from '../logger';
 import { KeyedRateLimiter, TokenBucket } from '../rateLimit';
@@ -162,19 +163,10 @@ export class GameServer implements Hub {
     this.broadcast('chat', this.chat.system(text));
   }
 
-  /**
-   * Client IP for per-IP limits. Behind ONE trusted proxy the real client address is the
-   * right-most X-Forwarded-For entry (the one the proxy appended); anything to its left is
-   * client-controlled and must not be trusted. Mirrors Express' `trust proxy = 1`.
-   */
+  /** Client IP for per-IP limits; same rules as the HTTP API (see http/clientIp.ts). */
   private clientIp(socket: Socket): string {
-    if (this.cfg.trustProxy) {
-      const fwd = socket.handshake.headers['x-forwarded-for'];
-      const parts = (Array.isArray(fwd) ? fwd.join(',') : fwd ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-      const last = parts[parts.length - 1];
-      if (last) return last.slice(0, 64);
-    }
-    return socket.handshake.address;
+    if (this.cfg.trustProxy) return resolveClientIp(socket.handshake.headers['x-forwarded-for'], socket.handshake.address);
+    return normalizeIp(socket.handshake.address);
   }
 
   // ------------------------------------------------------------ lifecycle

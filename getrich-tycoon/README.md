@@ -128,10 +128,10 @@ See [`.env.example`](.env.example). The important ones:
 | --- | --- | --- |
 | `PORT` | 3000 | HTTP + WebSocket port (hosts usually inject this) |
 | `DATABASE_URL` | *(empty)* | PostgreSQL connection string. Empty means local SQLite |
-| `DATABASE_SSL` | false | `true` for managed Postgres that requires TLS (Neon, Supabase, ...) |
+| `DATABASE_SSL` | false | `true` for managed Postgres that requires TLS when the URL has no `sslmode` (Supabase, ...) |
 | `SQLITE_PATH` | ./data/getrich.db | SQLite file for local development |
 | `CORS_ORIGINS` | *(empty)* | Only needed if the client is hosted on another origin |
-| `TRUST_PROXY` | false | Set `true` only when the server is reachable exclusively through one reverse proxy (Render, Northflank, Caddy) |
+| `TRUST_PROXY` | false (true on Render) | Set `true` only when the server is reachable exclusively through a reverse proxy (Northflank, Caddy). Render is detected automatically |
 | `AUTH_RATE_PER_MINUTE` | 10 | Login/register attempts per IP per minute |
 | `TICK_RATE` | 20 | Server simulation/snapshot rate (Hz) |
 | `AUTOSAVE_SECONDS` | 30 | Position/driving autosave interval |

@@ -16,7 +16,7 @@ before relying on them. Free tiers change often.
 | Provider | Free tier for new users | Long-running Node + WebSockets | Sleeps? | Free Postgres | Notes |
 | --- | --- | --- | --- | --- | --- |
 | **Render** (web service) | Yes, no card for web services *(Blueprint deploys may ask for a card, unverified)* | Yes | **Spins down after 15 min** without inbound HTTP or WebSocket traffic; ~1 min cold start; may be restarted at any time | Yes, but **deleted 30 days after creation** (+14-day grace) | 512 MB / 0.1 CPU, 750 instance-hours per month. Supports a sub-directory Root Directory, `rootDir` in Blueprints and a custom Blueprint path. Automatic HTTPS/WSS. |
-| **Neon** (Postgres only) | Yes, no card, no expiry | n/a | Compute scales to zero after 5 min idle; resumes in ~0.5 s | 0.5 GB per project, 100 CU-hours/month | Requires TLS (`DATABASE_SSL=true`). |
+| **Neon** (Postgres only) | Yes, no card, no expiry | n/a | Compute scales to zero after 5 min idle; resumes in ~0.5 s | 0.5 GB per project, 100 CU-hours/month | Requires TLS. Its connection string already contains `sslmode=require`. |
 | Northflank (Developer Sandbox) | Yes, but a **card is required** for verification (not charged) | Yes | **Always on** | 1 free database addon | 2 services. Exact CPU/RAM limits unpublished *(unverified)*. Deploys from the Dockerfile in a sub-directory. |
 | Oracle Cloud Always Free | Yes, card required | Yes (you run a VM) | Always on; idle VMs may be reclaimed | Self-hosted | Most powerful option, but you manage the server, TLS and updates yourself. |
 | Koyeb | **Free plan closed to new users** in 2026 | n/a | n/a | n/a | Existing accounts keep their plan. |
@@ -60,7 +60,8 @@ Either use the Blueprint:
 
 Or create it manually (equivalent):
 
-1. Render dashboard → **New → Web Service** → connect the repository.
+1. Render dashboard → **New → Web Service** → connect the repository (for a public repository you can also paste its
+   URL under **Public Git Repository**) and pick the branch to deploy.
 2. Settings:
 
    | Setting | Value |
@@ -74,18 +75,20 @@ Or create it manually (equivalent):
 
    `--include=dev` matters: Render sets `NODE_ENV=production`, and the build tools (Vite, esbuild, TypeScript) are dev dependencies.
 
-3. Environment variables:
+3. Environment variables. Only `DATABASE_URL` is required:
 
    | Key | Value |
    | --- | --- |
-   | `NODE_ENV` | `production` |
-   | `NODE_VERSION` | `22` |
    | `DATABASE_URL` | *(Neon connection string)* |
-   | `DATABASE_SSL` | `true` |
-   | `TRUST_PROXY` | `true` |
-   | `LOG_LEVEL` | `info` |
+   | `NODE_VERSION` | `22` *(optional; `.node-version` already asks for 22)* |
 
-   Do **not** set `PORT`; Render injects it.
+   Do **not** set `PORT`; Render injects it. The server detects Render through the `RENDER=true` variable Render sets:
+   - it derives client IPs from `X-Forwarded-For` (as if `TRUST_PROXY=true`), skipping Render's internal load balancer
+     and the Cloudflare edge in front of it, so per-IP limits apply to each player rather than to a shared edge address;
+   - it refuses to start without `DATABASE_URL`, because Render's free disk is wiped on every restart and the SQLite
+     fallback would silently lose all progress. The deploy log then says exactly what is missing.
+
+   Neon connection strings include `sslmode=require`, so `DATABASE_SSL` isn't needed for them.
 4. Click **Create Web Service**. The first deploy takes a few minutes.
 5. Open `https://<your-service>.onrender.com`. The page is served over HTTPS and the game connects over **WSS** automatically,
    because the client uses the page origin.
@@ -108,7 +111,8 @@ docker run -d --name getrich -p 127.0.0.1:3000:3000 \
 ```
 
 Only set `TRUST_PROXY=true` when clients cannot reach the container port directly. Otherwise they could spoof
-`X-Forwarded-For` and bypass the per-IP limits.
+`X-Forwarded-For` and bypass the per-IP limits. With it enabled the server walks `X-Forwarded-For` from the right,
+skipping private addresses and at most one Cloudflare edge, and uses the first remaining entry.
 
 - **Northflank:** create a *Combined service* from the repository with build context `getrich-tycoon` and Dockerfile
   `getrich-tycoon/Dockerfile`. Expose port 3000 over HTTP (TLS is automatic on `*.code.run`) and add the environment variables above.
@@ -125,8 +129,8 @@ The recommended setup serves the client from the game server. To host `dist/clie
 ## Production checklist
 
 - [ ] `DATABASE_URL` points to a managed PostgreSQL database. SQLite on an ephemeral free-tier disk would lose data on every restart.
-- [ ] `DATABASE_SSL=true` for Neon, Supabase or Render external URLs.
-- [ ] `TRUST_PROXY=true` only behind Render/Northflank/Caddy, where clients can't reach the port directly, so per-IP limits see real client IPs.
+- [ ] TLS to the database: Neon URLs carry `sslmode=require`; otherwise set `DATABASE_SSL=true` (Supabase, Render external URLs).
+- [ ] `TRUST_PROXY=true` only behind Northflank/Caddy/another proxy that clients can't bypass, so per-IP limits see real client IPs. On Render this is automatic.
 - [ ] `/healthz` is healthy and reports `"db":"postgres"`.
 - [ ] Two browsers with different accounts can see each other (multiplayer).
 - [ ] No secrets are committed: `npm run check:secrets`.

@@ -72,7 +72,7 @@ Recorded on 2026-09-28 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chrom
 | Suite | SQLite | PostgreSQL |
 | --- | --- | --- |
 | `npm run typecheck` (client, server, tests) | pass | n/a |
-| Unit (Vitest) | 35 / 35 passed | n/a (no database) |
+| Unit (Vitest) | 40 / 40 passed | n/a (no database) |
 | Integration (Vitest, real sockets) | 20 / 20 passed | 20 / 20 passed |
 | E2E (Playwright, Chromium, production build) | 5 / 5 passed (about 2.7 min) | 5 / 5 passed (about 2.7 min) |
 | `npm run check:secrets` | no secrets in 118 tracked files | n/a |

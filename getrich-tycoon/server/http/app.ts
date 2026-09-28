@@ -8,6 +8,7 @@ import type { ServerConfig } from '../config';
 import { GameError } from '../errors';
 import { createLogger } from '../logger';
 import { KeyedRateLimiter } from '../rateLimit';
+import { normalizeIp, resolveClientIp } from './clientIp';
 
 const log = createLogger('http');
 
@@ -66,9 +67,13 @@ export function createApp(cfg: ServerConfig, auth: AuthService, health: HealthIn
 
   app.use('/api', express.json({ limit: '4kb' }));
 
+  const peer = (req: Request) => req.socket.remoteAddress ?? 'unknown';
+  const clientIp = (req: Request) =>
+    cfg.trustProxy ? resolveClientIp(req.headers['x-forwarded-for'], peer(req)) : normalizeIp(peer(req));
+
   const authLimiter = new KeyedRateLimiter(cfg.authRatePerMinute, cfg.authRatePerMinute / 60);
   const limit = (req: Request, res: Response, next: NextFunction) => {
-    if (!authLimiter.take(req.ip ?? 'unknown')) {
+    if (!authLimiter.take(clientIp(req))) {
       res.status(429).json({ ok: false, error: 'Too many attempts. Please wait a minute.' });
       return;
     }
@@ -94,7 +99,7 @@ export function createApp(cfg: ServerConfig, auth: AuthService, health: HealthIn
   const registerIp = new KeyedRateLimiter(cfg.registerPerHour, cfg.registerPerHour / 3600);
   const registerGlobal = new KeyedRateLimiter(cfg.registerGlobalPerHour, cfg.registerGlobalPerHour / 3600);
   const registerLimit = (req: Request, res: Response, next: NextFunction) => {
-    if (!registerIp.take(req.ip ?? 'unknown') || !registerGlobal.take('all')) {
+    if (!registerIp.take(clientIp(req)) || !registerGlobal.take('all')) {
       res.status(429).json({ ok: false, error: 'Too many new accounts right now. Please try again later.' });
       return;
     }

@@ -86,8 +86,12 @@ prices, inventory, XP and levels, dealership ownership and levels, auction state
 
 - There is no e-mail verification, password reset or CAPTCHA. Registration is limited only by rate. Consider adding
   CAPTCHA or proof-of-work if bots become a problem.
-- With `TRUST_PROXY=true`, per-IP limits use the right-most `X-Forwarded-For` entry, which is the one the single
-  trusted proxy appended. It is off by default. Enable it only when clients can't reach the server port directly.
+- With `TRUST_PROXY=true` (automatic on Render), per-IP limits walk `X-Forwarded-For` from the right, skip private
+  addresses (load balancers) and at most one Cloudflare edge, and use the first remaining entry. Entries further left
+  are client-supplied and are never reached. A request relayed through a Cloudflare Worker is keyed on the Worker's
+  address. The setting is off elsewhere by default. Enable it only when clients can't reach the server port directly.
+- On Render the server refuses to start without `DATABASE_URL`, so a missing setting can't silently fall back to the
+  ephemeral SQLite file.
 - A determined attacker with many IP addresses can still create alternate accounts. The trading rules make that
   unprofitable rather than impossible.
 - Tokens are stored in `localStorage`. The strict CSP and the absence of dynamic HTML reduce the XSS risk, but

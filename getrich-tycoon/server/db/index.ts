@@ -12,8 +12,16 @@ export type { Database, Queryable, Row } from './types';
 const log = createLogger('db');
 export const SCHEMA_VERSION = '1';
 
-export async function openDatabase(cfg: Pick<ServerConfig, 'databaseUrl' | 'databaseSsl' | 'sqlitePath'>): Promise<Database> {
+export async function openDatabase(
+  cfg: Pick<ServerConfig, 'databaseUrl' | 'databaseSsl' | 'sqlitePath'> & Partial<Pick<ServerConfig, 'requireDatabaseUrl'>>,
+): Promise<Database> {
   let db: Database;
+  if (!cfg.databaseUrl && cfg.requireDatabaseUrl) {
+    throw new Error(
+      'DATABASE_URL is not set. This host wipes its disk on every restart, so a PostgreSQL database is required ' +
+        '(for example a free Neon database). Add DATABASE_URL to the environment variables and redeploy.',
+    );
+  }
   if (cfg.databaseUrl) {
     db = await createPostgres(cfg.databaseUrl, cfg.databaseSsl);
     log.info('connected to PostgreSQL');
