@@ -3,7 +3,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ECONOMY } from '../../shared/economy.config';
 import { isCategoryUnlocked } from '../../shared/progression';
-import { fuelCost, marketValue, repairQuote } from '../../shared/valuation';
+import { fuelCost, marketValue, quickSellPrice, repairQuote } from '../../shared/valuation';
 import { getModel } from '../../shared/vehicles';
 import { INTERACTABLES, PLOTS, plotEntrance } from '../../shared/world';
 import type { RunningServer } from '../../server/main';
@@ -61,18 +61,6 @@ describe('dealership', () => {
     expect(up.dealership.level).toBe(2);
 
     const vehicle = await buyCheapest(client);
-    // Occupied/invalid slots are rejected
-    expect((await client.rpcRaw('dealership.place', { vehicleId: vehicle.id, slot: 11, price: 5000, rotation: 0 })).ok).toBe(false);
-    await client.rpc('dealership.place', { vehicleId: vehicle.id, slot: 0, price: 150, rotation: 0.5 });
-    const seen = await observer.client.waitFor<{ id: string; status: string; salePrice: number }>('vehicle.upsert', (v) => v.id === vehicle.id);
-    expect(seen).toMatchObject({ status: 'displayed', salePrice: 150 });
-
-    // Force an NPC customer visit and decision (price far below value => buys).
-    const customers = server.game.customers as unknown as {
-      spawn(plotId: string, inv: unknown[]): void;
-      customers: Map<string, { state: string; timer: number; path: unknown[]; archetype: unknown; budget: number }>;
-      tick(): Promise<void>;
-    };
     {
       const uow = server.game.state.begin();
       const v = uow.vehicle(vehicle.id);
@@ -80,6 +68,20 @@ describe('dealership', () => {
       for (const k of ['engine', 'transmission', 'brakes', 'tires', 'body', 'interior', 'cleanliness'] as const) v.condition[k] = 90;
       await uow.commit();
     }
+    // Occupied/invalid slots are rejected; prices below the wholesale floor are rejected.
+    expect((await client.rpcRaw('dealership.place', { vehicleId: vehicle.id, slot: 11, price: 5000, rotation: 0 })).ok).toBe(false);
+    expect((await client.rpcRaw('dealership.place', { vehicleId: vehicle.id, slot: 0, price: 100, rotation: 0 })).ok).toBe(false);
+    const cheap = quickSellPrice(server.game.state.vehicles.get(vehicle.id)!, server.game.state.trends) + 1;
+    await client.rpc('dealership.place', { vehicleId: vehicle.id, slot: 0, price: cheap, rotation: 0.5 });
+    const seen = await observer.client.waitFor<{ id: string; status: string; salePrice: number }>('vehicle.upsert', (v) => v.id === vehicle.id && v.status === 'displayed');
+    expect(seen).toMatchObject({ status: 'displayed', salePrice: cheap });
+
+    // Force an NPC customer visit and decision (price far below value => buys).
+    const customers = server.game.customers as unknown as {
+      spawn(plotId: string, inv: unknown[]): void;
+      customers: Map<string, { state: string; timer: number; path: unknown[]; archetype: unknown; budget: number }>;
+      tick(): Promise<void>;
+    };
     const before = server.game.state.players.get(client.playerId)!.money;
     customers.spawn(plot.id, [server.game.state.vehicles.get(vehicle.id)]);
     for (const c of customers.customers.values()) {
@@ -210,6 +212,8 @@ describe('auctions', () => {
     const seller = await connectNew(server);
     const b1 = await connectNew(server);
     const b2 = await connectNew(server);
+    // Bidding on other players' auctions requires some play (anti alt-account farming).
+    for (const b of [b1, b2]) await setLevel(server, b.client.playerId, ECONOMY.trading.minLevelToBuyFromPlayers);
     const vehicle = await buyCheapest(seller.client);
     goTo(seller.client, 'auction');
     const value = marketValue(vehicle, server.game.state.trends);
@@ -245,5 +249,46 @@ describe('auctions', () => {
     expect(sellerAfter - sellerBefore).toBeGreaterThanOrEqual(net);
     expect(server.game.state.auctions.has(auction.id)).toBe(false);
     for (const c of [seller, b1, b2]) c.client.close();
+  });
+});
+
+describe('auction edge cases', () => {
+  it('does not settle an auction that a last-second bid extended', async () => {
+    const seller = await connectNew(server);
+    const bidder = await connectNew(server);
+    await setLevel(server, bidder.client.playerId, ECONOMY.trading.minLevelToBuyFromPlayers);
+    const vehicle = await buyCheapest(seller.client);
+    goTo(seller.client, 'auction');
+    const value = marketValue(vehicle, server.game.state.trends);
+    const start = Math.max(100, Math.round(value * 0.5));
+    const { auction } = await seller.client.rpc('auction.create', { vehicleId: vehicle.id, startingBid: start, durationSec: 60 });
+    {
+      const uow = server.game.state.begin();
+      const a = uow.auction(auction.id);
+      a.npcCap = 0;
+      a.endsAt = Date.now() + 2_000; // inside the anti-snipe window
+      await uow.commit();
+    }
+    const r = await bidder.client.rpc('auction.bid', { auctionId: auction.id, amount: start });
+    expect(r.auction.endsAt).toBeGreaterThan(Date.now() + ECONOMY.auction.antiSnipeSec * 1000 - 2_000);
+    await server.game.auctions.finalize(auction.id);
+    expect(server.game.state.auctions.get(auction.id)?.status).toBe('active');
+    expect(server.game.state.vehicles.get(vehicle.id)!.ownerId).toBe(seller.client.playerId);
+    seller.client.close();
+    bidder.client.close();
+  });
+});
+
+describe('sessions', () => {
+  it('a second login for the same account kicks the first socket', async () => {
+    const { client, reg } = await connectNew(server);
+    const second = await new TestClient(server.url, reg.token).connect();
+    await client.waitFor<string>('kicked');
+    await sleep(100);
+    const r = await second.rpc('market.list', {});
+    expect(r.listings.length).toBeGreaterThan(0);
+    expect(server.game.onlineCount).toBeGreaterThan(0);
+    second.close();
+    client.close();
   });
 });

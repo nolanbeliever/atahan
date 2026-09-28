@@ -177,7 +177,9 @@ export class MarketPanel extends Panel {
                   actions:
                     l.sellerId === this.store.playerId
                       ? h('span', { class: 'pill gold' }, 'Your listing')
-                      : h('button', { class: 'btn small primary', 'data-testid': 'player-buy', disabled: this.busy, onclick: () => void this.buyPlayer(l) }, `Buy ${formatMoney(l.price)}`),
+                      : level < ECONOMY.trading.minLevelToBuyFromPlayers
+                        ? h('span', { class: 'pill red' }, `Buying from players unlocks at level ${ECONOMY.trading.minLevelToBuyFromPlayers}`)
+                        : h('button', { class: 'btn small primary', 'data-testid': 'player-buy', disabled: this.busy, onclick: () => void this.buyPlayer(l) }, `Buy ${formatMoney(l.price)}`),
                 }),
               ),
             )

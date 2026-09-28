@@ -67,13 +67,10 @@ The **two-client multiplayer test** (`10-12`) is the critical one:
 
 ## Results from the build environment
 
-Recorded on 2026-09-28 (Ubuntu 24.04, Node 22.22, Chromium 141 headless via SwiftShader, PostgreSQL 16.13):
+Recorded on 2026-09-28 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chromium via SwiftShader, PostgreSQL 16.13):
 
-- `npm run typecheck`: pass.
-- Unit tests: 35 passed.
-- Integration tests: 18 passed on SQLite and 18 passed on PostgreSQL.
-- Playwright E2E: 5 passed, and 4 of 5 passed on repeated full runs. See the note below.
+RESULTS_PLACEHOLDER
 
-Note on flakiness: a single early flake in the two-client test came from picking a listing the level-1 test account
-was not allowed to buy (category lock). The test now filters to unlocked categories. Since then, repeated full runs
-have passed. The main source of slowness is software rendering. Nothing in the tests depends on timing beyond generous polls.
+Note on flakiness: an early flake in the two-client test came from picking a listing the level-1 test account was
+not allowed to buy (category lock). The test now filters to unlocked categories. The main source of slowness is
+software rendering. The tests use generous polls rather than fixed sleeps wherever possible.

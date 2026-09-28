@@ -79,10 +79,10 @@ Money spent on repairs, washes and mods is added to the car's cost basis, so the
 
 | Channel | Price | Fee | Notes |
 | --- | --- | --- | --- |
-| Dealership display | You set it (≤ 2.5 × value) | 5% commission | NPC customers visit about every 45 s ÷ (level traffic × reputation factor). Offline owners get 40% of the traffic. |
-| Classifieds | You set it (≤ 2.5 × value) | $150 listing + 5% | A remote buyer checks each listing every 60 s (18% chance × reputation). |
+| Dealership display | You set it (0.68-2.5 × value) | 5% commission | NPC customers visit about every 45 s ÷ (level traffic × reputation factor). Offline owners get 40% of the traffic. |
+| Classifieds | You set it (0.68-2.5 × value) | $150 listing + 5% | A remote buyer checks each listing every 60 s (18% chance × reputation). |
 | Auction | Highest bid | $250 + 7% | NPC bidders bid up to 70-93% of value. |
-| Players | Agreed price | 5% | Other players buy your listings directly. |
+| Players | Agreed price | 5% | Other players (level 3+) buy your listings directly. Earns money, not XP. |
 | Wholesaler (quick sell) | 68% of value | none | Instant liquidity. |
 
 **NPC customers** come in 7 archetypes (student, family, tradesperson, enthusiast, executive, collector, bargain hunter).
@@ -132,7 +132,13 @@ Cash is used for all purchases. Savings earn 0.4% every 10 minutes, capped at $2
 ## Anti-exploit rules
 
 - **No arbitrage.** The wholesaler pays 68% of value, below the lowest possible seller minimum (76%). A unit test checks this on 500 random vehicles.
-- **Money laundering between accounts** is limited. Asking prices are capped at 2.5 × market value, and every player-to-player sale pays a 5% commission. Auction starting bids must be within 10-150% of value.
+- **Alternate-account farming is limited:**
+  - Asking prices must be between the wholesale price (0.68 × value) and 2.5 × value, and auction bids are capped at 2.5 × value.
+  - Auction starting bids must be within 50-150% of value.
+  - Every player-to-player sale pays a 5% commission.
+  - Buying from other players, or bidding on their auctions, requires player level 3.
+  - Sales to other players earn money only: no XP, reputation, profit stats or sales achievements. Trading a car back and forth therefore can't farm progression.
+  - New accounts are rate-limited per IP and globally.
 - **All prices are recomputed on the server.** Clients send `expectedPrice`, and a mismatch is rejected ("price changed"), so a client can never choose a price.
 - **Escrowed auctions.** Bids are debited immediately and refunded when outbid, so a winner always has the money.
 - **Negotiation state is server-side** and the minimum price is hidden. The counter never goes below the minimum, never rises, and never exceeds the asking price (randomized unit test).

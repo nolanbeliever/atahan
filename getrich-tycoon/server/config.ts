@@ -59,6 +59,9 @@ export interface ServerConfig {
   authRatePerMinute: number;
   /** Trust X-Forwarded-For (only behind a reverse proxy that overwrites it). */
   trustProxy: boolean;
+  /** New accounts allowed per IP per hour, and globally per hour. */
+  registerPerHour: number;
+  registerGlobalPerHour: number;
 }
 
 export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
@@ -81,7 +84,10 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     clientDir: path.resolve(PROJECT_ROOT, 'dist/client'),
     simulation: process.env.DISABLE_SIMULATION !== 'true',
     authRatePerMinute: int('AUTH_RATE_PER_MINUTE', 10, 1, 100_000),
-    trustProxy: process.env.TRUST_PROXY !== undefined ? process.env.TRUST_PROXY === 'true' : env === 'production',
+    // Off unless explicitly enabled: if the port is reachable directly, X-Forwarded-For is spoofable.
+    trustProxy: process.env.TRUST_PROXY === 'true',
+    registerPerHour: int('REGISTER_PER_HOUR', 10, 1, 1_000_000),
+    registerGlobalPerHour: int('REGISTER_GLOBAL_PER_HOUR', 500, 1, 1_000_000),
     ...overrides,
   };
   return cfg;

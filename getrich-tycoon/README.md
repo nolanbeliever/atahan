@@ -131,7 +131,7 @@ See [`.env.example`](.env.example). The important ones:
 | `DATABASE_SSL` | false | `true` for managed Postgres that requires TLS (Neon, Supabase, ...) |
 | `SQLITE_PATH` | ./data/getrich.db | SQLite file for local development |
 | `CORS_ORIGINS` | *(empty)* | Only needed if the client is hosted on another origin |
-| `TRUST_PROXY` | true in production | Use `X-Forwarded-For` for per-IP limits behind a reverse proxy |
+| `TRUST_PROXY` | false | Set `true` only when the server is reachable exclusively through one reverse proxy (Render, Northflank, Caddy) |
 | `AUTH_RATE_PER_MINUTE` | 10 | Login/register attempts per IP per minute |
 | `TICK_RATE` | 20 | Server simulation/snapshot rate (Hz) |
 | `AUTOSAVE_SECONDS` | 30 | Position/driving autosave interval |

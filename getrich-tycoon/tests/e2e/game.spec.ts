@@ -175,14 +175,15 @@ test('10-12. two browser clients: connect, see each other, and synchronize', asy
   if ('price' in bought) {
     await expect.poll(async () => (await state(b.page)).marketListings.some((l) => l.id === listing.id), { timeout: 30_000 }).toBe(false);
     // A lists it; B sees it in the player listings via the Marketplace UI
-    await a.page.evaluate(async (vehicleId) => {
+    // List at the price A paid (always within the server's allowed range of 0.68x-2.5x market value).
+    await a.page.evaluate(async ([vehicleId, price]) => {
       const net = (window as unknown as { __getrich: { game: { net: { rpc: (m: string, p: unknown) => Promise<unknown> } } } }).__getrich.game.net;
-      await net.rpc('vehicle.list', { vehicleId, price: 1_234 });
-    }, listing.vehicleId);
+      await net.rpc('vehicle.list', { vehicleId, price });
+    }, [listing.vehicleId, listing.price] as const);
     await b.page.getByTestId('dock-market').click();
     await b.page.getByTestId('market-tab-players').click();
     await expect(b.page.locator(`[data-vehicle="${listing.vehicleId}"]`)).toBeVisible();
-    await expect(b.page.locator(`[data-vehicle="${listing.vehicleId}"]`)).toContainText('$1,234');
+    await expect(b.page.locator(`[data-vehicle="${listing.vehicleId}"]`)).toContainText(moneyText(listing.price));
   } else {
     throw new Error(`purchase failed: ${JSON.stringify(bought)}`);
   }

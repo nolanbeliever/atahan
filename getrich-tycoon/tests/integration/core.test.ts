@@ -1,11 +1,12 @@
 // Core multiplayer + economy flows over real Socket.IO connections.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ECONOMY } from '../../shared/economy.config';
 import { KEY } from '../../shared/physics';
 import { findAchievement, isCategoryUnlocked } from '../../shared/progression';
 import { getModel } from '../../shared/vehicles';
 import type { RunningServer } from '../../server/main';
-import { connectNew, resetPostgres, setMoney, sleep, startServer, TestClient } from '../helpers/server';
+import { connectNew, resetPostgres, setLevel, setMoney, sleep, startServer, TestClient } from '../helpers/server';
 
 let server: RunningServer;
 const reward = (id: string) => findAchievement(id)!.reward;
@@ -198,12 +199,20 @@ describe('player listings & selling', () => {
     const pl = playerListings.find((x) => x.vehicle.id === vehicle.id);
     expect(pl).toBeTruthy();
     expect(pl!.vehicle.purchasePrice).toBe(0); // private data is not leaked
-    // Seller cannot buy own vehicle; buyer must confirm the exact price.
+    // Seller cannot buy own vehicle; brand-new accounts cannot buy from players (anti alt-farming);
+    // the buyer must confirm the exact price.
     expect((await seller.client.rpcRaw('market.buyPlayer', { vehicleId: vehicle.id, expectedPrice: price })).ok).toBe(false);
+    expect(await buyer.client.rpcRaw('market.buyPlayer', { vehicleId: vehicle.id, expectedPrice: price })).toMatchObject({ ok: false, code: 'forbidden' });
+    await setLevel(server, buyer.client.playerId, ECONOMY.trading.minLevelToBuyFromPlayers);
     expect((await buyer.client.rpcRaw('market.buyPlayer', { vehicleId: vehicle.id, expectedPrice: price - 100 })).ok).toBe(false);
+    const sellerXpBefore = server.game.state.players.get(seller.client.playerId)!.xp;
     await buyer.client.rpc('market.buyPlayer', { vehicleId: vehicle.id, expectedPrice: price });
     const fee = Math.round(price * 0.05);
-    expect(server.game.state.players.get(seller.client.playerId)!.money).toBe(sellerMoneyBefore + price - fee + FIRST_SALE);
+    // Sales to players pay money but no XP / sales achievements.
+    const sellerAfter = server.game.state.players.get(seller.client.playerId)!;
+    expect(sellerAfter.money).toBe(sellerMoneyBefore + price - fee);
+    expect(sellerAfter.xp).toBe(sellerXpBefore);
+    expect(sellerAfter.stats.vehiclesSold).toBe(0);
     expect(server.game.state.players.get(buyer.client.playerId)!.money).toBe(25_000 - price + FIRST_BUY);
     expect(server.game.state.vehicles.get(vehicle.id)!.ownerId).toBe(buyer.client.playerId);
     await seller.client.waitFor<{ title: string }>('notify', (n) => n.title === 'Vehicle sold!');

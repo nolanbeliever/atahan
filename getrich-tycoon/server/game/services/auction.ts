@@ -14,7 +14,7 @@ import { K, type Ctx } from '../context';
 import { generateNpcVehicle, randomPersonName } from '../generator';
 import { requireIdle, requireNear, requireOwned } from '../guards';
 import type { AuctionRecord } from '../records';
-import { assertCanOwnMore, assertCategoryUnlocked, settleSale } from './sales';
+import { assertCanOwnMore, assertCanTradeWithPlayers, assertCategoryUnlocked, maxAskingPrice, settleSale } from './sales';
 
 const log = createLogger('auction');
 
@@ -125,8 +125,12 @@ export class AuctionService {
       const bidder = uow.player(playerId);
       const veh = this.ctx.state.vehicles.get(a.vehicleId);
       if (!veh) throw new GameError('not_found', 'Vehicle missing.');
+      if (a.sellerId !== null) assertCanTradeWithPlayers(bidder);
       assertCategoryUnlocked(bidder, veh.modelId);
       assertCanOwnMore(this.ctx, bidder);
+      // Same cap as asking prices: stops funnelling money between accounts through absurd bids.
+      const cap = maxAskingPrice(this.ctx, veh);
+      if (amount > cap) throw new GameError('bad_request', `Bids on this vehicle are capped at $${cap.toLocaleString('en-US')}.`);
       uow.debit(bidder, amount, 'auction_bid_hold', `Bid on ${modelDisplayName(veh.modelId)} (held)`, veh.id);
       if (a.currentBidderId && a.currentBid) {
         const prev = uow.player(a.currentBidderId);
@@ -203,6 +207,9 @@ export class AuctionService {
         const uow = this.ctx.state.begin();
         const a = uow.auction(auctionId);
         if (a.status !== 'active') return;
+        // A last-second bid may have extended the auction (anti-sniping) or changed the
+        // leader after our lock keys were computed: settle on a later tick instead.
+        if (a.endsAt > uow.now || a.currentBidderId !== a0.currentBidderId) return;
         const veh = uow.vehicle(a.vehicleId);
         const name = modelDisplayName(veh.modelId);
         const isOnline = (id: string) => this.ctx.hub.isOnline(id);

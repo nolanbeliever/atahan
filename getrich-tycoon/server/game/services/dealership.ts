@@ -8,7 +8,7 @@ import { createLogger } from '../../logger';
 import * as val from '../../validate';
 import { K, type Ctx } from '../context';
 import { requireIdle, requireNearPlot, requireOwned } from '../guards';
-import { maxAskingPrice } from './sales';
+import { assertAskingPrice } from './sales';
 
 const log = createLogger('dealership');
 
@@ -108,10 +108,7 @@ export class DealershipService {
       const veh = uow.vehicle(vehicleId);
       requireOwned(veh, player);
       requireIdle(this.ctx, veh, { allowedStatus: ['stored', 'world', 'displayed'] });
-      if (price !== null) {
-        const max = maxAskingPrice(this.ctx, veh);
-        if (price > max) throw new GameError('bad_request', `Asking price is too high (max $${max.toLocaleString('en-US')}).`);
-      }
+      if (price !== null) assertAskingPrice(this.ctx, veh, price);
       const pos = plotSlot(plot, slot);
       veh.status = 'displayed';
       veh.plotId = plotId;
@@ -158,10 +155,7 @@ export class DealershipService {
       requireOwned(veh, player);
       if (veh.status !== 'displayed' && veh.status !== 'listed') throw new GameError('conflict', 'That vehicle is not on display or listed.');
       if (price === null && veh.status === 'listed') throw new GameError('bad_request', 'Classified listings need a price. Unlist it instead.');
-      if (price !== null) {
-        const max = maxAskingPrice(this.ctx, veh);
-        if (price > max) throw new GameError('bad_request', `Asking price is too high (max $${max.toLocaleString('en-US')}).`);
-      }
+      if (price !== null) assertAskingPrice(this.ctx, veh, price);
       veh.salePrice = price;
       if (rotation !== undefined && veh.status === 'displayed') veh.rotation = rotation;
       await uow.commit();

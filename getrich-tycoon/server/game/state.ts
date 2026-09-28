@@ -182,6 +182,8 @@ export class GameState {
       const beforeCopy = before ? { ...before } : null;
       if (draft === null) this.removeVehicle(id);
       else if (before) {
+        // Drop the previous owner's index entry before the owner field is overwritten.
+        if (before.ownerId && before.ownerId !== draft.ownerId) this.ownerIndex.get(before.ownerId)?.delete(id);
         Object.assign(before, draft);
         this.putVehicle(before);
       } else this.putVehicle(draft);
@@ -350,13 +352,34 @@ export class UnitOfWork {
     p.reputation = Math.max(r.min, Math.min(r.max, p.reputation + delta));
   }
 
+  /** Net worth as it will be after this unit of work commits (drafts override live state). */
+  private draftNetWorth(p: PlayerRecord, dealershipLevelNow: number): number {
+    const trends = this.newTrends ?? this.state.trends;
+    let worth = p.money + p.bank;
+    const seen = new Set<string>();
+    for (const v of this.state.vehiclesOf(p.id)) {
+      seen.add(v.id);
+      const d = this.vehicleDrafts.has(v.id) ? this.vehicleDrafts.get(v.id)! : v;
+      if (d && d.ownerId === p.id) worth += marketValue(d, trends);
+    }
+    for (const [id, d] of this.vehicleDrafts) if (!seen.has(id) && d && d.ownerId === p.id) worth += marketValue(d, trends);
+    for (let l = 1; l <= dealershipLevelNow; l++) worth += Math.round(dealershipLevel(l).price * 0.6);
+    const auctionIds = new Set([...this.state.auctions.keys(), ...this.auctionDrafts.keys()]);
+    for (const id of auctionIds) {
+      const a = this.auctionDrafts.get(id) ?? this.state.auctions.get(id);
+      if (a && a.status === 'active' && a.currentBidderId === p.id) worth += a.currentBid ?? 0;
+    }
+    return worth;
+  }
+
   /** Check & award achievements for a player draft (call last, before commit). */
   checkAchievements(p: PlayerRecord): void {
     const dealership = this.dealershipDrafts.get(p.dealershipPlotId ?? '') ?? this.state.dealershipOf(p.id);
+    const level = dealership?.level ?? 0;
     const ctx = {
       stats: p.stats,
-      netWorth: this.state.netWorth(p.id) + (p.money - (this.state.players.get(p.id)?.money ?? p.money)),
-      dealershipLevel: dealership?.level ?? 0,
+      netWorth: this.draftNetWorth(p, level),
+      dealershipLevel: level,
     };
     for (const a of ACHIEVEMENTS) {
       if (p.achievements.includes(a.id)) continue;

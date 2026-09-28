@@ -41,6 +41,8 @@ export async function startServer(overrides: Partial<ServerConfig> = {}): Promis
     databaseUrl: TEST_DB_URL,
     sqlitePath: ':memory:',
     authRatePerMinute: 10_000,
+    registerPerHour: 100_000,
+    registerGlobalPerHour: 100_000,
     ...overrides,
   });
 }

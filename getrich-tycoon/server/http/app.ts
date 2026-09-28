@@ -14,6 +14,8 @@ const log = createLogger('http');
 export interface HealthInfo {
   db: string;
   online: () => number;
+  /** Called after a logout so open game sockets of that player are closed. */
+  onLogout?: (playerId: string) => void;
 }
 
 export function createApp(cfg: ServerConfig, auth: AuthService, health: HealthInfo): express.Express {
@@ -88,12 +90,26 @@ export function createApp(cfg: ServerConfig, auth: AuthService, health: HealthIn
     }
   };
 
-  app.post('/api/auth/register', limit, handle((req) => auth.register(req.body?.name, req.body?.password)));
+  // Account creation is additionally capped per IP and globally per hour (alt-account farming, scrypt CPU).
+  const registerIp = new KeyedRateLimiter(cfg.registerPerHour, cfg.registerPerHour / 3600);
+  const registerGlobal = new KeyedRateLimiter(cfg.registerGlobalPerHour, cfg.registerGlobalPerHour / 3600);
+  const registerLimit = (req: Request, res: Response, next: NextFunction) => {
+    if (!registerIp.take(req.ip ?? 'unknown') || !registerGlobal.take('all')) {
+      res.status(429).json({ ok: false, error: 'Too many new accounts right now. Please try again later.' });
+      return;
+    }
+    next();
+  };
+
+  app.post('/api/auth/register', limit, registerLimit, handle((req) => auth.register(req.body?.name, req.body?.password)));
   app.post('/api/auth/login', limit, handle((req) => auth.login(req.body?.name, req.body?.password)));
   app.post(
     '/api/auth/logout',
     handle(async (req) => {
-      if (typeof req.body?.token === 'string') await auth.logout(req.body.token);
+      if (typeof req.body?.token === 'string') {
+        const playerId = await auth.logout(req.body.token);
+        if (playerId) health.onLogout?.(playerId);
+      }
       return {};
     }),
   );

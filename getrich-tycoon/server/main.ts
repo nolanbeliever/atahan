@@ -7,7 +7,7 @@ import type { ClientToServerEvents, ServerToClientEvents } from '../shared/proto
 import { AuthService } from './auth';
 import { loadConfig, type ServerConfig } from './config';
 import { openDatabase, type Database } from './db';
-import { GameServer } from './game/GameServer';
+import { GameServer, type SocketData } from './game/GameServer';
 import { GameState } from './game/state';
 import { createApp } from './http/app';
 import { createLogger, setLogLevel } from './logger';
@@ -31,9 +31,13 @@ export async function createServer(overrides: Partial<ServerConfig> = {}): Promi
   const auth = new AuthService(db, state);
 
   let game: GameServer | null = null;
-  const app = createApp(cfg, auth, { db: db.kind, online: () => game?.onlineCount ?? 0 });
+  const app = createApp(cfg, auth, {
+    db: db.kind,
+    online: () => game?.onlineCount ?? 0,
+    onLogout: (playerId) => game?.kick(playerId, 'You logged out.'),
+  });
   const httpServer = http.createServer(app);
-  const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { playerId: string }>(httpServer, {
+  const io = new Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>(httpServer, {
     maxHttpBufferSize: 32 * 1024,
     pingInterval: 20_000,
     pingTimeout: 25_000,

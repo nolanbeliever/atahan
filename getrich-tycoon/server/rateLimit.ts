@@ -20,6 +20,11 @@ export class TokenBucket {
     this.tokens -= cost;
     return true;
   }
+
+  /** True when the bucket would be full at `now` (i.e. idle long enough to be forgotten). */
+  isFull(now = Date.now()): boolean {
+    return this.tokens + ((now - this.last) / 1000) * this.refillPerSec >= this.capacity;
+  }
 }
 
 /** Per-key buckets (e.g. per IP) with periodic cleanup. */
@@ -35,7 +40,8 @@ export class KeyedRateLimiter {
   take(key: string, cost = 1): boolean {
     const now = Date.now();
     if (now - this.lastSweep > 60_000) {
-      this.buckets.clear();
+      // Only forget buckets that have fully refilled; clearing exhausted ones would reset the limit.
+      for (const [k, b] of this.buckets) if (b.isFull(now)) this.buckets.delete(k);
       this.lastSweep = now;
     }
     let b = this.buckets.get(key);

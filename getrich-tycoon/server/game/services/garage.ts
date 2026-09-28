@@ -143,7 +143,7 @@ export class GarageService {
     const vehicleId = val.id(p.vehicleId, 'vehicle');
     const modsIn = val.obj(p.mods);
     const slots = Object.keys(modsIn) as ModSlot[];
-    if (slots.length === 0 || slots.some((s) => !(s in MOD_CATALOG))) throw new GameError('bad_request', 'Invalid customization.');
+    if (slots.length === 0 || slots.some((s) => !Object.hasOwn(MOD_CATALOG, s))) throw new GameError('bad_request', 'Invalid customization.');
     for (const s of slots) {
       const option = modsIn[s];
       if (option !== null && typeof option !== 'string') throw new GameError('bad_request', 'Invalid customization.');

@@ -49,12 +49,13 @@ export class BankService {
     const intervalMs = cfg.payoutIntervalSec * 1000;
     const live = this.ctx.state.players.get(playerId);
     if (!live) return;
-    const now = Date.now();
-    const intervals = Math.floor((now - live.lastInterestAt) / intervalMs);
-    if (intervals < 1) return;
+    if (Math.floor((Date.now() - live.lastInterestAt) / intervalMs) < 1) return;
     await this.ctx.locks.run([K.player(playerId)], async () => {
       const uow = this.ctx.state.begin();
       const p = uow.player(playerId);
+      // Recompute inside the lock: overlapping calls must never pay the same period twice.
+      const intervals = Math.floor((uow.now - p.lastInterestAt) / intervalMs);
+      if (intervals < 1) return;
       let paid = 0;
       for (let i = 0; i < Math.min(intervals, maxIntervals); i++) {
         const interest = Math.min(cfg.maxInterestPerPayout, Math.floor(p.bank * cfg.interestRate));

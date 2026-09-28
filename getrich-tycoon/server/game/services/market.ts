@@ -15,7 +15,7 @@ import { K, type Ctx } from '../context';
 import { generateNpcVehicle, randomPersonName } from '../generator';
 import type { ListingRecord } from '../records';
 import { isPlayerListing } from '../state';
-import { acquireVehicle, assertCanOwnMore, assertCategoryUnlocked, settleSale } from './sales';
+import { acquireVehicle, assertCanOwnMore, assertCanTradeWithPlayers, assertCategoryUnlocked, settleSale } from './sales';
 
 const log = createLogger('market');
 
@@ -243,6 +243,7 @@ export class MarketService {
       if (price !== expected) throw new GameError('conflict', `The price changed to $${price.toLocaleString('en-US')}.`);
       const buyer = uow.player(playerId);
       const seller = uow.player(sellerId);
+      assertCanTradeWithPlayers(buyer);
       assertCategoryUnlocked(buyer, veh.modelId);
       assertCanOwnMore(this.ctx, buyer);
       const sale = settleSale(this.ctx, uow, seller, veh, price, {

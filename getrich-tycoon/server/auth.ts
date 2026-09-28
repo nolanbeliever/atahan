@@ -20,7 +20,9 @@ import type { GameState } from './game/state';
 const log = createLogger('auth');
 const scrypt = promisify(crypto.scrypt) as (pw: string, salt: Buffer, keylen: number, opts: crypto.ScryptOptions) => Promise<Buffer>;
 
-const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
+// N=2^15, r=8 uses 32 MB per hash. (OWASP suggests 2^17 = 128 MB, which is too heavy for
+// 512 MB free-tier instances under concurrent logins.) Old hashes keep their own parameters.
+const SCRYPT = { N: 32768, r: 8, p: 1, keylen: 64 };
 export const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
 
 export async function hashPassword(password: string): Promise<string> {
@@ -150,7 +152,10 @@ export class AuthService {
     return repo.findSession(this.db, hashToken(token), Date.now());
   }
 
-  async logout(token: string): Promise<void> {
+  /** Delete the session; returns the player id so live sockets can be disconnected. */
+  async logout(token: string): Promise<string | null> {
+    const playerId = await this.verify(token);
     await repo.deleteSession(this.db, hashToken(token));
+    return playerId;
   }
 }

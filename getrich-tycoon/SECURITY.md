@@ -10,12 +10,17 @@ prices, inventory, XP and levels, dealership ownership and levels, auction state
 ## Protections
 
 ### Authentication
-- Accounts are a name plus password. Passwords are hashed with **scrypt** (N=16384, r=8, p=1, 16-byte random salt) and
-  compared in constant time.
+- Accounts are a name plus password. Passwords are hashed with **scrypt** (N=32768, r=8, p=1, 16-byte random salt) and
+  compared in constant time. OWASP suggests N=2^17, which needs 128 MB per hash and is too heavy for a 512 MB free-tier
+  instance. Existing hashes keep their own parameters.
 - A login with an unknown name still performs a hash, so response timing doesn't reveal which names exist.
 - Session tokens are 256-bit random values. Only their **SHA-256 hash** is stored. They expire after 30 days, and logout deletes them.
-- Sockets must present a valid token during the handshake or the connection is refused. A second login kicks the old socket.
+- Sockets must present a valid token during the handshake or the connection is refused. A second login kicks the old
+  socket, and logging out disconnects any open game socket.
 - Login and registration are rate limited per IP (`AUTH_RATE_PER_MINUTE`, default 10/min).
+- Account creation is further capped per IP (`REGISTER_PER_HOUR`, default 10) and server-wide
+  (`REGISTER_GLOBAL_PER_HOUR`, default 500).
+- Socket handshakes are rate limited per IP.
 
 ### Input validation
 - Every RPC parameter is checked by strict validators (`server/validate.ts`):
@@ -48,9 +53,19 @@ prices, inventory, XP and levels, dealership ownership and levels, auction state
 ### Abuse limits
 - Rate limits: RPC 12/s (burst 30), input 40 msg/s, chat 5 messages then 0.5/s, with a 10 s mute when spamming and
   duplicate-message suppression.
-- At most 12 simultaneous sockets per IP.
-- Asking prices are capped at 2.5 × market value, and trades pay a commission. This limits money transfer between
-  alternate accounts.
+- RPC and chat limits are tracked **per player**, so reconnecting does not reset them.
+- At most 12 simultaneous sockets per IP. The slot is reserved during the handshake, so parallel handshakes can't overshoot.
+- The leaderboard, which is expensive to compute, is cached for 15 s.
+- Alternate-account farming: see "Anti-exploit rules" in ECONOMY.md. In short:
+  - price floors and caps;
+  - level 3 required to buy from players;
+  - no XP or achievements from player-to-player sales;
+  - registration caps.
+- Asking prices **and auction bids** are capped at 2.5 × market value, and trades pay a commission. This limits money
+  transfer between alternate accounts.
+- Auction settlement re-checks the end time and the current leader after acquiring its locks, so a last-second
+  (anti-sniping) bid can't be settled early.
+- Connection setup is serialized per account, so two simultaneous logins can't both register a session.
 
 ### XSS and injection
 - The UI inserts player-controlled strings (names, chat, dealership names) only with `textContent`. Name tags and signs are
@@ -71,7 +86,10 @@ prices, inventory, XP and levels, dealership ownership and levels, auction state
 
 - There is no e-mail verification, password reset or CAPTCHA. Registration is limited only by rate. Consider adding
   CAPTCHA or proof-of-work if bots become a problem.
-- The per-IP limits rely on `X-Forwarded-For` when `TRUST_PROXY=true`. Only enable it behind a proxy that overwrites the header.
+- With `TRUST_PROXY=true`, per-IP limits use the right-most `X-Forwarded-For` entry, which is the one the single
+  trusted proxy appended. It is off by default. Enable it only when clients can't reach the server port directly.
+- A determined attacker with many IP addresses can still create alternate accounts. The trading rules make that
+  unprofitable rather than impossible.
 - Tokens are stored in `localStorage`. The strict CSP and the absence of dynamic HTML reduce the XSS risk, but
   HttpOnly-cookie sessions would be stronger.
 - The in-memory world and single-process locks assume one server instance (see ARCHITECTURE.md).

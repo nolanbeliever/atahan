@@ -63,9 +63,6 @@ export class ChatService {
     this.history.push(m);
     if (this.history.length > HISTORY) this.history.shift();
   }
-
-  forget(playerId: string): void {
-    this.buckets.delete(playerId);
-    this.lastText.delete(playerId);
-  }
+  // Note: per-player buckets/mutes are deliberately kept across reconnects so that
+  // reconnecting cannot reset the anti-spam limits. They are bounded by the number of accounts.
 }

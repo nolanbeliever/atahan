@@ -35,6 +35,8 @@ export default defineConfig({
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? '',
       SQLITE_PATH: sqlite,
       AUTH_RATE_PER_MINUTE: '1000',
+      REGISTER_PER_HOUR: '100000',
+      REGISTER_GLOBAL_PER_HOUR: '100000',
       LOG_LEVEL: 'warn',
     },
   },

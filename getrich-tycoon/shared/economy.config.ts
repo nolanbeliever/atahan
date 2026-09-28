@@ -393,7 +393,7 @@ export const ECONOMY = {
     /** A bid in the last N seconds extends the auction to N seconds (anti-sniping). */
     antiSnipeSec: 15,
     /** Starting bid must be between these fractions of market value (anti-manipulation). */
-    startingBidRange: [0.1, 1.5] as [number, number],
+    startingBidRange: [0.5, 1.5] as [number, number],
     /** NPC bidders participate in player auctions up to this fraction of market value. */
     npcBidChancePerTick: 0.02,
     npcMaxBidRate: [0.7, 0.93] as [number, number],
@@ -405,6 +405,14 @@ export const ECONOMY = {
   customization: {
     /** Fraction of the paid customization cost that is recognised in market value (capped by valuation.maxModsBonus). */
     valueRetention: 0.6,
+  },
+
+  /** Player-to-player trading guards (limit money/XP farming with alternate accounts). */
+  trading: {
+    /** Asking prices and auction bids are capped at this multiple of market value. */
+    maxPriceRate: 2.5,
+    /** Player level required to buy from other players or bid on their auctions. */
+    minLevelToBuyFromPlayers: 3,
   },
 
   world: {

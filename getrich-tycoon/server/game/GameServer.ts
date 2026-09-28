@@ -22,7 +22,7 @@ import * as repo from '../db/repo';
 import { GameError } from '../errors';
 import { KeyedMutex } from '../locks';
 import { createLogger } from '../logger';
-import { TokenBucket } from '../rateLimit';
+import { KeyedRateLimiter, TokenBucket } from '../rateLimit';
 import * as val from '../validate';
 import { K, type Ctx, type Hub } from './context';
 import { Simulation } from './simulation';
@@ -39,7 +39,12 @@ import { VehicleService } from './services/vehicles';
 
 const log = createLogger('game');
 
-type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { playerId: string }>;
+export interface SocketData {
+  playerId: string;
+  ip: string;
+}
+
+type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
 interface Session {
   playerId: string;
@@ -69,12 +74,16 @@ export class GameServer implements Hub {
   private timers: NodeJS.Timeout[] = [];
   private selfDirty = new Set<string>();
   private ipCounts = new Map<string, number>();
+  /** Per-player RPC buckets survive reconnects (bounded by the number of accounts). */
+  private rpcBuckets = new Map<string, TokenBucket>();
+  private handshakeLimiter = new KeyedRateLimiter(60, 2);
+  private leaderboardCache: { at: number; entries: LeaderboardEntry[] } | null = null;
   private handlers: Record<RpcName, Handler>;
   private lastTick = Date.now();
   private stopping = false;
 
   constructor(
-    private readonly io: Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { playerId: string }>,
+    private readonly io: Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>,
     readonly state: GameState,
     private readonly auth: AuthService,
     private readonly cfg: ServerConfig,
@@ -153,12 +162,17 @@ export class GameServer implements Hub {
     this.broadcast('chat', this.chat.system(text));
   }
 
-  /** Client IP for per-IP limits (first X-Forwarded-For hop when behind a trusted proxy). */
+  /**
+   * Client IP for per-IP limits. Behind ONE trusted proxy the real client address is the
+   * right-most X-Forwarded-For entry (the one the proxy appended); anything to its left is
+   * client-controlled and must not be trusted. Mirrors Express' `trust proxy = 1`.
+   */
   private clientIp(socket: Socket): string {
     if (this.cfg.trustProxy) {
       const fwd = socket.handshake.headers['x-forwarded-for'];
-      const first = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim();
-      if (first) return first.slice(0, 64);
+      const parts = (Array.isArray(fwd) ? fwd.join(',') : fwd ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      const last = parts[parts.length - 1];
+      if (last) return last.slice(0, 64);
     }
     return socket.handshake.address;
   }
@@ -167,14 +181,19 @@ export class GameServer implements Hub {
 
   async start(): Promise<void> {
     this.io.use((socket, next) => {
+      const ip = this.clientIp(socket);
+      // Handshake rate limit per IP (reconnect spam would otherwise reset per-connection limits).
+      if (!this.handshakeLimiter.take(ip)) return next(new Error('too many connection attempts'));
       const token = (socket.handshake.auth as Record<string, unknown> | undefined)?.token;
       this.auth
         .verify(token)
         .then((playerId) => {
           if (!playerId || !this.state.players.has(playerId)) return next(new Error('unauthorized'));
-          const ip = this.clientIp(socket);
           if ((this.ipCounts.get(ip) ?? 0) >= 12) return next(new Error('too many connections'));
+          // Reserve the slot now so parallel handshakes can't all pass the check.
+          this.ipCounts.set(ip, (this.ipCounts.get(ip) ?? 0) + 1);
           socket.data.playerId = playerId;
+          socket.data.ip = ip;
           next();
         })
         .catch((err) => {
@@ -183,7 +202,15 @@ export class GameServer implements Hub {
         });
     });
     this.io.on('connection', (socket) => {
-      this.onConnection(socket as GameSocket).catch((err) => {
+      const ip = (socket as GameSocket).data.ip;
+      socket.once('disconnect', () => {
+        const count = (this.ipCounts.get(ip) ?? 1) - 1;
+        if (count <= 0) this.ipCounts.delete(ip);
+        else this.ipCounts.set(ip, count);
+      });
+      // Serialize connection setup per player so two simultaneous logins can't both register.
+      const pid = (socket as GameSocket).data.playerId;
+      this.locks.run([`conn:${pid}`], () => this.onConnection(socket as GameSocket)).catch((err) => {
         log.error('connection setup failed', { error: (err as Error).message });
         socket.disconnect(true);
       });
@@ -231,20 +258,23 @@ export class GameServer implements Hub {
   // ------------------------------------------------------------ connections
 
   private async onConnection(socket: GameSocket): Promise<void> {
+    if (!socket.connected) return; // disconnected while waiting for the connection lock
     const playerId = socket.data.playerId;
-    const ip = this.clientIp(socket);
-    this.ipCounts.set(ip, (this.ipCounts.get(ip) ?? 0) + 1);
     const existing = this.sessions.get(playerId);
     if (existing) {
       existing.socket.emit('kicked', 'You logged in from another window.');
       await this.cleanupSession(existing);
       existing.socket.disconnect(true);
     }
+    if (!socket.connected) return; // dropped while the previous session was cleaned up
     const record = this.state.players.get(playerId)!;
+    // RPC limits are per player (not per socket) so reconnecting does not grant a fresh burst.
+    let rpcBucket = this.rpcBuckets.get(playerId);
+    if (!rpcBucket) this.rpcBuckets.set(playerId, (rpcBucket = new TokenBucket(30, 12)));
     const session: Session = {
       playerId,
       socket,
-      rpcBucket: new TokenBucket(30, 12),
+      rpcBucket,
       inputBucket: new TokenBucket(60, 40),
       recent: new Map(),
       connectedAt: Date.now(),
@@ -266,9 +296,6 @@ export class GameServer implements Hub {
       this.handleRpc(session, req).then(ack, () => ack({ ok: false, error: 'Server error', code: 'server_error' }));
     });
     socket.on('disconnect', (reason) => {
-      const count = (this.ipCounts.get(ip) ?? 1) - 1;
-      if (count <= 0) this.ipCounts.delete(ip);
-      else this.ipCounts.set(ip, count);
       if (this.sessions.get(playerId) !== session) return;
       this.cleanupSession(session).catch((err) => log.error('cleanup failed', { error: (err as Error).message }));
       log.info('player disconnected', { playerId, reason });
@@ -311,7 +338,6 @@ export class GameServer implements Hub {
       rec.lastSeenAt = Date.now();
     }
     this.sim.removePlayer(playerId);
-    this.chat.forget(playerId);
     this.broadcast('player.remove', playerId);
   }
 
@@ -378,12 +404,17 @@ export class GameServer implements Hub {
     });
   }
 
+  /** Top-20 by net worth. Expensive (all players x vehicles), so it is cached for 15 s. */
   leaderboard(): LeaderboardEntry[] {
+    const now = Date.now();
+    if (this.leaderboardCache && now - this.leaderboardCache.at < 15_000) return this.leaderboardCache.entries;
     const entries: LeaderboardEntry[] = [];
     for (const p of this.state.players.values()) {
       entries.push({ id: p.id, name: p.name, level: p.level, netWorth: this.state.netWorth(p.id), vehiclesSold: p.stats.vehiclesSold ?? 0 });
     }
-    return entries.sort((a, b) => b.netWorth - a.netWorth).slice(0, 20);
+    const top = entries.sort((a, b) => b.netWorth - a.netWorth).slice(0, 20);
+    this.leaderboardCache = { at: now, entries: top };
+    return top;
   }
 
   // ------------------------------------------------------------ state views
@@ -522,5 +553,13 @@ export class GameServer implements Hub {
 
   get onlineCount(): number {
     return this.sessions.size;
+  }
+
+  /** Disconnect a player's live socket (e.g. after logout). */
+  kick(playerId: string, reason: string): void {
+    const s = this.sessions.get(playerId);
+    if (!s) return;
+    s.socket.emit('kicked', reason);
+    s.socket.disconnect(true);
   }
 }

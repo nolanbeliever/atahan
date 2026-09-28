@@ -10,7 +10,7 @@ import { createLogger } from '../../logger';
 import * as val from '../../validate';
 import { K, type Ctx } from '../context';
 import { requireIdle, requireOwned, requireVehicle } from '../guards';
-import { maxAskingPrice, settleSale } from './sales';
+import { assertAskingPrice, settleSale } from './sales';
 
 const log = createLogger('vehicles');
 const MAX_SPAWNED = 2;
@@ -29,8 +29,7 @@ export class VehicleService {
       const veh = uow.vehicle(vehicleId);
       requireOwned(veh, player);
       requireIdle(this.ctx, veh, { allowedStatus: ['stored', 'world'] });
-      const max = maxAskingPrice(this.ctx, veh);
-      if (price > max) throw new GameError('bad_request', `Asking price is too high (max $${max.toLocaleString('en-US')}).`);
+      assertAskingPrice(this.ctx, veh, price);
       uow.debit(player, ECONOMY.fees.classifiedListingFee, 'listing_fee', `Classifieds listing: ${modelDisplayName(veh.modelId)}`, veh.id);
       veh.status = 'listed';
       veh.salePrice = price;

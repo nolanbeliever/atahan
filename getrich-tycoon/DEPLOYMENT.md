@@ -101,10 +101,14 @@ Render issues the TLS certificate automatically. No application change is needed
 ```bash
 cd getrich-tycoon
 docker build -t getrich-tycoon .
-docker run -d --name getrich -p 3000:3000 \
+# Behind a reverse proxy on the same host: publish only on localhost and trust the proxy.
+docker run -d --name getrich -p 127.0.0.1:3000:3000 \
   -e DATABASE_URL='postgres://USER:PASSWORD@HOST:5432/DB' -e DATABASE_SSL=true \
   -e TRUST_PROXY=true getrich-tycoon
 ```
+
+Only set `TRUST_PROXY=true` when clients cannot reach the container port directly. Otherwise they could spoof
+`X-Forwarded-For` and bypass the per-IP limits.
 
 - **Northflank:** create a *Combined service* from the repository with build context `getrich-tycoon` and Dockerfile
   `getrich-tycoon/Dockerfile`. Expose port 3000 over HTTP (TLS is automatic on `*.code.run`) and add the environment variables above.
@@ -122,7 +126,7 @@ The recommended setup serves the client from the game server. To host `dist/clie
 
 - [ ] `DATABASE_URL` points to a managed PostgreSQL database. SQLite on an ephemeral free-tier disk would lose data on every restart.
 - [ ] `DATABASE_SSL=true` for Neon, Supabase or Render external URLs.
-- [ ] `TRUST_PROXY=true` behind Render/Northflank/Caddy, so per-IP limits see real client IPs.
+- [ ] `TRUST_PROXY=true` only behind Render/Northflank/Caddy, where clients can't reach the port directly, so per-IP limits see real client IPs.
 - [ ] `/healthz` is healthy and reports `"db":"postgres"`.
 - [ ] Two browsers with different accounts can see each other (multiplayer).
 - [ ] No secrets are committed: `npm run check:secrets`.
