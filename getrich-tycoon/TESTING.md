@@ -69,7 +69,13 @@ The **two-client multiplayer test** (`10-12`) is the critical one:
 
 Recorded on 2026-09-28 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chromium via SwiftShader, PostgreSQL 16.13):
 
-RESULTS_PLACEHOLDER
+| Suite | SQLite | PostgreSQL |
+| --- | --- | --- |
+| `npm run typecheck` (client, server, tests) | pass | n/a |
+| Unit (Vitest) | 35 / 35 passed | n/a (no database) |
+| Integration (Vitest, real sockets) | 20 / 20 passed | 20 / 20 passed |
+| E2E (Playwright, Chromium, production build) | 5 / 5 passed (about 2.7 min) | 5 / 5 passed (about 2.7 min) |
+| `npm run check:secrets` | no secrets in 118 tracked files | n/a |
 
 Note on flakiness: an early flake in the two-client test came from picking a listing the level-1 test account was
 not allowed to buy (category lock). The test now filters to unlocked categories. The main source of slowness is

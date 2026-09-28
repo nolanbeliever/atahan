@@ -4,7 +4,8 @@ import fs from 'node:fs';
 
 const files = execSync('git ls-files', { encoding: 'utf8' }).split('\n').filter(Boolean);
 const patterns = [
-  { name: 'Postgres URL with password', re: /postgres(ql)?:\/\/[^\s:@/]+:[^\s@/]+@(?!127\.0\.0\.1|localhost|HOST|host)/i },
+  // Credentials in a connection string, except obvious placeholders (USER:PASSWORD, user:pass) and local test DBs.
+  { name: 'Postgres URL with password', re: /postgres(ql)?:\/\/(?!(user|USER):(pass|password|PASSWORD)@)[^\s:@/]+:[^\s@/]+@(?!127\.0\.0\.1|localhost|HOST|host)/ },
   { name: 'Private key', re: /-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----/ },
   { name: 'AWS access key', re: /AKIA[0-9A-Z]{16}/ },
   { name: 'Generic API key assignment', re: /(api[_-]?key|secret|token)\s*[:=]\s*['"][A-Za-z0-9_\-]{24,}['"]/i },
