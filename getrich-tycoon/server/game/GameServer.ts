@@ -1,0 +1,516 @@
+// Wires sockets, RPC handlers, services, simulation ticks and persistence.
+
+import type { Server, Socket } from 'socket.io';
+import { ECONOMY } from '../../shared/economy.config';
+import { CHAR_RADIUS, resolveCircle } from '../../shared/physics';
+import {
+  PROTOCOL_VERSION,
+  type ClientToServerEvents,
+  type PrivateState,
+  type RpcName,
+  type RpcRequest,
+  type RpcResponse,
+  type ServerToClientEvents,
+} from '../../shared/protocol';
+import type { Appearance, LeaderboardEntry, Notification, PlayerPublic, PlayerSettings, WorldInit } from '../../shared/types';
+import { hashString } from '../../shared/util';
+import { spawnPoint } from '../../shared/world';
+import type { AuthService } from '../auth';
+import { APPEARANCE_OPTIONS } from '../auth';
+import type { ServerConfig } from '../config';
+import * as repo from '../db/repo';
+import { GameError } from '../errors';
+import { KeyedMutex } from '../locks';
+import { createLogger } from '../logger';
+import { TokenBucket } from '../rateLimit';
+import * as val from '../validate';
+import { K, type Ctx, type Hub } from './context';
+import { Simulation } from './simulation';
+import { isPublicVehicle, type CommitResult, type GameState } from './state';
+import { AuctionService } from './services/auction';
+import { BankService } from './services/bank';
+import { ChatService } from './services/chat';
+import { CustomerService } from './services/customers';
+import { DealershipService } from './services/dealership';
+import { GarageService } from './services/garage';
+import { MarketService } from './services/market';
+import { TrendsService } from './services/trends';
+import { VehicleService } from './services/vehicles';
+
+const log = createLogger('game');
+
+type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { playerId: string }>;
+
+interface Session {
+  playerId: string;
+  socket: GameSocket;
+  rpcBucket: TokenBucket;
+  inputBucket: TokenBucket;
+  recent: Map<string, Promise<RpcResponse>>;
+  connectedAt: number;
+}
+
+type Handler = (playerId: string, params: unknown) => unknown;
+
+export class GameServer implements Hub {
+  readonly locks = new KeyedMutex();
+  readonly sim: Simulation;
+  readonly ctx: Ctx;
+  readonly market: MarketService;
+  readonly vehicles: VehicleService;
+  readonly dealership: DealershipService;
+  readonly garage: GarageService;
+  readonly bank: BankService;
+  readonly auctions: AuctionService;
+  readonly chat: ChatService;
+  readonly customers: CustomerService;
+  readonly trends: TrendsService;
+  private sessions = new Map<string, Session>();
+  private timers: NodeJS.Timeout[] = [];
+  private selfDirty = new Set<string>();
+  private ipCounts = new Map<string, number>();
+  private handlers: Record<RpcName, Handler>;
+  private lastTick = Date.now();
+  private stopping = false;
+
+  constructor(
+    private readonly io: Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, { playerId: string }>,
+    readonly state: GameState,
+    private readonly auth: AuthService,
+    private readonly cfg: ServerConfig,
+  ) {
+    this.sim = new Simulation(state);
+    this.ctx = { state, locks: this.locks, sim: this.sim, hub: this, rng: Math.random };
+    this.market = new MarketService(this.ctx);
+    this.vehicles = new VehicleService(this.ctx);
+    this.dealership = new DealershipService(this.ctx);
+    this.garage = new GarageService(this.ctx, this.vehicles);
+    this.bank = new BankService(this.ctx);
+    this.auctions = new AuctionService(this.ctx);
+    this.chat = new ChatService(this.ctx);
+    this.customers = new CustomerService(this.ctx);
+    this.trends = new TrendsService(this.ctx);
+    state.onCommit = (r) => this.onCommit(r);
+
+    this.handlers = {
+      'market.list': () => this.market.list(),
+      'market.buy': (pid, p) => this.market.buy(pid, p),
+      'market.negotiate': (pid, p) => this.market.negotiate(pid, p),
+      'market.offer': (pid, p) => this.market.offer(pid, p),
+      'market.buyPlayer': (pid, p) => this.market.buyFromPlayer(pid, p),
+      'vehicle.list': (pid, p) => this.vehicles.listClassifieds(pid, p),
+      'vehicle.unlist': (pid, p) => this.vehicles.unlist(pid, p),
+      'vehicle.quickSell': (pid, p) => this.vehicles.quickSell(pid, p),
+      'vehicle.spawn': (pid, p) => this.vehicles.spawn(pid, p),
+      'vehicle.store': (pid, p) => this.vehicles.store(pid, p),
+      'vehicle.enter': (pid, p) => this.vehicles.enter(pid, p),
+      'vehicle.exit': (pid) => this.vehicles.exit(pid),
+      'dealership.buy': (pid, p) => this.dealership.buy(pid, p),
+      'dealership.upgrade': (pid) => this.dealership.upgrade(pid),
+      'dealership.rename': (pid, p) => this.dealership.rename(pid, p),
+      'dealership.place': (pid, p) => this.dealership.place(pid, p),
+      'dealership.remove': (pid, p) => this.dealership.remove(pid, p),
+      'dealership.price': (pid, p) => this.dealership.setPrice(pid, p),
+      'repair.start': (pid, p) => this.garage.repair(pid, p),
+      'wash.start': (pid, p) => this.garage.wash(pid, p),
+      'fuel.refill': (pid, p) => this.garage.refuel(pid, p),
+      'custom.apply': (pid, p) => this.garage.customize(pid, p),
+      'parts.buy': (pid, p) => this.garage.buyParts(pid, p),
+      'bank.deposit': (pid, p) => this.bank.deposit(pid, p),
+      'bank.withdraw': (pid, p) => this.bank.withdraw(pid, p),
+      'auction.list': () => ({ auctions: this.auctions.list() }),
+      'auction.create': (pid, p) => this.auctions.create(pid, p),
+      'auction.bid': (pid, p) => this.auctions.bid(pid, p),
+      'chat.send': (pid, p) => this.chat.send(pid, p),
+      'offer.respond': (pid, p) => this.customers.respond(pid, p),
+      'settings.save': (pid, p) => this.saveSettings(pid, p),
+      'appearance.save': (pid, p) => this.saveAppearance(pid, p),
+      leaderboard: () => ({ entries: this.leaderboard() }),
+      transactions: async (pid) => ({ transactions: await repo.recentTransactions(this.state.db, pid, 50) }),
+    };
+  }
+
+  // ------------------------------------------------------------ Hub
+
+  isOnline(playerId: string): boolean {
+    return this.sessions.has(playerId);
+  }
+
+  sendTo<E extends keyof ServerToClientEvents>(playerId: string, event: E, ...args: Parameters<ServerToClientEvents[E]>): void {
+    const s = this.sessions.get(playerId);
+    if (s) (s.socket.emit as (e: string, ...a: unknown[]) => void)(event, ...args);
+  }
+
+  broadcast<E extends keyof ServerToClientEvents>(event: E, ...args: Parameters<ServerToClientEvents[E]>): void {
+    (this.io.emit as (e: string, ...a: unknown[]) => void)(event, ...args);
+  }
+
+  notify(playerId: string, n: Notification): void {
+    this.sendTo(playerId, 'notify', n);
+  }
+
+  systemChat(text: string): void {
+    this.broadcast('chat', this.chat.system(text));
+  }
+
+  // ------------------------------------------------------------ lifecycle
+
+  async start(): Promise<void> {
+    this.io.use((socket, next) => {
+      const token = (socket.handshake.auth as Record<string, unknown> | undefined)?.token;
+      this.auth
+        .verify(token)
+        .then((playerId) => {
+          if (!playerId || !this.state.players.has(playerId)) return next(new Error('unauthorized'));
+          const ip = socket.handshake.address;
+          if ((this.ipCounts.get(ip) ?? 0) >= 12) return next(new Error('too many connections'));
+          socket.data.playerId = playerId;
+          next();
+        })
+        .catch((err) => {
+          log.error('auth middleware failed', { error: (err as Error).message });
+          next(new Error('server error'));
+        });
+    });
+    this.io.on('connection', (socket) => {
+      this.onConnection(socket as GameSocket).catch((err) => {
+        log.error('connection setup failed', { error: (err as Error).message });
+        socket.disconnect(true);
+      });
+    });
+
+    if (this.cfg.simulation) {
+      await this.market.refresh().catch((err) => log.error('initial market refresh failed', { error: (err as Error).message }));
+    }
+    const tickMs = Math.round(1000 / this.cfg.tickRate);
+    this.every(tickMs, () => this.tick());
+    this.every(1000, () => this.slowTick());
+    if (this.cfg.simulation) {
+      this.every(ECONOMY.marketplace.refreshIntervalSec * 1000, () => this.market.refresh());
+      this.every(ECONOMY.demand.updateIntervalSec * 1000, () => this.trends.update());
+      this.every(60_000, () => this.payInterest());
+    }
+    this.every(this.cfg.autosaveSeconds * 1000, () => this.autosave());
+    this.every(3600_000, () => repo.purgeExpiredSessions(this.state.db, Date.now()));
+    log.info('game server started', { tickRate: this.cfg.tickRate });
+  }
+
+  private every(ms: number, fn: () => unknown): void {
+    let running = false;
+    const t = setInterval(() => {
+      if (running || this.stopping) return;
+      running = true;
+      Promise.resolve()
+        .then(fn)
+        .catch((err) => log.error('timer task failed', { error: (err as Error).message }))
+        .finally(() => (running = false));
+    }, ms);
+    this.timers.push(t);
+  }
+
+  async stop(): Promise<void> {
+    this.stopping = true;
+    for (const t of this.timers) clearInterval(t);
+    this.timers = [];
+    this.garage.dispose();
+    await this.autosave();
+    for (const s of this.sessions.values()) s.socket.disconnect(true);
+    log.info('game server stopped');
+  }
+
+  // ------------------------------------------------------------ connections
+
+  private async onConnection(socket: GameSocket): Promise<void> {
+    const playerId = socket.data.playerId;
+    const ip = socket.handshake.address;
+    this.ipCounts.set(ip, (this.ipCounts.get(ip) ?? 0) + 1);
+    const existing = this.sessions.get(playerId);
+    if (existing) {
+      existing.socket.emit('kicked', 'You logged in from another window.');
+      await this.cleanupSession(existing);
+      existing.socket.disconnect(true);
+    }
+    const record = this.state.players.get(playerId)!;
+    const session: Session = {
+      playerId,
+      socket,
+      rpcBucket: new TokenBucket(30, 12),
+      inputBucket: new TokenBucket(60, 40),
+      recent: new Map(),
+      connectedAt: Date.now(),
+    };
+    this.sessions.set(playerId, session);
+
+    // Place the character where they left (pushed out of any new buildings).
+    const pos = resolveCircle(record.posX, record.posZ, CHAR_RADIUS, this.sim.collisionWorld);
+    let { x, z } = pos;
+    if (!Number.isFinite(x) || !Number.isFinite(z)) ({ x, z } = spawnPoint(hashString(playerId)));
+    this.sim.addPlayer(playerId, x, z, record.rot);
+
+    socket.on('input', (cmds) => {
+      if (!session.inputBucket.take()) return;
+      this.sim.handleInputs(playerId, cmds);
+    });
+    socket.on('rpc', (req, ack) => {
+      if (typeof ack !== 'function') return;
+      this.handleRpc(session, req).then(ack, () => ack({ ok: false, error: 'Server error', code: 'server_error' }));
+    });
+    socket.on('disconnect', (reason) => {
+      const count = (this.ipCounts.get(ip) ?? 1) - 1;
+      if (count <= 0) this.ipCounts.delete(ip);
+      else this.ipCounts.set(ip, count);
+      if (this.sessions.get(playerId) !== session) return;
+      this.cleanupSession(session).catch((err) => log.error('cleanup failed', { error: (err as Error).message }));
+      log.info('player disconnected', { playerId, reason });
+    });
+
+    socket.emit('welcome', { playerId, self: this.privateState(playerId), world: this.worldInit(), protocol: PROTOCOL_VERSION });
+    this.broadcast('player.upsert', this.publicPlayer(playerId));
+    for (const m of this.chat.history) socket.emit('chat', m);
+    log.info('player connected', { playerId, name: record.name, online: this.sessions.size });
+
+    // Deliver notices collected while offline, then catch up on bank interest.
+    const notices = await repo.takeNotices(this.state.db, playerId);
+    if (notices.length > 0) {
+      socket.emit('notify', { kind: 'info', title: 'While you were away', text: `${notices.length} thing(s) happened at your business.` });
+      for (const n of notices.slice(-10)) socket.emit('notify', { kind: n.kind as Notification['kind'], title: n.title, text: n.text });
+    }
+    await this.bank.payInterest(playerId, 24);
+  }
+
+  private async cleanupSession(session: Session): Promise<void> {
+    const { playerId } = session;
+    if (this.sessions.get(playerId) === session) this.sessions.delete(playerId);
+    const c = this.sim.chars.get(playerId);
+    if (c?.drivingId) {
+      const vehicleId = c.drivingId;
+      await this.locks.run([K.player(playerId), K.vehicle(vehicleId)], async () => {
+        await this.vehicles.flushDrive(vehicleId, true);
+        this.sim.stopDriving(playerId);
+      });
+      const v = this.state.vehicles.get(vehicleId);
+      if (v) this.broadcast('vehicle.upsert', this.state.toPublicVehicle(v));
+    }
+    const pos = this.sim.position(playerId);
+    if (pos) await repo.savePlayerPosition(this.state.db, playerId, pos.x, pos.z, pos.rot, Date.now());
+    const rec = this.state.players.get(playerId);
+    if (rec && pos) {
+      rec.posX = pos.x;
+      rec.posZ = pos.z;
+      rec.rot = pos.rot;
+      rec.lastSeenAt = Date.now();
+    }
+    this.sim.removePlayer(playerId);
+    this.chat.forget(playerId);
+    this.broadcast('player.remove', playerId);
+  }
+
+  // ------------------------------------------------------------ RPC
+
+  private async handleRpc(session: Session, req: RpcRequest): Promise<RpcResponse> {
+    if (!req || typeof req !== 'object' || typeof req.method !== 'string' || typeof req.id !== 'string' || req.id.length > 64) {
+      return { ok: false, error: 'Malformed request.', code: 'bad_request' };
+    }
+    const cached = session.recent.get(req.id);
+    if (cached) return cached;
+    if (!session.rpcBucket.take()) return { ok: false, error: 'Too many requests. Slow down.', code: 'rate_limited' };
+    const handler = Object.prototype.hasOwnProperty.call(this.handlers, req.method) ? this.handlers[req.method as RpcName] : undefined;
+    if (!handler) return { ok: false, error: 'Unknown action.', code: 'bad_request' };
+    const run = (async (): Promise<RpcResponse> => {
+      try {
+        const result = await handler(session.playerId, req.params ?? {});
+        return { ok: true, result } as RpcResponse;
+      } catch (err) {
+        if (err instanceof GameError) return { ok: false, error: err.message, code: err.code };
+        log.error('rpc failed', { method: req.method, playerId: session.playerId, error: (err as Error).message });
+        return { ok: false, error: 'Something went wrong. Please try again.', code: 'server_error' };
+      } finally {
+        this.flushSelf();
+      }
+    })();
+    session.recent.set(req.id, run);
+    if (session.recent.size > 64) session.recent.delete(session.recent.keys().next().value!);
+    return run;
+  }
+
+  private saveSettings(playerId: string, params: unknown) {
+    const s = val.obj(val.obj(params).settings);
+    const settings: PlayerSettings = {
+      masterVolume: val.num(s.masterVolume, 'volume', 0, 1),
+      sfxVolume: val.num(s.sfxVolume, 'volume', 0, 1),
+      ambientVolume: val.num(s.ambientVolume, 'volume', 0, 1),
+      mouseSensitivity: val.num(s.mouseSensitivity, 'sensitivity', 0.1, 3),
+      invertY: val.bool(s.invertY, 'invertY'),
+      graphics: val.oneOf(s.graphics, 'graphics', ['low', 'medium', 'high'] as const),
+      showNames: val.bool(s.showNames, 'showNames'),
+    };
+    return this.locks.run([K.player(playerId)], async () => {
+      const uow = this.state.begin();
+      uow.player(playerId).settings = settings;
+      await uow.commit();
+      return { settings };
+    });
+  }
+
+  private saveAppearance(playerId: string, params: unknown) {
+    const a = val.obj(val.obj(params).appearance);
+    const appearance: Appearance = {
+      skin: val.oneOf(a.skin, 'skin', APPEARANCE_OPTIONS.skin),
+      shirt: val.oneOf(a.shirt, 'shirt', APPEARANCE_OPTIONS.shirt),
+      pants: val.oneOf(a.pants, 'pants', APPEARANCE_OPTIONS.pants),
+      hair: val.oneOf(a.hair, 'hair', APPEARANCE_OPTIONS.hair),
+    };
+    return this.locks.run([K.player(playerId)], async () => {
+      const uow = this.state.begin();
+      uow.player(playerId).appearance = appearance;
+      await uow.commit();
+      return { appearance };
+    });
+  }
+
+  leaderboard(): LeaderboardEntry[] {
+    const entries: LeaderboardEntry[] = [];
+    for (const p of this.state.players.values()) {
+      entries.push({ id: p.id, name: p.name, level: p.level, netWorth: this.state.netWorth(p.id), vehiclesSold: p.stats.vehiclesSold ?? 0 });
+    }
+    return entries.sort((a, b) => b.netWorth - a.netWorth).slice(0, 20);
+  }
+
+  // ------------------------------------------------------------ state views
+
+  privateState(playerId: string): PrivateState {
+    const p = this.state.players.get(playerId)!;
+    const { passwordHash: _ph, nameLower: _nl, posX: _x, posZ: _z, rot: _r, lastInterestAt: _li, lastSeenAt: _ls, ...priv } = p;
+    return { player: priv, vehicles: this.state.vehiclesOf(playerId), driving: this.sim.chars.get(playerId)?.drivingId ?? null };
+  }
+
+  publicPlayer(playerId: string): PlayerPublic {
+    const p = this.state.players.get(playerId)!;
+    return { id: p.id, name: p.name, level: p.level, appearance: p.appearance, dealershipPlotId: p.dealershipPlotId, online: this.isOnline(p.id) };
+  }
+
+  worldInit(): WorldInit {
+    const vehicles = [];
+    for (const v of this.state.vehicles.values()) if (isPublicVehicle(v)) vehicles.push(this.state.toPublicVehicle(v));
+    return {
+      serverTime: Date.now(),
+      tickRate: this.cfg.tickRate,
+      players: [...this.sessions.keys()].map((id) => this.publicPlayer(id)),
+      vehicles,
+      dealerships: [...this.state.dealerships.values()],
+      marketListings: this.market.npcListings(),
+      trends: this.state.trends,
+    };
+  }
+
+  // ------------------------------------------------------------ change propagation
+
+  private onCommit(r: CommitResult): void {
+    for (const id of r.players) this.selfDirty.add(id);
+    for (const id of r.publicPlayers) if (this.isOnline(id)) this.broadcast('player.upsert', this.publicPlayer(id));
+    for (const ch of r.vehicles) {
+      if (ch.after && isPublicVehicle(ch.after)) this.broadcast('vehicle.upsert', this.state.toPublicVehicle(ch.after));
+      else if (isPublicVehicle(ch.before)) this.broadcast('vehicle.remove', ch.id);
+    }
+    for (const d of r.dealerships) this.broadcast('dealership.upsert', d);
+    if (r.listingsChanged) this.broadcast('market.update', { listings: this.market.npcListings() });
+    if (r.playerListingsChanged) this.broadcast('listings.changed');
+    for (const a of r.auctions) {
+      const pub = this.auctions.toPublic(a) ?? {
+        id: a.id,
+        vehicle: null as never,
+        sellerId: a.sellerId,
+        sellerName: a.sellerName,
+        startingBid: a.startingBid,
+        currentBid: a.currentBid,
+        currentBidderId: a.currentBidderId,
+        currentBidderName: a.currentBidderName,
+        bidCount: a.bidCount,
+        endsAt: a.endsAt,
+        status: a.status,
+      };
+      this.broadcast('auction.update', pub);
+    }
+    for (const { playerId, n } of r.notifications) this.notify(playerId, n);
+    // Self updates are flushed right after the current RPC or tick.
+    queueMicrotask(() => this.flushSelf());
+  }
+
+  private flushSelf(): void {
+    if (this.selfDirty.size === 0) return;
+    const ids = [...this.selfDirty];
+    this.selfDirty.clear();
+    for (const id of ids) if (this.isOnline(id)) this.sendTo(id, 'self', this.privateState(id));
+  }
+
+  // ------------------------------------------------------------ ticks
+
+  private tick(): void {
+    const now = Date.now();
+    const dt = Math.min(0.25, (now - this.lastTick) / 1000);
+    this.lastTick = now;
+    this.customers.tickMovement(dt);
+    this.sim.rebuildDynamic();
+    if (this.sessions.size === 0) return;
+    const lists = this.sim.buildSnapshotLists();
+    for (const s of this.sessions.values()) {
+      const c = this.sim.chars.get(s.playerId);
+      if (!c) continue;
+      const d = c.drivingId ? this.sim.drives.get(c.drivingId) : undefined;
+      s.socket.volatile.emit('snapshot', {
+        t: now,
+        ack: c.lastSeq,
+        p: lists.p,
+        v: lists.v,
+        n: lists.n,
+        self: [c.x, c.z, d ? d.dyn.rot : c.rot, d ? d.dyn.speed : 0, d ? d.dyn.steer : 0, c.drivingId],
+      });
+    }
+  }
+
+  private async slowTick(): Promise<void> {
+    if (this.cfg.simulation) {
+      await this.customers.tick();
+      await this.auctions.tick();
+    }
+    // Periodically persist driving so fuel/mileage stay current for the HUD.
+    const now = Date.now();
+    for (const d of [...this.sim.drives.values()]) {
+      if (now - d.lastFlushAt < 3000 || d.pendingDistance < 1) continue;
+      await this.locks.run([K.player(d.playerId), K.vehicle(d.vehicleId)], () => this.vehicles.flushDrive(d.vehicleId, true));
+    }
+    this.flushSelf();
+  }
+
+  private async payInterest(): Promise<void> {
+    for (const id of this.sessions.keys()) await this.bank.payInterest(id, 1);
+    this.flushSelf();
+  }
+
+  async autosave(): Promise<void> {
+    const now = Date.now();
+    for (const d of [...this.sim.drives.values()]) {
+      await this.locks
+        .run([K.player(d.playerId), K.vehicle(d.vehicleId)], () => this.vehicles.flushDrive(d.vehicleId, true))
+        .catch((err) => log.error('autosave drive failed', { error: (err as Error).message }));
+    }
+    let saved = 0;
+    for (const id of this.sessions.keys()) {
+      const pos = this.sim.position(id);
+      if (!pos) continue;
+      try {
+        await repo.savePlayerPosition(this.state.db, id, pos.x, pos.z, pos.rot, now);
+        const rec = this.state.players.get(id);
+        if (rec) Object.assign(rec, { posX: pos.x, posZ: pos.z, rot: pos.rot, lastSeenAt: now });
+        saved++;
+      } catch (err) {
+        log.error('autosave position failed', { playerId: id, error: (err as Error).message });
+      }
+    }
+    if (saved > 0) log.debug('autosave complete', { players: saved });
+  }
+
+  get onlineCount(): number {
+    return this.sessions.size;
+  }
+}
