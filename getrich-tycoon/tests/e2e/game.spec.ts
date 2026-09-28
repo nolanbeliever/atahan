@@ -198,3 +198,36 @@ test('10-12. two browser clients: connect, see each other, and synchronize', asy
   await a.page.context().close();
   await b.page.context().close();
 });
+
+test('vehicles are drivable: spawn from garage, enter with E, drive, exit', async ({ page }) => {
+  const errors = collectErrors(page);
+  await registerAndEnter(page);
+  const listing = (await state(page)).marketListings
+    .filter((l) => isCategoryUnlocked(getModel(l.modelId).category, 1))
+    .sort((x, y) => x.price - y.price)[0]!;
+  await page.evaluate(async (l) => {
+    const net = (window as unknown as { __getrich: { game: { net: { rpc: (m: string, p: unknown) => Promise<unknown> } } } }).__getrich.game.net;
+    await net.rpc('market.buy', { listingId: l.id, expectedPrice: l.price });
+  }, listing);
+  // Take it out through the garage UI
+  await page.getByTestId('dock-inventory').click();
+  await page.locator(`[data-vehicle="${listing.vehicleId}"]`).getByTestId('inv-spawn').click();
+  await expect.poll(async () => (await state(page)).publicVehicles.find((v) => v.id === listing.vehicleId)?.status).toBe('world');
+  // Walk up to it: the interaction prompt offers to drive it
+  await expect(page.getByTestId('prompt')).toContainText('Drive', { timeout: 60_000 });
+  await page.locator('#game-root canvas').focus();
+  await page.keyboard.press('KeyE');
+  await expect.poll(async () => (await state(page)).driving, { timeout: 60_000 }).toBe(listing.vehicleId);
+  const start = (await state(page)).position;
+  await hold(page, 'KeyW', 6000);
+  await page.waitForTimeout(1000);
+  const end = (await state(page)).position;
+  expect(Math.hypot(end.x - start.x, end.z - start.z)).toBeGreaterThan(1);
+  // Exit
+  await page.keyboard.press('KeyE');
+  await expect.poll(async () => (await state(page)).driving, { timeout: 60_000 }).toBeNull();
+  // The parked vehicle is synchronized at its new position for everyone.
+  const parked = (await state(page)).publicVehicles.find((v) => v.id === listing.vehicleId);
+  expect(parked?.status).toBe('world');
+  expect(errors).toEqual([]);
+});

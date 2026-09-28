@@ -208,7 +208,7 @@ export class EntityViews {
       e.view.root.rotation.y = e.rot;
       e.view.animate(speed, steer, dt);
       if (e.label) {
-        e.label.sprite.visible = this.showNames || e.kind === 'market' || e.data.status === 'displayed';
+        e.label.sprite.visible = local.driving !== id && (this.showNames || e.kind === 'market' || e.data.status === 'displayed');
         e.label.sprite.position.set(e.x, y + e.view.height + 0.75, e.z);
       }
     }

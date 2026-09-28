@@ -153,6 +153,16 @@ export class GameServer implements Hub {
     this.broadcast('chat', this.chat.system(text));
   }
 
+  /** Client IP for per-IP limits (first X-Forwarded-For hop when behind a trusted proxy). */
+  private clientIp(socket: Socket): string {
+    if (this.cfg.trustProxy) {
+      const fwd = socket.handshake.headers['x-forwarded-for'];
+      const first = (Array.isArray(fwd) ? fwd[0] : fwd)?.split(',')[0]?.trim();
+      if (first) return first.slice(0, 64);
+    }
+    return socket.handshake.address;
+  }
+
   // ------------------------------------------------------------ lifecycle
 
   async start(): Promise<void> {
@@ -162,7 +172,7 @@ export class GameServer implements Hub {
         .verify(token)
         .then((playerId) => {
           if (!playerId || !this.state.players.has(playerId)) return next(new Error('unauthorized'));
-          const ip = socket.handshake.address;
+          const ip = this.clientIp(socket);
           if ((this.ipCounts.get(ip) ?? 0) >= 12) return next(new Error('too many connections'));
           socket.data.playerId = playerId;
           next();
@@ -222,7 +232,7 @@ export class GameServer implements Hub {
 
   private async onConnection(socket: GameSocket): Promise<void> {
     const playerId = socket.data.playerId;
-    const ip = socket.handshake.address;
+    const ip = this.clientIp(socket);
     this.ipCounts.set(ip, (this.ipCounts.get(ip) ?? 0) + 1);
     const existing = this.sessions.get(playerId);
     if (existing) {

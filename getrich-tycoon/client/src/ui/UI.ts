@@ -110,6 +110,7 @@ export class UI {
     reconnect: HTMLElement;
     offers: HTMLElement;
     dealerBtn: HTMLElement;
+    hint: HTMLElement;
   };
   private toasts: HTMLElement;
   private overlay: HTMLElement | null = null;
@@ -181,15 +182,27 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
     this.root.append(top, right, dock, prompt, drive, this.chat.el, hint, offers, this.toasts, reconnect);
-    this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, speed, gauge, reconnect, offers, dealerBtn };
+    this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, speed, gauge, reconnect, offers, dealerBtn, hint };
   }
 
   // ------------------------------------------------------------ HUD
+
+  private greeted = false;
 
   onWelcome(): void {
     this.updateHud();
     this.renderOffers();
     this.panel?.refresh();
+    const me = this.game.store.me;
+    if (me && !this.greeted) {
+      this.greeted = true;
+      if (me.stats.vehiclesBought === 0) {
+        this.toast({ kind: 'info', title: 'Welcome to GetRich City!', text: 'Press B to browse the Marketplace, or walk north-east to the Used Vehicle Market to inspect cars in person.' });
+        setTimeout(() => this.toast({ kind: 'info', title: 'Tip', text: 'Fix up cheap cars at Wrench Bros (south-east), then sell them from your own dealership on Dealership Row (north).' }), 6000);
+      } else {
+        this.toast({ kind: 'success', title: `Welcome back, ${me.name}!`, text: 'Your business is exactly where you left it.' });
+      }
+    }
   }
 
   onAuctions(): void {
@@ -241,6 +254,7 @@ export class UI {
     const id = this.game.driving;
     const v = id ? this.game.store.myVehicle(id) : undefined;
     this.hud.drive.classList.toggle('show', !!v);
+    this.hud.hint.style.display = v ? 'none' : '';
     if (!v) return;
     this.hud.speed.textContent = String(Math.round(Math.abs(this.game.speed) * 3.6));
     clear(this.hud.gauge);

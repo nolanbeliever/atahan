@@ -19,7 +19,7 @@ export interface HealthInfo {
 export function createApp(cfg: ServerConfig, auth: AuthService, health: HealthInfo): express.Express {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+  app.set('trust proxy', cfg.trustProxy ? 1 : false);
 
   const wsOrigins = cfg.corsOrigins.map((o) => o.replace(/^http/, 'ws')).join(' ');
   app.use((_req, res, next) => {

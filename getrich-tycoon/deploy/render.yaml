@@ -1,0 +1,31 @@
+# Render Blueprint for GetRich Tycoon (lives in the getrich-tycoon/ sub-directory).
+# In Render: New > Blueprint, pick this repository and set the Blueprint file path to
+#   getrich-tycoon/deploy/render.yaml
+# See DEPLOYMENT.md for the manual (non-Blueprint) steps and for the free Postgres setup.
+services:
+  - type: web
+    name: getrich-tycoon
+    runtime: node
+    plan: free
+    rootDir: getrich-tycoon
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - getrich-tycoon/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      # Paste your managed Postgres connection string (e.g. Neon) in the dashboard.
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: LOG_LEVEL
+        value: info

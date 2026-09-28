@@ -57,6 +57,8 @@ export interface ServerConfig {
   simulation: boolean;
   /** Login/register attempts allowed per IP per minute. */
   authRatePerMinute: number;
+  /** Trust X-Forwarded-For (only behind a reverse proxy that overwrites it). */
+  trustProxy: boolean;
 }
 
 export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
@@ -79,6 +81,7 @@ export function loadConfig(overrides: Partial<ServerConfig> = {}): ServerConfig 
     clientDir: path.resolve(PROJECT_ROOT, 'dist/client'),
     simulation: process.env.DISABLE_SIMULATION !== 'true',
     authRatePerMinute: int('AUTH_RATE_PER_MINUTE', 10, 1, 100_000),
+    trustProxy: process.env.TRUST_PROXY !== undefined ? process.env.TRUST_PROXY === 'true' : env === 'production',
     ...overrides,
   };
   return cfg;

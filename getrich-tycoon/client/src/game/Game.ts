@@ -574,7 +574,9 @@ export class Game {
         }
       }
       for (const e of this.entities.vehicles.values()) {
-        const reach = e.view.length / 2 + 1.4;
+        const ownParked = e.data.ownerId === me && e.data.status === 'world';
+        // Own parked vehicles can be entered from a little further away (server allows 5m + half length).
+        const reach = e.view.length / 2 + (ownParked ? 3.4 : 1.4);
         const d = Math.hypot(e.x - x, e.z - z);
         if (d > reach) continue;
         const v = e.data;

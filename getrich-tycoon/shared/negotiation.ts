@@ -87,7 +87,8 @@ export function applyOffer(session: SellerSession, offer: number): OfferOutcome 
       return 'accept';
     }
     session.patience -= 1;
-    const next = Math.max(session.minPrice, roundPrice(session.counterOffer - gap * cfg.flexibility));
+    // Rounding must never push the counter above the previous counter (or below the minimum).
+    const next = Math.min(session.counterOffer, Math.max(session.minPrice, roundPrice(session.counterOffer - gap * cfg.flexibility)));
     session.counterOffer = Math.max(offer, next);
     session.message = cfg.lines.counter;
     if (session.patience <= 0) return walkOff(session, cfg);
@@ -99,7 +100,7 @@ export function applyOffer(session: SellerSession, offer: number): OfferOutcome 
   session.patience -= insulting ? 2 : 1;
   if (session.patience <= 0) return walkOff(session, cfg);
   const next = roundPrice(session.counterOffer - (session.counterOffer - session.minPrice) * cfg.flexibility * 0.5);
-  session.counterOffer = Math.max(session.minPrice, next);
+  session.counterOffer = Math.min(session.counterOffer, Math.max(session.minPrice, next));
   session.message = insulting ? cfg.lines.insulted : cfg.lines.reject;
   return insulting ? 'insulted' : 'reject';
 }

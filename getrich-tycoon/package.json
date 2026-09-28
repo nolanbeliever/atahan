@@ -22,13 +22,15 @@
     "test:e2e": "playwright test",
     "test:all": "npm run typecheck && npm test && npm run build && npm run test:e2e",
     "db:reset": "tsx scripts/reset-db.ts",
-    "check:secrets": "node scripts/check-secrets.mjs"
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "start:prod": "NODE_ENV=production node dist/server/index.js"
   },
   "dependencies": {
     "express": "^5.2.1",
     "pg": "^8.23.0",
     "socket.io": "^4.8.4",
-    "three": "^0.186.1"
+    "three": "^0.186.1",
+    "socket.io-client": "^4.8.4"
   },
   "optionalDependencies": {
     "better-sqlite3": "^13.0.3"
@@ -41,7 +43,6 @@
     "@types/pg": "^8.23.1",
     "@types/three": "^0.186.0",
     "esbuild": "^0.28.2",
-    "socket.io-client": "^4.8.4",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.1",
