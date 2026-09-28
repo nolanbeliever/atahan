@@ -58,7 +58,7 @@ describe('persistence', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: reg.name, password: 'secret123' }),
-    }).then((r) => r.json());
+    }).then((r) => r.json() as Promise<{ ok: boolean }>);
     expect(login.ok).toBe(true);
     client.close();
     await server.close();
