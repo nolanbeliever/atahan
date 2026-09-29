@@ -128,6 +128,8 @@ test('4-9, 13-14. move, buy, inventory, list, reject invalid, save/load', async 
 });
 
 test('10-12. two browser clients: connect, see each other, and synchronize', async ({ browser }) => {
+  // Two pages share one software (SwiftShader) GPU in CI containers, so the second one starts slowly.
+  test.setTimeout(420_000);
   // Client A connects and enters the world
   const a = await newPlayer(browser, uniqueName('alice'));
   const aId = (await state(a.page)).playerId;

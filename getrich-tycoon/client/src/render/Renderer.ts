@@ -33,7 +33,7 @@ export class Renderer {
     this.renderer.domElement.tabIndex = 0;
     container.appendChild(this.renderer.domElement);
 
-    this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 900);
+    this.camera = new THREE.PerspectiveCamera(62, 1, 0.1, 1300);
     this.camera.position.set(0, 12, 20);
 
     const horizon = new THREE.Color('#cfe3f7');
@@ -78,29 +78,28 @@ export class Renderer {
       },
       vertexShader: `varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: `uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir; uniform float sunAmt; uniform float night; varying vec3 vDir;
-        float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+        // Cheap hash (no sin: software renderers are slow at it).
+        float hash(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
         void main() {
           vec3 d = normalize(vDir);
           float h = clamp(d.y, 0.0, 1.0);
           vec3 col = mix(horizon, top, pow(h, 0.55));
-          float sun = pow(max(dot(d, sunDir), 0.0), 350.0);
-          float glow = pow(max(dot(d, sunDir), 0.0), 8.0) * 0.25;
-          col += vec3(1.0, 0.92, 0.75) * (sun * 2.0 + glow) * sunAmt;
+          if (sunAmt > 0.001) {
+            float s = max(dot(d, sunDir), 0.0);
+            col += vec3(1.0, 0.92, 0.75) * (pow(s, 350.0) * 2.0 + pow(s, 8.0) * 0.25) * sunAmt;
+          }
           // Stars and a moon at night.
-          float star = step(0.9965, hash(floor(d * 420.0))) * smoothstep(0.05, 0.3, d.y);
-          col += vec3(0.9, 0.93, 1.0) * star * night;
-          float moon = smoothstep(0.9994, 0.9997, dot(d, normalize(vec3(-0.35, 0.62, -0.7))));
-          col += vec3(0.85, 0.88, 0.95) * moon * night;
+          if (night > 0.001) {
+            float star = step(0.9965, hash(floor(d * 420.0))) * smoothstep(0.05, 0.3, d.y);
+            float moon = smoothstep(0.9994, 0.9997, dot(d, vec3(-0.3505, 0.621, -0.7011)));
+            col += vec3(0.9, 0.93, 1.0) * star * night + vec3(0.85, 0.88, 0.95) * moon * night;
+          }
           gl_FragColor = vec4(col, 1.0);
         }`,
     });
     this.skyMat = mat;
+    // The dome stays at the origin; the camera's far plane (1300) covers it from anywhere in the world.
     const sky = new THREE.Mesh(geo, mat);
-    // The sky dome follows the camera so it is never clipped by the far plane.
-    sky.onBeforeRender = (_r, _s, camera) => {
-      sky.position.copy(camera.position);
-      sky.updateMatrixWorld();
-    };
     sky.renderOrder = -1;
     sky.frustumCulled = false;
     return sky;

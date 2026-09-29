@@ -42,10 +42,11 @@ export async function registerAndEnter(page: Page, name = uniqueName('e2e')): Pr
   await page.getByTestId('auth-name').fill(name);
   await page.getByTestId('auth-password').fill('secret123');
   await page.getByTestId('auth-submit').click();
+  // Generous: with two pages sharing one software-rendered GPU, a second page can take ~2 minutes to start.
   await page.waitForFunction(() => {
     const g = (window as unknown as { __getrich?: { state: () => { connected: boolean; snapshots: number } } }).__getrich;
     return !!g && g.state().connected && g.state().snapshots > 2;
-  }, null, { timeout: 90_000, polling: 250 });
+  }, null, { timeout: 170_000, polling: 250 });
   return name;
 }
 
