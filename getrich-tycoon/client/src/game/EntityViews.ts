@@ -9,6 +9,7 @@ import { CharacterView, NPC_PALETTE } from '../render/Character';
 import { Label } from '../render/Labels';
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
 import { getModel } from '../../../shared/vehicles';
+import { HeadlightRig } from '../render/Headlights';
 import { BikeView, createVehicleView, type AnyVehicleView } from '../render/VehicleMesh';
 import { INTERP_DELAY_MS, InterpBuffer } from './Interpolation';
 
@@ -36,6 +37,7 @@ export interface VehEntity {
   x: number;
   z: number;
   rot: number;
+  lights: HeadlightRig | null;
 }
 
 export class EntityViews {
@@ -43,6 +45,10 @@ export class EntityViews {
   readonly npcs = new Map<string, CharEntity>();
   readonly vehicles = new Map<string, VehEntity>();
   showNames = true;
+  /** 0 by day, 1 at night: driven vehicles switch their lights on. */
+  night = 0;
+  /** Full-beam flash of the local player's car (0-1). */
+  flash = 0;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -114,7 +120,7 @@ export class EntityViews {
     if (!e) {
       const view = createVehicleView(v);
       this.scene.add(view.root);
-      e = { view, lastSpeed: 0, accel: 0, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation };
+      e = { view, lastSpeed: 0, accel: 0, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation, lights: null };
       this.vehicles.set(v.id, e);
     } else {
       e.view.update(v);
@@ -168,6 +174,7 @@ export class EntityViews {
       e.label.dispose();
     }
     e.view.dispose();
+    e.lights?.dispose();
     this.vehicles.delete(id);
   }
 
@@ -223,6 +230,19 @@ export class EntityViews {
       }
       e.lastSpeed = speed;
       if (e.view instanceof BikeView) e.view.ridden = e.driven;
+      // Lights on while someone drives it at night (or flashes).
+      const mine = local.driving === id;
+      const flash = mine ? this.flash : 0;
+      if (e.driven && (this.night > 0.02 || flash > 0.02)) {
+        if (!e.lights) {
+          e.lights = new HeadlightRig(e.view.length, e.view.width);
+          e.view.root.add(e.lights.group);
+        }
+        e.lights.set(this.night, flash);
+      } else if (e.lights) {
+        e.lights.dispose();
+        e.lights = null;
+      }
       if (e.label) {
         e.label.sprite.visible = local.driving !== id && (this.showNames || e.kind === 'market' || e.data.status === 'displayed');
         e.label.sprite.position.set(e.x, y + e.view.height + 0.75, e.z);

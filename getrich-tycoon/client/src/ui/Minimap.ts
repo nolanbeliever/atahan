@@ -1,6 +1,7 @@
 // Minimap & full map rendering on a 2D canvas.
 
-import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, WORLD_BOUNDS, INTERACTABLES } from '../../../shared/world';
+import { CARRIAGEWAY_EDGE, DRAG_STRIP, JUNCTIONS, JUNCTION_APRON, LOOP_LEN, pathPoint } from '../../../shared/highway';
+import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, WORLD_BOUNDS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
 import type { Game } from '../game/Game';
 
 export const INTERACT_COLORS: Record<string, string> = {
@@ -12,7 +13,12 @@ export const INTERACT_COLORS: Record<string, string> = {
   fuel: '#ef233c',
   bank: '#2a9d8f',
   custom: '#f15bb5',
+  drag: '#ff8c1a',
 };
+
+/** Centreline of the ring highway (computed once). */
+const RING: { x: number; z: number }[] = Array.from({ length: 181 }, (_, i) => pathPoint((i / 180) * LOOP_LEN));
+
 
 export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, cx: number, cz: number, range: number, yaw: number | null): void {
   const s = size / (range * 2);
@@ -30,12 +36,35 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   }
   g.fillStyle = '#2e3440';
   const W = WORLD_BOUNDS;
-  g.fillStyle = '#26402b';
+  g.fillStyle = '#22391f';
   g.fillRect(tx(-W), tz(-W), W * 2 * s, W * 2 * s);
+  g.fillStyle = '#26402b';
+  g.fillRect(tx(-CITY_HALF), tz(-CITY_HALF), CITY_HALF * 2 * s, CITY_HALF * 2 * s);
   for (const z of ZONES) {
     g.fillStyle = z.color + '38';
     g.fillRect(tx(z.cx - 44), tz(z.cz - 44), 88 * s, 88 * s);
   }
+  // Highway ring, junction roads and the drag strip.
+  g.strokeStyle = '#4a4f5c';
+  g.lineJoin = 'round';
+  for (const j of JUNCTIONS) {
+    const a = pathPoint(j.s, -JUNCTION_APRON);
+    g.lineWidth = 12 * s;
+    g.beginPath();
+    g.moveTo(tx(j.cityX), tz(j.cityZ));
+    g.lineTo(tx(a.x), tz(a.z));
+    g.stroke();
+  }
+  g.lineWidth = CARRIAGEWAY_EDGE * 2 * s;
+  g.beginPath();
+  RING.forEach((p, i) => (i === 0 ? g.moveTo(tx(p.x), tz(p.z)) : g.lineTo(tx(p.x), tz(p.z))));
+  g.closePath();
+  g.stroke();
+  g.strokeStyle = 'rgba(242,194,48,0.7)';
+  g.lineWidth = Math.max(1, 0.6 * s);
+  g.stroke();
+  g.fillStyle = '#4a4f5c';
+  g.fillRect(tx(DRAG_STRIP.wallX[0]), tz(DRAG_STRIP.wallZ[0]), (DRAG_STRIP.wallX[1] - DRAG_STRIP.wallX[0]) * s, (DRAG_STRIP.wallZ[1] - DRAG_STRIP.wallZ[0]) * s);
   g.fillStyle = '#4a4f5c';
   for (const r of ROADS) g.fillRect(tx(r.minX), tz(r.minZ), (r.maxX - r.minX) * s, (r.maxZ - r.minZ) * s);
   g.fillStyle = '#8d93a3';
@@ -59,6 +88,9 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
     g.fillStyle = '#ffc53d';
     g.fillRect(tx(e.x) - 2.5, tz(e.z) - 2.5, 5, 5);
   }
+  // Highway traffic
+  g.fillStyle = 'rgba(230,236,245,0.85)';
+  for (const c of game.traffic.cars.values()) g.fillRect(tx(c.x) - 1.5, tz(c.z) - 1.5, 3, 3);
   // NPC customers
   g.fillStyle = '#ffd166';
   for (const n of game.entities.npcs.values()) {
@@ -100,6 +132,7 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
 export class Minimap {
   readonly canvas: HTMLCanvasElement;
   private g: CanvasRenderingContext2D;
+  private range = 75;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -109,6 +142,9 @@ export class Minimap {
   }
 
   draw(game: Game, x: number, z: number, yaw: number): void {
-    drawMap(this.g, this.canvas.width, game, x, z, 75, yaw);
+    // Zoom out at highway speeds.
+    const range = 75 + Math.min(70, Math.abs(game.speed) * 1.6);
+    this.range += (range - this.range) * 0.08;
+    drawMap(this.g, this.canvas.width, game, x, z, this.range, yaw);
   }
 }

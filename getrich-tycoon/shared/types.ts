@@ -2,6 +2,7 @@
 // The server is authoritative for every value in here; the client only renders them.
 
 import type { VehicleTuning } from './modificationsData';
+import type { TrafficSnap } from './traffic';
 
 export type VehicleCategory =
   | 'compact'
@@ -240,7 +241,11 @@ export type TransactionKind =
   | 'bank_deposit'
   | 'bank_withdraw'
   | 'bank_interest'
-  | 'achievement';
+  | 'achievement'
+  | 'near_miss'
+  | 'drag_entry'
+  | 'drag_win'
+  | 'drag_refund';
 
 export interface Transaction {
   id: string;
@@ -294,6 +299,8 @@ export interface Snapshot {
   v: VehicleSnap[];
   n: NpcSnap[];
   self: SelfSnap | null;
+  /** Highway traffic near the player (10 Hz close by, 2 Hz further out). */
+  tr?: TrafficSnap[];
 }
 
 export interface CustomerOffer {

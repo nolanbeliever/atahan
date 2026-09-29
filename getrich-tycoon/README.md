@@ -10,7 +10,8 @@ It runs in Chrome (and other WebGL browsers) with a real, server-authoritative N
 All code, the regular catalogue's brands (Norda, Voltara, Velora, Granforge, Apexon, Solenne, Harlan & Finch), the city, the UI and
 the sounds are original. 3D models are generated procedurally at runtime and sounds are synthesized with WebAudio, so there are no
 third-party assets. The 10 exclusive Rare Dealer vehicles are real cars (BMW, Mercedes-Benz, Audi), named at the owner's request;
-their names live in `shared/specialVehicles.ts`, and no logos or photos are included.
+their names live in `shared/specialVehicles.ts`, and no logos or photos are included. High-detail `.glb` models can be added for any
+vehicle (see [High-detail vehicle models](#high-detail-vehicle-models)); none are shipped.
 
 ---
 
@@ -19,7 +20,11 @@ their names live in `shared/specialVehicles.ts`, and no logos or photos are incl
 | Area | What is implemented |
 | --- | --- |
 | **Multiplayer** | Socket.IO WebSockets. Movement is server-authoritative with client-side prediction and reconciliation. Remote players are interpolated. Vehicles, listings, dealerships, auctions, NPC customers and chat all sync in real time. |
-| **World** | A procedural 3D city with 9 districts: Dealership Row (8 plots), Used Vehicle Market, Hammerfall Auction House, Wrench Bros Repair & Parts Depot, Sparkle Wash & fuel station, GetRich Bank, Chroma Customs, parking lots and Fortune Plaza (spawn). |
+| **World** | A procedural 3D city with 9 districts: Dealership Row (8 plots), Used Vehicle Market, Hammerfall Auction House, Wrench Bros Repair & Parts Depot, Sparkle Wash & fuel station, GetRich Bank, Chroma Customs, parking lots and Fortune Plaza (spawn). A green belt with trees surrounds the city, then the highway. A shared 24-minute day/night cycle (server clock) brings dusk, stars and a moon, lit windows, street lights and headlights. |
+| **Highway (No Hesi)** | The GetRich Expressway rings the city: 4 lanes each way (8 in total), white dashed lane lines and yellow edge lines, W-beam guardrails, a concrete median with crossovers, three junctions (connector roads with on/off-ramps) to the city, three road bridges over it, green sign gantries and median street lights that light up the road at night. |
+| **Traffic** | 116 server-driven vehicles: cars, box trucks, coaches and TIR semis (tractor + 13.6 m trailer that bends through the corners). Lane speeds of about 120 km/h on the left down to 80 km/h for trucks on the right; drivers follow at a safe distance (IDM), blink before they change lanes (MOBIL-style), keep right, brake for stopped cars and people, and move over when you come up fast behind them or use the horn / headlight flash (**H**). Brake lights, indicators and headlights are all visible. |
+| **Near misses** | Above 150 km/h, passing traffic within 1.2 m without touching pays **NEAR MISS / MAKAS +$100** and XP. Consecutive near misses build a combo (x2 from 3, x3 from 6, x5 from 10); the combo meter shows the combo's cash and XP and runs out after 6 s without a near miss. Any crash (or touching traffic) resets it. Near-miss cash is capped per hour. |
+| **Drag racing** | An eighth-mile drag strip in the west belt with grandstand, start/finish gantries and a Christmas tree. Pay $250 and race a bot matched to your car's performance, or wait for another player; the winner takes the $500 pool. Three red lights, then green after a random delay; moving before green is a FALSE START and loses. Reaction time, elapsed time and trap speed are measured on the server; the cars run on their tuned physics, and 0-100 / top speed come from the tuning stats. |
 | **Player** | Account (name + password), money, bank, XP/levels, reputation, stats, 17 achievements, settings, appearance, parts inventory. |
 | **Vehicles** | 15 fictional models in 8 categories plus 10 real exclusive models (9 cars and a motorcycle you ride visibly) from the Rare Dealer, each with its own detailed 3D body modelled after a real type of car (city hatch, EV, sedans, off-roader, luxury SUV, crew-cab and single-cab pickups, van, rear-engine coupe, supercar, GT, '60s cruiser with fins, roadster): curved panels, glass, wheel arches, lamps, grilles, bumpers and 6 rim styles, with small differences and no real brand names or logos. Each vehicle tracks mileage, fuel, 6 condition parts, cleanliness, mods, owner and sale status. Condition affects value, driving performance and repair cost. |
 | **Driving** | Enter or exit with **E**. Driving has acceleration, braking, reverse, handbrake, steering, collisions (with body damage), fuel use, mileage and dirt. |
@@ -79,7 +84,8 @@ The schema (`database/schema.sql`) is applied automatically on startup. When `DA
 | **Space** | Handbrake (driving) |
 | **Mouse** (click to lock) / right-drag | Camera |
 | **E** | Interact / enter / exit vehicle |
-| **F** | Use the fuel station or car wash while driving |
+| **F** | Use the fuel station or car wash while driving; open the drag strip at the staging lane |
+| **H** | Horn and headlight flash (slower traffic ahead moves over) |
 | **Enter** / **T** | Chat |
 | **B** / **I** / **J** / **K** / **M** / **O** | Marketplace / Garage / Dealership / Auctions / Map / Profile |
 | **Esc** | Close panel / game menu |
@@ -91,11 +97,29 @@ The schema (`database/schema.sql`) is applied automatically on startup. When `DA
 | Left stick | Walk or drive (push it all the way to run) |
 | Drag anywhere on the 3D view | Camera |
 | **E** button, or tap the prompt | Interact / enter / exit vehicle |
-| **F** button | Fuel station or car wash while driving |
+| **F** button | Fuel station, car wash or drag strip while driving |
+| **HORN** button (hold, while driving) | Horn and headlight flash |
 | **RUN** / **BRAKE** button (hold) | Sprint on foot, handbrake while driving |
 | Bottom bar | Marketplace, Garage, Dealership, Auctions, Map, Profile, Chat, Menu |
 
-`?touch=1` or `?touch=0` in the URL forces the touch controls on or off.
+`?touch=1` or `?touch=0` in the URL forces the touch controls on or off. `?hour=22` fixes the time of day (screenshots),
+`?hq=0` turns high-detail models off.
+
+## High-detail vehicle models
+
+Every vehicle has a built-in procedural 3D body. To use a high-detail model instead:
+
+1. Get a `.glb` (Sketchfab "Downloadable" models, Poly Pizza, CGTrader...). Check the licence: CC BY needs a credit, many models
+   are for personal use only, and car brands are trademarks. Draco compression is supported and recommended, for example
+   `npx @gltf-transform/cli optimize in.glb out.glb --compress draco --texture-compress webp`.
+2. Put it in `client/public/assets/models/` with the file name used in `client/src/data/highDetailVehicles.ts` (for example
+   `m3_g80_hq.glb`), or add an entry there: `vehicleId`, `modelUrl`, `scale`, `rotationOffset`, `castShadow`, `receiveShadow`
+   and `paintMaterials` (material names that take the car's paint colour).
+3. Rebuild (`npm run build`; Render does this on deploy). Only files that exist are loaded (checked at build time).
+
+Models are loaded lazily with three.js `GLTFLoader` + `DRACOLoader`, fitted to the vehicle's real length, stood on the ground and
+recoloured. If the car faces backwards, change `rotationOffset.y` (0 or `Math.PI`). The procedural body stays as the fallback for
+vehicles without a file (and while a model downloads); distant highway traffic uses a light instanced version.
 
 ## Scripts
 
@@ -168,9 +192,13 @@ See [`.env.example`](.env.example). The important ones:
 - **Single server instance.** The authoritative world state lives in one Node process, with write-through to the database.
   This fits a free-tier deployment and hundreds of concurrent players, but it does not scale horizontally
   (see ARCHITECTURE.md).
-- **Simple arcade physics.** Vehicles use a 2D bicycle model with circle colliders. There are no ramps or multi-level roads,
-  and players can walk through each other.
-- **No AI traffic.** NPCs are dealership customers. There is no ambient traffic on the roads.
+- **Simple arcade physics.** Vehicles use a 2D bicycle model with circle colliders. There are no multi-level roads (the highway
+  bridges are scenery), and players can walk through each other. Speeds are scaled to the small map; the speedometer shows real
+  km/h figures.
+- **Traffic stays on the highway.** City streets have no ambient traffic, and highway traffic does not use the ramps.
+- **High-detail models are not included.** The loader is ready (see above), but no `.glb` files ship with the game, because
+  real-car models need a licence. HQ models replace the whole body, so tuning body parts and rim designs only show on the
+  procedural body.
 - **Software rendering is slow.** Without a GPU (CI containers, some VMs) Chrome falls back to SwiftShader and the game runs at a
   few FPS. It still works, and the automated tests run that way, but real play needs hardware acceleration.
 - **Free hosting sleeps.** The recommended free host spins the server down after ~15 minutes without traffic. The first visitor then

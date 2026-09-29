@@ -454,6 +454,38 @@ export const ECONOMY = {
     tunedChance: 0.25,
   },
 
+  /** No Hesi highway: near misses at speed pay cash and XP, with a combo multiplier. */
+  highway: {
+    /** Speedometer (km/h) needed for a near miss to count. */
+    nearMissMinKmh: 150,
+    nearMissReward: 100,
+    nearMissXp: 5,
+    /** A pass counts when the gap between the two bodies stayed under this (m) without touching. */
+    nearMissClearance: 1.2,
+    /** The combo ends when no near miss happens for this long (s). */
+    comboWindowSec: 6,
+    /** Multiplier by combo length (the highest tier reached applies). */
+    comboTiers: [
+      { from: 10, mult: 5 },
+      { from: 6, mult: 3 },
+      { from: 3, mult: 2 },
+    ],
+    /** A collision this hard (m/s) - or any contact with traffic - resets the combo. */
+    crashImpact: 3,
+    /** Near-miss cash is capped per rolling hour (keeps the dealership economy meaningful). */
+    hourlyCap: 75_000,
+  },
+
+  /** Drag strip: each racer pays the entry, the winner takes the pool. */
+  drag: {
+    entryFee: 250,
+    prize: 500,
+    /** Waiting for another player to accept before the queue entry expires (s). */
+    queueTimeoutSec: 90,
+    xpWin: 40,
+    xpRace: 10,
+  },
+
   /** Player-to-player trading guards (limit money/XP farming with alternate accounts). */
   trading: {
     /** Asking prices and auction bids are capped at this multiple of market value. */

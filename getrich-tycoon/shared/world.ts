@@ -4,6 +4,7 @@
 // Coordinates: metres. +x = east, +z = south, y = up. A yaw of 0 faces +z.
 
 import { dealershipLevel } from './economy.config';
+import { DRAG_BOXES, DRAG_STRIP, highwayCircles } from './highway';
 
 export interface AABB {
   minX: number;
@@ -24,8 +25,10 @@ export const ROAD_LINES = [-150, -50, 50, 150] as const;
 export const BLOCK_CENTERS = [-100, 0, 100] as const;
 /** Half-size of the usable interior of a city block (inside the sidewalk). */
 export const BLOCK_HALF = 50 - ROAD_WIDTH / 2 - SIDEWALK; // 41
-/** Characters and vehicles cannot leave this square. */
-export const WORLD_BOUNDS = 158;
+/** Half size of the city (the outer road ends at 156; the green belt and the highway lie beyond). */
+export const CITY_HALF = 158;
+/** Characters and vehicles cannot leave this square (the highway's outer guardrail is inside it). */
+export const WORLD_BOUNDS = 262;
 
 export type ZoneId =
   | 'dealers_west'
@@ -58,7 +61,7 @@ export const ZONES: Zone[] = [
   { id: 'repair_parts', name: 'Wrench Bros Repair & Parts', cx: 100, cz: 100, color: '#e76f51' },
 ];
 
-export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot';
+export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag';
 
 export interface Interactable {
   id: string;
@@ -117,6 +120,8 @@ export const STATIC_CIRCLES: Circle[] = [
   // Fuel pump islands
   { x: 18, z: 96, r: 1.2 },
   { x: 34, z: 96, r: 1.2 },
+  // Highway: barrier ends, bridge piers and embankments, belt trees, the drag strip's tree.
+  ...highwayCircles(),
 ];
 
 export const INTERACTABLES: Interactable[] = [
@@ -128,6 +133,7 @@ export const INTERACTABLES: Interactable[] = [
   { id: 'fuel', kind: 'fuel', x: 26, z: 100, radius: 10, label: 'Refuel vehicles' },
   { id: 'repair', kind: 'repair', x: 87, z: 91, radius: 8, label: 'Enter Wrench Bros Repair' },
   { id: 'parts', kind: 'parts', x: 127, z: 85, radius: 6, label: 'Enter Parts Depot' },
+  { id: 'drag', kind: 'drag', x: DRAG_STRIP.stage.x, z: DRAG_STRIP.stage.z, radius: DRAG_STRIP.stage.radius, label: 'Drag Strip - race for $500' },
 ];
 
 export const SERVICE_INTERACT_SLACK = 6;
@@ -319,7 +325,7 @@ export function isOnRoad(x: number, z: number): boolean {
 }
 
 /** All static colliders (buildings) - dealership buildings are added dynamically. */
-export const STATIC_BOXES: AABB[] = BUILDINGS.map((b) => b.box);
+export const STATIC_BOXES: AABB[] = [...BUILDINGS.map((b) => b.box), ...DRAG_BOXES];
 
 export function findInteractable(id: string): Interactable | undefined {
   return INTERACTABLES.find((i) => i.id === id);

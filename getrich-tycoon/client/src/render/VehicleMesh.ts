@@ -12,6 +12,7 @@ import { bikeBody, type BikeBody } from './bikeBody';
 import { carBody, rimGeometry, tireGeometry, type CarBody, type Part } from './carBody';
 import type { RimStyle } from './carDesigns';
 import { Tex } from './Textures';
+import { hqEntryFor, loadHqVehicle } from './HqModels';
 
 export interface VehicleLook {
   modelId: string;
@@ -177,6 +178,58 @@ export function createVehicleView(look: VehicleLook): AnyVehicleView {
   return getModel(look.modelId).specs.kind === 'bike' ? new BikeView(look) : new VehicleView(look);
 }
 
+/**
+ * Swaps the procedural body for the vehicle's high-detail model once it has loaded (see
+ * data/highDetailVehicles.ts). Until then - or if there is no model file - the procedural body stays.
+ */
+class HqSwap {
+  private model: Awaited<ReturnType<typeof loadHqVehicle>> | null = null;
+  private disposed = false;
+  private color: string;
+
+  constructor(
+    modelId: string,
+    length: number,
+    color: string,
+    private readonly host: () => THREE.Object3D,
+    private readonly hide: (hidden: boolean) => void,
+  ) {
+    this.color = color;
+    const entry = hqEntryFor(modelId);
+    if (!entry) return;
+    loadHqVehicle(entry, length, color)
+      .then((m) => {
+        if (this.disposed) return m.dispose();
+        this.model = m;
+        m.setColor(this.color);
+        this.reattach();
+      })
+      .catch(() => undefined);
+  }
+
+  get active(): boolean {
+    return !!this.model;
+  }
+
+  /** Put the model back after the view rebuilt its parts. */
+  reattach(): void {
+    if (!this.model) return;
+    this.host().add(this.model.root);
+    this.hide(true);
+  }
+
+  setColor(color: string): void {
+    this.color = color;
+    this.model?.setColor(color);
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.model?.dispose();
+    this.model = null;
+  }
+}
+
 /** A complete car with wheel animation support. */
 export class VehicleView implements AnyVehicleView {
   readonly root = new THREE.Group();
@@ -198,13 +251,16 @@ export class VehicleView implements AnyVehicleView {
   /** Negative camber in radians. */
   private camber = 0;
   private flames: Flames | null = null;
+  private paintMat: THREE.Material | null = null;
   signature = '';
   readonly length: number;
   readonly width: number;
   readonly height: number;
   private readonly car: CarBody;
+  private readonly hq: HqSwap | null;
 
-  constructor(look: VehicleLook) {
+  /** `hq: false` keeps the procedural body (e.g. for baking instanced traffic). */
+  constructor(look: VehicleLook, opts: { hq?: boolean } = {}) {
     const shape = getModel(look.modelId).shape;
     this.car = carBody(look.modelId);
     this.length = shape.length;
@@ -213,6 +269,13 @@ export class VehicleView implements AnyVehicleView {
     this.root.add(this.body);
     this.body.add(this.shell, this.wheelRoot);
     this.build(look);
+    this.hq =
+      opts.hq === false
+        ? null
+        : new HqSwap(look.modelId, shape.length, vehicleColor(look.color, look.mods), () => this.body, (hidden) => {
+            this.shell.visible = !hidden;
+            this.wheelRoot.visible = !hidden;
+          });
   }
 
   update(look: VehicleLook): void {
@@ -220,6 +283,8 @@ export class VehicleView implements AnyVehicleView {
     if (sig === this.signature) return;
     this.clear();
     this.build(look);
+    this.hq?.setColor(vehicleColor(look.color, look.mods));
+    this.hq?.reattach();
   }
 
   private clear(): void {
@@ -256,6 +321,7 @@ export class VehicleView implements AnyVehicleView {
     const dirt = 1 - Math.max(0, Math.min(100, look.condition.cleanliness)) / 100;
     const damage = Math.max(0, (45 - look.condition.body) / 45);
     const paintMat = this.mat(paintMaterial(look, dirt, damage));
+    this.paintMat = paintMat;
     const base = new THREE.Color(vehicleColor(look.color, look.mods));
     const light = base.r * 0.3 + base.g * 0.59 + base.b * 0.11 > 0.7;
     const roofMat =
@@ -635,7 +701,48 @@ export class VehicleView implements AnyVehicleView {
     this.flames?.pop(strength);
   }
 
+  /**
+   * The whole car as two static geometries for instanced drawing (highway traffic): body paint
+   * (white, tinted per instance) and everything else with its colours baked into vertex colours.
+   */
+  bake(): { paint: THREE.BufferGeometry; fixed: THREE.BufferGeometry } {
+    this.shell.visible = true;
+    this.wheelRoot.visible = true;
+    this.root.updateMatrixWorld(true);
+    const paint: THREE.BufferGeometry[] = [];
+    const fixed: THREE.BufferGeometry[] = [];
+    const white = new THREE.Color(1, 1, 1);
+    this.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || Array.isArray(mesh.material) || !mesh.visible) return;
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      if (mat.transparent && mat.depthWrite === false) return; // dirt overlays, flames
+      const g = (mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone()).applyMatrix4(mesh.matrixWorld);
+      const isPaint = mesh.material === this.paintMat;
+      const base = isPaint ? white : (mat.color ?? white);
+      const src = mat.vertexColors ? (g.getAttribute('color') as THREE.BufferAttribute | undefined) : undefined;
+      const n = g.getAttribute('position').count;
+      const col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        col[i * 3] = base.r * (src ? src.getX(i) : 1);
+        col[i * 3 + 1] = base.g * (src ? src.getY(i) : 1);
+        col[i * 3 + 2] = base.b * (src ? src.getZ(i) : 1);
+      }
+      for (const name of Object.keys(g.attributes)) if (name !== 'position' && name !== 'normal') g.deleteAttribute(name);
+      if (!g.getAttribute('normal')) g.computeVertexNormals();
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      (isPaint ? paint : fixed).push(g);
+    });
+    const merge = (list: THREE.BufferGeometry[]) => {
+      const m = mergeGeometries(list, false) ?? new THREE.BufferGeometry();
+      for (const g of list) g.dispose();
+      return m;
+    };
+    return { paint: merge(paint), fixed: merge(fixed) };
+  }
+
   dispose(): void {
+    this.hq?.dispose();
     this.clear();
   }
 
@@ -670,6 +777,7 @@ export class BikeView implements AnyVehicleView {
   readonly width: number;
   readonly height: number;
   private readonly bike: BikeBody;
+  private readonly hq: HqSwap;
 
   constructor(look: VehicleLook) {
     const shape = getModel(look.modelId).shape;
@@ -680,12 +788,17 @@ export class BikeView implements AnyVehicleView {
     this.root.add(this.lean);
     this.riderMount.position.set(...this.bike.seat);
     this.build(look);
+    this.hq = new HqSwap(look.modelId, shape.length, vehicleColor(look.color, look.mods), () => this.lean, (hidden) => {
+      for (const c of this.lean.children) if (c !== this.riderMount && c.userData.hq !== true) c.visible = !hidden;
+    });
   }
 
   update(look: VehicleLook): void {
     if (lookSignature(look) === this.signature) return;
     this.clear();
     this.build(look);
+    this.hq.setColor(vehicleColor(look.color, look.mods));
+    this.hq.reattach();
   }
 
   private clear(): void {
@@ -759,6 +872,7 @@ export class BikeView implements AnyVehicleView {
   }
 
   dispose(): void {
+    this.hq?.dispose();
     this.clear();
   }
 

@@ -2,6 +2,7 @@
 // Everything the client asks for goes through a single validated `rpc` channel;
 // high-frequency movement goes through `input`.
 
+import type { DragBotSnap, DragInfo, DragRaceView } from './drag';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { TuningChange } from './tuningSystem';
@@ -74,6 +75,10 @@ export interface RpcMethods {
   'rare.list': { params: Empty; result: RareMarketState };
   'rare.buy': { params: { offerId: string; expectedPrice: number }; result: { vehicle: Vehicle; price: number } };
   'parts.buy': { params: { itemId: string; qty: number }; result: { inventory: Record<string, number>; cost: number } };
+  /** Drag strip: race a bot now, or wait for / accept another player. */
+  'drag.info': { params: Empty; result: DragInfo };
+  'drag.join': { params: { mode: 'bot' | 'player' }; result: DragInfo };
+  'drag.leave': { params: Empty; result: DragInfo };
 
   'bank.deposit': { params: { amount: number }; result: { money: number; bank: number } };
   'bank.withdraw': { params: { amount: number }; result: { money: number; bank: number } };
@@ -135,7 +140,31 @@ export interface ServerToClientEvents {
   trends: (t: CategoryTrends) => void;
   /** Rare Dealer stock changed (new rotation or an offer was sold). */
   'rare.update': (s: RareMarketState) => void;
+  /** A near miss paid out (combo count and multiplier included). */
+  'highway.nearmiss': (d: NearMissEvent) => void;
+  /** The near-miss combo ended. */
+  'highway.combo': (d: { reason: 'crash' | 'expired'; count: number; earned: number }) => void;
+  /** Drag strip race state (null when the strip is free). */
+  'drag.update': (d: DragRaceView | null) => void;
+  /** Drag strip car positions while racing: [lane, z, speed]. */
+  'drag.tick': (d: { id: string; cars: DragBotSnap[] }) => void;
   kicked: (reason: string) => void;
+}
+
+export interface NearMissEvent {
+  /** Cash for this near miss (after the multiplier; 0 when the hourly cap is reached). */
+  amount: number;
+  xp: number;
+  mult: number;
+  /** Near misses in the current combo. */
+  combo: number;
+  /** Cash and XP earned in this combo so far. */
+  comboMoney: number;
+  comboXp: number;
+  /** Gap to the other vehicle (m). */
+  gap: number;
+  kind: string;
+  capped: boolean;
 }
 
 export interface ClientToServerEvents {

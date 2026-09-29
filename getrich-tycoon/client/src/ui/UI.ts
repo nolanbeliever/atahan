@@ -11,6 +11,7 @@ import type { Game, Interaction } from '../game/Game';
 import { RpcError } from '../net/Network';
 import { clear, h, icon } from './dom';
 import { ICONS } from './icons';
+import { DragHud, NearMissHud } from './HighwayHud';
 import { Minimap } from './Minimap';
 import type { Panel, PanelArg } from './Panel';
 import { createPanel, type PanelName } from './panels';
@@ -124,6 +125,8 @@ export class UI {
     hint: HTMLElement;
   };
   private toasts: HTMLElement;
+  readonly nearMiss = new NearMissHud();
+  readonly dragHud = new DragHud();
   private overlay: HTMLElement | null = null;
   private panel: Panel | null = null;
   private lastPromptKey = '';
@@ -199,11 +202,12 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'WASD'), 'Move'),
       h('span', null, h('span', { class: 'kbd' }, 'Shift'), 'Sprint'),
       h('span', null, h('span', { class: 'kbd' }, 'E'), 'Interact'),
+      h('span', null, h('span', { class: 'kbd' }, 'H'), 'Horn'),
       h('span', null, h('span', { class: 'kbd' }, 'Click'), 'Mouse look'),
       h('span', null, h('span', { class: 'kbd' }, 'Enter'), 'Chat'),
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
-    this.root.append(top, right, dock, prompt, drive, this.chat.el, hint, offers, this.toasts, reconnect);
+    this.root.append(top, right, dock, prompt, drive, this.nearMiss.el, this.dragHud.el, this.chat.el, hint, offers, this.toasts, reconnect);
     this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, speed, gauge, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 

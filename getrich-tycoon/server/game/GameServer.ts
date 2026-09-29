@@ -33,6 +33,8 @@ import { BankService } from './services/bank';
 import { ChatService } from './services/chat';
 import { CustomerService } from './services/customers';
 import { DealershipService } from './services/dealership';
+import { DragService } from './services/drag';
+import { HighwayService } from './services/highway';
 import { GarageService } from './services/garage';
 import { MarketService } from './services/market';
 import { RareMarketService } from './services/rareMarket';
@@ -75,6 +77,9 @@ export class GameServer implements Hub {
   readonly trends: TrendsService;
   readonly tuning: TuningService;
   readonly rare: RareMarketService;
+  readonly highway: HighwayService;
+  readonly drag: DragService;
+  private tickCount = 0;
   private sessions = new Map<string, Session>();
   private timers: NodeJS.Timeout[] = [];
   private selfDirty = new Set<string>();
@@ -106,6 +111,8 @@ export class GameServer implements Hub {
     this.trends = new TrendsService(this.ctx);
     this.tuning = new TuningService(this.ctx);
     this.rare = new RareMarketService(this.ctx);
+    this.highway = new HighwayService(this.ctx);
+    this.drag = new DragService(this.ctx);
     state.onCommit = (r) => this.onCommit(r);
 
     this.handlers = {
@@ -135,6 +142,9 @@ export class GameServer implements Hub {
       'rare.list': () => this.rare.list(),
       'rare.buy': (pid, p) => this.rare.buy(pid, p),
       'parts.buy': (pid, p) => this.garage.buyParts(pid, p),
+      'drag.info': () => this.drag.info(),
+      'drag.join': (pid, p) => this.drag.join(pid, p),
+      'drag.leave': (pid) => this.drag.leave(pid),
       'bank.deposit': (pid, p) => this.bank.deposit(pid, p),
       'bank.withdraw': (pid, p) => this.bank.withdraw(pid, p),
       'auction.list': () => ({ auctions: this.auctions.list() }),
@@ -321,6 +331,8 @@ export class GameServer implements Hub {
   private async cleanupSession(session: Session): Promise<void> {
     const { playerId } = session;
     if (this.sessions.get(playerId) === session) this.sessions.delete(playerId);
+    this.highway.forget(playerId);
+    this.drag.forget(playerId);
     const c = this.sim.chars.get(playerId);
     if (c?.drivingId) {
       const vehicleId = c.drivingId;
@@ -496,11 +508,18 @@ export class GameServer implements Hub {
     this.customers.tickMovement(dt);
     this.sim.rebuildDynamic();
     if (this.sessions.size === 0) return;
+    this.tickCount++;
+    this.sim.stepTraffic(dt);
+    this.highway.tick(now);
+    this.drag.tick(dt);
     const lists = this.sim.buildSnapshotLists();
     for (const s of this.sessions.values()) {
       const c = this.sim.chars.get(s.playerId);
       if (!c) continue;
       const d = c.drivingId ? this.sim.drives.get(c.drivingId) : undefined;
+      // Highway traffic rides along: close cars 10x a second, the rest in view twice a second.
+      const wide = this.tickCount % 10 === 0;
+      const tr = wide || this.tickCount % 2 === 0 ? this.sim.traffic.snapshot(c.x, c.z, wide ? 330 : 150) : [];
       s.socket.volatile.emit('snapshot', {
         t: now,
         ack: c.lastSeq,
@@ -508,12 +527,14 @@ export class GameServer implements Hub {
         v: lists.v,
         n: lists.n,
         self: [c.x, c.z, d ? d.dyn.rot : c.rot, d ? d.dyn.speed : 0, d ? d.dyn.steer : 0, c.drivingId],
+        ...(tr.length > 0 ? { tr } : {}),
       });
     }
   }
 
   private async slowTick(): Promise<void> {
     this.rare.tick();
+    await this.highway.flush();
     if (this.cfg.simulation) {
       await this.customers.tick();
       await this.auctions.tick();

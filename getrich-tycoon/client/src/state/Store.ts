@@ -40,11 +40,12 @@ export class Store extends Emitter<StoreEvents> {
   offers = new Map<string, CustomerOffer>();
   /** Rare Dealer stock (null until fetched). */
   rare: RareMarketState | null = null;
-  /** Server clock minus local clock (ms), learned from Rare Dealer updates. */
+  /** Server clock minus local clock (ms), learned from the welcome and Rare Dealer updates. */
   clockOffset = 0;
 
   applyWelcome(playerId: string, self: PrivateState, world: WorldInit): void {
     this.playerId = playerId;
+    this.clockOffset = world.serverTime - Date.now();
     this.self = self;
     this.players = new Map(world.players.map((p) => [p.id, p]));
     this.vehicles = new Map(world.vehicles.map((v) => [v.id, v]));

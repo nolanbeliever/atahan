@@ -1,6 +1,7 @@
 // Builds the static 3D city from the shared layout.
 
 import * as THREE from 'three';
+import { BELT_TREES, JUNCTIONS } from '../../../shared/highway';
 import { mulberry32 } from '../../../shared/util';
 import {
   BLOCK_CENTERS,
@@ -10,13 +11,13 @@ import {
   PARKING_LOTS,
   ROAD_LINES,
   ROAD_WIDTH,
-  WORLD_BOUNDS,
   ZONES,
   isOnRoad,
   type Building,
   type ZoneId,
 } from '../../../shared/world';
 import { batchStatic } from './batch';
+import { lightGlowTexture } from './Highway';
 import { Tex } from './Textures';
 
 export const SIDEWALK_HEIGHT = 0.12;
@@ -60,6 +61,10 @@ export class City {
   private time = 0;
   /** Position of the auction turntable (featured vehicle). */
   readonly turntable = new THREE.Group();
+  private lampHeadMat: THREE.MeshStandardMaterial | null = null;
+  private poolMat = new THREE.MeshBasicMaterial({ map: lightGlowTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, color: '#ffd9a0' });
+  private pools: THREE.InstancedMesh | null = null;
+  private skylineMat: THREE.MeshStandardMaterial | null = null;
 
   constructor() {
     this.group.name = 'city';
@@ -93,8 +98,8 @@ export class City {
   }
 
   private buildGround(): void {
-    const grass = new THREE.MeshStandardMaterial({ map: repeated(Tex.grass(), 140, 140), roughness: 1 });
-    const g = plane(1200, 1200, grass, 0, -0.02, 0);
+    const grass = new THREE.MeshStandardMaterial({ map: repeated(Tex.grass(), 186, 186), roughness: 1 });
+    const g = plane(1600, 1600, grass, 0, -0.02, 0);
     this.group.add(g);
   }
 
@@ -197,26 +202,25 @@ export class City {
         const zone = ZONES.find((z) => z.cx === cx && z.cz === cz)!;
         this.group.add(plane(BLOCK_HALF * 2, BLOCK_HALF * 2, surfaces[zone.id], cx, SIDEWALK_HEIGHT + 0.005, cz));
       }
-    // Outer sidewalk ring around the perimeter road
+    // Outer sidewalk ring around the perimeter road, open where the highway connectors leave.
     const outer = 162;
-    for (const [w, d, x, z] of [
-      [outer * 2, 6, 0, -159],
-      [outer * 2, 6, 0, 159],
-      [6, outer * 2, -159, 0],
-      [6, outer * 2, 159, 0],
-    ] as const) {
-      this.group.add(boxMesh([curbMat, curbMat, sidewalkMat, curbMat, curbMat, curbMat], w, SIDEWALK_HEIGHT, d, x, SIDEWALK_HEIGHT / 2, z, false));
-    }
-    // Low wall marking the world boundary
-    const wallMat = new THREE.MeshStandardMaterial({ color: '#8a8f7a', roughness: 0.9 });
-    const B = WORLD_BOUNDS + 3.5;
-    for (const [w, d, x, z] of [
-      [B * 2, 0.6, 0, -B],
-      [B * 2, 0.6, 0, B],
-      [0.6, B * 2, -B, 0],
-      [0.6, B * 2, B, 0],
-    ] as const) {
-      this.group.add(boxMesh(wallMat, w, 1.1, d, x, 0.55, z));
+    const gaps = (side: 'n' | 's' | 'e' | 'w'): number[] =>
+      JUNCTIONS.filter((j) => (side === 'n' ? j.cityZ < -150 : side === 's' ? j.cityZ > 150 : side === 'e' ? j.cityX > 150 : j.cityX < -150)).map((j) => (side === 'n' || side === 's' ? j.cityX : j.cityZ));
+    for (const side of ['n', 's', 'e', 'w'] as const) {
+      const cuts = gaps(side).sort((a, b) => a - b);
+      let from = -outer;
+      const pieces: [number, number][] = [];
+      for (const c of cuts) {
+        pieces.push([from, c - 6.5]);
+        from = c + 6.5;
+      }
+      pieces.push([from, outer]);
+      for (const [a, b] of pieces) {
+        const len = b - a;
+        const mid = (a + b) / 2;
+        const [w, d, x, z] = side === 'n' ? [len, 6, mid, -159] : side === 's' ? [len, 6, mid, 159] : side === 'w' ? [6, len, -159, mid] : [6, len, 159, mid];
+        this.group.add(boxMesh([curbMat, curbMat, sidewalkMat, curbMat, curbMat, curbMat], w, SIDEWALK_HEIGHT, d, x, SIDEWALK_HEIGHT / 2, z, false));
+      }
     }
   }
 
@@ -482,7 +486,7 @@ export class City {
     const poleGeo = new THREE.CylinderGeometry(0.1, 0.14, 6, 6);
     const headGeo = new THREE.BoxGeometry(0.5, 0.2, 1.2);
     const poleMat = new THREE.MeshStandardMaterial({ color: '#39404d', metalness: 0.6, roughness: 0.4 });
-    const headMat = new THREE.MeshStandardMaterial({ color: '#fff6d8', emissive: '#ffe9a8', emissiveIntensity: 0.6 });
+    const headMat = (this.lampHeadMat = new THREE.MeshStandardMaterial({ color: '#fff6d8', emissive: '#ffe9a8', emissiveIntensity: 0.6 }));
     const poles = new THREE.InstancedMesh(poleGeo, poleMat, positions.length);
     const heads = new THREE.InstancedMesh(headGeo, headMat, positions.length);
     const m = new THREE.Matrix4();
@@ -495,6 +499,25 @@ export class City {
     });
     poles.castShadow = true;
     this.group.add(poles, heads);
+    // Pools of light on the ground at night.
+    const pools = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), this.poolMat, positions.length);
+    positions.forEach(([x, z, dir], i) => {
+      const hx = Math.abs(dir) === 1 ? x + dir * 2.5 : x;
+      const hz = Math.abs(dir) === 2 ? z + Math.sign(dir) * 2.5 : z;
+      pools.setMatrixAt(i, m.compose(new THREE.Vector3(hx, 0.06, hz), new THREE.Quaternion(), new THREE.Vector3(13, 1, 13)));
+    });
+    pools.renderOrder = 2;
+    pools.visible = false;
+    this.pools = pools;
+    this.group.add(pools);
+  }
+
+  /** Street lamps and lit windows at night (0 day - 1 night). */
+  setNight(f: number): void {
+    if (this.lampHeadMat) this.lampHeadMat.emissiveIntensity = 0.6 + f * 2.4;
+    this.poolMat.opacity = f * 0.5;
+    if (this.pools) this.pools.visible = f > 0.02;
+    if (this.skylineMat) this.skylineMat.emissiveIntensity = f * 1.6;
   }
 
   private buildTrees(): void {
@@ -506,13 +529,15 @@ export class City {
       spots.push([Math.sin(a) * 27, Math.cos(a) * 27, 0.9 + rng() * 0.4]);
     }
     for (let i = 0; i < 12; i++) spots.push([(rng() - 0.5) * 76, (rng() - 0.5) * 76, 0.8 + rng() * 0.5]);
-    // Outside the city boundary
-    for (let i = 0; i < 260; i++) {
+    // The green belt between the city and the highway (these trees are solid).
+    for (const t of BELT_TREES) spots.push([t.x, t.z, t.s]);
+    // Countryside beyond the highway.
+    for (let i = 0; i < 320; i++) {
       const side = Math.floor(rng() * 4);
-      const t = (rng() - 0.5) * 380;
-      const d = 166 + rng() * 22;
+      const t = (rng() - 0.5) * 600;
+      const d = 272 + rng() * 40;
       const [x, z] = side === 0 ? [t, -d] : side === 1 ? [t, d] : side === 2 ? [-d, t] : [d, t];
-      spots.push([x, z, 0.9 + rng() * 0.8]);
+      spots.push([x, z, 0.9 + rng() * 0.9]);
     }
     const filtered = spots.filter(([x, z]) => Math.abs(x) > 158 || Math.abs(z) > 158 || (Math.abs(x) < 38 && Math.abs(z) < 38 && Math.hypot(x, z) > 21));
     const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2.4, 6);
@@ -537,13 +562,17 @@ export class City {
     const spots: [number, number, number, number, number][] = [];
     for (let i = 0; i < 150; i++) {
       const side = Math.floor(rng() * 4);
-      const t = (rng() - 0.5) * 520;
-      const d = 200 + rng() * 90;
+      const t = (rng() - 0.5) * 760;
+      const d = 330 + rng() * 110;
       const [x, z] = side === 0 ? [t, -d] : side === 1 ? [t, d] : side === 2 ? [-d, t] : [d, t];
       spots.push([x, z, 12 + rng() * 22, 12 + rng() * 22, 18 + Math.pow(rng(), 2) * 80]);
     }
     const win = Tex.windows('skyline', '#8d99ae', '#34435e', '#ffe7a8', 8, 12);
-    const mat = new THREE.MeshStandardMaterial({ map: repeated(win, 2, 4), roughness: 0.6 });
+    const map = repeated(win, 2, 4);
+    // Only the lit windows glow at night.
+    const litMap = repeated(Tex.windows('skyline', '#000000', '#000000', '#ffe7a8', 8, 12), 2, 4);
+    const mat = new THREE.MeshStandardMaterial({ map, roughness: 0.6, emissive: '#ffffff', emissiveMap: litMap, emissiveIntensity: 0 });
+    this.skylineMat = mat;
     const im = new THREE.InstancedMesh(boxGeo, mat, spots.length);
     const m = new THREE.Matrix4();
     const tints = ['#ffffff', '#dfe7f5', '#f6ead7', '#e1f0ea', '#e9e1f5'].map((c) => new THREE.Color(c));

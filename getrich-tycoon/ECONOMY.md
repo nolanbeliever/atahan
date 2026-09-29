@@ -112,6 +112,25 @@ Stage 2 $3,700, Stage 3 $8,000, coilovers $2,900, chameleon paint $5,200. A full
 - Prices: 0.94-1.10 × value (legendary 1.00-1.08 × value; a new legendary is worth its list price), always above what an
   auction or the wholesaler pays. 25% of non-legendary offers come with a performance package. Category unlocks still apply.
 
+## Highway near misses
+
+- A near miss is a pass (overtaking, or being overtaken) with less than 1.2 m between the two bodies, no contact, at 150 km/h
+  or more on the speedometer. Each traffic vehicle counts once per 4 s.
+- Pays **$100 and 5 XP** times the combo multiplier: x1 for the first two, **x2** from the 3rd, **x3** from the 6th, **x5**
+  from the 10th near miss in a row. The combo ends 6 s after the last near miss, or at once on a crash (an impact over 3 m/s
+  or touching traffic).
+- Cash is paid in one transaction per second (`near_miss`). It is capped at **$75,000 per rolling hour** per player (XP keeps
+  counting), so the highway is a fun side income rather than a replacement for trading. Values are in
+  `ECONOMY.highway`.
+
+## Drag strip
+
+- Entry **$250** per racer (`drag_entry`), taken when the race starts. The winner receives the **$500** pool (`drag_win`) and
+  40 XP; the loser gets 10 XP. Against a bot the house covers the bot's entry.
+- A false start, leaving your lane, leaving the car or not finishing within 30 s loses. A dead heat refunds both entries.
+- The bot is matched to your car (simulated eighth-mile time within about 4.5%), so racing bots is roughly a coin flip that a
+  better build and a quicker reaction tip your way. Values are in `ECONOMY.drag`.
+
 ## Selling
 
 | Channel | Price | Fee | Notes |

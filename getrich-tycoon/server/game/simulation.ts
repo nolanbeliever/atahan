@@ -8,6 +8,7 @@ import {
   CHAR_RADIUS,
   KEY,
   MAX_CMD_DT,
+  MAX_KEYS,
   resolveCircle,
   stepCharacter,
   stepVehicle,
@@ -21,7 +22,9 @@ import {
 import { Anim, type NpcSnap, type PlayerSnap, type Vehicle, type VehicleSnap } from '../../shared/types';
 import { round2 } from '../../shared/util';
 import { getModel } from '../../shared/vehicles';
+import { nearHighway } from '../../shared/highway';
 import type { GameState } from './state';
+import { TrafficSystem, type HighwayBody } from './traffic';
 
 export interface CharacterEntity {
   id: string;
@@ -37,6 +40,8 @@ export interface CharacterEntity {
   interactUntil: number;
   droppedCmds: number;
   lastInputAt: number;
+  /** Last time the horn / headlight flash was used (ms). */
+  hornAt: number;
 }
 
 export interface DriveState {
@@ -49,6 +54,10 @@ export interface DriveState {
   /** Worst impact speed since the last flush, summed damage. */
   pendingDamage: number;
   lastFlushAt: number;
+  /** Last crash (hard impact or any contact with traffic), ms. */
+  crashAt: number;
+  /** While true the vehicle ignores the driver's input (drag strip staging). */
+  hold: boolean;
 }
 
 export interface NpcEntity {
@@ -68,12 +77,22 @@ export interface DriveFlush {
 
 const MAX_BUDGET = 1.0;
 
+/** Held vehicles only keep the brakes (the driver's inputs are ignored). */
+function holdKeys(keys: number): number {
+  return (keys & KEY.HORN) | KEY.BRAKE;
+}
+
 export class Simulation {
   readonly chars = new Map<string, CharacterEntity>();
   readonly drives = new Map<string, DriveState>();
   readonly npcs = new Map<string, NpcEntity>();
   private world: CollisionWorld = { boxes: [], circles: STATIC_CIRCLES, dynamic: [] };
   private dynamic: DynamicCircle[] = [];
+  readonly traffic = new TrafficSystem();
+  /** Players, walkers and parked cars on the highway (traffic brakes for them). */
+  highwayBodies: HighwayBody[] = [];
+  /** Extra vehicles owned by services (drag strip bots). */
+  extraObstacles: ObstacleVehicle[] = [];
 
   constructor(private readonly state: GameState) {
     this.rebuildStatic();
@@ -102,8 +121,30 @@ export class Simulation {
       const v = this.state.vehicles.get(d.vehicleId);
       if (v) list.push({ id: v.id, modelId: v.modelId, x: d.dyn.x, z: d.dyn.z, rot: d.dyn.rot });
     }
+    list.push(...this.extraObstacles);
     this.dynamic.length = 0;
     vehicleObstacles(list, this.dynamic);
+    // Traffic near someone who could touch it.
+    const near: { x: number; z: number }[] = [];
+    for (const c of this.chars.values()) if (nearHighway(c.x, c.z, 60)) near.push(c);
+    this.traffic.circlesNear(near, 70, this.dynamic);
+    // What traffic has to brake for.
+    const bodies: HighwayBody[] = [];
+    for (const o of list) {
+      if (!nearHighway(o.x, o.z, 4)) continue;
+      const m = getModel(o.modelId);
+      const d = this.drives.get(o.id);
+      bodies.push({ id: o.id, x: o.x, z: o.z, rot: o.rot, speed: d ? d.dyn.speed : 0, halfLength: m.shape.length / 2, halfWidth: m.shape.width / 2 });
+    }
+    for (const c of this.chars.values()) {
+      if (!c.drivingId && nearHighway(c.x, c.z, 4)) bodies.push({ id: c.id, x: c.x, z: c.z, rot: c.rot, speed: 0, halfLength: CHAR_RADIUS, halfWidth: CHAR_RADIUS });
+    }
+    this.highwayBodies = bodies;
+  }
+
+  /** Advance the highway traffic (players and parked cars are obstacles). */
+  stepTraffic(dt: number): void {
+    this.traffic.step(dt, this.highwayBodies);
   }
 
   get collisionWorld(): CollisionWorld {
@@ -112,7 +153,7 @@ export class Simulation {
 
   addPlayer(id: string, x: number, z: number, rot: number): CharacterEntity {
     const now = Date.now();
-    const c: CharacterEntity = { id, x, z, rot, gait: 0, drivingId: null, lastSeq: 0, budget: 0.25, budgetAt: now, interactUntil: 0, droppedCmds: 0, lastInputAt: now };
+    const c: CharacterEntity = { id, x, z, rot, gait: 0, drivingId: null, lastSeq: 0, budget: 0.25, budgetAt: now, interactUntil: 0, droppedCmds: 0, lastInputAt: now, hornAt: 0 };
     this.chars.set(id, c);
     return c;
   }
@@ -166,7 +207,7 @@ export class Simulation {
       const yaw = cmd.yaw;
       if (typeof seq !== 'number' || !Number.isInteger(seq) || seq <= c.lastSeq || seq > c.lastSeq + 10_000) continue;
       if (typeof dt !== 'number' || !(dt > 0) || dt > MAX_CMD_DT) continue;
-      if (typeof keys !== 'number' || !Number.isInteger(keys) || keys < 0 || keys > 63) continue;
+      if (typeof keys !== 'number' || !Number.isInteger(keys) || keys < 0 || keys > MAX_KEYS) continue;
       if (typeof yaw !== 'number' || !Number.isFinite(yaw)) continue;
       c.lastSeq = seq;
       // Speed-hack protection: a client cannot simulate more time than has passed.
@@ -176,6 +217,7 @@ export class Simulation {
       }
       c.budget -= dt;
       c.lastInputAt = now;
+      if (keys & KEY.HORN) c.hornAt = now;
       this.applyCommand(c, { seq, dt, keys, yaw });
     }
   }
@@ -187,11 +229,12 @@ export class Simulation {
         c.drivingId = null;
         return;
       }
-      const res = stepVehicle(d.dyn, cmd, d.params, this.world, d.vehicleId);
+      const res = stepVehicle(d.dyn, d.hold ? { ...cmd, keys: holdKeys(cmd.keys) } : cmd, d.params, this.world, d.vehicleId);
       d.pendingDistance += res.distance;
       if (res.impact > ECONOMY.world.impactDamageThreshold) {
         d.pendingDamage += (res.impact - ECONOMY.world.impactDamageThreshold) * ECONOMY.world.impactDamagePerMs;
       }
+      if (res.impact > ECONOMY.highway.crashImpact || res.hitId?.startsWith('tr:')) d.crashAt = Date.now();
       c.x = d.dyn.x;
       c.z = d.dyn.z;
       c.rot = d.dyn.rot;
@@ -214,6 +257,8 @@ export class Simulation {
       pendingDistance: 0,
       pendingDamage: 0,
       lastFlushAt: Date.now(),
+      crashAt: 0,
+      hold: false,
     };
     this.drives.set(v.id, d);
     c.drivingId = v.id;
@@ -269,6 +314,15 @@ export class Simulation {
     c.z = chosen.z;
     c.gait = 0;
     return chosen;
+  }
+
+  /** Move a driven vehicle (and its driver) to a spot, stopped (drag strip staging). */
+  placeDrive(vehicleId: string, x: number, z: number, rot: number): void {
+    const d = this.drives.get(vehicleId);
+    if (!d) return;
+    Object.assign(d.dyn, { x, z, rot, speed: 0, steer: 0 });
+    const c = this.chars.get(d.playerId);
+    if (c) Object.assign(c, { x, z, rot });
   }
 
   /** Teleport a character (e.g. respawn). */

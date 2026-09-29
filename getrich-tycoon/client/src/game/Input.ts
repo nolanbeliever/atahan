@@ -15,6 +15,7 @@ const KEYMAP: Record<string, number> = {
   ShiftLeft: KEY.SPRINT,
   ShiftRight: KEY.SPRINT,
   Space: KEY.BRAKE,
+  KeyH: KEY.HORN,
 };
 
 /** Touch drags move the camera further per pixel than a mouse does. */

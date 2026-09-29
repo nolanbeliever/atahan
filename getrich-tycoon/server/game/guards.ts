@@ -17,6 +17,7 @@ const PLACE_LABEL: Record<InteractKind, string> = {
   bank: 'the Bank',
   custom: 'the Customization Garage',
   plot: 'your dealership',
+  drag: 'the Drag Strip',
 };
 
 export function requireNear(ctx: Ctx, playerId: string, kind: InteractKind): void {

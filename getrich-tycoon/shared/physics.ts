@@ -1,6 +1,7 @@
 // Deterministic movement & collision shared by server (authoritative) and
 // client (prediction). Keep this file free of DOM/Node APIs.
 
+import { HIGHWAY_BARRIERS, inGap, nearHighway, projectToHighway } from './highway';
 import { performanceFactors } from './tuningSystem';
 import type { VehicleCondition, VehicleMods } from './types';
 import { angleDiff, clamp } from './util';
@@ -14,7 +15,10 @@ export const KEY = {
   RIGHT: 8,
   SPRINT: 16,
   BRAKE: 32,
+  /** Horn + headlight flash: slower traffic ahead moves over. */
+  HORN: 64,
 } as const;
+export const MAX_KEYS = 127;
 
 export interface InputCmd {
   seq: number;
@@ -58,15 +62,22 @@ interface Push {
   hit: boolean;
   nx: number;
   nz: number;
+  /** Id of a dynamic collider (another vehicle, traffic) that was touched. */
+  hitId?: string;
 }
 
-/** Push a circle out of all colliders. */
-export function resolveCircle(x: number, z: number, r: number, world: CollisionWorld, ignoreId?: string): Push {
+/**
+ * Push a circle out of all colliders. `from` is where the circle came from this step: thin
+ * barriers push it back to that side (so fast movers can't slip through).
+ */
+export function resolveCircle(x: number, z: number, r: number, world: CollisionWorld, ignoreId?: string, from?: { x: number; z: number }): Push {
   let px = x;
   let pz = z;
   let hit = false;
   let nx = 0;
   let nz = 0;
+  let hitId: string | undefined;
+  const fromOffset = from && nearHighway(from.x, from.z, r + 2) ? projectToHighway(from.x, from.z).offset : null;
   for (let pass = 0; pass < 2; pass++) {
     for (const b of world.boxes) {
       if (px + r < b.minX || px - r > b.maxX || pz + r < b.minZ || pz - r > b.maxZ) continue;
@@ -125,6 +136,7 @@ export function resolveCircle(x: number, z: number, r: number, world: CollisionW
         const d2 = dx * dx + dz * dz;
         if (d2 >= rr * rr) continue;
         hit = true;
+        if (set === world.dynamic) hitId = (c as DynamicCircle).id;
         const d = Math.sqrt(d2) || 1e-4;
         const ux = d2 < 1e-8 ? 1 : dx / d;
         const uz = d2 < 1e-8 ? 0 : dz / d;
@@ -132,6 +144,23 @@ export function resolveCircle(x: number, z: number, r: number, world: CollisionW
         pz = c.z + uz * rr;
         nx += ux;
         nz += uz;
+      }
+    }
+    // Highway guardrails and the median barrier (analytic, with gaps at junctions/crossovers).
+    if (nearHighway(px, pz, r + 1)) {
+      const hp = projectToHighway(px, pz);
+      for (const b of HIGHWAY_BARRIERS) {
+        const d = hp.offset - b.offset;
+        const lim = b.half + r;
+        if (d >= lim || d <= -lim || inGap(b, hp.s)) continue;
+        const ref = fromOffset !== null ? fromOffset - b.offset : d;
+        const sign = ref >= 0 ? 1 : -1;
+        const push = sign * lim - d;
+        px += hp.nx * push;
+        pz += hp.nz * push;
+        nx += hp.nx * sign;
+        nz += hp.nz * sign;
+        hit = true;
       }
     }
     if (!hit) break;
@@ -147,7 +176,7 @@ export function resolveCircle(x: number, z: number, r: number, world: CollisionW
     px = clamp(px, -lim, lim);
     pz = clamp(pz, -lim, lim);
   }
-  return { x: px, z: pz, hit, nx: nx / nl, nz: nz / nl };
+  return { x: px, z: pz, hit, nx: nx / nl, nz: nz / nl, hitId };
 }
 
 /** Walking direction for a key mask relative to the camera yaw, or null if no movement. */
@@ -176,7 +205,7 @@ export function stepCharacter(s: CharacterState, cmd: Pick<InputCmd, 'keys' | 'y
   s.gait = running ? 2 : 1;
   const target = Math.atan2(dir.x, dir.z);
   s.rot += angleDiff(s.rot, target) * Math.min(1, CHAR_TURN_RATE * dt);
-  const res = resolveCircle(s.x + dir.x * speed * dt, s.z + dir.z * speed * dt, CHAR_RADIUS, world, selfId);
+  const res = resolveCircle(s.x + dir.x * speed * dt, s.z + dir.z * speed * dt, CHAR_RADIUS, world, selfId, s);
   s.x = res.x;
   s.z = res.z;
 }
@@ -244,7 +273,12 @@ export interface VehicleStepResult {
   impact: number;
   /** Distance travelled (m). */
   distance: number;
+  /** A dynamic collider (vehicle, traffic) that was touched. */
+  hitId?: string;
 }
+
+/** Longest distance a vehicle moves in one physics sub-step (keeps fast cars from tunnelling). */
+const MAX_SUBSTEP_DIST = 1;
 
 export function stepVehicle(
   v: VehicleDyn,
@@ -254,7 +288,18 @@ export function stepVehicle(
   selfId?: string,
 ): VehicleStepResult {
   const dt = clamp(cmd.dt, 0, MAX_CMD_DT);
-  const keys = cmd.keys;
+  const n = Math.min(8, Math.max(1, Math.ceil((Math.abs(v.speed) * dt) / MAX_SUBSTEP_DIST)));
+  const out: VehicleStepResult = { impact: 0, distance: 0 };
+  for (let i = 0; i < n; i++) {
+    const r = stepVehicleOnce(v, cmd.keys, dt / n, p, world, selfId);
+    out.impact = Math.max(out.impact, r.impact);
+    out.distance += r.distance;
+    if (r.hitId) out.hitId = r.hitId;
+  }
+  return out;
+}
+
+function stepVehicleOnce(v: VehicleDyn, keys: number, dt: number, p: VehicleParams, world: CollisionWorld, selfId?: string): VehicleStepResult {
   const fwd = (keys & KEY.FORWARD) !== 0;
   const back = (keys & KEY.BACK) !== 0;
   let throttle = 0;
@@ -288,6 +333,8 @@ export function stepVehicle(
   const rate = steerIn === 0 ? 5 : 3;
   v.steer += clamp(target - v.steer, -rate * dt, rate * dt);
 
+  const phx = Math.sin(v.rot);
+  const phz = Math.cos(v.rot);
   const slide = handbrake && Math.abs(v.speed) > 6 ? 1.35 : 1;
   const yawRate = ((v.speed * Math.tan(v.steer)) / p.wheelbase) * Math.min(1.7, p.grip) * slide;
   v.rot += yawRate * dt;
@@ -310,12 +357,14 @@ export function stepVehicle(
   let hit = false;
   let normalX = 0;
   let normalZ = 0;
+  let hitId: string | undefined;
   for (const sign of [1, -1]) {
     const cx = nx + hx * off * sign;
     const cz = nz + hz * off * sign;
-    const res = resolveCircle(cx, cz, r, world, selfId);
+    const res = resolveCircle(cx, cz, r, world, selfId, { x: ox + phx * off * sign, z: oz + phz * off * sign });
     if (res.hit) {
       hit = true;
+      if (res.hitId) hitId = res.hitId;
       pushX += res.x - cx;
       pushZ += res.z - cz;
       normalX += res.nx;
@@ -340,5 +389,5 @@ export function stepVehicle(
   }
   v.x = nx;
   v.z = nz;
-  return { impact, distance: Math.hypot(v.x - ox, v.z - oz) };
+  return { impact, distance: Math.hypot(v.x - ox, v.z - oz), hitId };
 }

@@ -1,10 +1,17 @@
+import path from 'node:path';
 import { defineConfig } from 'vite';
+import { hqModelsPlugin } from './vite-plugin-hq-models';
 
 const serverPort = process.env.PORT ?? '3000';
 
 export default defineConfig({
   root: 'client',
   publicDir: 'public',
+  plugins: [
+    hqModelsPlugin({
+      modelsDir: path.resolve(import.meta.dirname, 'client/public/assets/models'),
+    }),
+  ],
   build: {
     outDir: '../dist/client',
     emptyOutDir: true,

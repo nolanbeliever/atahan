@@ -35,7 +35,7 @@ function distortionCurve(k: number): Float32Array<ArrayBuffer> {
   return curve;
 }
 
-export type Sfx = 'click' | 'purchase' | 'notify' | 'error' | 'levelup' | 'coin' | 'door' | 'outbid';
+export type Sfx = 'click' | 'purchase' | 'notify' | 'error' | 'levelup' | 'coin' | 'door' | 'outbid' | 'nearmiss' | 'crash' | 'treeRed' | 'treeGreen' | 'foul';
 
 export class AudioSystem {
   private ctx: AudioContext | null = null;
@@ -378,6 +378,52 @@ export class AudioSystem {
         return this.tone([180, 140], 0.12, 'triangle', 0.1, undefined, 0.08);
       case 'outbid':
         return this.tone([660, 440], 0.2, 'square', 0.05, undefined, 0.12);
+      case 'nearmiss':
+        if (this.ctx && this.noiseBuf) this.burst(this.ctx.currentTime, 0.28, 'bandpass', 1400, 0.22);
+        return this.tone([1568, 2093], 0.14, 'triangle', 0.09, undefined, 0.06);
+      case 'crash':
+        if (this.ctx && this.noiseBuf) this.burst(this.ctx.currentTime, 0.45, 'lowpass', 260, 0.5);
+        return this.tone([196, 147], 0.25, 'sawtooth', 0.05, undefined, 0.1);
+      case 'treeRed':
+        return this.tone([880], 0.12, 'square', 0.05);
+      case 'treeGreen':
+        return this.tone([1760], 0.3, 'square', 0.07);
+      case 'foul':
+        return this.tone([330, 262], 0.3, 'sawtooth', 0.07, undefined, 0.15);
+    }
+  }
+
+  private hornNodes: { osc: OscillatorNode[]; gain: GainNode } | null = null;
+
+  /** Car horn: sounds while held. */
+  horn(on: boolean): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    if (on && !this.hornNodes) {
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.13, t + 0.02);
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 2400;
+      f.connect(gain).connect(this.sfxBus);
+      const osc = [415, 520].map((hz) => {
+        const o = ctx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = hz;
+        o.connect(f);
+        o.start(t);
+        return o;
+      });
+      this.hornNodes = { osc, gain };
+    } else if (!on && this.hornNodes) {
+      const { osc, gain } = this.hornNodes;
+      gain.gain.cancelScheduledValues(t);
+      gain.gain.setValueAtTime(gain.gain.value, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.06);
+      for (const o of osc) o.stop(t + 0.08);
+      this.hornNodes = null;
     }
   }
 }

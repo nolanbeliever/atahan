@@ -313,6 +313,8 @@ body.touch .help-hint, body.touch .hk, body.touch .dock button .tip { display: n
 .tbtn.hold { right: 108px; bottom: 0; width: 74px; height: 74px; font-size: 12px; letter-spacing: 0.06em; }
 .tbtn.alt { right: 104px; bottom: 96px; width: 66px; height: 66px; font-size: 24px; display: none; background: linear-gradient(180deg, #ffd66b, #f0a92a); color: #2a1a00; border-color: transparent; }
 .tbtn.alt.show { display: grid; }
+.tbtn.horn { right: 10px; bottom: 150px; width: 62px; height: 62px; font-size: 11px; letter-spacing: 0.05em; display: none; }
+.tbtn.horn.show { display: grid; }
 
 /* The side dock would collide with the thumb controls: move it to the bottom centre. */
 body.touch .dock { top: auto; right: auto; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); flex-direction: row; gap: 6px; }
@@ -447,3 +449,64 @@ body.touch .modal-close { width: 44px; height: 44px; }
   .rare-grid { grid-template-columns: 1fr; }
   .rare-timer { font-size: 18px; }
 }
+
+/* ---------------------------------------------------------------- highway: near misses & combo */
+.nm-layer { position: absolute; inset: 0; pointer-events: none; }
+.nm-pop { position: absolute; left: 50%; top: 22%; transform: translate(-50%, -50%) scale(0.7); opacity: 0; text-align: center; transition: opacity 0.18s, transform 0.18s; text-shadow: 0 3px 14px rgba(0,0,0,0.7); pointer-events: none; }
+.nm-pop.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.nm-title { font-size: 34px; font-weight: 900; font-style: italic; letter-spacing: 0.04em; color: #fff; }
+.nm-title span { color: var(--gold); }
+.nm-title.crash { color: var(--danger); font-size: 42px; }
+.nm-amount { font-size: 46px; font-weight: 900; color: var(--money); line-height: 1.05; font-variant-numeric: tabular-nums; }
+.nm-sub { font-size: 14px; font-weight: 800; color: var(--text-dim); letter-spacing: 0.06em; }
+.nm-pop.m2 .nm-amount { color: #7cf5c4; }
+.nm-pop.m3 .nm-amount { color: var(--gold); }
+.nm-pop.m5 .nm-amount { color: #ff7bf2; font-size: 54px; }
+.nm-pop.done .nm-title { color: var(--money); }
+.nm-combo { position: absolute; right: 18px; top: 330px; width: 190px; padding: 10px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line-strong); box-shadow: var(--shadow); display: none; }
+.nm-combo.show { display: block; animation: pop 0.2s ease-out; }
+.nm-head { display: flex; justify-content: space-between; align-items: center; font-weight: 900; letter-spacing: 0.1em; font-size: 12px; color: var(--text-dim); }
+.nm-mult { font-size: 26px; font-weight: 900; color: #fff; letter-spacing: 0; }
+.nm-mult.m2 { color: #7cf5c4; }
+.nm-mult.m3 { color: var(--gold); }
+.nm-mult.m5 { color: #ff7bf2; }
+.nm-count { font-size: 13px; font-weight: 700; margin-top: 2px; }
+.nm-money { font-size: 15px; font-weight: 900; color: var(--money); margin-top: 2px; }
+.nm-bar { height: 5px; border-radius: 99px; background: rgba(255,255,255,0.1); margin-top: 8px; overflow: hidden; }
+.nm-bar div { height: 100%; background: linear-gradient(90deg, var(--gold), var(--money)); }
+
+/* ---------------------------------------------------------------- drag strip */
+.dt-layer { position: absolute; inset: 0; pointer-events: none; }
+.dt-tree { position: absolute; left: 50%; top: 90px; transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 8px; padding: 14px 18px; border-radius: 18px; background: rgba(8, 10, 16, 0.85); border: 1px solid var(--line-strong); box-shadow: var(--shadow); }
+.dt-tree.show { display: flex; }
+.dt-lamps { display: flex; gap: 18px; }
+.dt-col { display: flex; flex-direction: column; gap: 8px; }
+.dt-lamp { width: 30px; height: 30px; border-radius: 50%; background: #2a1414; border: 2px solid #111; }
+.dt-lamp.green { background: #0f2616; }
+.dt-lamp.foul { width: 22px; height: 22px; margin: 0 auto; }
+.dt-lamp.red.on, .dt-lamp.foul.on { background: #ff2626; box-shadow: 0 0 18px #ff2626, 0 0 4px #fff inset; }
+.dt-lamp.green.on { background: #2dff6a; box-shadow: 0 0 22px #2dff6a, 0 0 4px #fff inset; }
+.dt-status { font-size: 22px; font-weight: 900; letter-spacing: 0.08em; min-height: 26px; }
+.dt-status.go { color: #2dff6a; }
+.dt-status.bad { color: var(--danger); }
+.dt-timer { font-size: 15px; font-weight: 800; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.dt-card { position: absolute; left: 50%; top: 110px; transform: translateX(-50%); display: none; padding: 16px 20px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line-strong); box-shadow: var(--shadow); min-width: 520px; }
+.dt-card.show { display: block; animation: pop 0.25s ease-out; }
+.dt-head { font-size: 26px; font-weight: 900; text-align: center; margin-bottom: 10px; }
+.dt-head.win { color: var(--money); }
+.dt-head.lose { color: var(--danger); }
+.dt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dt-table th { text-align: left; color: var(--text-dim); font-size: 11px; letter-spacing: 0.06em; padding: 4px 8px; }
+.dt-table td { padding: 6px 8px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.dt-table tr.winner td { background: rgba(46, 229, 157, 0.08); }
+.dt-table .bad { color: var(--danger); font-weight: 800; font-size: 11px; }
+.drag-car { padding: 12px 14px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--line); }
+.drag-car-name { font-weight: 900; font-size: 16px; margin-bottom: 8px; }
+.drag-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 6px; }
+.drag-stats div { background: rgba(255,255,255,0.04); border-radius: 10px; padding: 8px; text-align: center; }
+.drag-stats b { display: block; font-size: 18px; }
+.drag-stats small { color: var(--text-dim); font-size: 11px; font-weight: 700; }
+.drag-actions { display: flex; gap: 10px; margin: 12px 0 6px; flex-wrap: wrap; }
+.drag-rules { margin: 12px 0 0; padding-left: 18px; color: var(--text-dim); font-size: 13px; line-height: 1.6; }
+body.touch .nm-combo { top: auto; bottom: calc(300px + env(safe-area-inset-bottom)); right: calc(18px + env(safe-area-inset-right)); }
+@media (max-width: 700px) { .dt-card { min-width: 0; width: 94vw; } .nm-title { font-size: 26px; } .nm-amount { font-size: 36px; } }

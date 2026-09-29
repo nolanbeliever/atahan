@@ -77,7 +77,7 @@ export class MapPanel extends Panel {
   override init(): void {
     this.canvas.width = 720;
     this.canvas.height = 720;
-    const draw = () => drawMap(this.canvas.getContext('2d')!, 720, this.game, 0, 0, 170, null);
+    const draw = () => drawMap(this.canvas.getContext('2d')!, 720, this.game, 0, 0, 268, null);
     draw();
     this.timer = window.setInterval(draw, 250);
   }

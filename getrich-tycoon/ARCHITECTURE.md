@@ -29,6 +29,12 @@
   - `negotiation.ts`: seller negotiation state machine
   - `progression.ts`: XP curve and achievements
   - `world.ts`: city layout, colliders, plots, display slots, interactables
+  - `highway.ts`: the ring highway as a rounded-square centreline (straights + circular corners) in `(s, offset)` coordinates:
+    lanes, analytic barriers with gaps (junctions, median crossovers), bridges, sign gantries, street lights, the drag strip,
+    belt trees and the shared day/night clock (`gameHour`, `nightFactor`)
+  - `traffic.ts`: traffic vehicle kinds, the deterministic line-up (`trafficSpec(id)`: kind, model, colours, cruising speed,
+    home lane), lane speed limits, poses and multi-circle colliders
+  - `drag.ts`: drag race views, results and timing
   - `physics.ts`: deterministic character and vehicle stepping, collision
   - `collision.ts`: builds the same collision world on both sides
   - `protocol.ts`: typed RPC map, events and validation helpers
@@ -37,7 +43,11 @@
   - `game/GameServer.ts` handles connections, authentication, RPC dispatch (rate limiting, request-id dedupe, error mapping), change propagation, tick loops and autosave.
   - `game/state.ts` holds `GameState` (authoritative in-memory world) and `UnitOfWork` (transactions).
   - `game/simulation.ts` is the movement simulation, speed-hack protection and snapshot building.
-  - `game/services/*` contains one module per gameplay system (`tuning.ts`: the tuning garage, `rareMarket.ts`: the Rare Dealer rotation).
+  - `game/services/*` contains one module per gameplay system (`tuning.ts`: the tuning garage, `rareMarket.ts`: the Rare Dealer rotation,
+    `highway.ts`: near-miss detection, combos, batched payouts and traffic yielding, `drag.ts`: drag strip queue, bot matching,
+    lights, false starts, timing and the pool).
+  - `game/traffic.ts` is the traffic driver model (IDM car following + MOBIL-style lane changes with indicators, keep-right,
+    yielding; players, walkers and parked cars are obstacles).
   - `db/` holds the PostgreSQL and SQLite adapters behind one small `Database` interface, plus the repository (row mapping, parameterized SQL).
 - **`client/`**:
   - `game/Game.ts` runs the loop, fixed-step prediction, reconciliation and interactions.
@@ -46,6 +56,15 @@
   - Tuning: `shared/modificationsData.ts` (parts data) and `shared/tuningSystem.ts` (pure `calculateVehicleStats`, dyno curves, prices, `quoteTuning`) are used by both the server (authoritative pricing/validation, physics) and the client (`ui/panels/garage.ts`, `ui/DynoChart.ts`, `render/Studio.ts` for the 3D preview and Rare Dealer pictures, `audio/Audio.ts` for the engine voice).
   - Motorcycles: `render/bikeBody.ts` builds the bike; `BikeView` leans into corners and carries the rider.
   - Vehicle bodies: `render/carDesigns.ts` describes each model with numbers (side profile, plan shape, greenhouse, axles, lamps, grille, bumpers, rims). `render/carBody.ts` lofts the body from superellipse cross-sections with wheel-arch cut-outs, adds a glass greenhouse and conforms lamps, grilles and plates to the surface. The result is merged into a few material slots (trim and lamps use vertex colours) and cached per model. `render/VehicleMesh.ts` adds per-vehicle paint, dirt, damage and mods on top; parked cars use one merged wheel mesh and switch to animated wheels only while moving.
+  - Highway: `render/Highway.ts` sweeps the carriageways, markings, guardrails, median, ramps, bridges, gantries, lights and
+    the drag strip from `shared/highway.ts`. `game/Traffic.ts` extrapolates the traffic between updates (errors fade out) and
+    feeds its colliders to local prediction; `render/TrafficView.ts` draws it with instancing (one set per vehicle type:
+    baked procedural cars near the camera, light hulls far away, `render/heavyBody.ts` trucks, coaches and semis) plus
+    instanced brake lights, indicators and night glows. `render/Renderer.ts#setTime` runs the sky, sun/moon and fog.
+  - High-detail models: `data/highDetailVehicles.ts` lists `.glb` files per vehicle; `render/HqModels.ts` loads them lazily with
+    `GLTFLoader` + `DRACOLoader`, fits and recolours them, and `VehicleView`/`BikeView` swap them in when loaded. The Vite plugin
+    `vite-plugin-hq-models.ts` provides `virtual:hq-models` (the files present at build time) so missing files are never
+    requested. The Draco decoder is bundled by three.js; the CSP allows it (`'wasm-unsafe-eval'`, `worker-src blob:`).
   - `ui/*` is a DOM UI. `ui/dom.ts` only ever inserts text via `textContent`.
 
 ## Multiplayer model
@@ -68,8 +87,20 @@ authoritative state. The client drops acknowledged commands, resets to the serve
 (reconciliation). The remaining visual error is smoothed out over about 100 ms. Remote entities are rendered 110 ms in the past and
 interpolated between snapshots.
 
-Collision uses static building AABBs plus circles for fountains, pumps and every parked, displayed, market or driven vehicle. The
-client builds the same collision world from the data it receives, so predictions rarely need correcting.
+Collision uses static building AABBs plus circles for fountains, pumps, trees and every parked, displayed, market or driven vehicle,
+and the highway barriers analytically (distance from the centreline, with gaps). Barriers push a body back to the side it came
+from, and vehicle steps are split into sub-steps of at most 1 m, so fast cars cannot tunnel through them. Traffic near a player
+adds a row of circles along each vehicle. The client builds the same collision world from the data it receives (traffic from its
+extrapolated copy), so predictions rarely need correcting.
+
+**Traffic** runs on the server (116 vehicles, about 0.2 ms per tick) and rides along in the snapshot as
+`tr: [id, s, offset, targetOffset, speed, flags]` tuples: cars within 150 m ten times a second, everything within 330 m twice
+a second. The client knows each vehicle's type and colours from its id (`trafficSpec`), so nothing else is sent.
+
+**Drag races** are run by `DragService` from the tick: staging (vehicles placed at the line and held), three red lights and a
+randomly delayed green, false-start and lane checks, interpolated finish times, then the payout in one unit of work. The
+bot drives with the same `stepVehicle` physics as players, using a car whose simulated eighth-mile time is within a few
+percent of yours.
 
 **Everything else is an RPC.** A single `rpc` channel carries `{id, method, params}` and receives an acknowledgement with `{ok, result}` or
 `{ok:false, error, code}`. Handlers validate every parameter (`server/validate.ts`). The request `id` is cached for
@@ -88,6 +119,8 @@ players, vehicles, dealerships, listings and auctions. `GameServer.onCommit` tra
 | `auction.update` | Auction state |
 | `player.upsert` | Public player info |
 | `notify` | Toasts |
+| `highway.nearmiss` / `highway.combo` | Near-miss payouts and combo end (crash or timeout) |
+| `drag.update` / `drag.tick` | Drag race state (lights, results) and bot positions |
 
 Private data (money, bank, purchase prices, the hidden negotiation minimum, the NPC bidder cap) never leaves the server.
 
@@ -118,8 +151,8 @@ access through one queue, so async transactions stay isolated.
 
 | Loop | Rate | Work |
 | --- | --- | --- |
-| tick | 20 Hz (`TICK_RATE`) | NPC customer movement, dynamic colliders, snapshots |
-| slow tick | 1 Hz | customer spawns and decisions, auction NPC bids and settlement, driving flush |
+| tick | 20 Hz (`TICK_RATE`) | NPC customer movement, dynamic colliders, highway traffic, near-miss detection, drag races, snapshots |
+| slow tick | 1 Hz | customer spawns and decisions, auction NPC bids and settlement, near-miss payouts, driving flush |
 | market refresh | 10 s | expire and replenish NPC listings (keeps 16 cars in the lot) |
 | demand trends | 90 s | category demand random walk with mean reversion |
 | bank interest | 60 s | pay accrued interest to online players (offline players catch up on login) |

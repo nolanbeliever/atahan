@@ -23,6 +23,8 @@ export class TouchControls {
   private readonly act: HTMLButtonElement;
   private readonly alt: HTMLButtonElement;
   private readonly hold: HTMLButtonElement;
+  private readonly horn: HTMLButtonElement;
+  private hornPointer: number | null = null;
   private stickPointer: number | null = null;
   private nx = 0;
   private ny = 0;
@@ -35,7 +37,21 @@ export class TouchControls {
     this.act = h('button', { class: 'tbtn act', 'data-testid': 'touch-action', 'aria-label': 'Interact' }, 'E');
     this.alt = h('button', { class: 'tbtn alt', 'data-testid': 'touch-alt', 'aria-label': 'Secondary action' }, 'F');
     this.hold = h('button', { class: 'tbtn hold', 'data-testid': 'touch-hold' }, 'RUN');
-    this.el = h('div', { class: 'touch-controls' }, this.stick, h('div', { class: 'touch-actions' }, this.alt, this.hold, this.act));
+    this.horn = h('button', { class: 'tbtn horn', 'data-testid': 'touch-horn', 'aria-label': 'Horn' }, 'HORN');
+    this.el = h('div', { class: 'touch-controls' }, this.stick, h('div', { class: 'touch-actions' }, this.horn, this.alt, this.hold, this.act));
+    this.horn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.hornPointer = e.pointerId;
+      this.horn.classList.add('pressed');
+    });
+    const hornUp = (e: PointerEvent) => {
+      if (e.pointerId !== this.hornPointer) return;
+      this.hornPointer = null;
+      this.horn.classList.remove('pressed');
+    };
+    this.horn.addEventListener('pointerup', hornUp);
+    this.horn.addEventListener('pointercancel', hornUp);
+    this.horn.addEventListener('pointerleave', hornUp);
 
     this.bindStick();
     this.bindHold();
@@ -69,6 +85,7 @@ export class TouchControls {
     const driving = !!this.ui.game.driving;
     let k = this.stickPointer === null ? 0 : stickKeys(this.nx, this.ny, driving);
     if (this.holdPointer !== null) k |= driving ? KEY.BRAKE : KEY.SPRINT;
+    if (this.hornPointer !== null && driving) k |= KEY.HORN;
     return k;
   }
 
@@ -81,6 +98,7 @@ export class TouchControls {
   update(): void {
     const label = this.ui.game.driving ? 'BRAKE' : 'RUN';
     if (this.hold.textContent !== label) this.hold.textContent = label;
+    this.horn.classList.toggle('show', !!this.ui.game.driving);
   }
 
   private bindStick(): void {

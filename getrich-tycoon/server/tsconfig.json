@@ -17,5 +17,5 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true
   },
-  "include": ["./**/*.ts", "../shared/**/*.ts", "../scripts/**/*.ts", "../tests/unit/**/*.ts", "../tests/integration/**/*.ts", "../tests/helpers/**/*.ts", "../vite.config.ts", "../vitest.config.ts"]
+  "include": ["./**/*.ts", "../shared/**/*.ts", "../scripts/**/*.ts", "../tests/unit/**/*.ts", "../tests/integration/**/*.ts", "../tests/helpers/**/*.ts", "../vite.config.ts", "../vitest.config.ts", "../vite-plugin-hq-models.ts", "../client/src/virtual-modules.d.ts"]
 }

@@ -17,6 +17,8 @@ import {
   type InputCmd,
   type VehicleDyn,
 } from '../../../shared/physics';
+import type { DragRaceView } from '../../../shared/drag';
+import { DRAG_STRIP, gameHour } from '../../../shared/highway';
 import type { PrivateState } from '../../../shared/protocol';
 import { Anim, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
@@ -36,6 +38,8 @@ import { AudioSystem } from '../audio/Audio';
 import { Network, RpcError } from '../net/Network';
 import { City, groundHeight } from '../render/City';
 import { DealershipsView } from '../render/Dealerships';
+import { HighwayView } from '../render/Highway';
+import { TrafficView } from '../render/TrafficView';
 import { Effects } from '../render/Effects';
 import { Renderer } from '../render/Renderer';
 import { createVehicleView, type AnyVehicleView } from '../render/VehicleMesh';
@@ -44,6 +48,7 @@ import type { UI } from '../ui/UI';
 import { CameraController } from './CameraController';
 import { EntityViews } from './EntityViews';
 import { Input } from './Input';
+import { TrafficClient } from './Traffic';
 
 export interface Interaction {
   id: string;
@@ -58,6 +63,21 @@ export class Game {
   readonly renderer: Renderer;
   readonly city = new City();
   readonly dealerships = new DealershipsView();
+  readonly highway = new HighwayView();
+  readonly traffic = new TrafficClient();
+  readonly trafficView = new TrafficView();
+  /** The drag race on the strip (null when it is free). */
+  drag: DragRaceView | null = null;
+  private dragBots = new Map<number, { view: AnyVehicleView; z: number; speed: number; rz: number }>();
+  private dayTimer = 0;
+  night = 0;
+  private hornOn = false;
+  private flash = 0;
+  /** Fixed time of day for screenshots/debugging: ?hour=22 */
+  private forcedHour: number | null = (() => {
+    const v = Number(new URLSearchParams(location.search).get('hour'));
+    return new URLSearchParams(location.search).has('hour') && Number.isFinite(v) ? v : null;
+  })();
   readonly effects: Effects;
   readonly entities: EntityViews;
   readonly input: Input;
@@ -110,7 +130,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group);
     this.effects = new Effects(this.renderer.scene);
     this.entities = new EntityViews(this.renderer.scene, () => this.store.playerId);
     // Pops & bangs from our own exhaust flash flames at the tips.
@@ -182,6 +202,25 @@ export class Game {
     net.on('listings.changed', () => this.store.emit('listingsChanged', undefined));
     net.on('trends', (t) => this.store.setTrends(t));
     net.on('rare.update', (s) => this.store.setRare(s));
+    net.on('highway.nearmiss', (e) => {
+      this.ui?.nearMiss.nearMiss(e);
+      this.audio.play('nearmiss');
+    });
+    net.on('highway.combo', (e) => {
+      this.ui?.nearMiss.ended(e.reason, e.count, e.earned);
+      if (e.reason === 'crash' && e.count > 0) this.audio.play('crash');
+    });
+    net.on('drag.update', (d) => this.onDrag(d));
+    net.on('drag.tick', (d) => {
+      if (!this.drag || d.id !== this.drag.id) return;
+      for (const [lane, z, speed] of d.cars) {
+        const bot = this.dragBots.get(lane);
+        if (bot) {
+          bot.z = z;
+          bot.speed = speed;
+        }
+      }
+    });
     net.on('auction.update', (a) => {
       const idx = this.auctions.findIndex((x) => x.id === a.id);
       if (a.status !== 'active') {
@@ -322,6 +361,7 @@ export class Game {
       this.entities.upsertNpc(n[0], n[5], now, n[1], n[2], n[3], n[4]);
     }
     this.entities.pruneNpcs(alive);
+    if (s.tr) this.traffic.apply(s.tr, (this.store.serverNow() - s.t) / 1000);
     if (s.self) this.reconcile(s.ack, s.self);
   }
 
@@ -380,12 +420,23 @@ export class Game {
         if (slot) list.push({ id: e.data.id, modelId: e.data.modelId, x: slot.x, z: slot.z, rot: slot.rot });
       } else list.push({ id: e.data.id, modelId: e.data.modelId, x: e.x, z: e.z, rot: e.rot });
     }
+    for (const [lane, bot] of this.dragBots) {
+      const racer = this.drag?.racers.find((r) => r.lane === lane);
+      if (racer) list.push({ id: `drag-bot-${lane}`, modelId: racer.modelId, x: DRAG_STRIP.laneX[lane as 0 | 1], z: bot.rz, rot: DRAG_STRIP.yaw });
+    }
     this.dynamic.length = 0;
     vehicleObstacles(list, this.dynamic);
+    this.traffic.circlesNear(this.curr.x, this.curr.z, 70, this.dynamic);
+  }
+
+  /** Lined up on the drag strip while staging: only the brakes work (the server does the same). */
+  private get dragHold(): boolean {
+    return !!this.drag && this.drag.phase === 'staging' && this.drag.racers.some((r) => r.playerId === this.store.playerId);
   }
 
   private step(): void {
-    const keys = this.input.keys();
+    let keys = this.input.keys();
+    if (this.dragHold && this.driving) keys = (keys & KEY.HORN) | KEY.BRAKE;
     const cmd: InputCmd = { seq: ++this.seq, dt: SIM_DT, keys, yaw: this.cam.yaw };
     this.prev = { ...this.curr };
     if (this.driving && this.dyn) {
@@ -480,6 +531,24 @@ export class Game {
     });
     this.effects.update(dt);
     this.city.update(dt);
+    // Horn + headlight flash (traffic ahead moves over).
+    const horn = !!this.driving && (keys & KEY.HORN) !== 0 && this.input.enabled;
+    if (horn !== this.hornOn) {
+      this.hornOn = horn;
+      this.audio.horn(horn);
+    }
+    this.flash = horn ? 1 : Math.max(0, this.flash - dt * 4);
+    this.entities.flash = this.flash;
+    this.traffic.update(dt);
+    this.trafficView.update(this.traffic.cars.values(), this.renderer.camera, dt);
+    this.updateDragBots(dt);
+    this.dayTimer -= dt;
+    if (this.dayTimer <= 0) {
+      this.dayTimer = 0.5;
+      this.updateDayNight();
+    }
+    this.ui?.nearMiss.update();
+    this.ui?.dragHud.update(this.store.serverNow());
     this.featured?.view.animate(0, 0, dt);
 
     this.minimapTimer -= dt;
@@ -495,6 +564,73 @@ export class Game {
       void this.refreshAuctions();
     }
     this.renderer.render();
+  }
+
+  // ------------------------------------------------------------ highway, drag strip, time of day
+
+  private updateDayNight(): void {
+    const hour = this.forcedHour ?? gameHour(this.store.serverNow());
+    const night = this.renderer.setTime(hour);
+    this.night = night;
+    this.city.setNight(night);
+    this.highway.setNight(night);
+    this.trafficView.setNight(night);
+    this.entities.night = night;
+  }
+
+  private onDrag(d: DragRaceView | null): void {
+    const prev = this.drag;
+    this.drag = d;
+    const me = this.store.playerId;
+    const mine = !!d && d.racers.some((r) => r.playerId === me);
+    if (mine && d) {
+      if (d.lights !== (prev?.id === d.id ? prev.lights : 0)) {
+        if (d.lights >= 1 && d.lights <= 3) this.audio.play('treeRed');
+        else if (d.lights === 4) this.audio.play('treeGreen');
+      }
+      const my = d.racers.find((r) => r.playerId === me);
+      const prevMy = prev?.racers.find((r) => r.playerId === me);
+      if (my?.result?.outcome === 'false_start' && prevMy?.result?.outcome !== 'false_start') this.audio.play('foul');
+      if (d.phase === 'finished' && prev?.phase !== 'finished') this.audio.play(d.winner !== null && my?.lane === d.winner ? 'levelup' : 'error');
+    }
+    // 3D tree lights (everyone near the strip sees them).
+    const foul: [boolean, boolean] = [0, 1].map((lane) => d?.racers.find((r) => r.lane === lane)?.result?.outcome === 'false_start') as [boolean, boolean];
+    this.highway.tree.set(d && d.phase !== 'finished' ? d.lights : 0, foul);
+    this.ui?.dragHud.set(d, me);
+    // Bot cars.
+    const wanted = new Set((d?.racers ?? []).filter((r) => r.bot).map((r) => r.lane as number));
+    for (const [lane, bot] of this.dragBots) {
+      if (!wanted.has(lane) || !d) {
+        bot.view.root.removeFromParent();
+        bot.view.dispose();
+        this.dragBots.delete(lane);
+      }
+    }
+    for (const r of d?.racers ?? []) {
+      if (!r.bot || this.dragBots.has(r.lane)) continue;
+      const view = createVehicleView({
+        modelId: r.modelId,
+        color: r.color,
+        mods: { paint: null, wheels: 'stock', tint: 'none', bodyKit: 'none', headlights: 'stock', accessory: 'none', tuning: r.tuning ?? undefined },
+        condition: { engine: 100, transmission: 100, brakes: 100, tires: 100, body: 100, interior: 100, cleanliness: 100 },
+      });
+      const z = DRAG_STRIP.startZ + getModel(r.modelId).shape.length / 2;
+      this.renderer.scene.add(view.root);
+      this.dragBots.set(r.lane, { view, z, speed: 0, rz: z });
+    }
+    // Close panels once when the race starts (the tree and results are on the HUD).
+    if (mine && prev?.id !== d?.id) this.ui?.closeAll();
+  }
+
+  private updateDragBots(dt: number): void {
+    for (const [lane, bot] of this.dragBots) {
+      // Extrapolate between the 20 Hz updates, then ease towards them.
+      bot.z -= bot.speed * dt;
+      bot.rz += (bot.z - bot.rz) * Math.min(1, dt * 12);
+      bot.view.root.position.set(DRAG_STRIP.laneX[lane as 0 | 1], 0, bot.rz);
+      bot.view.root.rotation.y = DRAG_STRIP.yaw;
+      bot.view.animate(bot.speed, 0, dt);
+    }
   }
 
   // ------------------------------------------------------------ public helpers
@@ -568,6 +704,9 @@ export class Game {
       for (const i of INTERACTABLES) {
         if ((i.kind === 'fuel' || i.kind === 'wash') && Math.hypot(i.x - x, i.z - z) <= i.radius + 3) {
           secondary = { id: i.id, label: i.kind === 'fuel' ? 'Refuel this vehicle' : 'Drive-through wash', action: () => this.ui.open(i.kind, { vehicleId: this.driving }) };
+        }
+        if (i.kind === 'drag' && Math.hypot(i.x - x, i.z - z) <= i.radius + 2 && !this.drag?.racers.some((r) => r.playerId === me)) {
+          secondary = { id: i.id, label: 'Drag race: $250 entry, win $500', action: () => this.ui.open('drag') };
         }
       }
     } else {
