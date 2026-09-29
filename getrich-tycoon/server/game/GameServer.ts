@@ -15,6 +15,7 @@ import {
 import type { Appearance, LeaderboardEntry, Notification, PlayerPublic, PlayerSettings, WorldInit } from '../../shared/types';
 import { hashString } from '../../shared/util';
 import { spawnPoint } from '../../shared/world';
+import { DRAG_STRIP } from '../../shared/highway';
 import type { AuthService } from '../auth';
 import { APPEARANCE_OPTIONS } from '../auth';
 import type { ServerConfig } from '../config';
@@ -509,10 +510,10 @@ export class GameServer implements Hub {
     this.sim.rebuildDynamic();
     if (this.sessions.size === 0) return;
     this.tickCount++;
-    this.sim.stepTraffic(dt);
-    this.highway.tick(now);
-    this.drag.tick(dt);
+    // Snapshots go out first: socket events emitted earlier in the same tick would make the
+    // (volatile) snapshot get dropped while the transport is still busy.
     const lists = this.sim.buildSnapshotLists();
+    const dr = this.drag.botSnapshot();
     for (const s of this.sessions.values()) {
       const c = this.sim.chars.get(s.playerId);
       if (!c) continue;
@@ -520,6 +521,7 @@ export class GameServer implements Hub {
       // Highway traffic rides along: close cars 10x a second, the rest in view twice a second.
       const wide = this.tickCount % 10 === 0;
       const tr = wide || this.tickCount % 2 === 0 ? this.sim.traffic.snapshot(c.x, c.z, wide ? 330 : 150) : [];
+      const nearStrip = !!dr && Math.hypot(c.x - DRAG_STRIP.stage.x, c.z - DRAG_STRIP.stage.z) < 380;
       s.socket.volatile.emit('snapshot', {
         t: now,
         ack: c.lastSeq,
@@ -528,8 +530,13 @@ export class GameServer implements Hub {
         n: lists.n,
         self: [c.x, c.z, d ? d.dyn.rot : c.rot, d ? d.dyn.speed : 0, d ? d.dyn.steer : 0, c.drivingId],
         ...(tr.length > 0 ? { tr } : {}),
+        ...(nearStrip ? { dr: dr! } : {}),
       });
     }
+    // Game logic that may send events (near misses, drag lights) runs after the snapshots.
+    this.sim.stepTraffic(dt);
+    this.highway.tick(now);
+    this.drag.tick(dt);
   }
 
   private async slowTick(): Promise<void> {

@@ -2,7 +2,7 @@
 // Everything the client asks for goes through a single validated `rpc` channel;
 // high-frequency movement goes through `input`.
 
-import type { DragBotSnap, DragInfo, DragRaceView } from './drag';
+import type { DragInfo, DragRaceView } from './drag';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { TuningChange } from './tuningSystem';
@@ -146,8 +146,6 @@ export interface ServerToClientEvents {
   'highway.combo': (d: { reason: 'crash' | 'expired'; count: number; earned: number }) => void;
   /** Drag strip race state (null when the strip is free). */
   'drag.update': (d: DragRaceView | null) => void;
-  /** Drag strip car positions while racing: [lane, z, speed]. */
-  'drag.tick': (d: { id: string; cars: DragBotSnap[] }) => void;
   kicked: (reason: string) => void;
 }
 

@@ -2,6 +2,7 @@
 // The server is authoritative for every value in here; the client only renders them.
 
 import type { VehicleTuning } from './modificationsData';
+import type { DragBotSnap } from './drag';
 import type { TrafficSnap } from './traffic';
 
 export type VehicleCategory =
@@ -301,6 +302,8 @@ export interface Snapshot {
   self: SelfSnap | null;
   /** Highway traffic near the player (10 Hz close by, 2 Hz further out). */
   tr?: TrafficSnap[];
+  /** Drag strip bot positions while a race is on (players near the strip). */
+  dr?: { id: string; cars: DragBotSnap[] };
 }
 
 export interface CustomerOffer {

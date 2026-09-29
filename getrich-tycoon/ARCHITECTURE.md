@@ -96,6 +96,8 @@ extrapolated copy), so predictions rarely need correcting.
 **Traffic** runs on the server (116 vehicles, about 0.2 ms per tick) and rides along in the snapshot as
 `tr: [id, s, offset, targetOffset, speed, flags]` tuples: cars within 150 m ten times a second, everything within 330 m twice
 a second. The client knows each vehicle's type and colours from its id (`trafficSpec`), so nothing else is sent.
+Snapshots are sent before the tick's game logic runs: they are *volatile* (dropped while the socket is still busy), so any
+other message emitted just before them in the same tick would starve them.
 
 **Drag races** are run by `DragService` from the tick: staging (vehicles placed at the line and held), three red lights and a
 randomly delayed green, false-start and lane checks, interpolated finish times, then the payout in one unit of work. The
@@ -120,7 +122,7 @@ players, vehicles, dealerships, listings and auctions. `GameServer.onCommit` tra
 | `player.upsert` | Public player info |
 | `notify` | Toasts |
 | `highway.nearmiss` / `highway.combo` | Near-miss payouts and combo end (crash or timeout) |
-| `drag.update` / `drag.tick` | Drag race state (lights, results) and bot positions |
+| `drag.update` | Drag race state (lights, results); bot positions ride in the snapshot (`dr`) |
 
 Private data (money, bank, purchase prices, the hidden negotiation minimum, the NPC bidder cap) never leaves the server.
 

@@ -211,16 +211,6 @@ export class Game {
       if (e.reason === 'crash' && e.count > 0) this.audio.play('crash');
     });
     net.on('drag.update', (d) => this.onDrag(d));
-    net.on('drag.tick', (d) => {
-      if (!this.drag || d.id !== this.drag.id) return;
-      for (const [lane, z, speed] of d.cars) {
-        const bot = this.dragBots.get(lane);
-        if (bot) {
-          bot.z = z;
-          bot.speed = speed;
-        }
-      }
-    });
     net.on('auction.update', (a) => {
       const idx = this.auctions.findIndex((x) => x.id === a.id);
       if (a.status !== 'active') {
@@ -362,6 +352,15 @@ export class Game {
     }
     this.entities.pruneNpcs(alive);
     if (s.tr) this.traffic.apply(s.tr, (this.store.serverNow() - s.t) / 1000);
+    if (s.dr && this.drag && s.dr.id === this.drag.id) {
+      for (const [lane, z, speed] of s.dr.cars) {
+        const bot = this.dragBots.get(lane);
+        if (bot) {
+          bot.z = z;
+          bot.speed = speed;
+        }
+      }
+    }
     if (s.self) this.reconcile(s.ack, s.self);
   }
 

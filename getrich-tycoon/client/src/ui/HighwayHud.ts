@@ -48,7 +48,7 @@ export class NearMissHud {
     );
     this.pop.className = `nm-pop show m${e.mult}`;
     if (this.popTimer) clearTimeout(this.popTimer);
-    this.popTimer = window.setTimeout(() => this.pop.classList.remove('show'), 1300);
+    this.popTimer = window.setTimeout(() => this.pop.classList.remove('show'), 1800);
     this.comboMult.textContent = `x${e.mult}`;
     this.comboMult.className = `nm-mult m${e.mult}`;
     this.comboCount.textContent = `${e.combo} near miss${e.combo === 1 ? '' : 'es'}`;

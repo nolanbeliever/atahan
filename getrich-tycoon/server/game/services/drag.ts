@@ -397,12 +397,14 @@ export class DragService {
       this.dirty = false;
       this.publish();
     }
+  }
+
+  /** Bot positions for snapshots (players near the strip see the bot drive). */
+  botSnapshot(): { id: string; cars: DragBotSnap[] } | null {
+    const race = this.race;
+    if (!race) return null;
     const cars: DragBotSnap[] = race.runners.filter((r) => r.bot).map((r) => [r.racer.lane, Math.round(r.bot!.dyn.z * 100) / 100, Math.round(r.bot!.dyn.speed * 100) / 100]);
-    if (cars.length > 0) {
-      for (const [id, c] of this.ctx.sim.chars) {
-        if (Math.hypot(c.x - DRAG_STRIP.stage.x, c.z) < 340) this.ctx.hub.sendTo(id, 'drag.tick', { id: view.id, cars });
-      }
-    }
+    return cars.length > 0 ? { id: race.view.id, cars } : null;
   }
 
   /** Decide the winner and pay the pool (entries were taken at the start). */

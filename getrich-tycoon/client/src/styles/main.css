@@ -477,11 +477,11 @@ body.touch .modal-close { width: 44px; height: 44px; }
 
 /* ---------------------------------------------------------------- drag strip */
 .dt-layer { position: absolute; inset: 0; pointer-events: none; }
-.dt-tree { position: absolute; left: 50%; top: 90px; transform: translateX(-50%); display: none; flex-direction: column; align-items: center; gap: 8px; padding: 14px 18px; border-radius: 18px; background: rgba(8, 10, 16, 0.85); border: 1px solid var(--line-strong); box-shadow: var(--shadow); }
+.dt-tree { position: absolute; left: 18px; top: 118px; display: none; flex-direction: column; align-items: center; gap: 8px; padding: 14px 18px; border-radius: 18px; background: rgba(8, 10, 16, 0.85); border: 1px solid var(--line-strong); box-shadow: var(--shadow); }
 .dt-tree.show { display: flex; }
 .dt-lamps { display: flex; gap: 18px; }
 .dt-col { display: flex; flex-direction: column; gap: 8px; }
-.dt-lamp { width: 30px; height: 30px; border-radius: 50%; background: #2a1414; border: 2px solid #111; }
+.dt-lamp { width: 26px; height: 26px; border-radius: 50%; background: #2a1414; border: 2px solid #111; }
 .dt-lamp.green { background: #0f2616; }
 .dt-lamp.foul { width: 22px; height: 22px; margin: 0 auto; }
 .dt-lamp.red.on, .dt-lamp.foul.on { background: #ff2626; box-shadow: 0 0 18px #ff2626, 0 0 4px #fff inset; }
