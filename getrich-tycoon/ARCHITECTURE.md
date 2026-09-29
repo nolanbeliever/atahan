@@ -43,6 +43,7 @@
   - `game/Game.ts` runs the loop, fixed-step prediction, reconciliation and interactions.
   - `game/EntityViews.ts` owns all dynamic scene objects.
   - `render/*` generates everything procedurally: city, vehicles, characters, dealership levels. `render/batch.ts` merges static meshes per material to keep draw calls low.
+  - Vehicle bodies: `render/carDesigns.ts` describes each model with numbers (side profile, plan shape, greenhouse, axles, lamps, grille, bumpers, rims). `render/carBody.ts` lofts the body from superellipse cross-sections with wheel-arch cut-outs, adds a glass greenhouse and conforms lamps, grilles and plates to the surface. The result is merged into a few material slots (trim and lamps use vertex colours) and cached per model. `render/VehicleMesh.ts` adds per-vehicle paint, dirt, damage and mods on top; parked cars use one merged wheel mesh and switch to animated wheels only while moving.
   - `ui/*` is a DOM UI. `ui/dom.ts` only ever inserts text via `textContent`.
 
 ## Multiplayer model

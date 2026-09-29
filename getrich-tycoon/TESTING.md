@@ -4,7 +4,7 @@ Three layers, all automated:
 
 | Layer | Tool | Location | What it proves |
 | --- | --- | --- | --- |
-| Unit | Vitest | `tests/unit` | Valuation, repair pricing, negotiation (randomized), physics (determinism, collisions, anti-teleport), progression, economy invariants (arbitrage-free), locks, rate limits, validators, password hashing, client IP resolution behind proxies, touch joystick mapping |
+| Unit | Vitest | `tests/unit` | Valuation, repair pricing, negotiation (randomized), physics (determinism, collisions, anti-teleport), progression, economy invariants (arbitrage-free), locks, rate limits, validators, password hashing, client IP resolution behind proxies, touch joystick mapping, procedural vehicle models (every model builds, matches its collision size, has head and tail lamps, stays within a triangle budget) |
 | Integration | Vitest + real server + socket.io-client | `tests/integration` | End-to-end game logic over real WebSockets and a real database: auth, movement, anti speed-hack, market purchase, **race-condition double purchase**, invalid/manipulated requests, request de-duplication, negotiation, classifieds and player-to-player sale, quick sell, chat and anti-spam, dealership purchase and upgrade and display, NPC customer sale, repair/wash/fuel/customization/parts, bank, escrowed auctions, **persistence across a full server restart** |
 | Browser E2E | Playwright (Chromium) | `tests/e2e` | Production build in real Chrome: the 14 required scenarios, driving, and the touch controls on an iPad-sized screen |
 
@@ -68,15 +68,15 @@ The **two-client multiplayer test** (`10-12`) is the critical one:
 
 ## Results from the build environment
 
-Recorded on 2026-09-28 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chromium via SwiftShader, PostgreSQL 16.13):
+Recorded on 2026-09-29 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chromium via SwiftShader, PostgreSQL 16.13):
 
 | Suite | SQLite | PostgreSQL |
 | --- | --- | --- |
 | `npm run typecheck` (client, server, tests) | pass | n/a |
-| Unit (Vitest) | 44 / 44 passed | n/a (no database) |
-| Integration (Vitest, real sockets) | 20 / 20 passed | 20 / 20 passed |
-| E2E (Playwright, Chromium, production build) | 6 / 6 passed (about 6 min) | 5 / 5 passed (about 2.7 min; before the touch test was added) |
-| `npm run check:secrets` | no secrets in 123 tracked files | n/a |
+| Unit (Vitest) | 76 / 76 passed | n/a (no database) |
+| Integration (Vitest, real sockets) | 20 / 20 passed | 20 / 20 passed (2026-09-28) |
+| E2E (Playwright, Chromium, production build) | 6 / 6 passed (about 6 min) | 5 / 5 passed (2026-09-28, about 2.7 min; before the touch test was added) |
+| `npm run check:secrets` | no secrets in 126 tracked files | n/a |
 
 Note on flakiness: an early flake in the two-client test came from picking a listing the level-1 test account was
 not allowed to buy (category lock). The test now filters to unlocked categories. The main source of slowness is
