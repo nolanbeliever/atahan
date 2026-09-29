@@ -13,6 +13,7 @@ import { ICONS } from './icons';
 import { Minimap } from './Minimap';
 import type { Panel, PanelArg } from './Panel';
 import { createPanel, type PanelName } from './panels';
+import { TouchControls } from './TouchControls';
 import { bar } from './widgets';
 
 export type { PanelName };
@@ -44,7 +45,9 @@ export class ChatBox {
         void this.send();
       }
     });
-    this.el = h('div', { class: 'chat' }, this.log, h('div', { class: 'chat-input-row' }, this.channel, this.input));
+    const send = h('button', { class: 'btn small primary', 'data-testid': 'chat-send', onclick: () => void this.send() }, 'Send');
+    const close = h('button', { class: 'btn small ghost', 'aria-label': 'Close chat', onclick: () => this.close() }, '✕');
+    this.el = h('div', { class: 'chat' }, this.log, h('div', { class: 'chat-input-row' }, this.channel, this.input, send, close));
   }
 
   add(m: ChatMessage): void {
@@ -58,6 +61,11 @@ export class ChatBox {
     this.log.appendChild(line);
     while (this.log.children.length > 60) this.log.firstChild?.remove();
     this.log.scrollTop = this.log.scrollHeight;
+  }
+
+  toggle(): void {
+    if (this.active) this.close();
+    else this.open();
   }
 
   open(): void {
@@ -94,6 +102,7 @@ export class ChatBox {
 export class UI {
   readonly chat: ChatBox;
   readonly minimap = new Minimap();
+  readonly touch: TouchControls;
   private hud!: {
     name: HTMLElement;
     level: HTMLElement;
@@ -125,6 +134,8 @@ export class UI {
     this.chat = new ChatBox(this);
     this.toasts = h('div', { class: 'toasts' });
     this.build();
+    this.touch = new TouchControls(this);
+    this.root.insertBefore(this.touch.el, this.hud.offers);
     game.store.on('offers', () => this.renderOffers());
     game.store.on('dealerships', () => this.updateHud());
   }
@@ -138,7 +149,12 @@ export class UI {
     const cash = h('div', { class: 'cash', 'data-testid': 'hud-money' });
     const bank = h('div', { class: 'bank', 'data-testid': 'hud-bank' });
     const zone = h('div', { class: 'zone-label' });
-    const prompt = h('div', { class: 'prompt', 'data-testid': 'prompt' });
+    // Tapping or clicking the prompt does the same as E (or F on its secondary part).
+    const prompt = h('div', {
+      class: 'prompt',
+      'data-testid': 'prompt',
+      onclick: (e: MouseEvent) => ((e.target as HTMLElement).closest('.alt') ? this.game.interactSecondary() : this.game.interact()),
+    });
     const speed = h('div', { class: 'v' }, '0');
     const gauge = h('div', { class: 'gauge' });
     const drive = h('div', { class: 'drive-hud' }, gauge, h('div', { class: 'speedo' }, speed, h('div', { class: 'u' }, 'KM/H')));
@@ -157,6 +173,7 @@ export class UI {
       dockBtn('Auctions', ICONS.gavel, 'K', 'auctions', 'dock-auctions'),
       dockBtn('Map', ICONS.map, 'M', 'map', 'dock-map'),
       dockBtn('Profile', ICONS.user, 'O', 'profile', 'dock-profile'),
+      h('button', { title: 'Chat', 'data-testid': 'dock-chat', onclick: () => this.chat.toggle() }, icon(ICONS.chat), h('span', { class: 'hk' }, 'T'), h('span', { class: 'tip' }, 'Chat (T)'), h('span', { class: 'dot' })),
       dockBtn('Menu', ICONS.menu, 'Esc', 'menu', 'dock-menu'),
     );
 
@@ -202,7 +219,26 @@ export class UI {
       } else {
         this.toast({ kind: 'success', title: `Welcome back, ${me.name}!`, text: 'Your business is exactly where you left it.' });
       }
+      if (this.touch.enabled) this.showTouchHint();
     }
+  }
+
+  private touchHinted = false;
+
+  /** Called when on-screen touch controls switch on. */
+  onTouchEnabled(): void {
+    this.lastPromptKey = '';
+    if (this.game.store.me) this.showTouchHint();
+  }
+
+  private showTouchHint(): void {
+    if (this.touchHinted) return;
+    this.touchHinted = true;
+    this.toast({
+      kind: 'info',
+      title: 'Touch controls',
+      text: 'Left stick: move (push it all the way to run). Drag the screen to look around. Tap E or the prompt to interact.',
+    });
   }
 
   onAuctions(): void {
@@ -243,16 +279,19 @@ export class UI {
     clear(el);
     if (!i || this.anyOpen()) {
       el.classList.remove('show');
+      this.touch.setActions(null, null);
       return;
     }
     el.append(h('span', { class: 'kbd' }, 'E'), h('div', null, h('div', null, i.label), i.sub ? h('div', { class: 'sub' }, i.sub) : null));
-    if (secondary) el.append(h('span', { class: 'kbd', style: { marginLeft: '10px', background: '#ffc53d' } }, 'F'), h('div', null, secondary.label));
+    if (secondary) el.append(h('div', { class: 'alt' }, h('span', { class: 'kbd', style: { background: '#ffc53d' } }, 'F'), h('div', null, secondary.label)));
     el.classList.add('show');
+    this.touch.setActions(i, secondary);
   }
 
   updateDriving(): void {
     const id = this.game.driving;
     const v = id ? this.game.store.myVehicle(id) : undefined;
+    this.touch.update();
     this.hud.drive.classList.toggle('show', !!v);
     this.hud.hint.style.display = v ? 'none' : '';
     if (!v) return;

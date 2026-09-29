@@ -32,7 +32,7 @@
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; }
 button, input, select { font-family: inherit; }
 #game-root { position: fixed; inset: 0; }
-#game-root canvas { display: block; width: 100%; height: 100%; outline: none; }
+#game-root canvas { display: block; width: 100%; height: 100%; outline: none; touch-action: none; }
 #ui-root { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 #ui-root > * { pointer-events: auto; }
 #ui-root .passthrough { pointer-events: none; }
@@ -135,10 +135,11 @@ label.field { display: grid; gap: 6px; font-size: 12px; color: var(--text-dim); 
 .dock button .dot { position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); display: none; }
 .dock button.alert .dot { display: block; }
 
-.prompt { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); display: none; align-items: center; gap: 12px; padding: 10px 18px 10px 10px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 14px; font-weight: 700; box-shadow: var(--shadow); animation: pop 0.2s ease-out; }
+.prompt { cursor: pointer; user-select: none; -webkit-user-select: none; position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); display: none; align-items: center; gap: 12px; padding: 10px 18px 10px 10px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 14px; font-weight: 700; box-shadow: var(--shadow); animation: pop 0.2s ease-out; }
 .prompt.show { display: flex; }
 .prompt .kbd { width: 34px; height: 34px; font-size: 15px; background: var(--money); color: #06241a; border-color: rgba(0,0,0,0.25); }
 .prompt .sub { font-size: 12px; color: var(--text-dim); font-weight: 600; }
+.prompt .alt { display: flex; gap: 10px; align-items: center; margin-left: 10px; }
 
 .drive-hud { position: absolute; right: 90px; bottom: 26px; display: none; gap: 14px; align-items: flex-end; }
 .drive-hud.show { display: flex; }
@@ -166,7 +167,8 @@ label.field { display: grid; gap: 6px; font-size: 12px; color: var(--text-dim); 
 .chat-line .ch { font-size: 10px; font-weight: 800; opacity: 0.7; margin-right: 4px; }
 .chat-input-row { display: none; gap: 6px; }
 .chat.active .chat-input-row { display: flex; }
-.chat-input-row select { width: 96px; }
+.chat-input-row select { width: 96px; flex-shrink: 0; }
+.chat-input-row input.input { flex: 1; min-width: 0; width: auto; }
 
 /* ---------------------------------------------------------------- toasts */
 .toasts { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none !important; }
@@ -287,4 +289,72 @@ label.field { display: grid; gap: 6px; font-size: 12px; color: var(--text-dim); 
   .minimap { width: 140px; height: 140px; }
   .slot-grid { grid-template-columns: repeat(2, 1fr); }
   .menu { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ---------------------------------------------------------------- touch devices (iPad, phones) */
+/* body.touch is set by TouchControls for finger input. Keyboard hints make no sense there. */
+.touch-controls { position: absolute; inset: 0; display: none; pointer-events: none !important; }
+body.touch .touch-controls { display: block; }
+body.touch { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+body.touch input, body.touch textarea, body.touch select { -webkit-user-select: text; user-select: text; font-size: 16px; }
+body.touch button { touch-action: manipulation; }
+body.touch .help-hint, body.touch .hk, body.touch .dock button .tip { display: none; }
+
+.touch-stick { position: absolute; left: calc(18px + env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom)); width: 170px; height: 170px; pointer-events: auto; touch-action: none; }
+.touch-stick .base { position: absolute; inset: 12px; border-radius: 50%; background: rgba(10, 14, 26, 0.38); border: 2px solid rgba(255, 255, 255, 0.2); box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.35); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.touch-stick .knob { position: absolute; left: 50%; top: 50%; width: 66px; height: 66px; margin: -33px 0 0 -33px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); border: 2px solid rgba(255, 255, 255, 0.55); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); transition: transform 0.12s ease-out; pointer-events: none; }
+.touch-stick.active .knob { transition: none; background: rgba(46, 229, 157, 0.5); border-color: rgba(46, 229, 157, 0.9); }
+
+.touch-actions { position: absolute; right: calc(18px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); width: 190px; height: 180px; pointer-events: none; }
+.tbtn { position: absolute; display: grid; place-items: center; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.28); background: rgba(10, 14, 26, 0.5); color: #fff; font-family: var(--font); font-weight: 900; pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); transition: transform 0.08s, background 0.15s; }
+.tbtn:active, .tbtn.pressed { transform: scale(0.93); background: rgba(255, 255, 255, 0.28); }
+.tbtn.act { right: 0; bottom: 34px; width: 96px; height: 96px; font-size: 30px; opacity: 0.55; }
+.tbtn.act.ready { opacity: 1; background: linear-gradient(180deg, #3ef0a8, #17b978); color: #06241a; border-color: transparent; box-shadow: 0 0 0 7px rgba(46, 229, 157, 0.22), 0 6px 18px rgba(0, 0, 0, 0.35); }
+.tbtn.hold { right: 108px; bottom: 0; width: 74px; height: 74px; font-size: 12px; letter-spacing: 0.06em; }
+.tbtn.alt { right: 104px; bottom: 96px; width: 66px; height: 66px; font-size: 24px; display: none; background: linear-gradient(180deg, #ffd66b, #f0a92a); color: #2a1a00; border-color: transparent; }
+.tbtn.alt.show { display: grid; }
+
+/* The side dock would collide with the thumb controls: move it to the bottom centre. */
+body.touch .dock { top: auto; right: auto; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); flex-direction: row; gap: 6px; }
+body.touch .dock button { width: 46px; height: 46px; border-radius: 14px; }
+body.touch .dock button:hover { transform: none; background: var(--panel); }
+body.touch .prompt { bottom: calc(80px + env(safe-area-inset-bottom)); max-width: calc(100vw - 440px); padding: 12px 18px 12px 12px; }
+body.touch .chat { bottom: calc(206px + env(safe-area-inset-bottom)); width: 300px; }
+body.touch .chat-log { max-height: 130px; }
+/* While typing, keep the chat near the top so the on-screen keyboard cannot cover it. */
+body.touch .chat.active { top: 96px; bottom: auto; left: 50%; transform: translateX(-50%); width: min(560px, 92vw); z-index: 25; }
+body.touch .drive-hud { right: calc(18px + env(safe-area-inset-right)); bottom: calc(210px + env(safe-area-inset-bottom)); }
+body.touch .offer-card { right: 16px; top: 290px; }
+body.touch .hud-top-left { top: calc(12px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); }
+body.touch .hud-top-right { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); }
+body.touch .modal-close { width: 44px; height: 44px; }
+
+/* Portrait tablets and phones: less room between the two thumb clusters. */
+@media (max-width: 900px) {
+  body.touch .prompt { max-width: 92vw; bottom: calc(210px + env(safe-area-inset-bottom)); }
+  body.touch .chat { bottom: calc(270px + env(safe-area-inset-bottom)); width: 240px; }
+  body.touch .drive-hud .gauge { display: none; }
+  body.touch .dock { gap: 4px; }
+  body.touch .dock button { width: 44px; height: 44px; }
+}
+/* Phones in landscape: shrink everything that stacks vertically. */
+@media (max-height: 520px) {
+  body.touch .player-card { min-width: 0; padding: 6px 10px 6px 6px; }
+  body.touch .level-badge { width: 36px; height: 36px; font-size: 16px; }
+  body.touch .xp-text, body.touch .rep { display: none; }
+  body.touch .wallet { padding: 6px 12px; min-width: 0; }
+  body.touch .wallet .cash { font-size: 20px; }
+  body.touch .minimap { width: 100px; height: 100px; }
+  body.touch .touch-stick { width: 130px; height: 130px; }
+  body.touch .touch-stick .knob { width: 52px; height: 52px; margin: -26px 0 0 -26px; }
+  body.touch .touch-actions { transform: scale(0.8); transform-origin: bottom right; }
+  body.touch .dock button { width: 38px; height: 38px; border-radius: 11px; }
+  body.touch .dock button svg { width: 18px; height: 18px; }
+  body.touch .prompt { bottom: calc(60px + env(safe-area-inset-bottom)); }
+  body.touch .chat { display: none; }
+  body.touch .chat.active { display: flex; top: 8px; }
+  body.touch .drive-hud { bottom: calc(150px + env(safe-area-inset-bottom)); }
+  body.touch .drive-hud .gauge { display: none; }
+  body.touch .speedo { width: 110px; padding: 8px 10px; }
+  body.touch .speedo .v { font-size: 30px; }
 }

@@ -80,6 +80,19 @@ The schema (`database/schema.sql`) is applied automatically on startup. When `DA
 | **B** / **I** / **J** / **K** / **M** / **O** | Marketplace / Garage / Dealership / Auctions / Map / Profile |
 | **Esc** | Close panel / game menu |
 
+**Touch screens (iPad, tablets, phones in landscape)** get on-screen controls automatically:
+
+| Control | Action |
+| --- | --- |
+| Left stick | Walk or drive (push it all the way to run) |
+| Drag anywhere on the 3D view | Camera |
+| **E** button, or tap the prompt | Interact / enter / exit vehicle |
+| **F** button | Fuel station or car wash while driving |
+| **RUN** / **BRAKE** button (hold) | Sprint on foot, handbrake while driving |
+| Bottom bar | Marketplace, Garage, Dealership, Auctions, Map, Profile, Chat, Menu |
+
+`?touch=1` or `?touch=0` in the URL forces the touch controls on or off.
+
 ## Scripts
 
 | Command | Purpose |

@@ -83,7 +83,9 @@ export class Renderer {
   setQuality(q: GraphicsQuality): void {
     this.quality = q;
     const dpr = window.devicePixelRatio || 1;
-    this.renderer.setPixelRatio(q === 'high' ? Math.min(dpr, 1.75) : q === 'medium' ? Math.min(dpr, 1.25) : 0.85);
+    // Tablets have very dense screens but mobile GPUs: cap the render resolution a little lower there.
+    const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+    this.renderer.setPixelRatio(q === 'high' ? Math.min(dpr, coarse ? 1.5 : 1.75) : q === 'medium' ? Math.min(dpr, 1.25) : 0.85);
     this.renderer.shadowMap.enabled = q !== 'low';
     this.sun.castShadow = q !== 'low';
     const size = q === 'high' ? 2048 : 1024;

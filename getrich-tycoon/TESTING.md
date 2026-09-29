@@ -4,9 +4,9 @@ Three layers, all automated:
 
 | Layer | Tool | Location | What it proves |
 | --- | --- | --- | --- |
-| Unit | Vitest | `tests/unit` | Valuation, repair pricing, negotiation (randomized), physics (determinism, collisions, anti-teleport), progression, economy invariants (arbitrage-free), locks, rate limits, validators, password hashing |
+| Unit | Vitest | `tests/unit` | Valuation, repair pricing, negotiation (randomized), physics (determinism, collisions, anti-teleport), progression, economy invariants (arbitrage-free), locks, rate limits, validators, password hashing, client IP resolution behind proxies, touch joystick mapping |
 | Integration | Vitest + real server + socket.io-client | `tests/integration` | End-to-end game logic over real WebSockets and a real database: auth, movement, anti speed-hack, market purchase, **race-condition double purchase**, invalid/manipulated requests, request de-duplication, negotiation, classifieds and player-to-player sale, quick sell, chat and anti-spam, dealership purchase and upgrade and display, NPC customer sale, repair/wash/fuel/customization/parts, bank, escrowed auctions, **persistence across a full server restart** |
-| Browser E2E | Playwright (Chromium) | `tests/e2e` | Production build in real Chrome: the 14 required scenarios plus driving |
+| Browser E2E | Playwright (Chromium) | `tests/e2e` | Production build in real Chrome: the 14 required scenarios, driving, and the touch controls on an iPad-sized screen |
 
 ## Running
 
@@ -57,6 +57,7 @@ Chromium is missing, run `npx playwright install chromium`.
 | 13 | Invalid transaction is rejected | `4-9`: forged RPCs (fake listing, negative deposit, someone else's vehicle, non-numeric price) are all rejected and money is unchanged |
 | 14 | Save/load works | `4-9`: page reload restores money and the listed vehicle from the database. The integration suite additionally restarts the whole server. |
 | + | Vehicles are drivable | `vehicles are drivable`: garage → spawn → prompt → **E** → hold **W** → exit |
+| + | iPad / touch | `touch.spec.ts` (1180×820, touch enabled): the stick walks, a finger drag turns the camera, dock/panel taps, chat via the dock and **Send** button, entering a car with the **E** button, driving with the stick, exiting by tapping the prompt. Real touch events are sent through the Chrome DevTools Protocol. |
 
 The **two-client multiplayer test** (`10-12`) is the critical one:
 
@@ -72,10 +73,10 @@ Recorded on 2026-09-28 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chrom
 | Suite | SQLite | PostgreSQL |
 | --- | --- | --- |
 | `npm run typecheck` (client, server, tests) | pass | n/a |
-| Unit (Vitest) | 40 / 40 passed | n/a (no database) |
+| Unit (Vitest) | 44 / 44 passed | n/a (no database) |
 | Integration (Vitest, real sockets) | 20 / 20 passed | 20 / 20 passed |
-| E2E (Playwright, Chromium, production build) | 5 / 5 passed (about 2.7 min) | 5 / 5 passed (about 2.7 min) |
-| `npm run check:secrets` | no secrets in 118 tracked files | n/a |
+| E2E (Playwright, Chromium, production build) | 6 / 6 passed (about 6 min) | 5 / 5 passed (about 2.7 min; before the touch test was added) |
+| `npm run check:secrets` | no secrets in 123 tracked files | n/a |
 
 Note on flakiness: an early flake in the two-client test came from picking a listing the level-1 test account was
 not allowed to buy (category lock). The test now filters to unlocked categories. The main source of slowness is

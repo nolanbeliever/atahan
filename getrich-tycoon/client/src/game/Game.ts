@@ -627,13 +627,22 @@ export class Game {
       this.ui.open(hot[code]!);
       return;
     }
-    if (code === 'KeyE' && this.interaction) {
-      this.audio.play('click');
-      this.interaction.action();
-    } else if (code === 'KeyF' && this.secondary) {
-      this.audio.play('click');
-      this.secondary.action();
-    }
+    if (code === 'KeyE') this.interact();
+    else if (code === 'KeyF') this.interactSecondary();
+  }
+
+  /** Run the current primary interaction (E key, prompt tap, touch action button). */
+  interact(): void {
+    if (!this.interaction || this.ui?.anyOpen()) return;
+    this.audio.play('click');
+    this.interaction.action();
+  }
+
+  /** Run the current secondary interaction (F key: fuel station or car wash while driving). */
+  interactSecondary(): void {
+    if (!this.secondary || this.ui?.anyOpen()) return;
+    this.audio.play('click');
+    this.secondary.action();
   }
 
   async enterVehicle(id: string): Promise<void> {
@@ -659,6 +668,7 @@ export class Game {
       connected: this.net.socket.connected,
       snapshots: this.snapshotsReceived,
       position: { ...this.curr },
+      yaw: this.cam.yaw,
       driving: this.driving,
       money: this.store.me?.money ?? null,
       bank: this.store.me?.bank ?? null,

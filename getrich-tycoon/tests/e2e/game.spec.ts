@@ -29,6 +29,8 @@ test('2-3. client loads in Chrome and the player connects', async ({ page }) => 
   expect(s.marketListings.length).toBe(16);
   await expect(page.locator('#game-root canvas')).toBeVisible();
   await expect(page.getByTestId('hud-money')).toHaveText(moneyText(25_000));
+  // Mouse & keyboard: the on-screen touch controls stay hidden.
+  await expect(page.getByTestId('touch-stick')).toBeHidden();
   expect(errors).toEqual([]);
 });
 
