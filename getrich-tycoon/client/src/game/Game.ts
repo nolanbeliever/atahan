@@ -1,5 +1,6 @@
 // The game client: prediction/reconciliation, rendering loop, interactions.
 
+import { calculateVehicleStats } from '../../../shared/tuningSystem';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { vehicleObstacles, worldBoxes, STATIC_CIRCLES, type ObstacleVehicle } from '../../../shared/collision';
@@ -37,7 +38,7 @@ import { City, groundHeight } from '../render/City';
 import { DealershipsView } from '../render/Dealerships';
 import { Effects } from '../render/Effects';
 import { Renderer } from '../render/Renderer';
-import { VehicleView } from '../render/VehicleMesh';
+import { createVehicleView, type AnyVehicleView } from '../render/VehicleMesh';
 import { Store } from '../state/Store';
 import type { UI } from '../ui/UI';
 import { CameraController } from './CameraController';
@@ -89,7 +90,7 @@ export class Game {
   private lastLevel: number | null = null;
   private minimapTimer = 0;
   private auctionTimer = 0;
-  private featured: { id: string; view: VehicleView } | null = null;
+  private featured: { id: string; view: AnyVehicleView } | null = null;
   auctions: Auction[] = [];
   fps = 0;
   private fpsAcc = 0;
@@ -112,6 +113,10 @@ export class Game {
     this.renderer.scene.add(this.city.group, this.dealerships.group);
     this.effects = new Effects(this.renderer.scene);
     this.entities = new EntityViews(this.renderer.scene, () => this.store.playerId);
+    // Pops & bangs from our own exhaust flash flames at the tips.
+    this.audio.onPop = (strength) => {
+      if (this.driving) this.entities.vehicles.get(this.driving)?.view.pop(strength);
+    };
     this.input = new Input(this.renderer.renderer.domElement);
     this.cam = new CameraController(this.renderer.camera);
     this.net = new Network(token);
@@ -158,6 +163,10 @@ export class Game {
       this.ui?.setReconnecting(false);
       this.ui?.onWelcome();
       void this.refreshAuctions();
+      void this.net
+        .rpc('rare.list', {})
+        .then((s) => this.store.setRare(s))
+        .catch(() => undefined);
     });
     net.on('self', (s) => this.store.applySelf(s));
     net.on('snapshot', (s) => this.onSnapshot(s));
@@ -172,6 +181,7 @@ export class Game {
     net.on('market.update', (m) => this.store.setMarket(m.listings));
     net.on('listings.changed', () => this.store.emit('listingsChanged', undefined));
     net.on('trends', (t) => this.store.setTrends(t));
+    net.on('rare.update', (s) => this.store.setRare(s));
     net.on('auction.update', (a) => {
       const idx = this.auctions.findIndex((x) => x.id === a.id);
       if (a.status !== 'active') {
@@ -338,7 +348,7 @@ export class Game {
       const v = this.store.myVehicle(this.driving);
       if (!v) return;
       this.dyn = { x, z, rot, speed, steer };
-      const params = vehicleParams(getModel(v.modelId), v.condition, v.fuel);
+      const params = vehicleParams(getModel(v.modelId), v.condition, v.fuel, v.mods);
       for (const c of this.pending) stepVehicle(this.dyn, c, params, this.world, this.driving);
       this.curr = { x: this.dyn.x, z: this.dyn.z, rot: this.dyn.rot };
     } else {
@@ -381,7 +391,7 @@ export class Game {
     if (this.driving && this.dyn) {
       const v = this.store.myVehicle(this.driving);
       if (v) {
-        const params = vehicleParams(getModel(v.modelId), v.condition, v.fuel);
+        const params = vehicleParams(getModel(v.modelId), v.condition, v.fuel, v.mods);
         stepVehicle(this.dyn, cmd, params, this.world, this.driving);
         this.curr = { x: this.dyn.x, z: this.dyn.z, rot: this.dyn.rot };
       }
@@ -456,7 +466,18 @@ export class Game {
     } else this.renderer.followShadows(rx, rz);
 
     this.updateInteraction(rx, rz);
-    this.audio.engine(!!this.driving, this.dyn?.speed ?? 0, (keys & KEY.FORWARD) !== 0, dt);
+    const drivenVeh = this.driving ? this.store.myVehicle(this.driving) : undefined;
+    const drivenModel = drivenVeh ? getModel(drivenVeh.modelId) : null;
+    const drivenStats = drivenModel && drivenVeh ? calculateVehicleStats(drivenModel, drivenVeh.mods.tuning) : null;
+    this.audio.engine({
+      driving: !!this.driving,
+      speed: this.dyn?.speed ?? 0,
+      topSpeed: drivenModel && drivenVeh ? vehicleParams(drivenModel, drivenVeh.condition, drivenVeh.fuel, drivenVeh.mods).topSpeed : 30,
+      throttle: (keys & KEY.FORWARD) !== 0,
+      profile: drivenStats?.sound ?? null,
+      redline: drivenStats?.redline ?? 6500,
+      dt,
+    });
     this.effects.update(dt);
     this.city.update(dt);
     this.featured?.view.animate(0, 0, dt);
@@ -523,7 +544,7 @@ export class Game {
       this.city.turntable.remove(this.featured.view.root);
       this.featured.view.dispose();
     }
-    const view = new VehicleView(best.vehicle);
+    const view = createVehicleView(best.vehicle);
     this.city.turntable.add(view.root);
     this.featured = { id: best.vehicle.id, view };
   }

@@ -188,13 +188,13 @@ export function rimGeometry(style: RimStyle): { face: THREE.BufferGeometry; back
   hub.rotateZ(-Math.PI / 2);
   hub.translate(faceX + 0.02, 0, 0);
   pieces.push(hub);
-  const spokes = (count: number, width: number, twist = 0, depth = 0.08) => {
+  const spokes = (count: number, width: number, twist = 0, depth = 0.08, x = faceX - 0.02, phase = 0) => {
     for (let i = 0; i < count; i++) {
       const s = new THREE.BoxGeometry(depth, 0.78, width);
       s.translate(0, 0.55, 0);
       s.rotateY(twist);
-      s.rotateX((i / count) * Math.PI * 2);
-      s.translate(faceX - 0.02, 0, 0);
+      s.rotateX(((i + phase) / count) * Math.PI * 2);
+      s.translate(x, 0, 0);
       pieces.push(s);
     }
   };
@@ -231,6 +231,30 @@ export function rimGeometry(style: RimStyle): { face: THREE.BufferGeometry; back
       disc(0.9, faceX - 0.04);
       spokes(6, 0.1, 0, 0.03);
       break;
+    case 'mesh':
+      // Cross-laced mesh (BBS-style): two sets of twisted spokes.
+      spokes(10, 0.05, 0.42, 0.05);
+      spokes(10, 0.05, -0.42, 0.05);
+      break;
+    case 'sixspoke':
+      // Wide forged six-spoke (Rays-style).
+      spokes(6, 0.2, 0, 0.1);
+      break;
+    case 'turbofan': {
+      // Flat disc with turbine blades (Rotiform-style).
+      disc(0.88, faceX - 0.05, 0.04);
+      spokes(16, 0.07, 0.65, 0.05, faceX - 0.01);
+      break;
+    }
+    case 'deepdish': {
+      // Spokes set deep inside a wide polished barrel.
+      const barrel = new THREE.CylinderGeometry(0.95, 0.95, 0.24, 24, 1, true);
+      barrel.rotateZ(-Math.PI / 2);
+      barrel.translate(faceX - 0.1, 0, 0);
+      pieces.push(barrel);
+      spokes(5, 0.2, 0, 0.08, faceX - 0.2);
+      break;
+    }
   }
   const face = mergeGeometries(pieces.map(finalize), false)!;
   const backDisc = new THREE.CylinderGeometry(0.95, 0.95, 0.04, 24);
@@ -264,6 +288,8 @@ export class CarBody {
   private pieces = new Map<Part, THREE.BufferGeometry[]>();
   /** Inward lean of the side glass: metres of width lost per metre of height. */
   private sideSlope = 0;
+  /** Exhaust tip positions (for backfire flames). */
+  readonly exhausts: [number, number, number][] = [];
 
   constructor(modelId: string) {
     const shape = getModel(modelId).shape;
@@ -878,6 +904,7 @@ export class CarBody {
     const d = this.d;
     const hw = this.hw;
     this.lamp(d.head, 'head', true);
+    if (d.head2) this.lamp(d.head2, 'head', true);
     const g = d.grille;
     const gw = g.w * hw;
     switch (g.style) {
@@ -907,6 +934,48 @@ export class CarBody {
       case 'none':
         this.facePatch('dark', true, -gw, gw, g.y - g.h / 2, g.y + g.h / 2, 0, 8, 1);
         break;
+      case 'kidney': {
+        // Two tall grilles side by side, chrome framed, with vertical slats.
+        const kw = gw * 0.4;
+        for (const s of [-1, 1]) {
+          const cx = s * gw * 0.56;
+          this.facePatch('chrome', true, cx - kw - 0.02, cx + kw + 0.02, g.y - g.h / 2 - 0.02, g.y + g.h / 2 + 0.02, 0, 4, 2, 0.005);
+          this.facePatch('dark', true, cx - kw, cx + kw, g.y - g.h / 2, g.y + g.h / 2, 0, 4, 2, 0.008);
+          for (let k = -2; k <= 2; k++) this.facePatch('chrome', true, cx + (k * kw) / 3 - 0.007, cx + (k * kw) / 3 + 0.007, g.y - g.h / 2, g.y + g.h / 2, 0, 1, 2, 0.011);
+        }
+        break;
+      }
+      case 'panamericana': {
+        // Chrome frame with many vertical chrome slats.
+        this.facePatch('chrome', true, -gw - 0.025, gw + 0.025, g.y - g.h / 2 - 0.025, g.y + g.h / 2 + 0.025, 0, 8, 2, 0.005);
+        this.facePatch('dark', true, -gw, gw, g.y - g.h / 2, g.y + g.h / 2, 0, 8, 2, 0.008);
+        const n = 11;
+        for (let k = 0; k < n; k++) {
+          const x = -gw + ((k + 0.5) * 2 * gw) / n;
+          this.facePatch('chrome', true, x - 0.009, x + 0.009, g.y - g.h / 2, g.y + g.h / 2, 0, 1, 2, 0.011);
+        }
+        break;
+      }
+      case 'singleframe':
+        // Large six-sided grille: a wide lower part and a slightly narrower upper part.
+        this.facePatch('dark', true, -gw, gw, g.y - g.h / 2, g.y + g.h * 0.1, 0, 10, 2, 0.008);
+        this.facePatch('dark', true, -gw * 0.84, gw * 0.84, g.y + g.h * 0.1, g.y + g.h / 2, 0, 10, 1, 0.008);
+        this.facePatch('chrome', true, -gw * 0.84, gw * 0.84, g.y + g.h / 2 - 0.004, g.y + g.h / 2 + 0.014, 0, 10, 1, 0.011);
+        for (const s of [-1, 1]) this.facePatch('chrome', true, s * gw - 0.009, s * gw + 0.009, g.y - g.h / 2, g.y + g.h * 0.1, 0, 1, 2, 0.011);
+        break;
+      case 'star': {
+        // Wide gloss-black panel dotted with small chrome studs.
+        this.facePatch('chrome', true, -gw - 0.018, gw + 0.018, g.y - g.h / 2 - 0.018, g.y + g.h / 2 + 0.018, 0, 10, 2, 0.005);
+        this.facePatch('dark', true, -gw, gw, g.y - g.h / 2, g.y + g.h / 2, 0, 10, 2, 0.008);
+        for (let i = 0; i < 7; i++) {
+          for (let j = 0; j < 2; j++) {
+            const x = -gw + ((i + 0.5) * 2 * gw) / 7;
+            const y = g.y - g.h / 2 + ((j + 0.5) * g.h) / 2;
+            this.faceDisc('chrome', true, x, y, 0.014, 0.014, 0, 0.012);
+          }
+        }
+        break;
+      }
     }
     if (d.intake) this.facePatch('dark', true, -d.intake.w * hw, d.intake.w * hw, d.intake.y - d.intake.h / 2, d.intake.y + d.intake.h / 2, 0, 10, 1);
     this.bumper(true);
@@ -941,6 +1010,7 @@ export class CarBody {
     for (const x of pipes) {
       const z = this.surfaceZ(x, ey + 0.03, false);
       if (!Number.isFinite(z)) continue;
+      this.exhausts.push([x, ey, z - 0.09]);
       const p = new THREE.CylinderGeometry(0.042, 0.042, 0.14, 12, 1, true);
       p.rotateX(Math.PI / 2);
       p.translate(x, ey, z - 0.02);

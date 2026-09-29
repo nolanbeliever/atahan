@@ -3,6 +3,8 @@
 // high-frequency movement goes through `input`.
 
 import type { InputCmd } from './physics';
+import type { RareMarketState } from './rareMarket';
+import type { TuningChange } from './tuningSystem';
 import type {
   Appearance,
   Auction,
@@ -64,6 +66,13 @@ export interface RpcMethods {
   'wash.start': { params: { vehicleId: string; tier: string }; result: { vehicle: Vehicle; cost: number } };
   'fuel.refill': { params: { vehicleId: string }; result: { vehicle: Vehicle; cost: number } };
   'custom.apply': { params: { vehicleId: string; mods: Partial<VehicleMods> }; result: { vehicle: Vehicle; cost: number } };
+  /** Tuning garage: performance parts, body parts, paint, wheels, stance and classic options in one job. */
+  'tuning.apply': {
+    params: { vehicleId: string; change: TuningChange; legacy?: Partial<Pick<VehicleMods, 'tint' | 'headlights' | 'accessory'>> };
+    result: { vehicle: Vehicle; cost: number; seconds: number };
+  };
+  'rare.list': { params: Empty; result: RareMarketState };
+  'rare.buy': { params: { offerId: string; expectedPrice: number }; result: { vehicle: Vehicle; price: number } };
   'parts.buy': { params: { itemId: string; qty: number }; result: { inventory: Record<string, number>; cost: number } };
 
   'bank.deposit': { params: { amount: number }; result: { money: number; bank: number } };
@@ -124,6 +133,8 @@ export interface ServerToClientEvents {
   offer: (o: CustomerOffer) => void;
   'offer.closed': (id: string) => void;
   trends: (t: CategoryTrends) => void;
+  /** Rare Dealer stock changed (new rotation or an offer was sold). */
+  'rare.update': (s: RareMarketState) => void;
   kicked: (reason: string) => void;
 }
 

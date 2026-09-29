@@ -8,7 +8,7 @@ export type PanelArg = Record<string, unknown>;
 
 export abstract class Panel {
   abstract readonly name: string;
-  size: 'wide' | 'medium' | 'narrow' = 'wide';
+  size: 'xl' | 'wide' | 'medium' | 'narrow' = 'wide';
   protected bodyEl!: HTMLElement;
   protected footEl!: HTMLElement;
   protected subEl!: HTMLElement;

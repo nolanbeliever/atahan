@@ -1,17 +1,20 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { VEHICLE_MODELS } from '../../shared/vehicles';
+import { bikeBody } from '../../client/src/render/bikeBody';
 import { carBody, rimGeometry, tireGeometry } from '../../client/src/render/carBody';
 import { DESIGNS } from '../../client/src/render/carDesigns';
 
 const triangles = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.getAttribute('position').count) / 3;
 
 describe('procedural vehicle models', () => {
-  it('every catalogue model has its own design', () => {
-    for (const m of VEHICLE_MODELS) expect(DESIGNS[m.id], m.id).toBeDefined();
+  const cars = VEHICLE_MODELS.filter((m) => m.specs.kind === 'car');
+
+  it('every car model has its own design', () => {
+    for (const m of cars) expect(DESIGNS[m.id], m.id).toBeDefined();
   });
 
-  for (const m of VEHICLE_MODELS) {
+  for (const m of cars) {
     it(`${m.id} builds a valid body that matches its physical size`, () => {
       const body = carBody(m.id);
       const box = new THREE.Box3();
@@ -27,7 +30,7 @@ describe('procedural vehicle models', () => {
       }
       // Close to the collision box used by the physics (mirrors, exhausts and a rear spare wheel stick out a little).
       expect(box.max.z).toBeLessThanOrEqual(m.shape.length / 2 + 0.1);
-      expect(box.min.z).toBeGreaterThanOrEqual(-m.shape.length / 2 - (body.d.spare ? 0.3 : 0.1));
+      expect(box.min.z).toBeGreaterThanOrEqual(-m.shape.length / 2 - (body.d.spare ? body.d.wheelW + 0.1 : 0.1));
       expect(box.max.x).toBeLessThanOrEqual(m.shape.width / 2 + 0.25);
       expect(box.min.y).toBeGreaterThanOrEqual(0);
       expect(box.max.y).toBeLessThanOrEqual(body.height + 0.25);
@@ -62,6 +65,31 @@ describe('procedural vehicle models', () => {
 
   it('wheel parts are shared and small', () => {
     expect(tireGeometry(0.62)).toBe(tireGeometry(0.62));
-    for (const s of ['five', 'multi', 'aero', 'hubcap', 'wire', 'steel'] as const) expect(triangles(rimGeometry(s).face)).toBeLessThan(1000);
+    for (const s of ['five', 'multi', 'aero', 'hubcap', 'wire', 'steel', 'mesh', 'sixspoke', 'turbofan', 'deepdish'] as const) expect(triangles(rimGeometry(s).face)).toBeLessThan(1000);
   });
+
+  it('exhaust tips sit at the rear of cars with exhausts', () => {
+    for (const m of cars) {
+      const b = carBody(m.id);
+      if (b.d.exhaust === 'none') continue;
+      expect(b.exhausts.length, m.id).toBeGreaterThan(0);
+      for (const [, , z] of b.exhausts) expect(z, m.id).toBeLessThan(-m.shape.length / 2 + 0.3);
+    }
+  });
+
+  for (const m of VEHICLE_MODELS.filter((x) => x.specs.kind === 'bike')) {
+    it(`${m.id} builds a motorcycle within its size`, () => {
+      const b = bikeBody(m.id, m.shape.length, m.shape.wheelRadius, m.shape.wheelWidth);
+      const box = new THREE.Box3();
+      for (const g of [...b.parts.values(), ...b.steerParts.values()]) {
+        g.computeBoundingBox();
+        box.union(g.boundingBox!);
+      }
+      expect(b.parts.has('paint') && b.parts.has('lamp') && b.parts.has('glass')).toBe(true);
+      expect(box.max.x - box.min.x).toBeLessThan(m.shape.width + 0.1);
+      expect(b.front.z + b.front.r).toBeLessThanOrEqual(m.shape.length / 2 + 0.05);
+      expect(b.rear.z - b.rear.r).toBeGreaterThanOrEqual(-m.shape.length / 2 - 0.05);
+      expect(b.exhausts.length).toBeGreaterThan(0);
+    });
+  }
 });

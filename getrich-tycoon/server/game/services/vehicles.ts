@@ -2,6 +2,7 @@
 
 import { ECONOMY } from '../../../shared/economy.config';
 import { CHAR_RADIUS, resolveCircle, vehicleCircles } from '../../../shared/physics';
+import { calculateVehicleStats } from '../../../shared/tuningSystem';
 import { quickSellPrice } from '../../../shared/valuation';
 import { clamp } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
@@ -191,6 +192,14 @@ export class VehicleService {
     veh.condition.cleanliness = clamp(veh.condition.cleanliness - km * ECONOMY.world.dirtPerKm, 0, 100);
     if (flush.damage > 0) {
       veh.condition.body = Math.round(clamp(veh.condition.body - flush.damage, 0, 100));
+    }
+    // Tuned engines wear while driven (forged internals keep it in check). Conditions are whole
+    // numbers, so the fractional part is applied with matching probability.
+    const stress = calculateVehicleStats(getModel(veh.modelId), veh.mods.tuning).stress;
+    if (km > 0 && stress > 1) {
+      const wear = km * ECONOMY.tuning.engineWearPerKm * (stress - 1);
+      const whole = Math.floor(wear) + (this.ctx.rng() < wear - Math.floor(wear) ? 1 : 0);
+      if (whole > 0) veh.condition.engine = clamp(veh.condition.engine - whole, 0, 100);
     }
     veh.x = flush.dyn.x;
     veh.z = flush.dyn.z;

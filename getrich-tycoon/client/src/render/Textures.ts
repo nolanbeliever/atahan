@@ -129,6 +129,30 @@ export const Tex = {
     return t;
   },
 
+  /** 2x2 twill carbon-fibre weave for carbon body parts. */
+  carbon(): THREE.Texture {
+    const key = 'carbon';
+    const hit = cache.get(key);
+    if (hit) return hit;
+    const [c, g] = canvas(64, 64);
+    const cell = 8;
+    for (let y = 0; y < 64 / cell; y++) {
+      for (let x = 0; x < 64 / cell; x++) {
+        const along = ((x + y) >> 1) % 2 === 0;
+        const grad = along ? g.createLinearGradient(x * cell, 0, x * cell + cell, 0) : g.createLinearGradient(0, y * cell, 0, y * cell + cell);
+        grad.addColorStop(0, '#15171b');
+        grad.addColorStop(0.5, along ? '#3a3f47' : '#2a2e35');
+        grad.addColorStop(1, '#121417');
+        g.fillStyle = grad;
+        g.fillRect(x * cell, y * cell, cell, cell);
+      }
+    }
+    const t = toTexture(c);
+    t.repeat.set(6, 6);
+    cache.set(key, t);
+    return t;
+  },
+
   /** Text sign texture. */
   sign(text: string, opts: { bg?: string; fg?: string; accent?: string; w?: number; h?: number; font?: number; sub?: string } = {}): THREE.Texture {
     const w = opts.w ?? 1024;

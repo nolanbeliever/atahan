@@ -301,6 +301,11 @@ export class UnitOfWork {
     this.auctionDrafts.set(a.id, a);
   }
 
+  /** Persist a small piece of world state (JSON string) with this unit of work. */
+  setWorldValue(key: string, value: string): void {
+    this.worldValues.set(key, value);
+  }
+
   setTrends(t: CategoryTrends): void {
     this.newTrends = t;
     this.worldValues.set('trends', JSON.stringify(t));

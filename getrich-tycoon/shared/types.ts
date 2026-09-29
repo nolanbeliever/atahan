@@ -1,6 +1,8 @@
 // Core domain types shared by the client and the server.
 // The server is authoritative for every value in here; the client only renders them.
 
+import type { VehicleTuning } from './modificationsData';
+
 export type VehicleCategory =
   | 'compact'
   | 'sedan'
@@ -45,6 +47,8 @@ export interface VehicleMods {
   bodyKit: string;
   headlights: string;
   accessory: string;
+  /** Performance parts, body parts, custom paint, wheels and stance (see modificationsData.ts). */
+  tuning?: VehicleTuning;
 }
 
 /**
@@ -223,6 +227,8 @@ export type TransactionKind =
   | 'wash'
   | 'fuel'
   | 'customize'
+  | 'tuning'
+  | 'rare_buy'
   | 'parts'
   | 'dealership_buy'
   | 'dealership_upgrade'

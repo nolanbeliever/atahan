@@ -4,9 +4,9 @@ Three layers, all automated:
 
 | Layer | Tool | Location | What it proves |
 | --- | --- | --- | --- |
-| Unit | Vitest | `tests/unit` | Valuation, repair pricing, negotiation (randomized), physics (determinism, collisions, anti-teleport), progression, economy invariants (arbitrage-free), locks, rate limits, validators, password hashing, client IP resolution behind proxies, touch joystick mapping, procedural vehicle models (every model builds, matches its collision size, has head and tail lamps, stays within a triangle budget) |
-| Integration | Vitest + real server + socket.io-client | `tests/integration` | End-to-end game logic over real WebSockets and a real database: auth, movement, anti speed-hack, market purchase, **race-condition double purchase**, invalid/manipulated requests, request de-duplication, negotiation, classifieds and player-to-player sale, quick sell, chat and anti-spam, dealership purchase and upgrade and display, NPC customer sale, repair/wash/fuel/customization/parts, bank, escrowed auctions, **persistence across a full server restart** |
-| Browser E2E | Playwright (Chromium) | `tests/e2e` | Production build in real Chrome: the 14 required scenarios, driving, and the touch controls on an iPad-sized screen |
+| Unit | Vitest | `tests/unit` | Valuation, repair pricing, negotiation (randomized), physics (determinism, collisions, anti-teleport), progression, economy invariants (arbitrage-free), locks, rate limits, validators, password hashing, client IP resolution behind proxies, touch joystick mapping, procedural vehicle models (every model builds, matches its collision size, has head and tail lamps, stays within a triangle budget; the motorcycle), tuning engine (stock figures, Stage 1/2/3 gains, power caps, each part category, traction, stance, exhaust sounds, fitment rules for EVs/bikes/prerequisites, `quoteTuning` pricing, dyno curves matching the headline figures, physics scaling, 150-200% value of a Stage 3 build, **arbitrage-free part prices** for every part on every model), Rare Dealer (70/25/5 odds and **each legendary in ≤ 5% of rotations** by simulation, no repeats, rotation clock, seeds, strict offer ids, special vehicle data) |
+| Integration | Vitest + real server + socket.io-client | `tests/integration` | End-to-end game logic over real WebSockets and a real database: auth, movement, anti speed-hack, market purchase, **race-condition double purchase**, invalid/manipulated requests, request de-duplication, negotiation, classifieds and player-to-player sale, quick sell, chat and anti-spam, dealership purchase and upgrade and display, NPC customer sale, repair/wash/fuel/customization/parts, bank, escrowed auctions, **persistence across a full server restart**, tuning garage (location check, 10 kinds of invalid requests, exact server pricing, workshop lock, prerequisites on removal, tuned server physics, engine wear, free return to stock), Rare Dealer (same stock for everyone and after a service restart, unlocks/funds/price/expired checks, one sale per offer broadcast to others, saved sold slots, legendary announcement) |
+| Browser E2E | Playwright (Chromium) | `tests/e2e` | Production build in real Chrome: the 14 required scenarios, driving, the touch controls on an iPad-sized screen, the tuning garage and the Rare Dealer |
 
 ## Running
 
@@ -57,6 +57,7 @@ Chromium is missing, run `npx playwright install chromium`.
 | 13 | Invalid transaction is rejected | `4-9`: forged RPCs (fake listing, negative deposit, someone else's vehicle, non-numeric price) are all rejected and money is unchanged |
 | 14 | Save/load works | `4-9`: page reload restores money and the listed vehicle from the database. The integration suite additionally restarts the whole server. |
 | + | Vehicles are drivable | `vehicles are drivable`: garage → spawn → prompt → **E** → hold **W** → exit |
+| + | Tuning & Rare Dealer | `tuning.spec.ts`: garage opened remotely, Stage 2 auto-adds its downpipe and raises the hp figure, install disabled away from Chroma Customs, HEX paint input syncs the colour picker, wheels, locked stance on stock suspension, dyno chart and a live dyno pull; Rare Dealer countdown ticking, 6 offers with pictures, buying the cheapest affordable offer marks it sold. |
 | + | iPad / touch | `touch.spec.ts` (1180×820, touch enabled): the stick walks, a finger drag turns the camera, dock/panel taps, chat via the dock and **Send** button, entering a car with the **E** button, driving with the stick, exiting by tapping the prompt. Real touch events are sent through the Chrome DevTools Protocol. |
 
 The **two-client multiplayer test** (`10-12`) is the critical one:
@@ -73,11 +74,14 @@ Recorded on 2026-09-29 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chrom
 | Suite | SQLite | PostgreSQL |
 | --- | --- | --- |
 | `npm run typecheck` (client, server, tests) | pass | n/a |
-| Unit (Vitest) | 76 / 76 passed | n/a (no database) |
-| Integration (Vitest, real sockets) | 20 / 20 passed | 20 / 20 passed (2026-09-28) |
-| E2E (Playwright, Chromium, production build) | 6 / 6 passed (about 6 min) | 5 / 5 passed (2026-09-28, about 2.7 min; before the touch test was added) |
-| `npm run check:secrets` | no secrets in 126 tracked files | n/a |
+| Unit (Vitest) | 124 / 124 passed | n/a (no database) |
+| Integration (Vitest, real sockets) | 24 / 24 passed | 20 / 20 passed (2026-09-28, before the tuning and Rare Dealer tests) |
+| E2E (Playwright, Chromium, production build) | 7 / 7 passed (about 7.5 min) | 5 / 5 passed (2026-09-28, about 2.7 min; before the touch test was added) |
+| `npm run check:secrets` | no secrets in 141 tracked files | n/a |
 
 Note on flakiness: an early flake in the two-client test came from picking a listing the level-1 test account was
 not allowed to buy (category lock). The test now filters to unlocked categories. The main source of slowness is
 software rendering. The tests use generous polls rather than fixed sleeps wherever possible.
+Two more time/random-dependent cases were made deterministic: the customization charge test now starts from stock mods
+(NPC cars sometimes come with custom paint or wheels), and the Rare Dealer tests wait for a fresh 120-second rotation
+instead of starting in its last seconds.

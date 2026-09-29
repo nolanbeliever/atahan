@@ -1,5 +1,6 @@
 // Customization catalog (original, procedurally rendered options).
 
+import { normalizeTuning } from './tuningSystem';
 import type { VehicleMods } from './types';
 
 export interface CustomOption {
@@ -10,7 +11,8 @@ export interface CustomOption {
   value: string;
 }
 
-export type ModSlot = keyof VehicleMods;
+/** Classic one-click customization slots (the tuning garage lives in modificationsData.ts). */
+export type ModSlot = Exclude<keyof VehicleMods, 'tuning'>;
 
 export const PAINTS: CustomOption[] = [
   { id: 'paint_midnight', label: 'Midnight Black', price: 900, value: '#0b0b0f' },
@@ -113,5 +115,17 @@ export function modsValue(mods: VehicleMods): number {
 }
 
 export function vehicleColor(color: string, mods: VehicleMods): string {
-  return findOption(mods.paint)?.value ?? color;
+  return mods.tuning?.paint?.color ?? findOption(mods.paint)?.value ?? color;
+}
+
+/** Clean up stored/untrusted mods: fills missing slots and drops unknown options. */
+export function normalizeMods(raw: unknown): VehicleMods {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const out: VehicleMods = { ...DEFAULT_MODS };
+  for (const slot of Object.keys(MOD_CATALOG) as ModSlot[]) {
+    const v = r[slot];
+    if ((typeof v === 'string' || v === null) && isValidModOption(slot, v)) (out as unknown as Record<string, string | null>)[slot] = v;
+  }
+  if (r.tuning) out.tuning = normalizeTuning(r.tuning);
+  return out;
 }

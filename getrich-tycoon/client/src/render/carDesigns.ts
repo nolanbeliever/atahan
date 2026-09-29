@@ -2,7 +2,8 @@
 // that the procedural body builder (carBody.ts) turns into a car. Each design follows a familiar
 // real-world body type (city hatch, family sedan, off-roader, pickup, panel van, rear-engine sports
 // coupe, mid-engine supercar, luxury saloon, grand tourer, 60s cruiser, 50s roadster) with its own
-// proportions and details. No real brand names, logos or badges are used.
+// proportions and details. The Rare Dealer exclusives at the end follow specific real cars.
+// No logos or badges are drawn.
 //
 // Conventions: `u` is a position along the car from -0.5 (rear tip) to +0.5 (front tip).
 // Heights (`...Y`) are metres above the ground. Widths are fractions of the half width.
@@ -11,8 +12,8 @@ import type { BodyStyle, VehicleShape } from '../../../shared/vehicles';
 import { getModel } from '../../../shared/vehicles';
 
 export type LampStyle = 'round' | 'twin' | 'slim' | 'square' | 'bar' | 'vertical' | 'oval';
-export type GrilleStyle = 'none' | 'wide' | 'tall' | 'mesh' | 'chrome' | 'oval';
-export type RimStyle = 'five' | 'multi' | 'aero' | 'hubcap' | 'wire' | 'steel';
+export type GrilleStyle = 'none' | 'wide' | 'tall' | 'mesh' | 'chrome' | 'oval' | 'kidney' | 'panamericana' | 'singleframe' | 'star';
+export type RimStyle = 'five' | 'multi' | 'aero' | 'hubcap' | 'wire' | 'steel' | 'mesh' | 'sixspoke' | 'turbofan' | 'deepdish';
 
 export interface Lamp {
   style: LampStyle;
@@ -77,6 +78,8 @@ export interface CarDesign {
 
   // Details
   head: Lamp;
+  /** Second pair of head lamps (split headlights). */
+  head2?: Lamp;
   tail: Lamp;
   grille: { style: GrilleStyle; y: number; w: number; h: number };
   /** Lower air intake in the bumper. */
@@ -280,6 +283,127 @@ export const DESIGNS: Record<string, CarDesign> = {
     grille: { style: 'oval', y: 0.42, w: 0.36, h: 0.12 },
     bumpers: 'chrome', doors: 2, exhaust: 'dual',
   }),
+
+  // ---------------------------------------------------------------- Rare Dealer exclusives
+  // Modelled after the real cars (proportions, grille and lamp graphics), without badges.
+
+  // BMW i7 (G70): long flagship saloon, split headlights, huge kidney grille, flush electric tail.
+  bmw_i7_g70: d({
+    noseRound: 0.1, tailRound: 0.08, noseWidth: 0.87, tailWidth: 0.88, hips: 0.02, section: 5.2,
+    sillY: 0.26, bumperY: 0.28, noseY: 0.78, hoodY: 0.96, beltY: 1.03, deckY: 1.03, tailY: 0.99, hoodCurve: 2.9,
+    cowl: 0.15, roofFront: 0.0, roofBack: -0.25, cBase: -0.36, roofY: 1.55, roofArc: 0.03, tumble: 0.82, rear: 'fast',
+    pillars: 'body', roof: 'body', chromeTrim: true,
+    frontAxle: 0.34, rearAxle: -0.27, wheelR: 0.37, wheelW: 0.26, archGap: 0.05, rim: 'multi', rimScale: 0.72,
+    head: { style: 'slim', x: 0.72, y: 0.84, w: 0.28, h: 0.04 },
+    head2: { style: 'square', x: 0.72, y: 0.66, w: 0.16, h: 0.06 },
+    tail: { style: 'slim', x: 0.7, y: 0.9, w: 0.34, h: 0.06 },
+    grille: { style: 'kidney', y: 0.66, w: 0.34, h: 0.26 },
+    intake: { y: 0.42, w: 0.66, h: 0.06 },
+    bumpers: 'body', doors: 4, exhaust: 'none',
+  }),
+  // BMW M3 Competition (G80): tall vertical kidneys, wide arches, carbon roof, quad pipes.
+  bmw_m3_g80: d({
+    noseRound: 0.12, tailRound: 0.08, noseWidth: 0.84, tailWidth: 0.88, hips: 0.06, section: 4.8,
+    sillY: 0.21, bumperY: 0.23, noseY: 0.62, hoodY: 0.84, beltY: 0.93, deckY: 0.94, tailY: 0.9, hoodCurve: 2.2,
+    cowl: 0.15, roofFront: -0.02, roofBack: -0.22, cBase: -0.34, roofY: 1.4, roofArc: 0.03, tumble: 0.78, rear: 'fast',
+    pillars: 'black', roof: 'black',
+    frontAxle: 0.32, rearAxle: -0.29, wheelR: 0.35, wheelW: 0.29, archGap: 0.04, rim: 'five', rimScale: 0.76,
+    head: { style: 'slim', x: 0.68, y: 0.68, w: 0.3, h: 0.07 },
+    tail: { style: 'slim', x: 0.66, y: 0.82, w: 0.36, h: 0.07 },
+    grille: { style: 'kidney', y: 0.5, w: 0.24, h: 0.34 },
+    intake: { y: 0.33, w: 0.84, h: 0.1 },
+    bumpers: 'body', doors: 4, exhaust: 'quad',
+  }),
+  // BMW X7 M60i: big upright SUV, split lamps, giant kidneys, roof rails.
+  bmw_x7_facelift: d({
+    noseRound: 0.07, tailRound: 0.05, noseWidth: 0.9, tailWidth: 0.93, hips: 0.02, section: 7.2,
+    sillY: 0.42, bumperY: 0.46, noseY: 1.0, hoodY: 1.12, beltY: 1.2, deckY: 1.2, tailY: 1.16, hoodCurve: 3,
+    cowl: 0.2, roofFront: 0.05, roofBack: -0.45, cBase: -0.48, roofY: 1.84, roofArc: 0.012, tumble: 0.9, rear: 'straight',
+    pillars: 'black', roof: 'body', chromeTrim: true, roofRails: true,
+    frontAxle: 0.32, rearAxle: -0.3, wheelR: 0.42, wheelW: 0.29, archGap: 0.05, rim: 'multi', rimScale: 0.72,
+    head: { style: 'slim', x: 0.72, y: 0.98, w: 0.28, h: 0.045 },
+    head2: { style: 'square', x: 0.72, y: 0.78, w: 0.18, h: 0.07 },
+    tail: { style: 'slim', x: 0.72, y: 1.04, w: 0.3, h: 0.06 },
+    grille: { style: 'kidney', y: 0.86, w: 0.36, h: 0.28 },
+    intake: { y: 0.6, w: 0.66, h: 0.1 },
+    bumpers: 'body', doors: 4, exhaust: 'quad',
+  }),
+  // BMW 5 Series (G60): clean executive saloon, wide low kidneys, slim lamps.
+  bmw_5_g60: d({
+    noseRound: 0.11, tailRound: 0.08, noseWidth: 0.85, tailWidth: 0.88, hips: 0.03, section: 5,
+    sillY: 0.24, bumperY: 0.27, noseY: 0.68, hoodY: 0.88, beltY: 0.97, deckY: 0.98, tailY: 0.94, hoodCurve: 2.4,
+    cowl: 0.14, roofFront: -0.01, roofBack: -0.22, cBase: -0.34, roofY: 1.48, roofArc: 0.03, tumble: 0.8, rear: 'fast',
+    pillars: 'body', roof: 'body', chromeTrim: true,
+    frontAxle: 0.33, rearAxle: -0.28, wheelR: 0.36, wheelW: 0.25, archGap: 0.05, rim: 'multi', rimScale: 0.7,
+    head: { style: 'slim', x: 0.68, y: 0.7, w: 0.32, h: 0.06 },
+    tail: { style: 'slim', x: 0.68, y: 0.86, w: 0.38, h: 0.06 },
+    grille: { style: 'kidney', y: 0.6, w: 0.32, h: 0.17 },
+    intake: { y: 0.4, w: 0.64, h: 0.07 },
+    bumpers: 'body', doors: 4, exhaust: 'dual',
+  }),
+  // BMW M8 Competition: long, low grand tourer coupe with wide kidneys and a carbon roof.
+  bmw_m8_comp: d({
+    noseRound: 0.14, tailRound: 0.1, noseWidth: 0.8, tailWidth: 0.86, hips: 0.06, section: 4.4,
+    sillY: 0.2, bumperY: 0.22, noseY: 0.6, hoodY: 0.84, beltY: 0.9, deckY: 0.92, tailY: 0.88, hoodCurve: 2.4,
+    cowl: 0.1, roofFront: -0.06, roofBack: -0.2, cBase: -0.4, roofY: 1.34, roofArc: 0.03, tumble: 0.74, rear: 'fast',
+    pillars: 'black', roof: 'black',
+    frontAxle: 0.32, rearAxle: -0.29, wheelR: 0.36, wheelW: 0.29, archGap: 0.04, rim: 'multi', rimScale: 0.76,
+    head: { style: 'slim', x: 0.66, y: 0.64, w: 0.34, h: 0.06 },
+    tail: { style: 'slim', x: 0.66, y: 0.8, w: 0.38, h: 0.06 },
+    grille: { style: 'kidney', y: 0.5, w: 0.36, h: 0.15 },
+    intake: { y: 0.31, w: 0.84, h: 0.1 },
+    bumpers: 'body', doors: 2, exhaust: 'quad',
+  }),
+  // Mercedes-AMG GT: endless hood, cab set far back, vertical-slat grille, quad pipes.
+  mercedes_amg_gt: d({
+    noseRound: 0.15, tailRound: 0.1, noseWidth: 0.78, tailWidth: 0.86, hips: 0.07, section: 4.2,
+    sillY: 0.2, bumperY: 0.22, noseY: 0.58, hoodY: 0.86, beltY: 0.9, deckY: 0.92, tailY: 0.86, hoodCurve: 2.6,
+    cowl: 0.04, roofFront: -0.11, roofBack: -0.23, cBase: -0.42, roofY: 1.34, roofArc: 0.03, tumble: 0.72, rear: 'fast',
+    pillars: 'black', roof: 'body',
+    frontAxle: 0.31, rearAxle: -0.29, wheelR: 0.36, wheelW: 0.3, archGap: 0.04, rim: 'five', rimScale: 0.76,
+    head: { style: 'slim', x: 0.68, y: 0.64, w: 0.3, h: 0.07 },
+    tail: { style: 'slim', x: 0.66, y: 0.78, w: 0.3, h: 0.06 },
+    grille: { style: 'panamericana', y: 0.47, w: 0.34, h: 0.2 },
+    intake: { y: 0.3, w: 0.84, h: 0.1 },
+    bumpers: 'body', doors: 2, exhaust: 'quad',
+  }),
+  // Mercedes-Benz E-Class (W214): elegant saloon, wide gloss-black star grille, chrome line.
+  mercedes_e_w214: d({
+    noseRound: 0.11, tailRound: 0.08, noseWidth: 0.85, tailWidth: 0.88, hips: 0.02, section: 5,
+    sillY: 0.24, bumperY: 0.27, noseY: 0.68, hoodY: 0.88, beltY: 0.96, deckY: 0.97, tailY: 0.93, hoodCurve: 2.4,
+    cowl: 0.14, roofFront: -0.02, roofBack: -0.22, cBase: -0.34, roofY: 1.46, roofArc: 0.03, tumble: 0.8, rear: 'fast',
+    pillars: 'body', roof: 'body', chromeTrim: true,
+    frontAxle: 0.33, rearAxle: -0.28, wheelR: 0.35, wheelW: 0.24, archGap: 0.05, rim: 'multi', rimScale: 0.7,
+    head: { style: 'slim', x: 0.7, y: 0.68, w: 0.3, h: 0.07 },
+    tail: { style: 'slim', x: 0.66, y: 0.85, w: 0.38, h: 0.07 },
+    grille: { style: 'star', y: 0.6, w: 0.44, h: 0.16 },
+    intake: { y: 0.4, w: 0.6, h: 0.07 },
+    bumpers: 'body', doors: 4, exhaust: 'dual',
+  }),
+  // Mercedes-AMG G 63: a brick with round headlights, vertical slats and a spare wheel on the door.
+  mercedes_g_class: d({
+    noseRound: 0.03, tailRound: 0.02, noseWidth: 0.95, tailWidth: 0.97, hips: 0.03, section: 9,
+    sillY: 0.46, bumperY: 0.5, noseY: 1.08, hoodY: 1.16, beltY: 1.2, deckY: 1.2, tailY: 1.2, hoodCurve: 4,
+    cowl: 0.2, roofFront: 0.1, roofBack: -0.47, cBase: -0.49, roofY: 1.96, roofArc: 0.005, tumble: 0.93, rear: 'straight',
+    pillars: 'body', roof: 'body', spare: true, cladding: true,
+    frontAxle: 0.3, rearAxle: -0.3, wheelR: 0.43, wheelW: 0.3, archGap: 0.06, rim: 'five', rimScale: 0.66,
+    head: { style: 'round', x: 0.74, y: 0.92, w: 0.2, h: 0.2 },
+    tail: { style: 'vertical', x: 0.88, y: 0.96, w: 0.1, h: 0.26 },
+    grille: { style: 'panamericana', y: 0.88, w: 0.42, h: 0.2 },
+    bumpers: 'black', doors: 4, exhaust: 'dual',
+  }),
+  // Audi RS5 Coupe: fastback coupe, big honeycomb single-frame grille, wide quattro hips.
+  audi_rs5_coupe: d({
+    noseRound: 0.13, tailRound: 0.09, noseWidth: 0.83, tailWidth: 0.87, hips: 0.06, section: 4.6,
+    sillY: 0.21, bumperY: 0.23, noseY: 0.6, hoodY: 0.84, beltY: 0.91, deckY: 0.93, tailY: 0.88, hoodCurve: 2.2,
+    cowl: 0.12, roofFront: -0.04, roofBack: -0.2, cBase: -0.42, roofY: 1.36, roofArc: 0.03, tumble: 0.76, rear: 'fast',
+    pillars: 'black', roof: 'body',
+    frontAxle: 0.33, rearAxle: -0.28, wheelR: 0.35, wheelW: 0.28, archGap: 0.04, rim: 'multi', rimScale: 0.74,
+    head: { style: 'slim', x: 0.68, y: 0.64, w: 0.32, h: 0.06 },
+    tail: { style: 'slim', x: 0.66, y: 0.8, w: 0.36, h: 0.06 },
+    grille: { style: 'singleframe', y: 0.45, w: 0.42, h: 0.24 },
+    bumpers: 'body', doors: 2, exhaust: 'dual',
+  }),
 };
 
 /** A reasonable design derived from the physical shape, for models without a dedicated design. */
@@ -293,6 +417,7 @@ function fallback(shape: VehicleShape): CarDesign {
     van: 'norda_workmate',
     classic: 'harlan_bellwether',
     wagon: 'norda_arlo',
+    bike: 'norda_pixi',
   };
   return DESIGNS[base[shape.style]]!;
 }

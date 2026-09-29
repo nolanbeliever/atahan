@@ -1,5 +1,6 @@
 // Persistence mapping between records and SQL rows.
 
+import { normalizeMods } from '../../shared/customization';
 import type { AuctionStatus, SellerPersonalityId, Transaction, Vehicle, VehicleStatus } from '../../shared/types';
 import type { AuctionRecord, DealershipRecord, ListingRecord, NoticeRecord, PlayerRecord } from '../game/records';
 import type { Database, Queryable, Row } from './types';
@@ -111,7 +112,7 @@ export function rowToVehicle(r: Row): Vehicle {
     mileage: num(r.mileage),
     fuel: num(r.fuel),
     condition: json(r.condition, {} as Vehicle['condition']),
-    mods: json(r.mods, {} as Vehicle['mods']),
+    mods: normalizeMods(json(r.mods, {})),
     status: str(r.status) as VehicleStatus,
     purchasePrice: num(r.purchase_price),
     salePrice: numOrNull(r.sale_price),

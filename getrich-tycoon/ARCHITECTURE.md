@@ -37,12 +37,14 @@
   - `game/GameServer.ts` handles connections, authentication, RPC dispatch (rate limiting, request-id dedupe, error mapping), change propagation, tick loops and autosave.
   - `game/state.ts` holds `GameState` (authoritative in-memory world) and `UnitOfWork` (transactions).
   - `game/simulation.ts` is the movement simulation, speed-hack protection and snapshot building.
-  - `game/services/*` contains one module per gameplay system.
+  - `game/services/*` contains one module per gameplay system (`tuning.ts`: the tuning garage, `rareMarket.ts`: the Rare Dealer rotation).
   - `db/` holds the PostgreSQL and SQLite adapters behind one small `Database` interface, plus the repository (row mapping, parameterized SQL).
 - **`client/`**:
   - `game/Game.ts` runs the loop, fixed-step prediction, reconciliation and interactions.
   - `game/EntityViews.ts` owns all dynamic scene objects.
   - `render/*` generates everything procedurally: city, vehicles, characters, dealership levels. `render/batch.ts` merges static meshes per material to keep draw calls low.
+  - Tuning: `shared/modificationsData.ts` (parts data) and `shared/tuningSystem.ts` (pure `calculateVehicleStats`, dyno curves, prices, `quoteTuning`) are used by both the server (authoritative pricing/validation, physics) and the client (`ui/panels/garage.ts`, `ui/DynoChart.ts`, `render/Studio.ts` for the 3D preview and Rare Dealer pictures, `audio/Audio.ts` for the engine voice).
+  - Motorcycles: `render/bikeBody.ts` builds the bike; `BikeView` leans into corners and carries the rider.
   - Vehicle bodies: `render/carDesigns.ts` describes each model with numbers (side profile, plan shape, greenhouse, axles, lamps, grille, bumpers, rims). `render/carBody.ts` lofts the body from superellipse cross-sections with wheel-arch cut-outs, adds a glass greenhouse and conforms lamps, grilles and plates to the surface. The result is merged into a few material slots (trim and lamps use vertex colours) and cached per model. `render/VehicleMesh.ts` adds per-vehicle paint, dirt, damage and mods on top; parked cars use one merged wheel mesh and switch to animated wheels only while moving.
   - `ui/*` is a DOM UI. `ui/dom.ts` only ever inserts text via `textContent`.
 

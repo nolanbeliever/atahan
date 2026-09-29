@@ -1,11 +1,12 @@
 // UI manager: HUD, chat, minimap, toasts, modal panels.
 
+import { speedDisplayScale } from '../../../shared/tuningSystem';
 import { ECONOMY } from '../../../shared/economy.config';
 import { CHAT_MAX } from '../../../shared/protocol';
 import { levelProgress } from '../../../shared/progression';
 import type { ChatMessage, CustomerOffer, Notification } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
-import { modelDisplayName } from '../../../shared/vehicles';
+import { getModel, modelDisplayName } from '../../../shared/vehicles';
 import type { Game, Interaction } from '../game/Game';
 import { RpcError } from '../net/Network';
 import { clear, h, icon } from './dom';
@@ -119,6 +120,7 @@ export class UI {
     reconnect: HTMLElement;
     offers: HTMLElement;
     dealerBtn: HTMLElement;
+    marketBtn: HTMLElement;
     hint: HTMLElement;
   };
   private toasts: HTMLElement;
@@ -138,6 +140,8 @@ export class UI {
     this.root.insertBefore(this.touch.el, this.hud.offers);
     game.store.on('offers', () => this.renderOffers());
     game.store.on('dealerships', () => this.updateHud());
+    // A dot on the Marketplace button while the Rare Dealer has an unsold legendary.
+    game.store.on('rare', (r) => this.hud.marketBtn.classList.toggle('alert', r.offers.some((o) => o.tier === 'legendary' && !o.soldTo)));
   }
 
   private build(): void {
@@ -164,10 +168,11 @@ export class UI {
     const dockBtn = (label: string, svg: string, hk: string, panel: PanelName, testid: string) =>
       h('button', { title: label, 'data-testid': testid, onclick: () => this.open(panel) }, icon(svg), h('span', { class: 'hk' }, hk), h('span', { class: 'tip' }, `${label} (${hk})`), h('span', { class: 'dot' }));
     const dealerBtn = dockBtn('Dealership', ICONS.store, 'J', 'dealership', 'dock-dealership');
+    const marketBtn = dockBtn('Marketplace', ICONS.market, 'B', 'market', 'dock-market');
     const dock = h(
       'div',
       { class: 'dock' },
-      dockBtn('Marketplace', ICONS.market, 'B', 'market', 'dock-market'),
+      marketBtn,
       dockBtn('Garage / Inventory', ICONS.garage, 'I', 'inventory', 'dock-inventory'),
       dealerBtn,
       dockBtn('Auctions', ICONS.gavel, 'K', 'auctions', 'dock-auctions'),
@@ -199,7 +204,7 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
     this.root.append(top, right, dock, prompt, drive, this.chat.el, hint, offers, this.toasts, reconnect);
-    this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, speed, gauge, reconnect, offers, dealerBtn, hint };
+    this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, speed, gauge, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 
   // ------------------------------------------------------------ HUD
@@ -295,7 +300,7 @@ export class UI {
     this.hud.drive.classList.toggle('show', !!v);
     this.hud.hint.style.display = v ? 'none' : '';
     if (!v) return;
-    this.hud.speed.textContent = String(Math.round(Math.abs(this.game.speed) * 3.6));
+    this.hud.speed.textContent = String(Math.round(Math.abs(this.game.speed) * 3.6 * speedDisplayScale(getModel(v.modelId))));
     clear(this.hud.gauge);
     this.hud.gauge.append(
       h('div', { class: 'name' }, modelDisplayName(v.modelId)),

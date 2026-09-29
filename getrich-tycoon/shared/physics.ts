@@ -1,7 +1,8 @@
 // Deterministic movement & collision shared by server (authoritative) and
 // client (prediction). Keep this file free of DOM/Node APIs.
 
-import type { VehicleCondition } from './types';
+import { performanceFactors } from './tuningSystem';
+import type { VehicleCondition, VehicleMods } from './types';
 import { angleDiff, clamp } from './util';
 import type { VehicleModel } from './vehicles';
 import { WORLD_BOUNDS, type AABB, type Circle } from './world';
@@ -205,17 +206,19 @@ export interface VehicleParams {
   hasFuel: boolean;
 }
 
-export function vehicleParams(model: VehicleModel, condition: VehicleCondition, fuel: number): VehicleParams {
+export function vehicleParams(model: VehicleModel, condition: VehicleCondition, fuel: number, mods?: VehicleMods): VehicleParams {
   const eng = clamp(condition.engine, 0, 100) / 100;
   const trans = clamp(condition.transmission, 0, 100) / 100;
   const brakes = clamp(condition.brakes, 0, 100) / 100;
   const tires = clamp(condition.tires, 0, 100) / 100;
+  // Installed performance parts scale the game-scale figures (see tuningSystem.performanceFactors).
+  const tuned = performanceFactors(model, mods?.tuning);
   return {
-    topSpeed: model.perf.topSpeed * (0.55 + 0.45 * eng),
+    topSpeed: model.perf.topSpeed * tuned.topSpeed * (0.55 + 0.45 * eng),
     reverseSpeed: 7,
-    accel: model.perf.accel * (0.45 + 0.55 * eng) * (0.6 + 0.4 * trans),
-    brake: model.perf.brake * (0.35 + 0.65 * brakes),
-    grip: model.perf.handling * (0.55 + 0.45 * tires),
+    accel: model.perf.accel * tuned.accel * (0.45 + 0.55 * eng) * (0.6 + 0.4 * trans),
+    brake: model.perf.brake * tuned.brake * (0.35 + 0.65 * brakes),
+    grip: model.perf.handling * tuned.grip * (0.55 + 0.45 * tires),
     maxSteer: 0.6,
     wheelbase: model.shape.length * 0.62,
     halfLength: model.shape.length / 2,
@@ -286,7 +289,7 @@ export function stepVehicle(
   v.steer += clamp(target - v.steer, -rate * dt, rate * dt);
 
   const slide = handbrake && Math.abs(v.speed) > 6 ? 1.35 : 1;
-  const yawRate = ((v.speed * Math.tan(v.steer)) / p.wheelbase) * Math.min(1.25, p.grip) * slide;
+  const yawRate = ((v.speed * Math.tan(v.steer)) / p.wheelbase) * Math.min(1.7, p.grip) * slide;
   v.rot += yawRate * dt;
   if (v.rot > Math.PI) v.rot -= Math.PI * 2;
   if (v.rot < -Math.PI) v.rot += Math.PI * 2;

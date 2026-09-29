@@ -3,6 +3,7 @@
 
 import { ECONOMY } from './economy.config';
 import { modsValue } from './customization';
+import { resaleMultiplier } from './tuningSystem';
 import type { CategoryTrends, RepairPart, Vehicle, VehicleCondition, VehicleMods } from './types';
 import { REPAIR_PARTS, VEHICLE_CATEGORIES } from './types';
 import { clamp } from './util';
@@ -58,7 +59,9 @@ export function marketValue(vehicle: ValuableVehicle, trends?: CategoryTrends): 
   const demand = trends ? trends[model.category] ?? 1 : 1;
   const base =
     model.basePrice * demand * rarityFactor(model) * conditionFactor(vehicle.condition) * mileageFactor(model, vehicle.mileage);
-  return Math.max(50, Math.round(base + modsBonus(base, vehicle.mods)));
+  // Tuning multiplies the value (a full Stage 3 build: roughly 150-200% of stock); classic
+  // one-click customization adds a small capped bonus on top.
+  return Math.max(50, Math.round(base * resaleMultiplier(model, vehicle.mods.tuning) + modsBonus(base, vehicle.mods)));
 }
 
 export function quickSellPrice(vehicle: ValuableVehicle, trends?: CategoryTrends): number {

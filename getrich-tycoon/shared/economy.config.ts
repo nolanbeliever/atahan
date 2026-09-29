@@ -8,6 +8,7 @@
 // ============================================================================
 
 import type { RepairPart, SellerPersonalityId, VehicleCategory } from './types';
+import type { RarityTier } from './vehicles';
 
 export interface DealershipLevelConfig {
   level: number;
@@ -405,6 +406,52 @@ export const ECONOMY = {
   customization: {
     /** Fraction of the paid customization cost that is recognised in market value (capped by valuation.maxModsBonus). */
     valueRetention: 0.6,
+  },
+
+  /** Tuning garage. Part prices and value bonuses live in modificationsData.ts. */
+  tuning: {
+    /** Engine condition lost per game km for each point of engine stress above 1 (tuned engines wear faster). */
+    engineWearPerKm: 0.12,
+    xpPerPart: 8,
+  },
+
+  /** Rare Dealer: a rotating stock of special vehicles (see rareMarket.ts). */
+  rareMarket: {
+    /** The whole stock is replaced every N seconds (aligned to the server clock). */
+    rotationSec: 120,
+    /** Offers per rotation. */
+    slots: 6,
+    /**
+     * Chance (%) that one offer is from each tier. Common + uncommon = 70, rare + epic = 25,
+     * legendary = 5. A legendary slot picks one legendary model weighted by its drop chance, so
+     * each legendary model shows up in well under 5% of rotations.
+     */
+    tierWeights: { common: 40, uncommon: 30, rare: 17, epic: 8, legendary: 5 } satisfies Record<RarityTier, number>,
+    /** Price as a fraction of market value (never below what auctions or the wholesaler pay). */
+    priceRange: {
+      common: [0.94, 1.06],
+      uncommon: [0.94, 1.06],
+      rare: [0.96, 1.08],
+      epic: [0.97, 1.1],
+      legendary: [1.0, 1.08],
+    } satisfies Record<RarityTier, [number, number]>,
+    /** Condition quality (see generator.generateCondition) and mileage ranges per tier. */
+    quality: {
+      common: [55, 90],
+      uncommon: [60, 92],
+      rare: [70, 96],
+      epic: [75, 97],
+      legendary: [92, 100],
+    } satisfies Record<RarityTier, [number, number]>,
+    mileage: {
+      common: [8_000, 140_000],
+      uncommon: [6_000, 110_000],
+      rare: [3_000, 80_000],
+      epic: [2_000, 60_000],
+      legendary: [0, 6_000],
+    } satisfies Record<RarityTier, [number, number]>,
+    /** Chance that a non-legendary offer comes with a performance package already fitted. */
+    tunedChance: 0.25,
   },
 
   /** Player-to-player trading guards (limit money/XP farming with alternate accounts). */

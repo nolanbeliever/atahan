@@ -35,7 +35,9 @@ import { CustomerService } from './services/customers';
 import { DealershipService } from './services/dealership';
 import { GarageService } from './services/garage';
 import { MarketService } from './services/market';
+import { RareMarketService } from './services/rareMarket';
 import { TrendsService } from './services/trends';
+import { TuningService } from './services/tuning';
 import { VehicleService } from './services/vehicles';
 
 const log = createLogger('game');
@@ -71,6 +73,8 @@ export class GameServer implements Hub {
   readonly chat: ChatService;
   readonly customers: CustomerService;
   readonly trends: TrendsService;
+  readonly tuning: TuningService;
+  readonly rare: RareMarketService;
   private sessions = new Map<string, Session>();
   private timers: NodeJS.Timeout[] = [];
   private selfDirty = new Set<string>();
@@ -100,6 +104,8 @@ export class GameServer implements Hub {
     this.chat = new ChatService(this.ctx);
     this.customers = new CustomerService(this.ctx);
     this.trends = new TrendsService(this.ctx);
+    this.tuning = new TuningService(this.ctx);
+    this.rare = new RareMarketService(this.ctx);
     state.onCommit = (r) => this.onCommit(r);
 
     this.handlers = {
@@ -125,6 +131,9 @@ export class GameServer implements Hub {
       'wash.start': (pid, p) => this.garage.wash(pid, p),
       'fuel.refill': (pid, p) => this.garage.refuel(pid, p),
       'custom.apply': (pid, p) => this.garage.customize(pid, p),
+      'tuning.apply': (pid, p) => this.tuning.apply(pid, p),
+      'rare.list': () => this.rare.list(),
+      'rare.buy': (pid, p) => this.rare.buy(pid, p),
       'parts.buy': (pid, p) => this.garage.buyParts(pid, p),
       'bank.deposit': (pid, p) => this.bank.deposit(pid, p),
       'bank.withdraw': (pid, p) => this.bank.withdraw(pid, p),
@@ -208,6 +217,7 @@ export class GameServer implements Hub {
       });
     });
 
+    await this.rare.init();
     if (this.cfg.simulation) {
       await this.market.refresh().catch((err) => log.error('initial market refresh failed', { error: (err as Error).message }));
     }
@@ -242,6 +252,7 @@ export class GameServer implements Hub {
     for (const t of this.timers) clearInterval(t);
     this.timers = [];
     this.garage.dispose();
+    this.tuning.dispose();
     await this.autosave();
     for (const s of this.sessions.values()) s.socket.disconnect(true);
     log.info('game server stopped');
@@ -502,6 +513,7 @@ export class GameServer implements Hub {
   }
 
   private async slowTick(): Promise<void> {
+    this.rare.tick();
     if (this.cfg.simulation) {
       await this.customers.tick();
       await this.auctions.tick();

@@ -1,5 +1,8 @@
 // Marketplace, vehicle inspection & negotiation, player listing purchase.
 
+import { PAINT_FINISH_DEFS, RIM_FINISH_DEFS, findPart, findRimDesign } from '../../../../shared/modificationsData';
+import { TIER_COLORS, TIER_LABELS } from '../../../../shared/rareMarket';
+import { calculateVehicleStats } from '../../../../shared/tuningSystem';
 import { ECONOMY } from '../../../../shared/economy.config';
 import { isCategoryUnlocked } from '../../../../shared/progression';
 import type { MarketListing, NegotiationState, PlayerListing, Vehicle, VehicleCategory } from '../../../../shared/types';
@@ -12,6 +15,7 @@ import { h, type Child } from '../dom';
 import { ICONS } from '../icons';
 import { Panel } from '../Panel';
 import { conditionRows, dealBadge, field, swatch, vehicleCard, vehicleTitle } from '../widgets';
+import { rareDealerView, rareTimerText } from './rareDealer';
 
 const PERSONALITY_COLOR: Record<string, string> = { friendly: 'green', stubborn: 'red', desperate: 'blue', shrewd: 'gold', collector: 'purple' };
 
@@ -25,7 +29,9 @@ type SortKey = 'price_asc' | 'price_desc' | 'value' | 'condition' | 'mileage' | 
 
 export class MarketPanel extends Panel {
   readonly name = 'market';
-  private tab: 'npc' | 'players' = (this.arg.tab as 'npc' | 'players') ?? 'npc';
+  private tab: 'npc' | 'players' | 'rare' = (this.arg.tab as 'npc' | 'players' | 'rare') ?? 'npc';
+  private timerEl: HTMLElement | null = null;
+  private timer = 0;
   private category: VehicleCategory | 'all' = 'all';
   private maxPrice = 0;
   private sort: SortKey = 'price_asc';
@@ -36,7 +42,7 @@ export class MarketPanel extends Panel {
     return 'Marketplace';
   }
   override subtitle() {
-    return 'Browse used vehicles from NPC sellers and other players';
+    return this.tab === 'rare' ? 'Special stock that changes every 2 minutes' : 'Browse used vehicles from NPC sellers and other players';
   }
   iconSvg() {
     return ICONS.market;
@@ -45,6 +51,18 @@ export class MarketPanel extends Panel {
   override init(): void {
     void this.load();
     this.listen(this.store.on('market', () => this.refresh()));
+    this.listen(this.store.on('rare', () => this.refresh()));
+    // Rare Dealer countdown; if the restock broadcast is late, ask for it.
+    let asked = 0;
+    this.timer = window.setInterval(() => {
+      const rare = this.store.rare;
+      if (this.timerEl && rare) this.timerEl.textContent = rareTimerText(rare, this.store.serverNow());
+      if (rare && this.store.serverNow() > rare.endsAt + 1500 && Date.now() - asked > 3000) {
+        asked = Date.now();
+        void this.net.rpc('rare.list', {}).then((s) => this.store.setRare(s)).catch(() => undefined);
+      }
+    }, 250);
+    if (!this.store.rare) void this.net.rpc('rare.list', {}).then((s) => this.store.setRare(s)).catch(() => undefined);
     this.listen(this.store.on('listingsChanged', () => void this.load()));
     this.listen(this.store.on('trends', () => this.refresh()));
   }
@@ -90,7 +108,14 @@ export class MarketPanel extends Panel {
       { class: 'subtabs' },
       h('button', { class: this.tab === 'npc' ? 'active' : '', 'data-testid': 'market-tab-npc', onclick: () => ((this.tab = 'npc'), this.refresh()) }, `Used Market (${this.store.marketListings.length})`),
       h('button', { class: this.tab === 'players' ? 'active' : '', 'data-testid': 'market-tab-players', onclick: () => ((this.tab = 'players'), this.refresh()) }, `Player Listings (${this.playerListings.length})`),
+      h('button', { class: `${this.tab === 'rare' ? 'active' : ''} rare-tab`, 'data-testid': 'market-tab-rare', onclick: () => ((this.tab = 'rare'), this.refresh()) }, 'Rare Dealer'),
     );
+    if (this.tab === 'rare') {
+      const view = rareDealerView({ store: this.store, busy: this.busy }, (offerId, price) => void this.buyRare(offerId, price));
+      this.timerEl = view.timer;
+      return [tabs, view.el];
+    }
+    this.timerEl = null;
     const catSel = h(
       'select',
       { class: 'input', onchange: (e: Event) => ((this.category = (e.target as HTMLSelectElement).value as VehicleCategory | 'all'), this.refresh()) },
@@ -198,6 +223,21 @@ export class MarketPanel extends Panel {
     );
   }
 
+  private async buyRare(offerId: string, price: number): Promise<void> {
+    await this.act(
+      () => this.net.rpc('rare.buy', { offerId, expectedPrice: price }),
+      (r) => {
+        this.game.audio.play('purchase');
+        this.ui.success('Rare find!', `${vehicleTitle(r.vehicle).name} is now in your garage (press I).`);
+      },
+    );
+  }
+
+  override dispose(): void {
+    window.clearInterval(this.timer);
+    super.dispose();
+  }
+
   private async buyPlayer(l: PlayerListing): Promise<void> {
     await this.act(
       () => this.net.rpc('market.buyPlayer', { vehicleId: l.vehicle.id, expectedPrice: l.price }),
@@ -215,14 +255,26 @@ export class MarketPanel extends Panel {
 export function modsList(v: Vehicle): Child {
   const items = (Object.keys(MOD_SLOT_LABELS) as ModSlot[])
     .map((s) => ({ s, o: findOption(v.mods[s]) }))
-    .filter((x) => x.o && x.o.price > 0);
+    .filter((x) => x.o && x.o.price > 0)
+    .map((x) => `${MOD_SLOT_LABELS[x.s]}: ${x.o!.label}`);
+  const t = v.mods.tuning;
+  if (t) {
+    for (const id of [...Object.values(t.perf), ...Object.values(t.body)]) {
+      const p = findPart(id);
+      if (p) items.push(p.name);
+    }
+    if (t.paint) items.push(`${PAINT_FINISH_DEFS[t.paint.finish].name} paint`);
+    if (t.rim) items.push(`${findRimDesign(t.rim.design)?.name ?? 'Custom'} wheels (${RIM_FINISH_DEFS[t.rim.finish].name})`);
+    if (t.drop || t.camber) items.push(`Stance: -${t.drop} cm, -${t.camber}° camber`);
+  }
   if (items.length === 0) return h('span', { class: 'muted small' }, 'Stock - no modifications');
-  return h('div', { class: 'row wrap', style: { gap: '6px' } }, items.map((x) => h('span', { class: 'pill purple' }, `${MOD_SLOT_LABELS[x.s]}: ${x.o!.label}`)));
+  return h('div', { class: 'row wrap', style: { gap: '6px' } }, items.map((x) => h('span', { class: 'pill purple' }, x)));
 }
 
 export function vehicleDetails(v: Vehicle, trends = undefined as Parameters<typeof marketValue>[1]): Child {
   const m = getModel(v.modelId);
   const t = vehicleTitle(v);
+  const stats = calculateVehicleStats(m, v.mods.tuning);
   return h(
     'div',
     { class: 'col' },
@@ -234,7 +286,10 @@ export function vehicleDetails(v: Vehicle, trends = undefined as Parameters<type
       h('div', { class: 'stat' }, h('div', { class: 'k' }, 'Mileage'), h('div', { class: 'v' }, formatKm(v.mileage))),
       h('div', { class: 'stat' }, h('div', { class: 'k' }, 'Fuel'), h('div', { class: 'v' }, `${Math.round(v.fuel)}%`)),
       h('div', { class: 'stat' }, h('div', { class: 'k' }, 'Est. value'), h('div', { class: 'v money' }, formatMoney(marketValue(v, trends)))),
-      h('div', { class: 'stat' }, h('div', { class: 'k' }, 'Top speed'), h('div', { class: 'v' }, `${Math.round(m.perf.topSpeed * 3.6)} km/h`)),
+      h('div', { class: 'stat' }, h('div', { class: 'k' }, 'Power'), h('div', { class: 'v' }, `${stats.hp} hp / ${stats.torque} Nm`)),
+      h('div', { class: 'stat' }, h('div', { class: 'k' }, '0-100 km/h'), h('div', { class: 'v' }, `${stats.accel} s`)),
+      h('div', { class: 'stat' }, h('div', { class: 'k' }, 'Top speed'), h('div', { class: 'v' }, `${stats.topSpeed} km/h`)),
+      h('div', { class: 'stat' }, h('div', { class: 'k' }, 'Rarity'), h('div', { class: 'v', style: { color: TIER_COLORS[m.tier] } }, TIER_LABELS[m.tier])),
     ),
     h('div', { class: 'section-title' }, 'Condition report'),
     conditionRows(v.condition),

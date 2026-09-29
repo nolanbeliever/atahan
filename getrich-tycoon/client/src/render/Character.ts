@@ -1,4 +1,4 @@
-// Original low-poly character with procedural animation (idle/walk/run/interact).
+// Original low-poly character with procedural animation (idle/walk/run/interact, riding).
 
 import * as THREE from 'three';
 import { Anim, type Appearance } from '../../../shared/types';
@@ -97,6 +97,16 @@ export class CharacterView {
     const swing = moving ? Math.sin(this.phase) * (running ? 0.95 : 0.55) : 0;
     const k = Math.min(1, dt * 12);
     const lerp = (obj: THREE.Object3D, target: number) => (obj.rotation.x += (target - obj.rotation.x) * k);
+    if (anim === Anim.Drive) {
+      // Seated on a motorcycle: thighs forward, hands on the bars, leaning in a little.
+      lerp(this.hipL, -0.9);
+      lerp(this.hipR, -0.9);
+      lerp(this.shL, -1.0);
+      lerp(this.shR, -1.0);
+      this.rig.position.y = 0;
+      this.rig.rotation.x += (0.28 - this.rig.rotation.x) * k;
+      return;
+    }
     lerp(this.hipL, swing);
     lerp(this.hipR, -swing);
     if (anim === Anim.Interact) {

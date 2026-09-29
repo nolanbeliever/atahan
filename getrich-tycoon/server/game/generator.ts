@@ -5,7 +5,7 @@ import { ECONOMY } from '../../shared/economy.config';
 import type { Vehicle, VehicleCondition } from '../../shared/types';
 import { REPAIR_PARTS } from '../../shared/types';
 import { clamp, pick, randRange, weightedPick, type Rng } from '../../shared/util';
-import { VEHICLE_MODELS, type VehicleModel } from '../../shared/vehicles';
+import { CATALOG_MODELS, type VehicleModel } from '../../shared/vehicles';
 import { newId } from '../ids';
 
 const FIRST = ['Alex', 'Sam', 'Jordan', 'Riley', 'Casey', 'Morgan', 'Taylor', 'Jamie', 'Avery', 'Quinn', 'Rowan', 'Harper', 'Emery', 'Dakota', 'Skyler', 'Reese', 'Parker', 'Sage', 'Blair', 'Devon', 'Marlo', 'Nico', 'Ines', 'Tobi', 'Yara', 'Omar', 'Lena', 'Kai', 'Mira', 'Theo'];
@@ -23,7 +23,7 @@ function gaussian(rng: Rng): number {
 export function pickModel(rng: Rng, opts: { rarityBias?: number } = {}): VehicleModel {
   const bias = opts.rarityBias ?? 0;
   const weights = ECONOMY.marketplace.categoryWeights;
-  return weightedPick(rng, VEHICLE_MODELS, (m) => weights[m.category] * Math.pow(m.rarity, bias - 1.2));
+  return weightedPick(rng, CATALOG_MODELS as VehicleModel[], (m) => weights[m.category] * Math.pow(m.rarity, bias - 1.2));
 }
 
 export function generateCondition(rng: Rng, quality: number): VehicleCondition {

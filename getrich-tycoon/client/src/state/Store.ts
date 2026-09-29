@@ -1,6 +1,7 @@
 // Client-side mirror of the authoritative server state.
 
 import type { PrivateState } from '../../../shared/protocol';
+import type { RareMarketState } from '../../../shared/rareMarket';
 import type {
   CategoryTrends,
   CustomerOffer,
@@ -25,6 +26,7 @@ export interface StoreEvents extends Record<string, unknown> {
   trends: CategoryTrends;
   listingsChanged: void;
   offers: void;
+  rare: RareMarketState;
 }
 
 export class Store extends Emitter<StoreEvents> {
@@ -36,6 +38,10 @@ export class Store extends Emitter<StoreEvents> {
   marketListings: MarketListing[] = [];
   trends: CategoryTrends = neutralTrends();
   offers = new Map<string, CustomerOffer>();
+  /** Rare Dealer stock (null until fetched). */
+  rare: RareMarketState | null = null;
+  /** Server clock minus local clock (ms), learned from Rare Dealer updates. */
+  clockOffset = 0;
 
   applyWelcome(playerId: string, self: PrivateState, world: WorldInit): void {
     this.playerId = playerId;
@@ -91,6 +97,17 @@ export class Store extends Emitter<StoreEvents> {
   setTrends(t: CategoryTrends): void {
     this.trends = t;
     this.emit('trends', t);
+  }
+
+  setRare(s: RareMarketState): void {
+    this.clockOffset = s.serverTime - Date.now();
+    this.rare = s;
+    this.emit('rare', s);
+  }
+
+  /** Best estimate of the server clock (ms). */
+  serverNow(): number {
+    return Date.now() + this.clockOffset;
   }
 
   // ---------------------------------------------------------------- helpers

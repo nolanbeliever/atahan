@@ -1,8 +1,7 @@
-// Location services: repair garage, car wash, fuel, customization, parts depot, bank.
+// Location services: repair garage, car wash, fuel, parts depot, bank (customization: garage.ts).
 
-import { MOD_CATALOG, MOD_SLOT_LABELS, findOption, type ModSlot } from '../../../../shared/customization';
 import { ECONOMY, dealershipLevel } from '../../../../shared/economy.config';
-import { REPAIR_PARTS, type RepairPart, type Vehicle, type VehicleMods } from '../../../../shared/types';
+import { REPAIR_PARTS, type RepairPart, type Vehicle } from '../../../../shared/types';
 import { fuelCost, marketValue, repairQuote } from '../../../../shared/valuation';
 import { formatMoney } from '../../../../shared/util';
 import type { InteractKind } from '../../../../shared/world';
@@ -237,95 +236,6 @@ export class FuelPanel extends ServicePanel {
 }
 
 // ---------------------------------------------------------------------------
-
-export class CustomPanel extends ServicePanel {
-  readonly name = 'custom';
-  kind: InteractKind = 'custom';
-  private pending: Partial<VehicleMods> = {};
-  private forVehicle = '';
-  title() {
-    return 'Chroma Customs';
-  }
-  override subtitle() {
-    return 'Paint, wheels, tint, body kits and more';
-  }
-  iconSvg() {
-    return ICONS.brush;
-  }
-  renderBody(): Child {
-    const v = this.current();
-    if (!v) return h('div', { class: 'empty' }, 'No vehicles available for customization.');
-    if (this.forVehicle !== v.id) {
-      this.forVehicle = v.id;
-      this.pending = {};
-    }
-    const slots = Object.keys(MOD_CATALOG) as ModSlot[];
-    return [
-      this.here() ? null : this.notHere(),
-      this.picker(),
-      slots.map((slot) => {
-        const installed = v.mods[slot];
-        const chosen = slot in this.pending ? this.pending[slot] : installed;
-        const options = slot === 'paint' ? [{ id: null as string | null, label: 'Factory colour', price: 0, value: v.color }, ...MOD_CATALOG.paint] : MOD_CATALOG[slot];
-        return h(
-          'div',
-          null,
-          h('div', { class: 'section-title' }, MOD_SLOT_LABELS[slot]),
-          h(
-            'div',
-            { class: 'opt-grid' },
-            options.map((o) =>
-              h(
-                'button',
-                {
-                  class: `opt${chosen === o.id ? ' active' : ''}${installed === o.id ? ' current' : ''}`,
-                  'data-testid': `mod-${slot}-${o.id ?? 'factory'}`,
-                  onclick: () => {
-                    if (o.id === installed) delete this.pending[slot];
-                    else (this.pending as Record<string, string | null>)[slot] = o.id;
-                    this.refresh();
-                  },
-                },
-                slot === 'paint' || slot === 'headlights' ? h('span', { class: 'sw', style: { background: o.value } }) : null,
-                o.label,
-                o.price > 0 ? h('span', { class: 'muted' }, formatMoney(o.price)) : null,
-              ),
-            ),
-          ),
-        );
-      }),
-    ];
-  }
-  private cost(): number {
-    return Object.values(this.pending).reduce<number>((s, id) => s + (findOption(id)?.price ?? 0), 0);
-  }
-  override renderFoot(): Child {
-    const v = this.current();
-    if (!v) return null;
-    const changes = Object.keys(this.pending).length;
-    return [
-      h('div', { class: 'muted small grow' }, changes ? `${changes} change(s) selected` : 'Select options to customize'),
-      h('button', { class: 'btn ghost', onclick: () => ((this.pending = {}), this.refresh()) }, 'Reset'),
-      h(
-        'button',
-        {
-          class: 'btn primary',
-          'data-testid': 'custom-apply',
-          disabled: this.busy || changes === 0,
-          onclick: () =>
-            void this.act(
-              () => this.net.rpc('custom.apply', { vehicleId: v.id, mods: this.pending }),
-              (r) => {
-                this.pending = {};
-                this.ui.success('Looking good!', `Customization applied for ${formatMoney(r.cost)}.`);
-              },
-            ),
-        },
-        `Apply - ${formatMoney(this.cost())}`,
-      ),
-    ];
-  }
-}
 
 // ---------------------------------------------------------------------------
 

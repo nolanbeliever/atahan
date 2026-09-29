@@ -5,7 +5,8 @@ import { DealershipPanel, PlotPanel } from './dealership';
 import { InventoryPanel } from './inventory';
 import { InspectPanel, MarketPanel, PlayerListingPanel } from './market';
 import { MapPanel, MenuPanel, ProfilePanel, SettingsPanel } from './misc';
-import { BankPanel, CustomPanel, FuelPanel, PartsPanel, RepairPanel, WashPanel } from './services';
+import { TuningGaragePanel } from './garage';
+import { BankPanel, FuelPanel, PartsPanel, RepairPanel, WashPanel } from './services';
 
 const PANELS = {
   menu: MenuPanel,
@@ -23,7 +24,7 @@ const PANELS = {
   repair: RepairPanel,
   wash: WashPanel,
   fuel: FuelPanel,
-  custom: CustomPanel,
+  custom: TuningGaragePanel,
   parts: PartsPanel,
   bank: BankPanel,
   market_lot: MarketPanel,

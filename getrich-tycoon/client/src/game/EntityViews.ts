@@ -7,7 +7,9 @@ import { modelDisplayName } from '../../../shared/vehicles';
 import { groundHeight } from '../render/City';
 import { CharacterView, NPC_PALETTE } from '../render/Character';
 import { Label } from '../render/Labels';
-import { VehicleView } from '../render/VehicleMesh';
+import { calculateVehicleStats } from '../../../shared/tuningSystem';
+import { getModel } from '../../../shared/vehicles';
+import { BikeView, createVehicleView, type AnyVehicleView } from '../render/VehicleMesh';
 import { INTERP_DELAY_MS, InterpBuffer } from './Interpolation';
 
 export interface CharEntity {
@@ -20,7 +22,10 @@ export interface CharEntity {
 }
 
 export interface VehEntity {
-  view: VehicleView;
+  view: AnyVehicleView;
+  /** Previous frame speed, to spot throttle lifts on other players' cars (backfires). */
+  lastSpeed: number;
+  accel: number;
   label: Label | null;
   data: Vehicle;
   kind: 'public' | 'market';
@@ -66,7 +71,7 @@ export class EntityViews {
   removePlayer(id: string): void {
     const e = this.players.get(id);
     if (!e) return;
-    this.scene.remove(e.view.root);
+    e.view.root.removeFromParent(); // the scene, or a motorcycle's rider mount
     if (e.label) {
       this.scene.remove(e.label.sprite);
       e.label.dispose();
@@ -107,9 +112,9 @@ export class EntityViews {
   upsertVehicle(v: PublicVehicle | Vehicle, kind: 'public' | 'market', listing?: MarketListing, ownerName?: string | null): void {
     let e = this.vehicles.get(v.id);
     if (!e) {
-      const view = new VehicleView(v);
+      const view = createVehicleView(v);
       this.scene.add(view.root);
-      e = { view, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation };
+      e = { view, lastSpeed: 0, accel: 0, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation };
       this.vehicles.set(v.id, e);
     } else {
       e.view.update(v);
@@ -207,6 +212,17 @@ export class EntityViews {
       e.view.root.position.set(e.x, y, e.z);
       e.view.root.rotation.y = e.rot;
       e.view.animate(speed, steer, dt);
+      // Other drivers' backfires: a sharp lift off the throttle at speed.
+      if (local.driving !== id && e.driven && dt > 0) {
+        const a = (speed - e.lastSpeed) / dt;
+        if (e.accel > 2 && a < -1 && Math.abs(speed) > 8) {
+          const pops = calculateVehicleStats(getModel(e.data.modelId), e.data.mods.tuning).sound.pops;
+          if (Math.random() < pops) e.view.pop(pops);
+        }
+        e.accel = e.accel * 0.8 + a * 0.2;
+      }
+      e.lastSpeed = speed;
+      if (e.view instanceof BikeView) e.view.ridden = e.driven;
       if (e.label) {
         e.label.sprite.visible = local.driving !== id && (this.showNames || e.kind === 'market' || e.data.status === 'displayed');
         e.label.sprite.position.set(e.x, y + e.view.height + 0.75, e.z);
@@ -236,10 +252,21 @@ export class EntityViews {
         driving = e.driving;
       }
       const y = groundHeight(x, z);
-      e.view.root.visible = !driving;
-      e.view.root.position.set(x, y, z);
-      e.view.root.rotation.y = r;
-      e.view.animate(anim, dt);
+      // Car drivers disappear inside; motorcycle riders sit on the bike.
+      const ride = driving ? this.vehicles.get(driving)?.view : undefined;
+      if (ride instanceof BikeView) {
+        if (e.view.root.parent !== ride.riderMount) ride.riderMount.add(e.view.root);
+        e.view.root.visible = true;
+        e.view.root.position.set(0, -0.86, 0.04);
+        e.view.root.rotation.set(0, 0, 0);
+        e.view.animate(Anim.Drive, dt);
+      } else {
+        if (e.view.root.parent !== this.scene) this.scene.add(e.view.root);
+        e.view.root.visible = !driving;
+        e.view.root.position.set(x, y, z);
+        e.view.root.rotation.y = r;
+        e.view.animate(anim, dt);
+      }
       if (e.label) {
         e.label.sprite.visible = this.showNames;
         const veh = driving ? this.vehicles.get(driving) : undefined;

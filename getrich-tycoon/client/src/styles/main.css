@@ -358,3 +358,92 @@ body.touch .modal-close { width: 44px; height: 44px; }
   body.touch .speedo { width: 110px; padding: 8px 10px; }
   body.touch .speedo .v { font-size: 30px; }
 }
+
+/* ---------------------------------------------------------------- tuning garage */
+.modal.xl { width: min(1220px, 96vw); max-height: min(880px, 94vh); }
+.garage-top { gap: 12px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.garage { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 16px; align-items: start; }
+.garage-main { min-width: 0; }
+.garage-view { position: relative; height: 310px; border-radius: 14px; overflow: hidden; background: #1a1d24; border: 1px solid var(--line); }
+.garage-view canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+.garage-view canvas:active { cursor: grabbing; }
+.garage-hint { position: absolute; right: 10px; bottom: 8px; color: rgba(255,255,255,0.5); pointer-events: none; }
+.garage-tabs { margin: 12px 0 6px; }
+.garage-stats { position: sticky; top: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.gstat { margin-bottom: 8px; }
+.gstat .k { font-size: 12px; color: var(--text-dim); }
+.gstat .v { font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums; }
+.gstat .up { color: var(--money); }
+.gstat .down { color: var(--danger); }
+.gbar { height: 5px; background: rgba(255,255,255,0.08); border-radius: 99px; margin-top: 4px; overflow: hidden; }
+.gbar div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 99px; transition: width 0.3s; }
+.gvalue .money { font-size: 22px; font-weight: 900; color: var(--money); }
+.gslot { margin-bottom: 12px; }
+.gslot-head { font-weight: 800; font-size: 13px; margin-bottom: 6px; }
+.gopt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.gopt { text-align: left; border: 1px solid var(--line-strong); background: var(--panel-2); color: var(--text); padding: 9px 10px; border-radius: 10px; cursor: pointer; display: flex; gap: 8px; align-items: center; font: inherit; }
+.gopt:hover:not(:disabled) { border-color: var(--accent); }
+.gopt.active { border-color: var(--money); box-shadow: 0 0 0 2px rgba(46,229,157,0.3); background: rgba(46,229,157,0.08); }
+.gopt.current .gopt-price { color: var(--text-faint); }
+.gopt:disabled { opacity: 0.45; cursor: not-allowed; }
+.gopt-main { flex: 1; min-width: 0; }
+.gopt-title { font-weight: 800; font-size: 12.5px; line-height: 1.25; }
+.gopt-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.3; }
+.gopt-sub.warn { color: var(--warning); }
+.gopt-price { font-weight: 800; font-size: 12px; color: var(--money); white-space: nowrap; }
+.gopt .sw { width: 18px; height: 18px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.3); flex: none; }
+.lvl { display: inline-block; font-size: 9px; font-weight: 900; text-transform: uppercase; padding: 1px 5px; border-radius: 5px; margin-right: 6px; vertical-align: 1px; }
+.lvl.l1 { background: #2b3a55; color: #9fc1ff; }
+.lvl.l2 { background: #1f4d3c; color: #6ff0b9; }
+.lvl.l3 { background: #4d2b1f; color: #ffab85; }
+.lvl.l4 { background: #4d1f45; color: #ff8fe9; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch-btn { width: 38px; height: 38px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; }
+.swatch-btn.active { border-color: #fff; box-shadow: 0 0 0 3px rgba(79,140,255,0.5); }
+.swatch-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.color-pick { width: 52px; height: 38px; border: 1px solid var(--line-strong); border-radius: 10px; background: transparent; padding: 2px; cursor: pointer; }
+.input.bad { border-color: var(--danger); }
+.gslider { margin-bottom: 12px; }
+.gslider input[type=range] { width: 100%; accent-color: var(--accent); }
+.dyno-wrap { height: 250px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+.dyno-chart { width: 100%; height: 100%; display: block; }
+.dyno-peaks { gap: 10px; margin-bottom: 10px; }
+.dpeak { flex: 1; min-width: 120px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; }
+.dpeak .big { font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.dpeak.hp .big { color: #ff7a45; }
+.dpeak.nm .big { color: #4f8cff; }
+.dyno-live { font-size: 14px; font-weight: 800; }
+.warn-text { color: var(--warning); font-weight: 700; }
+
+/* ---------------------------------------------------------------- rare dealer */
+.subtabs button.rare-tab { color: var(--gold); }
+.rare-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.rare-title { font-size: 20px; font-weight: 900; background: linear-gradient(90deg, #ffb020, #ff5ca8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.rare-timer { font-size: 22px; font-weight: 900; padding: 8px 14px; border-radius: 12px; background: rgba(255,176,32,0.12); border: 1px solid rgba(255,176,32,0.45); color: #ffcf6b; }
+.rare-odds { gap: 6px; margin-bottom: 14px; }
+.rare-grid { grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); }
+.rare-card { position: relative; padding: 12px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.rare-card.tier-legendary { border-color: rgba(255,176,32,0.7); box-shadow: 0 0 24px rgba(255,176,32,0.18); background: linear-gradient(160deg, rgba(255,176,32,0.12), var(--panel-2) 45%); }
+.rare-card.tier-epic { border-color: rgba(184,107,255,0.55); }
+.rare-card.tier-rare { border-color: rgba(79,140,255,0.5); }
+.rare-card.sold { opacity: 0.55; }
+.rare-pic { border-radius: 10px; overflow: hidden; border: 2px solid; aspect-ratio: 16 / 9; background: #1a1d24; }
+.rare-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rare-tier { position: absolute; top: 18px; left: 18px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; color: #111; padding: 3px 8px; border-radius: 6px; }
+.rare-card .vname { font-weight: 800; font-size: 15px; }
+.rare-card .vmeta { font-size: 12px; color: var(--text-dim); }
+.rare-card .price { font-size: 20px; font-weight: 900; color: var(--money); }
+.rare-specs { font-size: 11.5px; color: var(--text-dim); }
+.btn.gold-btn { background: linear-gradient(135deg, #ffb020, #ff7a45); border-color: transparent; color: #1a1205; font-weight: 800; }
+
+@media (max-width: 900px) {
+  .garage { grid-template-columns: 1fr; }
+  .garage-stats { position: static; }
+  .garage-view { height: 230px; }
+  .gopt-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+}
+@media (max-width: 560px) {
+  .garage-view { height: 190px; }
+  .rare-grid { grid-template-columns: 1fr; }
+  .rare-timer { font-size: 18px; }
+}

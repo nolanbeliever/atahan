@@ -210,7 +210,7 @@ export class Simulation {
       vehicleId: v.id,
       playerId,
       dyn: { x: v.x, z: v.z, rot: v.rotation, speed: 0, steer: 0 },
-      params: vehicleParams(model, v.condition, v.fuel),
+      params: vehicleParams(model, v.condition, v.fuel, v.mods),
       pendingDistance: 0,
       pendingDamage: 0,
       lastFlushAt: Date.now(),
@@ -224,7 +224,7 @@ export class Simulation {
   /** Refresh physics parameters after the vehicle record changed (fuel, repairs). */
   refreshParams(v: Vehicle): void {
     const d = this.drives.get(v.id);
-    if (d) d.params = vehicleParams(getModel(v.modelId), v.condition, v.fuel);
+    if (d) d.params = vehicleParams(getModel(v.modelId), v.condition, v.fuel, v.mods);
   }
 
   /** Take the accumulated driving results (distance/damage) for persistence. */

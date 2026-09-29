@@ -1,6 +1,7 @@
 // Dealership, NPC customers, garage services, bank and auctions.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DEFAULT_MODS } from '../../shared/customization';
 import { ECONOMY } from '../../shared/economy.config';
 import { isCategoryUnlocked } from '../../shared/progression';
 import { fuelCost, marketValue, quickSellPrice, repairQuote } from '../../shared/valuation';
@@ -176,7 +177,13 @@ describe('garage services', () => {
     expect(money()).toBe(m2 - cost);
     expect((await client.rpcRaw('fuel.refill', { vehicleId: vehicle.id })).ok).toBe(false);
 
-    // Customization: value increases, invalid options rejected
+    // Customization: value increases, invalid options rejected. NPC cars sometimes come with
+    // custom paint or wheels, so start from stock to make the expected charge exact.
+    {
+      const uow = server.game.state.begin();
+      uow.vehicle(vehicle.id).mods = { ...DEFAULT_MODS };
+      await uow.commit();
+    }
     goTo(client, 'custom');
     const valueBefore = marketValue(live());
     expect((await client.rpcRaw('custom.apply', { vehicleId: vehicle.id, mods: { wheels: 'wheel_fake' } })).ok).toBe(false);
