@@ -7,8 +7,9 @@ import { DRAG_STRIP } from '../../../shared/highway';
 import { DRAG_TIMING, type DragBotSnap, type DragInfo, type DragQueueEntry, type DragRaceView, type DragRacer, type DragResult } from '../../../shared/drag';
 import { ECONOMY } from '../../../shared/economy.config';
 import { emptyTuning, findPart, PERF_SLOTS, type PerfSlot, type VehicleTuning } from '../../../shared/modificationsData';
-import { KEY, stepVehicle, vehicleParams, type CollisionWorld, type VehicleDyn, type VehicleParams } from '../../../shared/physics';
-import { calculateVehicleStats, dropInvalidParts, speedDisplayScale } from '../../../shared/tuningSystem';
+import { KEY, newVehicleDyn, stepVehicle, vehicleParams, type CollisionWorld, type VehicleDyn, type VehicleParams } from '../../../shared/physics';
+import { KMH_PER_MS } from '../../../shared/drivetrain';
+import { calculateVehicleStats, dropInvalidParts } from '../../../shared/tuningSystem';
 import type { Vehicle, VehicleCondition } from '../../../shared/types';
 import { GameError } from '../../errors';
 import { newId } from '../../ids';
@@ -20,7 +21,7 @@ import { randomPersonName } from '../generator';
 const log = createLogger('drag');
 
 const PERFECT: VehicleCondition = { engine: 100, transmission: 100, brakes: 100, tires: 100, body: 100, interior: 100, cleanliness: 100 };
-const EMPTY_WORLD: CollisionWorld = { boxes: [], circles: [], dynamic: [] };
+const EMPTY_WORLD: CollisionWorld = { boxes: [], circles: [], dynamic: [], vehicles: [] };
 const BOT_PACKAGES: string[][] = [[], ['ecu_stage1', 'intake_cai', 'exh_catback'], ['exh_downpipe', 'ecu_stage2', 'intake_cai', 'ic_fmic', 'tire_semislick']];
 const BOT_COLORS = ['#d7263d', '#f7b32b', '#1b998b', '#2e294e', '#f4f4f2', '#111418', '#3a86ff', '#8338ec'];
 
@@ -48,9 +49,9 @@ interface Race {
   settled: boolean;
 }
 
-/** Physics-only 1/8 mile time from a standing start (used to match the bot to your car). */
+/** Physics-only quarter-mile time from a standing start (used to match the bot to your car). */
 export function simulateEt(params: VehicleParams): number {
-  const dyn: VehicleDyn = { x: 0, z: 0, rot: Math.PI, speed: 0, steer: 0 };
+  const dyn: VehicleDyn = newVehicleDyn(0, 0, Math.PI);
   const dist = DRAG_STRIP.startZ - DRAG_STRIP.finishZ;
   const dt = 1 / 30;
   for (let t = 0; t < 30; t += dt) {
@@ -227,7 +228,7 @@ export class DragService {
       const mods = { paint: null, wheels: 'stock', tint: 'none', bodyKit: 'none', headlights: 'stock', accessory: 'none', tuning: pick.tuning ?? undefined };
       const params = vehicleParams(pick.model, PERFECT, 100, mods);
       const laneX = DRAG_STRIP.laneX[1];
-      const dyn: VehicleDyn = { x: laneX, z: DRAG_STRIP.startZ + pick.model.shape.length / 2, rot: DRAG_STRIP.yaw, speed: 0, steer: 0 };
+      const dyn: VehicleDyn = newVehicleDyn(laneX, DRAG_STRIP.startZ + pick.model.shape.length / 2, DRAG_STRIP.yaw);
       const reaction = 0.16 + this.ctx.rng() * 0.3;
       runners.push({ racer, vehicleId: null, params, model: pick.model, bot: { dyn, reaction, jump: this.ctx.rng() < 0.03 }, laneX, lastZ: dyn.z, lastT: now, launchAt: null, done: false });
     }
@@ -379,7 +380,7 @@ export class DragService {
           reaction: Math.round(reaction * 1000) / 1000,
           et: Math.round(et * 1000) / 1000,
           total: Math.round((at - race.greenAt)) / 1000,
-          trapKmh: Math.round(Math.abs(s.speed) * 3.6 * speedDisplayScale(r.model)),
+          trapKmh: Math.round(Math.abs(s.speed) * KMH_PER_MS),
         });
       } else if (now - race.greenAt > DRAG_TIMING.timeout * 1000) {
         this.setResult(r, { outcome: 'dnf', reaction: null, et: null, total: null, trapKmh: null });

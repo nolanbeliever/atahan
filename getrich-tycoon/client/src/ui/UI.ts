@@ -1,12 +1,12 @@
 // UI manager: HUD, chat, minimap, toasts, modal panels.
 
-import { speedDisplayScale } from '../../../shared/tuningSystem';
+import { KMH_PER_MS } from '../../../shared/drivetrain';
 import { ECONOMY } from '../../../shared/economy.config';
 import { CHAT_MAX } from '../../../shared/protocol';
 import { levelProgress } from '../../../shared/progression';
 import type { ChatMessage, CustomerOffer, Notification } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
-import { getModel, modelDisplayName } from '../../../shared/vehicles';
+import { modelDisplayName } from '../../../shared/vehicles';
 import type { Game, Interaction } from '../game/Game';
 import { RpcError } from '../net/Network';
 import { clear, h, icon } from './dom';
@@ -304,7 +304,7 @@ export class UI {
     this.hud.drive.classList.toggle('show', !!v);
     this.hud.hint.style.display = v ? 'none' : '';
     if (!v) return;
-    this.hud.speed.textContent = String(Math.round(Math.abs(this.game.speed) * 3.6 * speedDisplayScale(getModel(v.modelId))));
+    this.hud.speed.textContent = String(Math.round(Math.abs(this.game.speed) * KMH_PER_MS));
     clear(this.hud.gauge);
     this.hud.gauge.append(
       h('div', { class: 'name' }, modelDisplayName(v.modelId)),

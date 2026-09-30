@@ -460,8 +460,14 @@ export const ECONOMY = {
     nearMissMinKmh: 150,
     nearMissReward: 100,
     nearMissXp: 5,
-    /** A pass counts when the gap between the two bodies stayed under this (m) without touching. */
-    nearMissClearance: 1.2,
+    /**
+     * A pass counts when the gap between the two bodies (exact box-to-box distance) stayed under
+     * this (m) without touching: a real 20-50 cm "makas".
+     */
+    nearMissClearance: 0.5,
+    /** Closer than this (m) is a "hair's breadth" pass: the reward is multiplied by closeBonus. */
+    nearMissCloseClearance: 0.2,
+    closeBonus: 1.5,
     /** The combo ends when no near miss happens for this long (s). */
     comboWindowSec: 6,
     /** Multiplier by combo length (the highest tier reached applies). */

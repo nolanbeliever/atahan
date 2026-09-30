@@ -9,17 +9,19 @@ import {
   KEY,
   MAX_CMD_DT,
   MAX_KEYS,
+  newVehicleDyn,
   resolveCircle,
   stepCharacter,
   stepVehicle,
   vehicleParams,
   type CollisionWorld,
-  type DynamicCircle,
+  type DynamicBox,
   type InputCmd,
   type VehicleDyn,
   type VehicleParams,
 } from '../../shared/physics';
-import { Anim, type NpcSnap, type PlayerSnap, type Vehicle, type VehicleSnap } from '../../shared/types';
+import { surfaceGrip } from '../../shared/environment';
+import { Anim, VF, type NpcSnap, type PlayerSnap, type Vehicle, type VehicleSnap } from '../../shared/types';
 import { round2 } from '../../shared/util';
 import { getModel } from '../../shared/vehicles';
 import { nearHighway } from '../../shared/highway';
@@ -56,8 +58,13 @@ export interface DriveState {
   lastFlushAt: number;
   /** Last crash (hard impact or any contact with traffic), ms. */
   crashAt: number;
-  /** While true the vehicle ignores the driver's input (drag strip staging). */
+  /** While true the vehicle ignores the driver's input (drag strip staging, arrests). */
   hold: boolean;
+  /** Snapshot flags from the last physics step (VF). */
+  flags: number;
+  /** Last near-contact and hard-contact bookkeeping for services (ms). */
+  lastHitId: string | null;
+  lastHitAt: number;
 }
 
 export interface NpcEntity {
@@ -86,13 +93,15 @@ export class Simulation {
   readonly chars = new Map<string, CharacterEntity>();
   readonly drives = new Map<string, DriveState>();
   readonly npcs = new Map<string, NpcEntity>();
-  private world: CollisionWorld = { boxes: [], circles: STATIC_CIRCLES, dynamic: [] };
-  private dynamic: DynamicCircle[] = [];
+  private dynamic: DynamicBox[] = [];
+  private world: CollisionWorld = { boxes: [], circles: STATIC_CIRCLES, dynamic: [], vehicles: this.dynamic, grip: 1 };
   readonly traffic = new TrafficSystem();
   /** Players, walkers and parked cars on the highway (traffic brakes for them). */
   highwayBodies: HighwayBody[] = [];
-  /** Extra vehicles owned by services (drag strip bots). */
+  /** Extra vehicles owned by services (drag strip bots, police). */
   extraObstacles: ObstacleVehicle[] = [];
+  /** Extra collision boxes owned by services (police cars), rebuilt by their owner each tick. */
+  extraBoxes: DynamicBox[] = [];
 
   constructor(private readonly state: GameState) {
     this.rebuildStatic();
@@ -102,7 +111,7 @@ export class Simulation {
   rebuildStatic(): void {
     const levels = new Map<string, number>();
     for (const d of this.state.dealerships.values()) levels.set(d.plotId, d.level);
-    this.world = { boxes: worldBoxes(levels), circles: STATIC_CIRCLES, dynamic: this.dynamic };
+    this.world = { boxes: worldBoxes(levels), circles: STATIC_CIRCLES, dynamic: [], vehicles: this.dynamic, grip: this.world.grip };
   }
 
   /** Recompute vehicle obstacles (called every tick). */
@@ -119,15 +128,18 @@ export class Simulation {
     }
     for (const d of this.drives.values()) {
       const v = this.state.vehicles.get(d.vehicleId);
-      if (v) list.push({ id: v.id, modelId: v.modelId, x: d.dyn.x, z: d.dyn.z, rot: d.dyn.rot });
+      const h = d.dyn.speed >= 0 ? d.dyn.rot + d.dyn.slip : d.dyn.rot;
+      if (v) list.push({ id: v.id, modelId: v.modelId, x: d.dyn.x, z: d.dyn.z, rot: d.dyn.rot, vx: Math.sin(h) * d.dyn.speed, vz: Math.cos(h) * d.dyn.speed });
     }
     list.push(...this.extraObstacles);
     this.dynamic.length = 0;
     vehicleObstacles(list, this.dynamic);
+    this.dynamic.push(...this.extraBoxes);
+    this.world.grip = surfaceGrip(Date.now());
     // Traffic near someone who could touch it.
     const near: { x: number; z: number }[] = [];
     for (const c of this.chars.values()) if (nearHighway(c.x, c.z, 60)) near.push(c);
-    this.traffic.circlesNear(near, 70, this.dynamic);
+    this.traffic.boxesNear(near, 70, this.dynamic);
     // What traffic has to brake for.
     const bodies: HighwayBody[] = [];
     for (const o of list) {
@@ -229,7 +241,18 @@ export class Simulation {
         c.drivingId = null;
         return;
       }
-      const res = stepVehicle(d.dyn, d.hold ? { ...cmd, keys: holdKeys(cmd.keys) } : cmd, d.params, this.world, d.vehicleId);
+      const keys = d.hold ? holdKeys(cmd.keys) : cmd.keys;
+      const res = stepVehicle(d.dyn, { ...cmd, keys }, d.params, this.world, d.vehicleId);
+      d.flags =
+        (d.dyn.brk > 0.1 ? VF.BRAKE : 0) |
+        (d.dyn.gear < 0 ? VF.REVERSE : 0) |
+        (res.sliding || res.locked || res.wheelspin > 0.25 ? VF.SLIDE : 0) |
+        (d.dyn.boost > 0.6 ? VF.BOOST : 0) |
+        (keys & KEY.HORN ? VF.HORN : 0);
+      if (res.hitId) {
+        d.lastHitId = res.hitId;
+        d.lastHitAt = Date.now();
+      }
       d.pendingDistance += res.distance;
       if (res.impact > ECONOMY.world.impactDamageThreshold) {
         d.pendingDamage += (res.impact - ECONOMY.world.impactDamageThreshold) * ECONOMY.world.impactDamagePerMs;
@@ -252,13 +275,16 @@ export class Simulation {
     const d: DriveState = {
       vehicleId: v.id,
       playerId,
-      dyn: { x: v.x, z: v.z, rot: v.rotation, speed: 0, steer: 0 },
+      dyn: newVehicleDyn(v.x, v.z, v.rotation),
       params: vehicleParams(model, v.condition, v.fuel, v.mods),
       pendingDistance: 0,
       pendingDamage: 0,
       lastFlushAt: Date.now(),
       crashAt: 0,
       hold: false,
+      flags: 0,
+      lastHitId: null,
+      lastHitAt: 0,
     };
     this.drives.set(v.id, d);
     c.drivingId = v.id;
@@ -320,7 +346,7 @@ export class Simulation {
   placeDrive(vehicleId: string, x: number, z: number, rot: number): void {
     const d = this.drives.get(vehicleId);
     if (!d) return;
-    Object.assign(d.dyn, { x, z, rot, speed: 0, steer: 0 });
+    Object.assign(d.dyn, newVehicleDyn(x, z, rot));
     const c = this.chars.get(d.playerId);
     if (c) Object.assign(c, { x, z, rot });
   }
@@ -343,7 +369,9 @@ export class Simulation {
       p.push([c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId]);
     }
     const v: VehicleSnap[] = [];
-    for (const d of this.drives.values()) v.push([d.vehicleId, round2(d.dyn.x), round2(d.dyn.z), round2(d.dyn.rot), round2(d.dyn.speed), round2(d.dyn.steer)]);
+    for (const d of this.drives.values()) {
+      v.push([d.vehicleId, round2(d.dyn.x), round2(d.dyn.z), Math.round(d.dyn.rot * 1000) / 1000, round2(d.dyn.speed), Math.round(d.dyn.steer * 1000) / 1000, Math.round(d.dyn.rpm), d.dyn.gear, d.flags]);
+    }
     const n: NpcSnap[] = [];
     for (const npc of this.npcs.values()) n.push([npc.id, round2(npc.x), round2(npc.z), round2(npc.rot), npc.anim, npc.style]);
     return { p, v, n };

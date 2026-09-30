@@ -20,12 +20,12 @@ import {
   paintPrice,
   partBlocked,
   partPrice,
-  performanceFactors,
   quoteTuning,
   resaleMultiplier,
   rimPrice,
   speedDisplayScale,
   stockStats,
+  rawVehicleStats,
   tuningIssues,
 } from '../../shared/tuningSystem';
 import { DEFAULT_MODS } from '../../shared/customization';
@@ -57,8 +57,9 @@ describe('calculateVehicleStats', () => {
       expect(s.redline).toBe(m.specs.redline);
       expect(s.handling).toBeGreaterThan(40);
       expect(s.handling).toBeLessThanOrEqual(100);
-      expect(s.braking).toBeGreaterThan(20);
-      expect(s.braking).toBeLessThan(50);
+      expect(s.braking).toBeGreaterThan(30);
+      // Classics have drum brakes and no ABS.
+      expect(s.braking).toBeLessThan(m.category === 'classic' ? 65 : 50);
     }
   });
 
@@ -66,16 +67,24 @@ describe('calculateVehicleStats', () => {
     const m = getModel('bmw_m3_g80');
     const s1 = calculateVehicleStats(m, tune({ ecu: 'ecu_stage1' }));
     expect(s1.hp).toBe(Math.round(m.specs.hp * 1.15));
-    expect(s1.topSpeed).toBe(Math.round(m.specs.topSpeed * 1.1));
+    // The remap's headline figure raises the limit; the drivetrain decides what the car reaches.
+    expect(rawVehicleStats(m, tune({ ecu: 'ecu_stage1' })).topSpeed).toBe(Math.round(m.specs.topSpeed * 1.1));
+    expect(s1.topSpeed).toBeGreaterThan(stockStats(m).topSpeed);
     // Stage 2 also needs its downpipe (+6% hp of its own).
     const s2 = calculateVehicleStats(m, tune({ ecu: 'ecu_stage2', exhaust: 'exh_downpipe' }));
     expect(s2.hp).toBe(Math.round(m.specs.hp * 1.3 * 1.06));
-    expect(s2.topSpeed).toBe(Math.round(m.specs.topSpeed * 1.2));
+    expect(rawVehicleStats(m, tune({ ecu: 'ecu_stage2', exhaust: 'exh_downpipe' })).topSpeed).toBe(Math.round(m.specs.topSpeed * 1.2));
+    expect(s2.topSpeed).toBeGreaterThan(s1.topSpeed);
     const s3 = calculateVehicleStats(m, tune(STAGE3));
     expect(s3.hp).toBeGreaterThanOrEqual(Math.round(m.specs.hp * 1.6));
-    expect(s3.topSpeed).toBeGreaterThanOrEqual(Math.round(m.specs.topSpeed * 1.4));
-    expect(s1.accel).toBeLessThan(stockStats(m).accel);
-    expect(s3.accel).toBeLessThan(s1.accel);
+    expect(s3.topSpeed).toBeGreaterThan(s2.topSpeed);
+    // More power buys less and less top speed: drag grows with the square of speed.
+    expect(s3.topSpeed / stockStats(m).topSpeed).toBeLessThan(Math.cbrt(s3.hp / m.specs.hp) + 0.08);
+    // A 510 hp rear-drive car is traction-limited off the line: more power shows from 100 km/h up.
+    expect(s1.accel).toBeLessThanOrEqual(stockStats(m).accel);
+    expect(s1.accel200).toBeLessThan(stockStats(m).accel200);
+    expect(s3.accel200).toBeLessThan(s1.accel200);
+    expect(s3.quarter).toBeLessThan(s1.quarter);
   });
 
   it('caps a complete build at double the stock power', () => {
@@ -248,17 +257,21 @@ describe('dyno', () => {
 });
 
 describe('physics and economy', () => {
-  it('scales the game physics by the tuned figures', () => {
+  it('tuning parts change the simulated car: more power, better brakes, more grip', () => {
     const m = getModel('velora_serene');
-    expect(performanceFactors(m, null)).toEqual({ topSpeed: 1, accel: 1, brake: 1, grip: 1 });
     const stock = vehicleParams(m, PERFECT, 100, { ...DEFAULT_MODS });
     const tuned = vehicleParams(m, PERFECT, 100, { ...DEFAULT_MODS, tuning: tune({ ecu: 'ecu_stage1', suspension: 'susp_coilover', brakes: 'brake_bbk' }) });
-    expect(tuned.topSpeed / stock.topSpeed).toBeCloseTo(1.1, 2);
-    expect(tuned.accel).toBeGreaterThan(stock.accel);
-    expect(tuned.brake).toBeGreaterThan(stock.brake);
-    expect(tuned.grip / stock.grip).toBeCloseTo(1.25, 2);
-    // The speedometer shows the real top speed at the game's top speed.
-    expect(m.perf.topSpeed * 3.6 * speedDisplayScale(m)).toBeCloseTo(m.specs.topSpeed, 5);
+    expect(tuned.topSpeed).toBeGreaterThan(stock.topSpeed);
+    expect(tuned.pt.brakeG).toBeGreaterThan(stock.pt.brakeG);
+    expect(tuned.pt.latGrip / stock.pt.latGrip).toBeCloseTo(1.25, 2);
+    const s0 = calculateVehicleStats(m, null);
+    const s1 = calculateVehicleStats(m, tune({ ecu: 'ecu_stage1', suspension: 'susp_coilover', brakes: 'brake_bbk' }));
+    expect(s1.accel).toBeLessThan(s0.accel);
+    expect(s1.braking).toBeLessThan(s0.braking);
+    // The stock car's figures are its factory figures; the speedometer uses one scale for all cars.
+    expect(s0.accel).toBeCloseTo(m.specs.accel, 1);
+    expect(s0.topSpeed).toBeCloseTo(m.specs.topSpeed, -1);
+    expect(speedDisplayScale(m)).toBe(2.1);
   });
 
   it('a full Stage 3 build is worth 150-200% of the stock car', () => {

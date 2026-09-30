@@ -115,7 +115,7 @@ describe('tuning garage', () => {
     server.game.sim.startDriving(client.playerId, live());
     const drive = server.game.sim.drives.get(vehicle.id)!;
     expect(drive.params.topSpeed).toBeCloseTo(tuned.topSpeed, 6);
-    expect(drive.params.grip).toBeCloseTo(tuned.grip, 6);
+    expect(drive.params.pt.latGrip).toBeCloseTo(tuned.pt.latGrip, 6);
     // Tuned engines wear faster when driven.
     const engine0 = live().condition.engine;
     const stress = calculateVehicleStats(model, live().mods.tuning).stress;

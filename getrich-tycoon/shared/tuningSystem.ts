@@ -26,6 +26,7 @@ import {
   type TuningPart,
   type VehicleTuning,
 } from './modificationsData';
+import { performanceFigures, SPEED_SCALE } from './drivetrain';
 import { clamp } from './util';
 import type { Aspiration, VehicleModel } from './vehicles';
 
@@ -219,6 +220,16 @@ export interface VehicleStats {
   sound: SoundProfile;
   /** Torque curve shape inputs for the dyno. */
   curve: { spool: number; low: number; electric: boolean };
+  /** 100-200 km/h and 200-300 km/h (null when the car can't reach 300), seconds. */
+  accel200: number;
+  accel300: number | null;
+  /** Standing quarter mile (402 m) time in seconds. */
+  quarter: number;
+  gearbox: string;
+  /** Peak boost on the gauge (psi), 0 without forced induction. */
+  boostPsi: number;
+  /** Launch improvement from parts (1 = stock): intake response, tyres, quick-spool turbos. */
+  launchGain: number;
 }
 
 function installedParts(tuning: VehicleTuning): TuningPart[] {
@@ -241,15 +252,45 @@ export const MAX_POWER_GAIN = 2;
 export const MAX_TOP_SPEED_GAIN = 1.45;
 
 const statsCache = new Map<string, VehicleStats>();
+const rawCache = new Map<string, VehicleStats>();
 
 /**
  * Performance figures of `baseCar` with `installedMods`. Pure and deterministic.
- * ECU stage gains multiply with the induction kit; the remaining bolt-ons add up.
+ * Power, torque, weight, grip and sound come from the parts; acceleration, top speed, braking and
+ * the quarter mile are measured by running the real drivetrain simulation (drivetrain.ts), so the
+ * numbers in the garage are exactly what the car does on the road.
  */
 export function calculateVehicleStats(baseCar: VehicleModel, installedMods: VehicleTuning | null | undefined): VehicleStats {
   const tuning = installedMods ?? emptyTuning();
   const key = `${baseCar.id}|${JSON.stringify(tuning)}`;
   const cached = statsCache.get(key);
+  if (cached) return cached;
+  const raw = rawVehicleStats(baseCar, tuning);
+  const f = performanceFigures(baseCar, tuning);
+  const stats: VehicleStats = {
+    ...raw,
+    accel: round1(f.t100),
+    topSpeed: Math.round(f.topKmh),
+    braking: round1(f.brake100),
+    accel200: round1(f.t200),
+    accel300: f.t300 === null ? null : round1(f.t300),
+    quarter: Math.round(f.quarter * 100) / 100,
+    gearbox: f.gearbox,
+    boostPsi: f.boostPsi,
+  };
+  if (statsCache.size > 400) statsCache.clear();
+  statsCache.set(key, stats);
+  return stats;
+}
+
+/**
+ * Figures from the parts alone (no driving simulation): the catalogue-style estimates the
+ * drivetrain calibration starts from. `topSpeed` here is the factory/ECU limit estimate.
+ */
+export function rawVehicleStats(baseCar: VehicleModel, installedMods: VehicleTuning | null | undefined): VehicleStats {
+  const tuning = installedMods ?? emptyTuning();
+  const key = `${baseCar.id}|${JSON.stringify(tuning)}`;
+  const cached = rawCache.get(key);
   if (cached) return cached;
 
   const s = baseCar.specs;
@@ -364,9 +405,15 @@ export function calculateVehicleStats(baseCar: VehicleModel, installedMods: Vehi
       low: electric ? 1 : Math.max(0.25, traits.low - (cam === 'cam_race' ? 0.1 : cam === 'cam_stage1' ? 0.05 : 0)),
       electric,
     },
+    accel200: 0,
+    accel300: null,
+    quarter: 0,
+    gearbox: '',
+    boostPsi: 0,
+    launchGain: clamp(1 + accel, 0.9, 1.25),
   };
-  if (statsCache.size > 400) statsCache.clear();
-  statsCache.set(key, stats);
+  if (rawCache.size > 400) rawCache.clear();
+  rawCache.set(key, stats);
   return stats;
 }
 
@@ -379,25 +426,9 @@ export function tuningOf(mods: { tuning?: VehicleTuning | null } | null | undefi
   return mods?.tuning ?? emptyTuning();
 }
 
-/**
- * Multipliers for the game-scale physics (see physics.vehicleParams). The game world is small, so
- * physics speeds are compressed; tuning scales them by the same ratios as the real figures.
- */
-export function performanceFactors(model: VehicleModel, tuning: VehicleTuning | null | undefined): { topSpeed: number; accel: number; brake: number; grip: number } {
-  if (!tuning) return { topSpeed: 1, accel: 1, brake: 1, grip: 1 };
-  const stock = stockStats(model);
-  const t = calculateVehicleStats(model, tuning);
-  return {
-    topSpeed: clamp(t.topSpeed / stock.topSpeed, 0.85, MAX_TOP_SPEED_GAIN),
-    accel: clamp((stock.accel / t.accel) * Math.sqrt(t.heatSoak / stock.heatSoak), 0.7, 2.2),
-    brake: clamp(stock.braking / t.braking, 0.7, 1.7),
-    grip: clamp(t.handlingMult / stock.handlingMult, 0.7, 1.7),
-  };
-}
-
-/** Speedometer scale: physics m/s -> the km/h shown to players, so top speed matches the spec. */
-export function speedDisplayScale(model: VehicleModel): number {
-  return model.specs.topSpeed / (model.perf.topSpeed * 3.6);
+/** Speedometer scale: physics (game) m/s -> real m/s. The same for every vehicle (see drivetrain.ts). */
+export function speedDisplayScale(_model?: VehicleModel): number {
+  return SPEED_SCALE;
 }
 
 // ---------------------------------------------------------------------------------------------

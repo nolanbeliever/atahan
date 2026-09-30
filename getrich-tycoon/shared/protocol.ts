@@ -163,6 +163,8 @@ export interface NearMissEvent {
   gap: number;
   kind: string;
   capped: boolean;
+  /** Hair's-breadth pass (bonus applied). */
+  close?: boolean;
 }
 
 export interface ClientToServerEvents {

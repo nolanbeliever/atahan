@@ -3,8 +3,8 @@
 // traffic colliders for local driving prediction.
 
 import { deltaS, travelDir, wrapS, centrelineStep } from '../../../shared/highway';
-import type { DynamicCircle } from '../../../shared/physics';
-import { LANE_CHANGE_RATE, TF, trafficCircles, trafficPose, trafficSpec, type TrafficSnap, type TrafficSpec } from '../../../shared/traffic';
+import type { DynamicBox } from '../../../shared/physics';
+import { LANE_CHANGE_RATE, TF, trafficBoxes, trafficPose, trafficSpec, type TrafficSnap, type TrafficSpec } from '../../../shared/traffic';
 
 export interface ClientTrafficCar {
   spec: TrafficSpec;
@@ -89,14 +89,12 @@ export class TrafficClient {
     }
   }
 
-  /** Traffic colliders near a point (for local prediction; same ids as the server's). */
-  circlesNear(x: number, z: number, radius: number, out: DynamicCircle[]): void {
+  /** Traffic collision boxes near a point (for local prediction; same ids as the server's). */
+  boxesNear(x: number, z: number, radius: number, out: DynamicBox[]): void {
     const r2 = radius * radius;
-    const tmp: { x: number; z: number; r: number }[] = [];
     for (const c of this.cars.values()) {
       if ((c.x - x) ** 2 + (c.z - z) ** 2 > r2) continue;
-      tmp.length = 0;
-      for (const circle of trafficCircles(c.spec, c.s, c.off, tmp)) out.push({ ...circle, id: `tr:${c.spec.id}` });
+      trafficBoxes(c.spec, c.s, c.off, c.v, out);
     }
   }
 

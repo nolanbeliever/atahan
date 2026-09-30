@@ -2,7 +2,7 @@
 
 import type { Server, Socket } from 'socket.io';
 import { ECONOMY } from '../../shared/economy.config';
-import { CHAR_RADIUS, resolveCircle } from '../../shared/physics';
+import { CHAR_RADIUS, dynToTuple, resolveCircle } from '../../shared/physics';
 import {
   PROTOCOL_VERSION,
   type ClientToServerEvents,
@@ -528,7 +528,7 @@ export class GameServer implements Hub {
         p: lists.p,
         v: lists.v,
         n: lists.n,
-        self: [c.x, c.z, d ? d.dyn.rot : c.rot, d ? d.dyn.speed : 0, d ? d.dyn.steer : 0, c.drivingId],
+        self: [c.x, c.z, d ? d.dyn.rot : c.rot, c.drivingId, d ? dynToTuple(d.dyn) : null],
         ...(tr.length > 0 ? { tr } : {}),
         ...(nearStrip ? { dr: dr! } : {}),
       });

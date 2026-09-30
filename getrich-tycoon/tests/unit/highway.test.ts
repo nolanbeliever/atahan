@@ -20,8 +20,8 @@ import {
   projectToHighway,
   wrapS,
 } from '../../shared/highway';
-import { KEY, resolveCircle, stepVehicle, vehicleParams, type CollisionWorld } from '../../shared/physics';
-import { LANE_MAX_KMH, TRAFFIC_COUNT, TRAFFIC_KMH_PER_MS, homeLaneFor, trafficCircles, trafficSpec } from '../../shared/traffic';
+import { KEY, newVehicleDyn, resolveCircle, stepVehicle, vehicleParams, type CollisionWorld } from '../../shared/physics';
+import { LANE_MAX_KMH, TRAFFIC_COUNT, TRAFFIC_KMH_PER_MS, TRAFFIC_SEGMENTS, homeLaneFor, trafficBoxes, trafficSpec } from '../../shared/traffic';
 import { getModel } from '../../shared/vehicles';
 import { WORLD_BOUNDS } from '../../shared/world';
 import { TrafficSystem } from '../../server/game/traffic';
@@ -29,7 +29,7 @@ import { comboMultiplier } from '../../server/game/services/highway';
 import { simulateEt } from '../../server/game/services/drag';
 import { emptyTuning } from '../../shared/modificationsData';
 
-const EMPTY: CollisionWorld = { boxes: [], circles: [], dynamic: [] };
+const EMPTY: CollisionWorld = { boxes: [], circles: [], dynamic: [], vehicles: [] };
 const PERFECT = { engine: 100, transmission: 100, brakes: 100, tires: 100, body: 100, interior: 100, cleanliness: 100 };
 
 function seeded(seed = 7) {
@@ -118,7 +118,9 @@ describe('highway collisions', () => {
       const s = 150;
       const a = pathPoint(s, start);
       const dir = { x: a.nx * heading, z: a.nz * heading };
-      const v = { x: a.x, z: a.z, rot: Math.atan2(dir.x, dir.z), speed: 70, steer: 0 };
+      const v = newVehicleDyn(a.x, a.z, Math.atan2(dir.x, dir.z));
+      v.speed = 70;
+      v.gear = 7;
       for (let i = 0; i < 60; i++) stepVehicle(v, { keys: KEY.FORWARD, dt: 1 / 30 }, p, EMPTY);
       const off = projectToHighway(v.x, v.z).offset;
       if (start < 0 && heading < 0) expect(off).toBeGreaterThan(-GUARDRAIL_OFFSET);
@@ -143,18 +145,24 @@ describe('traffic', () => {
       expect(trafficSpec(id)).toBe(s);
       kinds.add(s.kind);
       if (s.kind !== 'car') expect(s.homeLane).toBeGreaterThanOrEqual(1);
-      expect(trafficCircles(s, 100, laneOffset(s.cw, s.homeLane)).length).toBe(s.circles);
+      const boxes = trafficBoxes(s, 100, laneOffset(s.cw, s.homeLane), 20);
+      expect(boxes.length).toBe(TRAFFIC_SEGMENTS[s.kind].length);
+      // The boxes cover the body length (segments may overlap a little at the hitch).
+      const covered = TRAFFIC_SEGMENTS[s.kind].reduce((a, [, l]) => a + l, 0);
+      expect(covered).toBeGreaterThanOrEqual(s.length - 0.01);
+      for (const b of boxes) expect(b.hw * 2).toBeLessThanOrEqual(s.width);
     }
     expect([...kinds].sort()).toEqual(['bus', 'car', 'semi', 'truck']);
     expect(homeLaneFor(130, [0, 3])).toBe(0);
     expect(homeLaneFor(80, [0, 3])).toBe(3);
   });
 
-  it('keeps lane speeds (fast left, trucks right), never overlaps, and changes lanes now and then', () => {
+  it('keeps lane speeds (fast left, trucks right), never overlaps, and drivers stay in their lanes', () => {
     const t = new TrafficSystem(seeded(3));
     let changes = 0;
     let signalledFirst = 0;
     const lane = new Map(t.cars.map((c) => [c.spec.id, c.lane]));
+    const lastChange = new Map<number, number>();
     for (let i = 0; i < 20 * 240; i++) {
       const before = new Map(t.cars.map((c) => [c.spec.id, c.signal]));
       t.step(0.05);
@@ -163,6 +171,10 @@ describe('traffic', () => {
           changes++;
           if (before.get(c.spec.id)) signalledFirst++;
           lane.set(c.spec.id, c.lane);
+          // Never two changes in quick succession (no weaving).
+          const prev = lastChange.get(c.spec.id);
+          if (prev !== undefined) expect(t.now - prev, `car ${c.spec.id}`).toBeGreaterThan(30);
+          lastChange.set(c.spec.id, t.now);
         }
       }
       if (i % 10 === 0) {
@@ -175,7 +187,8 @@ describe('traffic', () => {
           }
       }
     }
-    expect(changes).toBeGreaterThan(40);
+    // 116 cars for four minutes: only the odd overtake of a truck, nobody weaving.
+    expect(changes).toBeLessThan(40);
     expect(signalledFirst).toBe(changes);
     const avg = (l: number) => {
       const v = t.cars.filter((c) => c.lane === l).map((c) => c.v * TRAFFIC_KMH_PER_MS);

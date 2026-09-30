@@ -1,10 +1,14 @@
 // Highway traffic driver model (server-authoritative).
 //
-// Each vehicle follows the one ahead with the Intelligent Driver Model and changes lanes with a
-// MOBIL-style rule: it moves left when that lane lets it go meaningfully faster, moves back right
-// when it can do so without slowing down (keep right), and always checks the gap behind in the
-// target lane first. Before moving it blinks for SIGNAL_TIME seconds. Players are obstacles too:
-// traffic brakes for them and, when a fast car comes up behind (or honks / flashes), moves over.
+// Each vehicle follows the one ahead with the Intelligent Driver Model and keeps its lane. Drivers
+// only change lanes for a reason, and never twice in quick succession:
+//   - yielding: a fast car closing in from behind (or honking / flashing) makes a polite driver
+//     signal and move over;
+//   - stuck: a driver held up for a long time behind a much slower vehicle may overtake;
+//   - home: some time after yielding or overtaking, a driver drifts back to its usual lane.
+// Every change is safety-checked (gap ahead and behind in the target lane), signalled for
+// SIGNAL_TIME seconds first, and followed by a cooldown. Players are obstacles too: traffic brakes
+// for them.
 
 import {
   LANES,
@@ -26,13 +30,13 @@ import {
   TRAFFIC_KINDS,
   initialTraffic,
   laneSpeed,
-  trafficCircles,
+  trafficBoxes,
   trafficPose,
   trafficSpec,
   type TrafficSnap,
   type TrafficSpec,
 } from '../../shared/traffic';
-import type { DynamicCircle } from '../../shared/physics';
+import type { DynamicBox } from '../../shared/physics';
 
 export interface TrafficCar {
   spec: TrafficSpec;
@@ -52,6 +56,10 @@ export interface TrafficCar {
   nextDecision: number;
   /** Moving over for a faster player until this time. */
   yieldUntil: number;
+  /** No voluntary lane change before this time (after any change). */
+  calmUntil: number;
+  /** Since when the car has been held up well below its cruising speed (null = not held up). */
+  stuckSince: number | null;
   x: number;
   z: number;
   yaw: number;
@@ -83,6 +91,11 @@ const IDM_T = 1.25;
 const IDM_S0 = 3;
 const MAX_BRAKE = 9;
 const DECISION_EVERY = 0.5;
+/** Quiet time after a lane change before a driver changes lanes voluntarily again (s). */
+const CALM_AFTER_CHANGE: [number, number] = [35, 70];
+/** Held up this long (s), this much below cruising speed (fraction), before overtaking. */
+const STUCK_TIME = 9;
+const STUCK_RATIO = 0.8;
 
 export class TrafficSystem {
   readonly cars: TrafficCar[] = [];
@@ -105,6 +118,8 @@ export class TrafficSystem {
         braking: false,
         nextDecision: (t.id % 10) * 0.05 + 1,
         yieldUntil: 0,
+        calmUntil: 20 + (t.id % 17),
+        stuckSince: null,
         x: 0,
         z: 0,
         yaw: 0,
@@ -203,24 +218,28 @@ export class TrafficSystem {
     const right = c.lane + 1;
     const yielding = this.time < c.yieldUntil;
     let target: number | null = null;
-    if (right <= def.lanes[1]) {
-      const r = this.evaluate(c, occ, right);
-      // Keep right: move back when it costs (almost) nothing, or right away when yielding.
-      if (r.safe && (yielding || (c.lane < c.spec.homeLane && r.gain > -0.25) || r.gain > 0.9)) target = right;
-    }
-    if (target === null && !yielding && left >= def.lanes[0]) {
-      const l = this.evaluate(c, occ, left);
-      if (l.safe && l.gain > 0.45 && this.rng() < 0.75) target = left;
-    }
-    // Now and then drivers change lanes for no particular reason.
-    if (target === null && !yielding && this.rng() < 0.01) {
-      const pick = this.rng() < 0.5 ? left : right;
-      if (pick >= def.lanes[0] && pick <= def.lanes[1] && this.evaluate(c, occ, pick).safe) target = pick;
+    if (yielding) {
+      // Move over for the faster car: right if there is room, otherwise left.
+      if (right <= def.lanes[1] && this.evaluate(c, occ, right).safe) target = right;
+      else if (left >= def.lanes[0] && this.evaluate(c, occ, left).safe && this.evaluate(c, occ, left).gain > -0.5) target = left;
+    } else if (this.time >= c.calmUntil) {
+      const cruise = laneSpeed(c.spec, c.lane);
+      if (c.stuckSince !== null && this.time - c.stuckSince > STUCK_TIME && left >= def.lanes[0]) {
+        // Stuck behind something slow for a while: overtake if the left lane is clearly better.
+        const l = this.evaluate(c, occ, left);
+        if (l.safe && l.gain > 0.6) target = left;
+      } else if (c.lane < c.spec.homeLane && c.v > cruise * 0.85) {
+        // Back to the usual lane once it costs nothing.
+        const r = this.evaluate(c, occ, right);
+        if (r.safe && r.gain > -0.1) target = right;
+      }
     }
     if (target !== null) {
       c.pendingLane = target;
       c.signal = target < c.lane ? TF.LEFT : TF.RIGHT;
-      c.moveAt = this.time + SIGNAL_TIME * (yielding ? 0.6 : 1);
+      c.moveAt = this.time + SIGNAL_TIME * (yielding ? 0.8 : 1.2);
+      c.calmUntil = this.time + CALM_AFTER_CHANGE[0] + this.rng() * (CALM_AFTER_CHANGE[1] - CALM_AFTER_CHANGE[0]);
+      c.stuckSince = null;
     }
   }
 
@@ -245,6 +264,9 @@ export class TrafficSystem {
       if (leader && leader.gap < 0.3) c.v = Math.min(c.v, Math.max(0, leader.v));
       c.v = Math.max(0, c.v + acc * dt);
       c.braking = acc < -1.2 || (c.v < 0.5 && !!leader && leader.gap < 8);
+      const held = !!leader && leader.gap < 40 && c.v < laneSpeed(c.spec, c.lane) * STUCK_RATIO;
+      if (!held) c.stuckSince = null;
+      else if (c.stuckSince === null) c.stuckSince = this.time;
 
       // Lane change: blink first, then drift across.
       if (c.pendingLane !== null && this.time >= c.moveAt) {
@@ -293,15 +315,13 @@ export class TrafficSystem {
     return best;
   }
 
-  /** Collider circles of the traffic near any of the given points. */
-  circlesNear(points: readonly { x: number; z: number }[], radius: number, out: DynamicCircle[]): void {
+  /** Collision boxes of the traffic near any of the given points. */
+  boxesNear(points: readonly { x: number; z: number }[], radius: number, out: DynamicBox[]): void {
     if (points.length === 0) return;
     const r2 = radius * radius;
-    const tmp: { x: number; z: number; r: number }[] = [];
     for (const c of this.cars) {
       if (!points.some((p) => (p.x - c.x) ** 2 + (p.z - c.z) ** 2 < r2)) continue;
-      tmp.length = 0;
-      for (const circle of trafficCircles(c.spec, c.s, c.off, tmp)) out.push({ ...circle, id: `tr:${c.spec.id}` });
+      trafficBoxes(c.spec, c.s, c.off, c.v, out);
     }
   }
 

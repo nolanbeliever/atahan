@@ -1,7 +1,8 @@
 // Owned vehicle management: classifieds, quick sale, spawning, driving.
 
 import { ECONOMY } from '../../../shared/economy.config';
-import { CHAR_RADIUS, resolveCircle, vehicleCircles } from '../../../shared/physics';
+import { CHAR_RADIUS, vehicleBox } from '../../../shared/physics';
+import { obbVsObb, obbVsCircle } from '../../../shared/obb';
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
 import { quickSellPrice } from '../../../shared/valuation';
 import { clamp } from '../../../shared/util';
@@ -108,15 +109,22 @@ export class VehicleService {
   private findSpawnSpot(x: number, z: number, rot: number, modelId: string, selfId: string) {
     const model = getModel(modelId);
     const world = this.ctx.sim.collisionWorld;
-    const hl = model.shape.length / 2;
-    const hw = model.shape.width / 2;
+    // A little margin around the body so the car isn't parked touching anything.
+    const hl = model.shape.length / 2 + 0.25;
+    const hw = model.shape.width / 2 + 0.25;
+    const lim = 262 - hl;
     for (const dist of [4, 6.5, 9]) {
       for (let i = 0; i < 8; i++) {
         const a = rot + Math.PI / 2 + (i * Math.PI) / 4;
         const cx = x + Math.sin(a) * dist;
         const cz = z + Math.cos(a) * dist;
-        const circles = vehicleCircles(cx, cz, rot, hl, hw);
-        const blocked = circles.some((c) => resolveCircle(c.x, c.z, c.r, world, selfId).hit);
+        const b = vehicleBox(selfId, cx, cz, rot, hl, hw);
+        const blocked =
+          Math.abs(cx) > lim ||
+          Math.abs(cz) > lim ||
+          world.boxes.some((w) => obbVsObb(b, { x: (w.minX + w.maxX) / 2, z: (w.minZ + w.maxZ) / 2, rot: 0, hl: (w.maxZ - w.minZ) / 2, hw: (w.maxX - w.minX) / 2 })) ||
+          world.circles.some((c) => Math.abs(c.x - cx) < 8 && Math.abs(c.z - cz) < 8 && obbVsCircle(b, c.x, c.z, c.r)) ||
+          world.vehicles.some((o) => o.id !== selfId && obbVsObb(b, o));
         // Leave room for the player to stand.
         const tooClose = Math.hypot(cx - x, cz - z) < hl + CHAR_RADIUS;
         if (!blocked && !tooClose) return { x: cx, z: cz, rot };

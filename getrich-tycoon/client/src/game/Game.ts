@@ -8,15 +8,17 @@ import { ECONOMY, dealershipLevel } from '../../../shared/economy.config';
 import {
   KEY,
   SIM_DT,
+  dynFromTuple,
   stepCharacter,
   stepVehicle,
   vehicleParams,
   type CharacterState,
   type CollisionWorld,
-  type DynamicCircle,
+  type DynamicBox,
   type InputCmd,
   type VehicleDyn,
 } from '../../../shared/physics';
+import { surfaceGrip } from '../../../shared/environment';
 import type { DragRaceView } from '../../../shared/drag';
 import { DRAG_STRIP, gameHour } from '../../../shared/highway';
 import type { PrivateState } from '../../../shared/protocol';
@@ -99,9 +101,9 @@ export class Game {
   private seq = 0;
   private acc = 0;
   private last = performance.now();
-  private world: CollisionWorld = { boxes: [], circles: STATIC_CIRCLES, dynamic: [] };
+  private dynamic: DynamicBox[] = [];
+  private world: CollisionWorld = { boxes: [], circles: STATIC_CIRCLES, dynamic: [], vehicles: this.dynamic, grip: 1 };
   private boxes: AABB[] = [];
-  private dynamic: DynamicCircle[] = [];
   private snapshotsReceived = 0;
   private hasWelcome = false;
   private interaction: Interaction | null = null;
@@ -289,7 +291,7 @@ export class Game {
     const levels = new Map<string, number>();
     for (const d of this.store.dealerships.values()) levels.set(d.plotId, d.level);
     this.boxes = worldBoxes(levels);
-    this.world = { boxes: this.boxes, circles: STATIC_CIRCLES, dynamic: this.dynamic };
+    this.world = { boxes: this.boxes, circles: STATIC_CIRCLES, dynamic: [], vehicles: this.dynamic, grip: this.world.grip };
   }
 
   private onSelf(st: PrivateState): void {
@@ -343,7 +345,7 @@ export class Game {
       if (!e) continue;
       e.driven = true;
       e.lastDriven = now;
-      e.buffer.push({ t: now, x: v[1], z: v[2], r: v[3], a: v[4], b: v[5] });
+      e.buffer.push({ t: now, x: v[1], z: v[2], r: v[3], a: v[4], b: v[5], rpm: v[6], gear: v[7], f: v[8] });
     }
     const alive = new Set<string>();
     for (const n of s.n) {
@@ -365,7 +367,7 @@ export class Game {
   }
 
   private reconcile(ack: number, self: NonNullable<Snapshot['self']>): void {
-    const [x, z, rot, speed, steer, drivingId] = self;
+    const [x, z, rot, drivingId, dynT] = self;
     this.pending = this.pending.filter((c) => c.seq > ack);
     const before = { x: this.curr.x, z: this.curr.z };
     if (drivingId !== this.driving) {
@@ -373,7 +375,7 @@ export class Game {
       this.driving = drivingId;
       this.pending = [];
       this.offset.set(0, 0);
-      if (drivingId) this.dyn = { x, z, rot, speed, steer };
+      if (drivingId && dynT) this.dyn = dynFromTuple(dynT);
       else {
         this.dyn = null;
         this.char = { x, z, rot, gait: 0 };
@@ -385,11 +387,12 @@ export class Game {
     }
     if (this.driving) {
       const v = this.store.myVehicle(this.driving);
-      if (!v) return;
-      this.dyn = { x, z, rot, speed, steer };
+      if (!v || !dynT) return;
+      const dyn = dynFromTuple(dynT);
       const params = vehicleParams(getModel(v.modelId), v.condition, v.fuel, v.mods);
-      for (const c of this.pending) stepVehicle(this.dyn, c, params, this.world, this.driving);
-      this.curr = { x: this.dyn.x, z: this.dyn.z, rot: this.dyn.rot };
+      for (const c of this.pending) stepVehicle(dyn, c, params, this.world, this.driving);
+      this.dyn = dyn;
+      this.curr = { x: dyn.x, z: dyn.z, rot: dyn.rot };
     } else {
       this.char.x = x;
       this.char.z = z;
@@ -425,7 +428,8 @@ export class Game {
     }
     this.dynamic.length = 0;
     vehicleObstacles(list, this.dynamic);
-    this.traffic.circlesNear(this.curr.x, this.curr.z, 70, this.dynamic);
+    this.traffic.boxesNear(this.curr.x, this.curr.z, 70, this.dynamic);
+    this.world.grip = surfaceGrip(this.store.serverNow());
   }
 
   /** Lined up on the drag strip while staging: only the brakes work (the server does the same). */

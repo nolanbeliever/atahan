@@ -289,12 +289,15 @@ export function overpassColliders(): { x: number; z: number; r: number }[] {
 
 // ------------------------------------------------------------------ drag strip
 
-/** Eighth-mile (201 m) drag strip in the west belt, racing north (towards -z). */
+/**
+ * Quarter-mile drag strip in the west belt, racing north (towards -z). The world is drawn at 1/2.1
+ * scale of the speedometer (drivetrain.SPEED_SCALE), so 402 m on the clock is 191.6 m of strip.
+ */
 export const DRAG_STRIP = {
   laneX: [-194, -188] as const,
   /** Front bumpers line up here. */
   startZ: 150,
-  finishZ: 150 - 201.2,
+  finishZ: 150 - 402.34 / 2.1,
   /** Side walls (x) and their extent (z): open at the south end (entry) and long shutdown area. */
   wallX: [-199.5, -182.5] as const,
   wallZ: [-198, 166] as const,
@@ -304,7 +307,7 @@ export const DRAG_STRIP = {
   stage: { x: -191, z: 176, radius: 12 },
   /** Christmas tree between the lanes, just past the start line. */
   tree: { x: -191, z: 146 },
-  lengthLabel: '1/8 MILE',
+  lengthLabel: '1/4 MILE',
 };
 
 /** Strip walls and the grandstand beside the strip. */
@@ -368,18 +371,4 @@ export const BELT_TREES: { x: number; z: number; s: number }[] = (() => {
 
 // ------------------------------------------------------------------ day & night
 
-/** A full day lasts 24 real minutes (1 minute per hour), the same for everyone (server clock). */
-export const DAY_LENGTH_MS = 24 * 60_000;
-
-export function gameHour(serverTime: number): number {
-  return ((serverTime % DAY_LENGTH_MS) / DAY_LENGTH_MS) * 24;
-}
-
-/** 0 in full daylight, 1 at night, smooth at dusk (18-20) and dawn (5-7). */
-export function nightFactor(hour: number): number {
-  const smooth = (e0: number, e1: number, x: number) => {
-    const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
-    return t * t * (3 - 2 * t);
-  };
-  return Math.max(smooth(18, 20, hour), 1 - smooth(5, 7, hour));
-}
+export { DAY_LENGTH_MS, gameHour, nightFactor } from './environment';

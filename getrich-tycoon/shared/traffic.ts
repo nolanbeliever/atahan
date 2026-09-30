@@ -15,7 +15,7 @@ import {
   wrapS,
   type Carriageway,
 } from './highway';
-import type { Circle } from './world';
+import type { DynamicBox } from './physics';
 
 export type TrafficKind = 'car' | 'truck' | 'bus' | 'semi';
 
@@ -94,9 +94,24 @@ export interface TrafficSpec {
   homeLane: number;
   /** Moves over when a fast car comes up behind (even without a horn). */
   polite: boolean;
-  /** Circle colliders along the body. */
-  circles: number;
 }
+
+/**
+ * Body segments of each kind as [centre offset along the body, length] (m). Long vehicles are
+ * split so their boxes follow the road round corners: a semi is a tractor plus a trailer.
+ */
+export const TRAFFIC_SEGMENTS: Record<TrafficKind, [number, number][]> = {
+  car: [[0, 4.6]],
+  truck: [[0, 8.4]],
+  bus: [
+    [3.05, 6.1],
+    [-3.05, 6.1],
+  ],
+  semi: [
+    [5.2, 6.0],
+    [-2.9, 10.6],
+  ],
+};
 
 function hash(n: number): () => number {
   let x = (n + 1) * 2654435761;
@@ -155,7 +170,6 @@ export function trafficSpec(id: number): TrafficSpec {
     kmh,
     homeLane: homeLaneFor(kmh, def.lanes),
     polite: rng() < 0.7,
-    circles: Math.max(2, Math.ceil(def.length / def.width)),
   };
   SPEC_CACHE.set(id, spec);
   return spec;
@@ -180,15 +194,15 @@ export function trafficPose(cw: Carriageway, s: number, off: number, along = 0):
   return { x: p.x, z: p.z, yaw: pathYaw(p, cw === 1) };
 }
 
-/** Collider circles along a traffic vehicle's body (bent around corners like the vehicle). */
-export function trafficCircles(spec: TrafficSpec, s: number, off: number, out: Circle[] = []): Circle[] {
-  const r = spec.width / 2 + 0.05;
-  const n = spec.circles;
-  const span = spec.length / 2 - r;
-  for (let i = 0; i < n; i++) {
-    const along = n === 1 ? 0 : span - (2 * span * i) / (n - 1);
+/**
+ * Tight collision boxes of a traffic vehicle (one per body segment, each following the road).
+ * `v` is its speed (game m/s) so impacts are measured relative to it.
+ */
+export function trafficBoxes(spec: TrafficSpec, s: number, off: number, v: number, out: DynamicBox[] = []): DynamicBox[] {
+  const hw = spec.width / 2 - 0.03;
+  for (const [along, len] of TRAFFIC_SEGMENTS[spec.kind]) {
     const p = trafficPose(spec.cw, s, off, along);
-    out.push({ x: p.x, z: p.z, r });
+    out.push({ id: `tr:${spec.id}`, x: p.x, z: p.z, rot: p.yaw, hl: len / 2 - 0.03, hw, vx: Math.sin(p.yaw) * v, vz: Math.cos(p.yaw) * v });
   }
   return out;
 }

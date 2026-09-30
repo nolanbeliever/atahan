@@ -1,8 +1,9 @@
 // Deterministic movement & collision shared by server (authoritative) and
 // client (prediction). Keep this file free of DOM/Node APIs.
 
+import { G, SPEED_SCALE, driveStep, powertrainFor, topSpeedOf, tuningKey, type DriveOut, type DriveState, type Powertrain } from './drivetrain';
 import { HIGHWAY_BARRIERS, inGap, nearHighway, projectToHighway } from './highway';
-import { performanceFactors } from './tuningSystem';
+import { circleVsObb, obbCorners, obbNear, obbVsCircle, obbVsObb, type Contact, type OBB } from './obb';
 import type { VehicleCondition, VehicleMods } from './types';
 import { angleDiff, clamp } from './util';
 import type { VehicleModel } from './vehicles';
@@ -37,10 +38,22 @@ export interface DynamicCircle extends Circle {
   id: string;
 }
 
+/** A vehicle body (parked or driven car, highway traffic, police, drag bot) as a tight box. */
+export interface DynamicBox extends OBB {
+  /** Owner entity id (so an entity does not collide with itself). Traffic ids start with `tr:`. */
+  id: string;
+  /** Velocity (game m/s) for impact speeds; 0 for parked vehicles. */
+  vx: number;
+  vz: number;
+}
+
 export interface CollisionWorld {
   boxes: readonly AABB[];
   circles: readonly Circle[];
   dynamic: readonly DynamicCircle[];
+  vehicles: readonly DynamicBox[];
+  /** Road surface grip: 1 dry, 0.8 in the rain. */
+  grip?: number;
 }
 
 export const CHAR_RADIUS = 0.45;
@@ -124,6 +137,21 @@ export function resolveCircle(x: number, z: number, r: number, world: CollisionW
       nx += dx;
       nz += dz;
       d2 = 0;
+    }
+    for (const b of world.vehicles) {
+      if (ignoreId !== undefined && b.id === ignoreId) continue;
+      const dx = px - b.x;
+      const dz = pz - b.z;
+      const reach = b.hl + b.hw + r;
+      if (dx > reach || dx < -reach || dz > reach || dz < -reach) continue;
+      const c = circleVsObb(px, pz, r, b);
+      if (!c) continue;
+      hit = true;
+      hitId = b.id;
+      px += c.nx * c.depth;
+      pz += c.nz * c.depth;
+      nx += c.nx;
+      nz += c.nz;
     }
     const circleSets: (readonly Circle[])[] = [world.circles, world.dynamic];
     for (const set of circleSets) {
@@ -210,184 +238,386 @@ export function stepCharacter(s: CharacterState, cmd: Pick<InputCmd, 'keys' | 'y
   s.z = res.z;
 }
 
+
 // ----------------------------------------------------------------------------
 // Vehicles
 // ----------------------------------------------------------------------------
+//
+// Longitudinal motion (engine, gearbox, drag, brakes) is real-world physics in drivetrain.ts.
+// Here: steering and yaw. Steering input is smoothed (slower at speed), the steering lock shrinks
+// with speed, the yaw rate follows the steering with a lag that grows with speed and mass (the
+// car's inertia), and the tyres can only pull the car around a corner so hard (lateral grip) - past
+// that it understeers. The velocity direction can lag behind the heading (a slide / drift, e.g. on
+// the handbrake, with wheelspin or in the rain) and sliding scrubs speed.
 
-export interface VehicleDyn {
+export interface VehicleDyn extends DriveState {
   x: number;
   z: number;
+  /** Heading (0 = +z). */
   rot: number;
-  speed: number;
+  /** Front wheel angle (rad). */
   steer: number;
+  /** Smoothed steering input -1..1 (the steering wheel: +1 full lock left). */
+  input: number;
+  /** Yaw rate (rad/s). */
+  yaw: number;
+  /** Slip angle: velocity direction minus heading (rad). */
+  slip: number;
+}
+
+export function newVehicleDyn(x: number, z: number, rot: number): VehicleDyn {
+  return { x, z, rot, steer: 0, input: 0, yaw: 0, slip: 0, speed: 0, rpm: 0, gear: 1, shift: 0, boost: 0, thr: 0, brk: 0 };
+}
+
+/** Compact wire format of the authoritative vehicle state (see SelfSnap). */
+export type DynTuple = [number, number, number, number, number, number, number, number, number, number, number, number, number, number];
+
+export function dynToTuple(d: VehicleDyn): DynTuple {
+  const r = (v: number, k = 1000) => Math.round(v * k) / k;
+  return [r(d.x), r(d.z), r(d.rot, 10000), r(d.speed), r(d.steer, 10000), r(d.input, 10000), r(d.yaw, 10000), r(d.slip, 10000), Math.round(d.rpm), d.gear, r(d.shift), r(d.boost), r(d.thr), r(d.brk)];
+}
+
+export function dynFromTuple(t: readonly number[]): VehicleDyn {
+  const [x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk] = t as DynTuple;
+  return { x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk };
 }
 
 export interface VehicleParams {
-  topSpeed: number;
-  reverseSpeed: number;
-  accel: number;
-  brake: number;
-  grip: number;
-  maxSteer: number;
-  wheelbase: number;
+  /** Engine, gearbox, tyres, aero and brakes (condition applied). */
+  pt: Powertrain;
+  /** Collision box half extents (tight around the body). */
   halfLength: number;
   halfWidth: number;
+  wheelbase: number;
   hasFuel: boolean;
+  /** Front wheel lock (rad) at parking speed. */
+  lock: number;
+  /** Yaw response scale (heavier = lazier). */
+  inertia: number;
+  /** Top speed (game m/s) for the HUD and sounds. */
+  topSpeed: number;
 }
+
+const paramsCache = new Map<string, VehicleParams>();
 
 export function vehicleParams(model: VehicleModel, condition: VehicleCondition, fuel: number, mods?: VehicleMods): VehicleParams {
-  const eng = clamp(condition.engine, 0, 100) / 100;
-  const trans = clamp(condition.transmission, 0, 100) / 100;
-  const brakes = clamp(condition.brakes, 0, 100) / 100;
-  const tires = clamp(condition.tires, 0, 100) / 100;
-  // Installed performance parts scale the game-scale figures (see tuningSystem.performanceFactors).
-  const tuned = performanceFactors(model, mods?.tuning);
-  return {
-    topSpeed: model.perf.topSpeed * tuned.topSpeed * (0.55 + 0.45 * eng),
-    reverseSpeed: 7,
-    accel: model.perf.accel * tuned.accel * (0.45 + 0.55 * eng) * (0.6 + 0.4 * trans),
-    brake: model.perf.brake * tuned.brake * (0.35 + 0.65 * brakes),
-    grip: model.perf.handling * tuned.grip * (0.55 + 0.45 * tires),
-    maxSteer: 0.6,
-    wheelbase: model.shape.length * 0.62,
-    halfLength: model.shape.length / 2,
-    halfWidth: model.shape.width / 2,
-    hasFuel: fuel > 0.05,
+  const eng = Math.round(clamp(condition.engine, 0, 100));
+  const trans = Math.round(clamp(condition.transmission, 0, 100));
+  const brakes = Math.round(clamp(condition.brakes, 0, 100));
+  const tires = Math.round(clamp(condition.tires, 0, 100));
+  const hasFuel = fuel > 0.05;
+  const tuning = mods?.tuning ?? null;
+  const key = `${model.id}|${tuningKey(tuning)}|${eng}|${trans}|${brakes}|${tires}|${hasFuel}`;
+  const hit = paramsCache.get(key);
+  if (hit) return hit;
+  const base = powertrainFor(model, tuning);
+  // Worn parts: a tired engine is down on power, a worn gearbox shifts slowly, worn brakes and
+  // tyres stop and grip less.
+  const pt: Powertrain = {
+    ...base,
+    eff: base.eff * (0.55 + 0.45 * (eng / 100)) * (0.85 + 0.15 * (trans / 100)),
+    shiftTime: base.shiftTime * (1 + (1 - trans / 100) * 1.2),
+    brakeG: base.brakeG * (0.35 + 0.65 * (brakes / 100)),
+    mu: base.mu * (0.7 + 0.3 * (tires / 100)),
+    latGrip: base.latGrip * (0.75 + 0.25 * (tires / 100)),
   };
+  const bike = model.specs.kind === 'bike';
+  const p: VehicleParams = {
+    pt,
+    halfLength: model.shape.length / 2 - 0.03,
+    halfWidth: model.shape.width / 2 - (bike ? 0.1 : 0.04),
+    wheelbase: model.shape.length * (bike ? 0.62 : 0.6),
+    hasFuel,
+    lock: bike ? 0.5 : 0.62,
+    inertia: Math.sqrt(clamp(pt.mass / 1500, 0.5, 2.4)),
+    topSpeed: topSpeedOf(pt) / SPEED_SCALE,
+  };
+  if (paramsCache.size > 300) paramsCache.clear();
+  paramsCache.set(key, p);
+  return p;
 }
 
-/** Collision circles for a vehicle body (front and rear). */
-export function vehicleCircles(x: number, z: number, rot: number, halfLength: number, halfWidth: number): Circle[] {
-  const off = Math.max(0, halfLength - halfWidth);
-  const sx = Math.sin(rot) * off;
-  const sz = Math.cos(rot) * off;
-  const r = halfWidth + 0.05;
-  return [
-    { x: x + sx, z: z + sz, r },
-    { x: x - sx, z: z - sz, r },
-  ];
+/** A vehicle's collision box. */
+export function vehicleBox(id: string, x: number, z: number, rot: number, halfLength: number, halfWidth: number, vx = 0, vz = 0): DynamicBox {
+  return { id, x, z, rot, hl: halfLength, hw: halfWidth, vx, vz };
 }
 
 export interface VehicleStepResult {
-  /** Impact speed (m/s) if the vehicle hit something this step. */
+  /** Impact speed (game m/s, along the contact normal) if the vehicle hit something. */
   impact: number;
   /** Distance travelled (m). */
   distance: number;
-  /** A dynamic collider (vehicle, traffic) that was touched. */
+  /** A vehicle (other car, traffic) that was touched. */
   hitId?: string;
+  /** ABS working, wheels locked, wheelspin, sliding, gear change - for sounds and effects. */
+  abs: boolean;
+  locked: boolean;
+  wheelspin: number;
+  sliding: boolean;
+  shifted: number;
 }
 
 /** Longest distance a vehicle moves in one physics sub-step (keeps fast cars from tunnelling). */
 const MAX_SUBSTEP_DIST = 1;
 
-export function stepVehicle(
-  v: VehicleDyn,
-  cmd: Pick<InputCmd, 'keys' | 'dt'>,
-  p: VehicleParams,
-  world: CollisionWorld,
-  selfId?: string,
-): VehicleStepResult {
+export function stepVehicle(v: VehicleDyn, cmd: Pick<InputCmd, 'keys' | 'dt'>, p: VehicleParams, world: CollisionWorld, selfId?: string): VehicleStepResult {
   const dt = clamp(cmd.dt, 0, MAX_CMD_DT);
-  const n = Math.min(8, Math.max(1, Math.ceil((Math.abs(v.speed) * dt) / MAX_SUBSTEP_DIST)));
-  const out: VehicleStepResult = { impact: 0, distance: 0 };
-  for (let i = 0; i < n; i++) {
-    const r = stepVehicleOnce(v, cmd.keys, dt / n, p, world, selfId);
-    out.impact = Math.max(out.impact, r.impact);
-    out.distance += r.distance;
-    if (r.hitId) out.hitId = r.hitId;
-  }
+  const n = Math.min(8, Math.max(2, Math.ceil((Math.abs(v.speed) * dt) / MAX_SUBSTEP_DIST)));
+  const out: VehicleStepResult = { impact: 0, distance: 0, abs: false, locked: false, wheelspin: 0, sliding: false, shifted: 0 };
+  for (let i = 0; i < n; i++) stepVehicleOnce(v, cmd.keys, dt / n, p, world, selfId, out);
   return out;
 }
 
-function stepVehicleOnce(v: VehicleDyn, keys: number, dt: number, p: VehicleParams, world: CollisionWorld, selfId?: string): VehicleStepResult {
+const driveOut: DriveOut = { accel: 0, wheelspin: 0, abs: false, locked: false, shifted: 0, limiting: false };
+const corners: number[] = [];
+
+function stepVehicleOnce(v: VehicleDyn, keys: number, dt: number, p: VehicleParams, world: CollisionWorld, selfId: string | undefined, res: VehicleStepResult): void {
   const fwd = (keys & KEY.FORWARD) !== 0;
   const back = (keys & KEY.BACK) !== 0;
+  const handbrake = (keys & KEY.BRAKE) !== 0;
   let throttle = 0;
-  let braking = 0;
+  let brake = 0;
+  let reverse = false;
   if (fwd) {
-    if (v.speed < -0.3) braking = 1;
-    else if (p.hasFuel) throttle = 1;
+    if (v.speed < -0.3) brake = 1;
+    else throttle = 1;
   }
   if (back) {
-    if (v.speed > 0.3) braking = 1;
-    else if (p.hasFuel) throttle = -1;
+    if (v.speed > 0.3) brake = 1;
+    else {
+      throttle = 1;
+      reverse = true;
+    }
   }
-  const handbrake = (keys & KEY.BRAKE) !== 0;
+  const grip = world.grip ?? 1;
+  const rot0 = v.rot;
+  const phi0 = v.speed >= 0 ? v.rot + v.slip : v.rot;
+  const d = driveStep(p.pt, v, { throttle, brake, reverse, handbrake, grip, noFuel: !p.hasFuel }, dt, driveOut);
+  res.abs ||= d.abs;
+  res.locked ||= d.locked;
+  res.wheelspin = Math.max(res.wheelspin, d.wheelspin);
+  if (d.shifted) res.shifted = d.shifted;
 
-  if (throttle > 0) {
-    const f = 1 - Math.pow(Math.max(0, v.speed) / p.topSpeed, 2);
-    v.speed += p.accel * Math.max(0, f) * dt;
-  } else if (throttle < 0) {
-    const f = 1 - Math.pow(Math.max(0, -v.speed) / p.reverseSpeed, 2);
-    v.speed -= p.accel * 0.6 * Math.max(0, f) * dt;
+  // --- steering and yaw (game units: what the eye sees)
+  const vg = v.speed;
+  const av = Math.abs(vg);
+  const vr = av * SPEED_SCALE;
+  const aero = 1 + p.pt.downforce * (vr / 80) * (vr / 80);
+  const aLat = G * p.pt.latGrip * grip * aero;
+  const sIn = (keys & KEY.LEFT ? 1 : 0) - (keys & KEY.RIGHT ? 1 : 0);
+  const tauS = (sIn === 0 ? 0.08 : 0.12) + 0.24 * Math.min(1, vr / 55);
+  v.input += (sIn - v.input) * (1 - Math.exp(-dt / tauS));
+  // The usable steering lock shrinks with speed (a little past the grip limit at full lock).
+  const lockGrip = Math.atan((aLat * 1.12 * p.wheelbase) / Math.max(1, av * av));
+  const lock = Math.min(p.lock, Math.max(0.025, lockGrip));
+  v.steer = v.input * lock;
+  const slide = handbrake && av > 3;
+  let wT = (vg * Math.tan(v.steer)) / p.wheelbase;
+  let wMax = aLat / Math.max(1.5, av);
+  if (slide) {
+    wT *= 1.6;
+    wMax *= 2.1;
   }
-  const decel = braking * p.brake + (handbrake ? p.brake * 1.2 : 0) + (throttle === 0 ? 1.4 + 0.012 * v.speed * v.speed : 0.2);
-  const dv = decel * dt;
-  if (Math.abs(v.speed) <= dv) v.speed = 0;
-  else v.speed -= Math.sign(v.speed) * dv;
-
-  // Steering
-  const steerIn = (keys & KEY.LEFT ? 1 : 0) - (keys & KEY.RIGHT ? 1 : 0);
-  const maxSteer = p.maxSteer / (1 + Math.abs(v.speed) / 16);
-  const target = steerIn * maxSteer;
-  const rate = steerIn === 0 ? 5 : 3;
-  v.steer += clamp(target - v.steer, -rate * dt, rate * dt);
-
-  const phx = Math.sin(v.rot);
-  const phz = Math.cos(v.rot);
-  const slide = handbrake && Math.abs(v.speed) > 6 ? 1.35 : 1;
-  const yawRate = ((v.speed * Math.tan(v.steer)) / p.wheelbase) * Math.min(1.7, p.grip) * slide;
-  v.rot += yawRate * dt;
+  if (d.locked) wT *= 0.15;
+  wT = clamp(wT, -wMax, wMax);
+  const tauY = 0.05 + 0.27 * Math.min(1, vr / 70) * p.inertia;
+  v.yaw += (wT - v.yaw) * (1 - Math.exp(-dt / tauY));
+  v.rot = rot0 + v.yaw * dt;
   if (v.rot > Math.PI) v.rot -= Math.PI * 2;
   if (v.rot < -Math.PI) v.rot += Math.PI * 2;
 
-  const hx = Math.sin(v.rot);
-  const hz = Math.cos(v.rot);
+  // --- where the car is actually going: the tyres pull the velocity round towards the heading,
+  // limited by the grip that is left (handbrake, wheelspin, locked wheels and rain take some away).
+  let phi: number;
+  if (vg > 0.5) {
+    let cap = aLat;
+    if (slide) cap *= 0.3;
+    if (d.wheelspin > 0 && p.pt.drive !== 'fwd') cap *= Math.max(0.3, 1 - d.wheelspin * (p.pt.drive === 'rwd' ? 1 : 0.45));
+    if (d.locked) cap *= 0.6;
+    const want = angleDiff(phi0, v.rot);
+    const maxTurn = (cap / av) * dt;
+    phi = phi0 + clamp(want, -maxTurn, maxTurn);
+    v.slip = clamp(angleDiff(v.rot, phi), -1.25, 1.25);
+    phi = v.rot + v.slip;
+    const sl = Math.abs(Math.sin(v.slip));
+    if (sl > 0.03) {
+      res.sliding = true;
+      v.speed = Math.max(0, v.speed - ((0.75 * G * grip * sl) / SPEED_SCALE) * dt);
+    }
+  } else {
+    v.slip *= Math.exp(-dt * 8);
+    phi = v.rot + (vg >= 0 ? v.slip : 0);
+  }
+
   const ox = v.x;
   const oz = v.z;
-  let nx = v.x + hx * v.speed * dt;
-  let nz = v.z + hz * v.speed * dt;
+  v.x += Math.sin(phi) * v.speed * dt;
+  v.z += Math.cos(phi) * v.speed * dt;
 
-  // Collision using front & rear circles.
-  let impact = 0;
-  const off = Math.max(0, p.halfLength - p.halfWidth);
-  const r = p.halfWidth + 0.05;
-  let pushX = 0;
-  let pushZ = 0;
-  let hit = false;
-  let normalX = 0;
-  let normalZ = 0;
-  let hitId: string | undefined;
-  for (const sign of [1, -1]) {
-    const cx = nx + hx * off * sign;
-    const cz = nz + hz * off * sign;
-    const res = resolveCircle(cx, cz, r, world, selfId, { x: ox + phx * off * sign, z: oz + phz * off * sign });
-    if (res.hit) {
-      hit = true;
-      if (res.hitId) hitId = res.hitId;
-      pushX += res.x - cx;
-      pushZ += res.z - cz;
-      normalX += res.nx;
-      normalZ += res.nz;
+  // --- collisions: push the body box out, then bounce and scrub the velocity.
+  const c = resolveVehicle(v, p, world, selfId, ox, oz);
+  if (c) {
+    const vel = v.speed;
+    const hd = v.speed >= 0 ? v.rot + v.slip : v.rot;
+    let vx = Math.sin(hd) * vel;
+    let vz = Math.cos(hd) * vel;
+    let rx = vx - c.ovx;
+    let rz = vz - c.ovz;
+    const vn = rx * c.nx + rz * c.nz;
+    if (vn < 0) {
+      res.impact = Math.max(res.impact, -vn);
+      const e = 0.12;
+      const jx = -(1 + e) * vn * c.nx;
+      const jz = -(1 + e) * vn * c.nz;
+      rx += jx;
+      rz += jz;
+      // Friction along the contact scrubs speed.
+      const tn = rx * c.nx + rz * c.nz;
+      const tx = rx - tn * c.nx;
+      const tz = rz - tn * c.nz;
+      const scrub = 1 - Math.min(0.5, 0.06 + 0.04 * -vn);
+      rx = tn * c.nx + tx * scrub;
+      rz = tn * c.nz + tz * scrub;
+      vx = rx + c.ovx;
+      vz = rz + c.ovz;
+      // Off-centre hits spin the car.
+      const L = p.halfLength * 2;
+      const W = p.halfWidth * 2;
+      const ax = c.px - v.x;
+      const az = c.pz - v.z;
+      v.yaw = clamp(v.yaw + (0.55 * 12 * (az * jx - ax * jz)) / (L * L + W * W), -4, 4);
+      const hx = Math.sin(v.rot);
+      const hz = Math.cos(v.rot);
+      const along = vx * hx + vz * hz;
+      const mag = Math.hypot(vx, vz);
+      if (along >= 0) {
+        v.speed = mag;
+        v.slip = mag > 0.3 ? clamp(angleDiff(v.rot, Math.atan2(vx, vz)), -1.25, 1.25) : 0;
+      } else {
+        v.speed = -Math.abs(along);
+        v.slip = 0;
+      }
+    }
+    if (c.hitId) res.hitId = c.hitId;
+  }
+  res.distance += Math.hypot(v.x - ox, v.z - oz);
+}
+
+interface VehicleContact {
+  nx: number;
+  nz: number;
+  px: number;
+  pz: number;
+  /** Velocity of what was hit. */
+  ovx: number;
+  ovz: number;
+  hitId?: string;
+}
+
+const box: OBB = { x: 0, z: 0, rot: 0, hl: 0, hw: 0 };
+
+/** Push the vehicle's box out of everything it overlaps (a few passes, deepest contact first). */
+function resolveVehicle(v: VehicleDyn, p: VehicleParams, world: CollisionWorld, selfId: string | undefined, ox: number, oz: number): VehicleContact | null {
+  box.rot = v.rot;
+  box.hl = p.halfLength;
+  box.hw = p.halfWidth;
+  let result: VehicleContact | null = null;
+  let sumX = 0;
+  let sumZ = 0;
+  const reach = p.halfLength + p.halfWidth;
+  for (let pass = 0; pass < 4; pass++) {
+    box.x = v.x;
+    box.z = v.z;
+    let best: Contact | null = null;
+    let bestVx = 0;
+    let bestVz = 0;
+    let bestId: string | undefined;
+    const take = (c: Contact | null, vx = 0, vz = 0, id?: string) => {
+      if (c && (!best || c.depth > best.depth)) {
+        best = c;
+        bestVx = vx;
+        bestVz = vz;
+        bestId = id;
+      }
+    };
+    for (const b of world.boxes) {
+      if (v.x + reach < b.minX || v.x - reach > b.maxX || v.z + reach < b.minZ || v.z - reach > b.maxZ) continue;
+      take(obbVsObb(box, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, rot: 0, hl: (b.maxZ - b.minZ) / 2, hw: (b.maxX - b.minX) / 2 }));
+    }
+    for (const set of [world.circles, world.dynamic] as (readonly Circle[])[]) {
+      for (const ci of set) {
+        const rr = reach + ci.r;
+        const dx = v.x - ci.x;
+        const dz = v.z - ci.z;
+        if (dx > rr || dx < -rr || dz > rr || dz < -rr) continue;
+        take(obbVsCircle(box, ci.x, ci.z, ci.r), 0, 0, set === world.dynamic ? (ci as DynamicCircle).id : undefined);
+      }
+    }
+    for (const o of world.vehicles) {
+      if (selfId !== undefined && o.id === selfId) continue;
+      if (!obbNear(box, o)) continue;
+      take(obbVsObb(box, o), o.vx, o.vz, o.id);
+    }
+    take(barrierContact(v, ox, oz));
+    take(boundsContact());
+    if (!best) break;
+    const c: Contact = best;
+    const push = c.depth + 1e-4;
+    v.x += c.nx * push;
+    v.z += c.nz * push;
+    sumX += c.nx * c.depth;
+    sumZ += c.nz * c.depth;
+    result ??= { nx: 0, nz: 0, px: c.px, pz: c.pz, ovx: bestVx, ovz: bestVz };
+    if (bestId) {
+      result.hitId = bestId;
+      result.ovx = bestVx;
+      result.ovz = bestVz;
     }
   }
-  if (hit) {
-    nx += pushX;
-    nz += pushZ;
-    const nl = Math.hypot(normalX, normalZ) || 1;
-    normalX /= nl;
-    normalZ /= nl;
-    const moveDirX = hx * Math.sign(v.speed || 1);
-    const moveDirZ = hz * Math.sign(v.speed || 1);
-    const into = -(moveDirX * normalX + moveDirZ * normalZ);
-    if (into > 0.35) {
-      impact = Math.abs(v.speed) * into;
-      v.speed = -v.speed * 0.2;
-    } else {
-      v.speed *= 0.97;
+  if (!result) return null;
+  const l = Math.hypot(sumX, sumZ) || 1;
+  result.nx = sumX / l;
+  result.nz = sumZ / l;
+  return result;
+}
+
+/** Highway guardrails and the median (analytic, with gaps at junctions and crossovers). */
+function barrierContact(v: VehicleDyn, ox: number, oz: number): Contact | null {
+  if (!nearHighway(box.x, box.z, box.hl + 2)) return null;
+  const from = projectToHighway(ox, oz).offset;
+  obbCorners(box, corners);
+  let best: Contact | null = null;
+  const proj = [0, 2, 4, 6].map((i) => ({ x: corners[i]!, z: corners[i + 1]!, hp: projectToHighway(corners[i]!, corners[i + 1]!) }));
+  for (const b of HIGHWAY_BARRIERS) {
+    const side = from - b.offset >= 0 ? 1 : -1;
+    // A car well clear of this barrier line can't touch it.
+    if (Math.abs(from - b.offset) > box.hl + box.hw + 2) continue;
+    for (const q of proj) {
+      if (inGap(b, q.hp.s)) continue;
+      const dd = (q.hp.offset - b.offset) * side;
+      const pen = b.half - dd;
+      if (pen <= 0 || pen > 6) continue;
+      if (!best || pen > best.depth) best = { nx: q.hp.nx * side, nz: q.hp.nz * side, depth: pen, px: q.x, pz: q.z };
     }
   }
-  v.x = nx;
-  v.z = nz;
-  return { impact, distance: Math.hypot(v.x - ox, v.z - oz), hitId };
+  void v;
+  return best;
+}
+
+function boundsContact(): Contact | null {
+  obbCorners(box, corners);
+  const lim = WORLD_BOUNDS;
+  let best: Contact | null = null;
+  for (let i = 0; i < 8; i += 2) {
+    const x = corners[i]!;
+    const z = corners[i + 1]!;
+    const checks: [number, number, number][] = [
+      [x - lim, -1, 0],
+      [-lim - x, 1, 0],
+      [z - lim, 0, -1],
+      [-lim - z, 0, 1],
+    ];
+    for (const [pen, nx, nz] of checks) if (pen > 0 && (!best || pen > best.depth)) best = { nx, nz, depth: pen, px: x, pz: z };
+  }
+  return best;
 }

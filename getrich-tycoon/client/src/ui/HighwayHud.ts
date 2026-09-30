@@ -154,7 +154,7 @@ export class DragHud {
       h(
         'table',
         { class: 'dt-table' },
-        h('tr', null, h('th', null, ''), h('th', null, 'Reaction'), h('th', null, '1/8 mile ET'), h('th', null, 'Trap'), h('th', null, '0-100 (spec)')),
+        h('tr', null, h('th', null, ''), h('th', null, 'Reaction'), h('th', null, '1/4 mile ET'), h('th', null, 'Trap'), h('th', null, '0-100 (spec)')),
         ...race.racers.map((r) =>
           h(
             'tr',

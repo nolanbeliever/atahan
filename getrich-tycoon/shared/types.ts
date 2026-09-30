@@ -284,12 +284,28 @@ export type AnimState = (typeof Anim)[keyof typeof Anim];
 
 /** Compact snapshot tuples (bandwidth): [id, x, z, rot, anim, drivingVehicleId] */
 export type PlayerSnap = [string, number, number, number, number, string | null];
-/** [id, x, z, rot, speed, steer] - only vehicles that are currently being driven */
-export type VehicleSnap = [string, number, number, number, number, number];
+/**
+ * [id, x, z, rot, speed, steer, rpm, gear, flags (VF)] - only vehicles that are currently being
+ * driven.
+ */
+export type VehicleSnap = [string, number, number, number, number, number, number, number, number];
+/** Flags of a driven vehicle in a snapshot. */
+export const VF = {
+  BRAKE: 1,
+  REVERSE: 2,
+  /** Tyres sliding (skid marks, smoke, screech). */
+  SLIDE: 4,
+  /** Big turbo boost (whistle). */
+  BOOST: 8,
+  HORN: 16,
+} as const;
 /** [id, x, z, rot, anim, appearanceStyle] - NPC customers */
 export type NpcSnap = [string, number, number, number, number, number];
-/** Authoritative state of the receiving client: [x, z, rot, speed, steer, drivingVehicleId] */
-export type SelfSnap = [number, number, number, number, number, string | null];
+/**
+ * Authoritative state of the receiving client: [x, z, rot, drivingVehicleId, vehicle state]. The
+ * vehicle state is physics.DynTuple (see dynToTuple) while driving.
+ */
+export type SelfSnap = [number, number, number, string | null, number[] | null];
 
 export interface Snapshot {
   /** Server time (ms). */

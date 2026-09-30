@@ -116,8 +116,9 @@ describe('drag strip', () => {
     const done = races(client).find((r) => r.phase === 'finished')!;
     const me = done.racers[0]!;
     expect(me.result?.outcome).toBe('finished');
-    expect(me.result!.et!).toBeGreaterThan(4);
-    expect(me.result!.et!).toBeLessThan(16);
+    // A quarter mile: ~10 s for a supercar, ~18 s for a small hatchback.
+    expect(me.result!.et!).toBeGreaterThan(8);
+    expect(me.result!.et!).toBeLessThan(24);
     expect(me.result!.trapKmh!).toBeGreaterThan(80);
     expect(me.zeroTo100).toBeGreaterThan(0);
     await sleep(600);
@@ -141,7 +142,7 @@ describe('highway', () => {
     // Pick a car on a straight in the inner carriageway's lane 1 with clear road in lane 0 ahead.
     const traffic = server.game.sim.traffic;
     const seg = STRAIGHT_LEN + CORNER_LEN;
-    // Pass it in the lane to its left, hugging the lane line (about 0.5 m from its side).
+    // Pass it in the lane to its left, 30 cm from its side (a near miss is 50 cm or less).
     const clearLeft = (c: (typeof traffic.cars)[number]) =>
       !traffic.cars.some((o) => o !== c && o.spec.cw === 0 && Math.abs(o.off - laneOffset(0, c.lane - 1)) < 3.2 && deltaS(c.s - 40, o.s) > -5 && deltaS(c.s - 40, o.s) < 90);
     const pick = () =>
@@ -159,11 +160,12 @@ describe('highway', () => {
     expect(target, 'a traffic car to pass').toBeDefined();
     const car = target!;
     const d = server.game.sim.drives.get(vehicleId)!;
-    const off = car.off + car.spec.width / 2 + d.params.halfWidth + 0.5;
+    const off = car.off + car.spec.width / 2 + d.params.halfWidth + 0.3;
     const s0 = wrapS(car.s - 22 * travelDir(0));
     const p = pathPoint(s0, off);
     server.game.sim.placeDrive(vehicleId, p.x, p.z, pathYaw(p, false));
     d.dyn.speed = Math.min(d.params.topSpeed * 0.95, 34);
+    d.dyn.gear = d.params.pt.gears.length;
     const money0 = server.game.state.players.get(client.playerId)!.money;
     await drive(client, () => KEY.FORWARD, 4000, () => client.events.some((e) => e.event === 'highway.nearmiss'));
     const nm = client.events.find((e) => e.event === 'highway.nearmiss')?.data as NearMissEvent | undefined;
@@ -182,6 +184,7 @@ describe('highway', () => {
     const q = pathPoint(wrapS(victim.s - (victim.spec.length / 2 + 6)), victim.off);
     server.game.sim.placeDrive(vehicleId, q.x, q.z, pathYaw(q, false));
     d.dyn.speed = 30;
+    d.dyn.gear = d.params.pt.gears.length;
     await drive(client, () => KEY.FORWARD, 3000, () => client.events.some((e) => e.event === 'highway.combo'));
     const end = client.events.find((e) => e.event === 'highway.combo')?.data as { reason: string; count: number } | undefined;
     expect(end).toMatchObject({ reason: 'crash', count: 1 });
