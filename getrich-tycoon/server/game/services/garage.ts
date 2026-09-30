@@ -1,6 +1,6 @@
 // Repair garage, car wash, fuel station, customization garage and parts depot.
 
-import { MOD_CATALOG, findOption, isValidModOption, type ModSlot } from '../../../shared/customization';
+import { MOD_CATALOG, optionLevel, findOption, isValidModOption, type ModSlot } from '../../../shared/customization';
 import { ECONOMY, dealershipLevel } from '../../../shared/economy.config';
 import { REPAIR_PARTS, type RepairPart, type Vehicle } from '../../../shared/types';
 import { fuelCost, kitForPart, repairQuote } from '../../../shared/valuation';
@@ -161,6 +161,8 @@ export class GarageService {
       for (const s of slots) {
         const next = modsIn[s] as string | null;
         if (veh.mods[s] === next) continue;
+        const need = optionLevel(next);
+        if (player.level < need) throw new GameError('forbidden', `${findOption(next)?.label ?? 'That option'} unlocks at level ${need}.`);
         cost += findOption(next)?.price ?? 0;
         (veh.mods as unknown as Record<string, string | null>)[s] = next;
         changed++;

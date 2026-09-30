@@ -4,6 +4,7 @@
 import type { VehicleTuning } from './modificationsData';
 import type { DragBotSnap } from './drag';
 import type { TrafficSnap } from './traffic';
+import type { PoliceSnap } from './police';
 
 export type VehicleCategory =
   | 'compact'
@@ -49,6 +50,8 @@ export interface VehicleMods {
   bodyKit: string;
   headlights: string;
   accessory: string;
+  /** Neon underglow kit (older vehicles have none). */
+  underglow?: string;
   /** Performance parts, body parts, custom paint, wheels and stance (see modificationsData.ts). */
   tuning?: VehicleTuning;
 }
@@ -246,7 +249,11 @@ export type TransactionKind =
   | 'near_miss'
   | 'drag_entry'
   | 'drag_win'
-  | 'drag_refund';
+  | 'drag_refund'
+  | 'drive_bonus'
+  | 'mission'
+  | 'police_fine'
+  | 'police_escape';
 
 export interface Transaction {
   id: string;
@@ -320,6 +327,8 @@ export interface Snapshot {
   tr?: TrafficSnap[];
   /** Drag strip bot positions while a race is on (players near the strip). */
   dr?: { id: string; cars: DragBotSnap[] };
+  /** Police cars near the player. */
+  po?: PoliceSnap[];
 }
 
 export interface CustomerOffer {

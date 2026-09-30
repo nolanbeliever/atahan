@@ -98,10 +98,8 @@ export class Simulation {
   readonly traffic = new TrafficSystem();
   /** Players, walkers and parked cars on the highway (traffic brakes for them). */
   highwayBodies: HighwayBody[] = [];
-  /** Extra vehicles owned by services (drag strip bots, police). */
-  extraObstacles: ObstacleVehicle[] = [];
-  /** Extra collision boxes owned by services (police cars), rebuilt by their owner each tick. */
-  extraBoxes: DynamicBox[] = [];
+  /** Extra vehicles owned by services (drag strip bots, police cars), by owner. */
+  private obstacleSources = new Map<string, ObstacleVehicle[]>();
 
   constructor(private readonly state: GameState) {
     this.rebuildStatic();
@@ -131,10 +129,9 @@ export class Simulation {
       const h = d.dyn.speed >= 0 ? d.dyn.rot + d.dyn.slip : d.dyn.rot;
       if (v) list.push({ id: v.id, modelId: v.modelId, x: d.dyn.x, z: d.dyn.z, rot: d.dyn.rot, vx: Math.sin(h) * d.dyn.speed, vz: Math.cos(h) * d.dyn.speed });
     }
-    list.push(...this.extraObstacles);
+    for (const extra of this.obstacleSources.values()) list.push(...extra);
     this.dynamic.length = 0;
     vehicleObstacles(list, this.dynamic);
-    this.dynamic.push(...this.extraBoxes);
     this.world.grip = surfaceGrip(Date.now());
     // Traffic near someone who could touch it.
     const near: { x: number; z: number }[] = [];
@@ -146,12 +143,19 @@ export class Simulation {
       if (!nearHighway(o.x, o.z, 4)) continue;
       const m = getModel(o.modelId);
       const d = this.drives.get(o.id);
-      bodies.push({ id: o.id, x: o.x, z: o.z, rot: o.rot, speed: d ? d.dyn.speed : 0, halfLength: m.shape.length / 2, halfWidth: m.shape.width / 2 });
+      const speed = d ? d.dyn.speed : o.vx !== undefined ? Math.sin(o.rot) * o.vx + Math.cos(o.rot) * (o.vz ?? 0) : 0;
+      bodies.push({ id: o.id, x: o.x, z: o.z, rot: o.rot, speed, halfLength: m.shape.length / 2, halfWidth: m.shape.width / 2 });
     }
     for (const c of this.chars.values()) {
       if (!c.drivingId && nearHighway(c.x, c.z, 4)) bodies.push({ id: c.id, x: c.x, z: c.z, rot: c.rot, speed: 0, halfLength: CHAR_RADIUS, halfWidth: CHAR_RADIUS });
     }
     this.highwayBodies = bodies;
+  }
+
+  /** Vehicles a service owns (drag bots, police): colliders and traffic obstacles. */
+  setExtraObstacles(owner: string, list: ObstacleVehicle[]): void {
+    if (list.length === 0) this.obstacleSources.delete(owner);
+    else this.obstacleSources.set(owner, list);
   }
 
   /** Advance the highway traffic (players and parked cars are obstacles). */

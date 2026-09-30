@@ -131,3 +131,10 @@ CREATE TABLE IF NOT EXISTS world_state (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- Daily missions per player (JSON document, see shared/missions.ts).
+CREATE TABLE IF NOT EXISTS player_missions (
+  player_id TEXT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,
+  updated_at BIGINT NOT NULL
+);

@@ -35,6 +35,9 @@ import { ChatService } from './services/chat';
 import { CustomerService } from './services/customers';
 import { DealershipService } from './services/dealership';
 import { DragService } from './services/drag';
+import { DrivingService } from './services/driving';
+import { MissionService } from './services/missions';
+import { PoliceService } from './services/police';
 import { HighwayService } from './services/highway';
 import { GarageService } from './services/garage';
 import { MarketService } from './services/market';
@@ -80,6 +83,9 @@ export class GameServer implements Hub {
   readonly rare: RareMarketService;
   readonly highway: HighwayService;
   readonly drag: DragService;
+  readonly driving: DrivingService;
+  readonly missions: MissionService;
+  readonly police: PoliceService;
   private tickCount = 0;
   private sessions = new Map<string, Session>();
   private timers: NodeJS.Timeout[] = [];
@@ -114,6 +120,16 @@ export class GameServer implements Hub {
     this.rare = new RareMarketService(this.ctx);
     this.highway = new HighwayService(this.ctx);
     this.drag = new DragService(this.ctx);
+    this.driving = new DrivingService(this.ctx);
+    this.missions = new MissionService(this.ctx);
+    this.police = new PoliceService(this.ctx, this.vehicles);
+    // Near misses feed the wanted level and the missions; distance and escapes feed missions.
+    this.highway.listeners.push((pid, e) => {
+      this.police.onNearMiss(pid, e.kmh);
+      this.missions.onNearMiss(pid, { kmh: e.kmh, combo: this.highway.comboOf(pid)?.count ?? 0 });
+    });
+    this.driving.listeners.push((pid, metres) => this.missions.onDistance(pid, metres));
+    this.police.escapeListeners.push((pid) => this.missions.onEscape(pid));
     state.onCommit = (r) => this.onCommit(r);
 
     this.handlers = {
@@ -146,6 +162,8 @@ export class GameServer implements Hub {
       'drag.info': () => this.drag.info(),
       'drag.join': (pid, p) => this.drag.join(pid, p),
       'drag.leave': (pid) => this.drag.leave(pid),
+      'missions.list': (pid) => this.missions.list(pid),
+      'missions.start': (pid, p) => this.missions.start(pid, p),
       'bank.deposit': (pid, p) => this.bank.deposit(pid, p),
       'bank.withdraw': (pid, p) => this.bank.withdraw(pid, p),
       'auction.list': () => ({ auctions: this.auctions.list() }),
@@ -317,6 +335,7 @@ export class GameServer implements Hub {
 
     socket.emit('welcome', { playerId, self: this.privateState(playerId), world: this.worldInit(), protocol: PROTOCOL_VERSION });
     this.broadcast('player.upsert', this.publicPlayer(playerId));
+    await this.missions.load(playerId);
     for (const m of this.chat.history) socket.emit('chat', m);
     log.info('player connected', { playerId, name: record.name, online: this.sessions.size });
 
@@ -334,6 +353,9 @@ export class GameServer implements Hub {
     if (this.sessions.get(playerId) === session) this.sessions.delete(playerId);
     this.highway.forget(playerId);
     this.drag.forget(playerId);
+    this.driving.forget(playerId);
+    this.police.forget(playerId);
+    await this.missions.forget(playerId);
     const c = this.sim.chars.get(playerId);
     if (c?.drivingId) {
       const vehicleId = c.drivingId;
@@ -489,6 +511,7 @@ export class GameServer implements Hub {
       this.broadcast('auction.update', pub);
     }
     for (const { playerId, n } of r.notifications) this.notify(playerId, n);
+    if (r.transactions.length > 0) this.missions.onTransactions(r.transactions);
     // Self updates are flushed right after the current RPC or tick.
     queueMicrotask(() => this.flushSelf());
   }
@@ -522,6 +545,7 @@ export class GameServer implements Hub {
       const wide = this.tickCount % 10 === 0;
       const tr = wide || this.tickCount % 2 === 0 ? this.sim.traffic.snapshot(c.x, c.z, wide ? 330 : 150) : [];
       const nearStrip = !!dr && Math.hypot(c.x - DRAG_STRIP.stage.x, c.z - DRAG_STRIP.stage.z) < 380;
+      const po = this.police.active ? this.police.snapshot(c.x, c.z, 320) : [];
       s.socket.volatile.emit('snapshot', {
         t: now,
         ack: c.lastSeq,
@@ -531,17 +555,22 @@ export class GameServer implements Hub {
         self: [c.x, c.z, d ? d.dyn.rot : c.rot, c.drivingId, d ? dynToTuple(d.dyn) : null],
         ...(tr.length > 0 ? { tr } : {}),
         ...(nearStrip ? { dr: dr! } : {}),
+        ...(po.length > 0 ? { po } : {}),
       });
     }
     // Game logic that may send events (near misses, drag lights) runs after the snapshots.
     this.sim.stepTraffic(dt);
     this.highway.tick(now);
     this.drag.tick(dt);
+    this.police.tick(dt, now);
+    this.missions.tickFast(dt);
   }
 
   private async slowTick(): Promise<void> {
     this.rare.tick();
     await this.highway.flush();
+    await this.driving.tick();
+    await this.missions.tick();
     if (this.cfg.simulation) {
       await this.customers.tick();
       await this.auctions.tick();

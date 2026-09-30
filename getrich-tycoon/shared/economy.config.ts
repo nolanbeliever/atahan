@@ -482,6 +482,81 @@ export const ECONOMY = {
     hourlyCap: 75_000,
   },
 
+  /**
+   * Passive income while driving: every `everySec` seconds of driving (moving, not parked) the
+   * driver earns cash scaled by the car's current market value:
+   *   amount = perTenSecondsAt50k * (value / 50,000) ^ exponent
+   * e.g. a $50,000 car pays $50, a $300,000 G 63 / M8 about $350 per 10 s.
+   */
+  driving: {
+    everySec: 10,
+    perTenSecondsAt50k: 50,
+    exponent: 1.086,
+    /** The car must average at least this (km/h) over the interval (no idling or pushing a car). */
+    minAvgKmh: 20,
+    minAmount: 1,
+  },
+
+  /** Wanted level and police pursuits. */
+  police: {
+    /** Heat per offence; stars = ceil(heat / 100), up to 5. */
+    heatNearMissFast: 40,
+    /** Near misses this fast (km/h) count as reckless driving. */
+    fastNearMissKmh: 180,
+    heatTrafficCrash: 90,
+    heatHitPolice: 150,
+    maxHeat: 500,
+    /** Stars needed before police cars come after you. */
+    pursuitStars: 2,
+    /** Police cars in pursuit by wanted level (index = stars). */
+    unitsByStars: [0, 0, 1, 2, 3, 4],
+    /** Seconds without a police car near you (m) to lose them. */
+    escapeSec: 30,
+    escapeRadius: 90,
+    escapeReward: 1_000,
+    escapeXp: 60,
+    /** At 1 star (no pursuit) the heat simply fades after this long without an offence (s). */
+    calmSec: 30,
+    /** A police car this close (box gap, m) while you are this slow (km/h) for bustSec: busted. */
+    bustGap: 2.5,
+    bustKmh: 15,
+    bustSec: 3,
+    /** Fine: this share of your cash, at least minFine (never more than you have). */
+    fineShare: 0.1,
+    minFine: 1_500,
+    /** Length of the arrest cutscene before you respawn (s). */
+    cutsceneSec: 6.5,
+  },
+
+  /** Missions: daily set (resets at 00:00 UTC) with automatic rewards. */
+  missions: {
+    dailyCount: 5,
+    /** The timed sell mission can be restarted after this long (s). */
+    timedCooldownSec: 300,
+  },
+
+  /** Level (reputation track) unlocks. */
+  unlocks: {
+    /** Garage capacity: base + perStep for every `levelsPerStep` levels above 1, up to max. */
+    garage: { base: 30, perStep: 2, levelsPerStep: 3, max: 64 },
+    /** Vehicles you can have out on the street at once. */
+    spawnSlots: [
+      { level: 1, slots: 2 },
+      { level: 8, slots: 3 },
+      { level: 18, slots: 4 },
+    ],
+    /** Discount on the used vehicle market (share), per level reached. */
+    marketDiscount: [
+      { level: 5, discount: 0.02 },
+      { level: 10, discount: 0.04 },
+      { level: 20, discount: 0.07 },
+      { level: 30, discount: 0.1 },
+    ],
+    /** Level needed for underglow neon (colours) and the animated rainbow kit. */
+    underglowLevel: 5,
+    rainbowUnderglowLevel: 15,
+  },
+
   /** Drag strip: each racer pays the entry, the winner takes the pool. */
   drag: {
     entryFee: 250,

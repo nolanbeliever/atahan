@@ -39,7 +39,8 @@ export function createApp(cfg: ServerConfig, auth: AuthService, health: HealthIn
         "worker-src 'self' blob:",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob:",
-        `connect-src 'self' ws: wss: ${cfg.corsOrigins.join(' ')} ${wsOrigins}`.trim(),
+        // blob: lets GLTFLoader read textures embedded in .glb vehicle models.
+        `connect-src 'self' blob: ws: wss: ${cfg.corsOrigins.join(' ')} ${wsOrigins}`.trim(),
         "font-src 'self' data:",
         "object-src 'none'",
         "base-uri 'self'",

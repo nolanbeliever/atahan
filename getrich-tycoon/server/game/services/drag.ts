@@ -282,7 +282,7 @@ export class DragService {
 
   private syncBots(): void {
     const bots = this.race?.runners.filter((r) => r.bot) ?? [];
-    this.ctx.sim.extraObstacles = bots.map((r) => ({ id: `drag-bot-${r.racer.lane}`, modelId: r.model.id, x: r.bot!.dyn.x, z: r.bot!.dyn.z, rot: r.bot!.dyn.rot }));
+    this.ctx.sim.setExtraObstacles('drag', bots.map((r) => ({ id: `drag-bot-${r.racer.lane}`, modelId: r.model.id, x: r.bot!.dyn.x, z: r.bot!.dyn.z, rot: r.bot!.dyn.rot })));
   }
 
   /** Front bumper position along the strip and the speedometer reading of a runner. */
@@ -307,7 +307,7 @@ export class DragService {
     if (race.settled) {
       if (race.finishedAt && now - race.finishedAt > DRAG_TIMING.results * 1000) {
         this.race = null;
-        this.ctx.sim.extraObstacles = [];
+        this.ctx.sim.setExtraObstacles('drag', []);
         for (const [id] of this.ctx.sim.chars) this.ctx.hub.sendTo(id, 'drag.update', null);
       }
       return;

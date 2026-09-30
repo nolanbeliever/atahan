@@ -28,7 +28,7 @@ function picture(offer: RareOffer): HTMLElement {
   const render = () =>
     requestAnimationFrame(() => {
       const studio = getStudio();
-      if (studio) img.src = studio.snapshot(offer.vehicle);
+      if (studio) void studio.snapshot(offer.vehicle).then((url) => (img.src = url));
     });
   if (model.image) {
     img.addEventListener('error', render, { once: true });

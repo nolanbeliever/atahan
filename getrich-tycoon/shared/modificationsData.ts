@@ -313,7 +313,7 @@ export const PAINT_FINISH_DEFS: Record<PaintFinish, PaintFinishDef> = {
 export interface RimDesignDef {
   id: string;
   name: string;
-  /** Renderer rim style (see client/src/render/carDesigns.ts RimStyle). */
+  /** Rim design in the shared rims model (client/public/assets/models/vehicles/rims.glb, node rim_<style>). */
   style: 'mesh' | 'sixspoke' | 'turbofan' | 'multi' | 'deepdish';
   value: number;
   cost: { base: number; rate: number };

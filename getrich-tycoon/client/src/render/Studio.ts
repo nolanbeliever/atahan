@@ -170,13 +170,14 @@ class StudioScene {
     this.raf = requestAnimationFrame(loop);
   }
 
-  /** A still picture of a vehicle (data URL), cached by its look. */
-  snapshot(look: VehicleLook, w = 480, h = 270): string {
+  /** A still picture of a vehicle (data URL), cached by its look (waits for the model to load). */
+  async snapshot(look: VehicleLook, w = 480, h = 270): Promise<string> {
     const key = lookSignature(look);
     const hit = this.thumbs.get(key);
     if (hit) return hit;
-    const prev = { look: this.view, yaw: this.yaw, pitch: this.pitch, dist: this.dist, size: this.renderer.getSize(new THREE.Vector2()), rollers: this.rollers.visible };
     const temp = createVehicleView(look);
+    await temp.ready;
+    const prev = { look: this.view, yaw: this.yaw, pitch: this.pitch, dist: this.dist, size: this.renderer.getSize(new THREE.Vector2()), rollers: this.rollers.visible };
     if (this.view) this.view.root.visible = false;
     this.scene.add(temp.root);
     this.rollers.visible = false;

@@ -1,95 +1,177 @@
+// Vehicle 3D models: every vehicle is a GLB file (no built-in shapes). Checks the registry, reads
+// each shipped .glb's JSON chunk (node names, materials, accessor bounds - no Draco decoding
+// needed) and exercises the loader's fitting on a synthetic "downloaded" model.
+
+import fs from 'node:fs';
+import path from 'node:path';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { VEHICLE_MODELS } from '../../shared/vehicles';
-import { bikeBody } from '../../client/src/render/bikeBody';
-import { carBody, rimGeometry, tireGeometry } from '../../client/src/render/carBody';
-import { DESIGNS } from '../../client/src/render/carDesigns';
+import { LEGACY_HQ_FILES, PART_MODELS, highDetailVehicles } from '../../client/src/data/highDetailVehicles';
+import { fitTemplate } from '../../client/src/render/ModelLibrary';
+import { TRAFFIC_KINDS } from '../../shared/traffic';
+import { POLICE_MODEL, VEHICLE_MODELS, getModel } from '../../shared/vehicles';
 
-const triangles = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+const PUBLIC = path.resolve(__dirname, '../../client/public');
 
-describe('procedural vehicle models', () => {
-  const cars = VEHICLE_MODELS.filter((m) => m.specs.kind === 'car');
+interface GltfNode {
+  name?: string;
+  children?: number[];
+  mesh?: number;
+  translation?: [number, number, number];
+  rotation?: [number, number, number, number];
+  scale?: [number, number, number];
+}
 
-  it('every car model has its own design', () => {
-    for (const m of cars) expect(DESIGNS[m.id], m.id).toBeDefined();
-  });
+interface Gltf {
+  nodes: GltfNode[];
+  meshes: { primitives: { attributes: Record<string, number>; material?: number }[] }[];
+  materials: { name?: string }[];
+  accessors: { min?: number[]; max?: number[] }[];
+  scenes: { nodes: number[] }[];
+  extensionsUsed?: string[];
+}
 
-  for (const m of cars) {
-    it(`${m.id} builds a valid body that matches its physical size`, () => {
-      const body = carBody(m.id);
-      const box = new THREE.Box3();
-      let tris = 0;
-      for (const [part, g] of body.parts) {
-        const pos = g.getAttribute('position');
-        for (let i = 0; i < pos.count; i++) {
-          expect(Number.isFinite(pos.getX(i)) && Number.isFinite(pos.getY(i)) && Number.isFinite(pos.getZ(i)), `${m.id}/${part}`).toBe(true);
-        }
-        g.computeBoundingBox();
-        box.union(g.boundingBox!);
-        tris += triangles(g);
+function readGlb(url: string): Gltf {
+  const file = path.join(PUBLIC, url.replace(/^\.\//, ''));
+  const buf = fs.readFileSync(file);
+  expect(buf.readUInt32LE(0)).toBe(0x46546c67); // 'glTF'
+  const len = buf.readUInt32LE(12);
+  return JSON.parse(buf.subarray(20, 20 + len).toString('utf8')) as Gltf;
+}
+
+/** World-space bounds of every mesh under the scene, skipping kit parts and helper nodes. */
+function bounds(g: Gltf): { min: THREE.Vector3; max: THREE.Vector3; names: Set<string>; materials: Set<string>; wheelY: number[] } {
+  const box = new THREE.Box3();
+  const names = new Set<string>();
+  const materials = new Set<string>();
+  const wheelY: number[] = [];
+  const visit = (i: number, parent: THREE.Matrix4, skip: boolean) => {
+    const n = g.nodes[i]!;
+    const m = new THREE.Matrix4().compose(
+      new THREE.Vector3(...(n.translation ?? [0, 0, 0])),
+      new THREE.Quaternion(...(n.rotation ?? [0, 0, 0, 1])),
+      new THREE.Vector3(...(n.scale ?? [1, 1, 1])),
+    );
+    const world = parent.clone().multiply(m);
+    if (n.name) names.add(n.name);
+    const hidden = skip || n.name === 'kits' || n.name === 'door_fl_cavity';
+    if (/^wheel_(fl|fr|rl|rr|front|rear)$/.test(n.name ?? '')) wheelY.push(new THREE.Vector3().setFromMatrixPosition(world).y);
+    if (n.mesh !== undefined) {
+      for (const p of g.meshes[n.mesh]!.primitives) {
+        if (p.material !== undefined) materials.add(g.materials[p.material]!.name ?? '');
+        if (hidden) continue;
+        const a = g.accessors[p.attributes.POSITION!]!;
+        const b = new THREE.Box3(new THREE.Vector3(...(a.min as [number, number, number])), new THREE.Vector3(...(a.max as [number, number, number]))).applyMatrix4(world);
+        box.union(b);
       }
-      // Close to the collision box used by the physics (mirrors, exhausts and a rear spare wheel stick out a little).
-      expect(box.max.z).toBeLessThanOrEqual(m.shape.length / 2 + 0.1);
-      expect(box.min.z).toBeGreaterThanOrEqual(-m.shape.length / 2 - (body.d.spare ? body.d.wheelW + 0.1 : 0.1));
-      expect(box.max.x).toBeLessThanOrEqual(m.shape.width / 2 + 0.25);
-      expect(box.min.y).toBeGreaterThanOrEqual(0);
-      expect(box.max.y).toBeLessThanOrEqual(body.height + 0.25);
-      expect(body.height).toBeGreaterThan(1);
-      expect(body.height).toBeLessThan(2.4);
-      // Wheels sit inside the body width.
-      expect(body.trackX + body.d.wheelW / 2).toBeLessThanOrEqual(m.shape.width / 2 + 0.06);
-      // Cheap enough to fill a car park on a tablet.
-      expect(tris).toBeLessThan(12_000);
-      for (const part of ['paint', 'trim', 'lamp', 'chrome'] as const) {
-        if (part === 'chrome' && !body.parts.has('chrome')) continue;
-        expect(body.parts.has(part), `${m.id} ${part}`).toBe(true);
-      }
-      if (body.d.open?.kind !== 'cockpit') expect(body.parts.has('glass')).toBe(true);
-    });
-
-    it(`${m.id} has head lamps at the front and tail lamps at the back`, () => {
-      const lamp = carBody(m.id).parts.get('lamp')!;
-      const pos = lamp.getAttribute('position');
-      const col = lamp.getAttribute('color');
-      let front = 0;
-      let rear = 0;
-      for (let i = 0; i < pos.count; i++) {
-        const red = col.getX(i) > 0.9 && col.getY(i) < 0.3;
-        if (!red && pos.getZ(i) > 0) front++;
-        if (red && pos.getZ(i) < 0) rear++;
-      }
-      expect(front, 'head lamps').toBeGreaterThan(0);
-      expect(rear, 'tail lamps').toBeGreaterThan(0);
-    });
-  }
-
-  it('wheel parts are shared and small', () => {
-    expect(tireGeometry(0.62)).toBe(tireGeometry(0.62));
-    for (const s of ['five', 'multi', 'aero', 'hubcap', 'wire', 'steel', 'mesh', 'sixspoke', 'turbofan', 'deepdish'] as const) expect(triangles(rimGeometry(s).face)).toBeLessThan(1000);
-  });
-
-  it('exhaust tips sit at the rear of cars with exhausts', () => {
-    for (const m of cars) {
-      const b = carBody(m.id);
-      if (b.d.exhaust === 'none') continue;
-      expect(b.exhausts.length, m.id).toBeGreaterThan(0);
-      for (const [, , z] of b.exhausts) expect(z, m.id).toBeLessThan(-m.shape.length / 2 + 0.3);
     }
+    for (const c of n.children ?? []) visit(c, world, hidden);
+  };
+  for (const root of g.scenes[0]!.nodes) visit(root, new THREE.Matrix4(), false);
+  return { min: box.min, max: box.max, names, materials, wheelY };
+}
+
+describe('vehicle model registry', () => {
+  it('has a model for every vehicle, traffic kind and the police car', () => {
+    const ids = new Set(highDetailVehicles.map((e) => e.vehicleId));
+    for (const m of VEHICLE_MODELS) expect(ids.has(m.id), m.id).toBe(true);
+    for (const k of ['truck', 'bus', 'semi_tractor', 'semi_trailer', 'police']) expect(ids.has(k), k).toBe(true);
+    expect(Object.keys(TRAFFIC_KINDS)).toEqual(expect.arrayContaining(['car', 'truck', 'bus', 'semi']));
+    const seen = new Set<string>();
+    for (const e of highDetailVehicles) {
+      expect(seen.has(e.id), e.id).toBe(false);
+      seen.add(e.id);
+      expect(e.modelUrl).toMatch(/\.(glb|gltf)$/);
+      expect(e.scale).toBeGreaterThan(0);
+    }
+    for (const legacy of Object.values(LEGACY_HQ_FILES)) expect(ids.has(legacy.vehicleId)).toBe(true);
   });
 
-  for (const m of VEHICLE_MODELS.filter((x) => x.specs.kind === 'bike')) {
-    it(`${m.id} builds a motorcycle within its size`, () => {
-      const b = bikeBody(m.id, m.shape.length, m.shape.wheelRadius, m.shape.wheelWidth);
-      const box = new THREE.Box3();
-      for (const g of [...b.parts.values(), ...b.steerParts.values()]) {
-        g.computeBoundingBox();
-        box.union(g.boundingBox!);
+  it('every default model file exists and is Draco-compressed', () => {
+    for (const e of highDetailVehicles) {
+      for (const url of [e.modelUrl, e.lodUrl].filter((u): u is string => !!u)) {
+        const g = readGlb(url);
+        expect(g.extensionsUsed ?? [], url).toContain('KHR_draco_mesh_compression');
       }
-      expect(b.parts.has('paint') && b.parts.has('lamp') && b.parts.has('glass')).toBe(true);
-      expect(box.max.x - box.min.x).toBeLessThan(m.shape.width + 0.1);
-      expect(b.front.z + b.front.r).toBeLessThanOrEqual(m.shape.length / 2 + 0.05);
-      expect(b.rear.z - b.rear.r).toBeGreaterThanOrEqual(-m.shape.length / 2 - 0.05);
-      expect(b.exhausts.length).toBeGreaterThan(0);
+    }
+    expect(readGlb(PART_MODELS.rims).nodes.some((n) => n.name === 'rim_mesh')).toBe(true);
+  });
+});
+
+describe('default car models', () => {
+  for (const m of VEHICLE_MODELS) {
+    it(`${m.id}: real size, tyres on the road, named parts`, () => {
+      const g = readGlb(highDetailVehicles.find((e) => e.vehicleId === m.id)!.modelUrl);
+      const b = bounds(g);
+      const size = b.max.clone().sub(b.min);
+      // Matches the catalogue (and the collision box) within a few centimetres (a spare wheel on
+      // the tailgate may stick out a little further).
+      expect(size.z, `${m.id} length`).toBeGreaterThan(m.shape.length - 0.12);
+      expect(size.z, `${m.id} length`).toBeLessThan(m.shape.length + 0.36);
+      expect(size.x, `${m.id} width`).toBeLessThanOrEqual(m.shape.width + 0.3);
+      expect(size.x, `${m.id} width`).toBeGreaterThan(m.shape.width * 0.8);
+      expect(b.min.y).toBeGreaterThanOrEqual(-0.02);
+      expect(size.y).toBeGreaterThan(m.specs.kind === 'bike' ? 0.8 : 1);
+      if (m.specs.kind === 'bike') {
+        for (const n of ['fork', 'wheel_front', 'wheel_rear', 'seat_rider']) expect(b.names.has(n), `${m.id} ${n}`).toBe(true);
+      } else {
+        for (const n of ['wheel_fl', 'wheel_fr', 'wheel_rl', 'wheel_rr', 'seat_driver', 'headlights', 'taillights', 'kits', 'kit_wing_gt']) expect(b.names.has(n), `${m.id} ${n}`).toBe(true);
+        // Combustion cars have exhaust tips (for backfire flames); electric cars don't.
+        expect(b.names.has('exhaust_0'), `${m.id} exhaust`).toBe(m.specs.aspiration !== 'electric');
+        // Wheel centres sit one wheel radius above the road.
+        for (const y of b.wheelY) expect(Math.abs(y - m.shape.wheelRadius), `${m.id} wheel height`).toBeLessThan(0.08);
+        for (const mat of ['paint', 'glass', 'headlight', 'taillight', 'tire', 'rim']) expect(b.materials.has(mat), `${m.id} ${mat}`).toBe(true);
+      }
     });
   }
+
+  it('most cars have an opening driver door', () => {
+    const withDoor = VEHICLE_MODELS.filter((m) => m.specs.kind === 'car' && bounds(readGlb(`./assets/models/vehicles/${m.id}.glb`)).names.has('door_fl'));
+    expect(withDoor.length).toBeGreaterThan(VEHICLE_MODELS.length * 0.7);
+  });
+
+  it('the police car has siren lamps and the cockpit has animated gauges', () => {
+    const p = bounds(readGlb('./assets/models/vehicles/police.glb'));
+    expect(p.materials.has('siren_red')).toBe(true);
+    expect(p.materials.has('siren_blue')).toBe(true);
+    expect(getModel('police')).toBe(POLICE_MODEL);
+    const c = bounds(readGlb(PART_MODELS.cockpit));
+    for (const n of ['steering_wheel', 'needle_rpm', 'needle_speed', 'shifter', 'pedal_throttle', 'pedal_brake', 'eye']) expect(c.names.has(n), n).toBe(true);
+  });
+});
+
+describe('fitting a downloaded model', () => {
+  it('turns, scales, centres and grounds any model; wheels found by common names', () => {
+    // A "downloaded" model in centimetres, facing -z, off-centre, with oddly named wheels.
+    const scene = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(190, 120, 470), new THREE.MeshStandardMaterial({ name: 'M_CarPaint_Red' }));
+    body.position.set(40, 95, -30);
+    scene.add(body);
+    for (const [name, x, z] of [
+      ['Wheel_FL', 120, -190],
+      ['Wheel_FR', -40, -190],
+      ['Wheel_RL', 120, 130],
+      ['Wheel_RR', -40, 130],
+    ] as const) {
+      const w = new THREE.Mesh(new THREE.CylinderGeometry(35, 35, 25, 16).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ name: 'Tyre' }));
+      w.name = name;
+      w.position.set(x, 35, z);
+      scene.add(w);
+    }
+    const entry = { ...highDetailVehicles[0]!, autoFit: true, rotationOffset: { x: 0, y: Math.PI, z: 0 } };
+    const t = fitTemplate(scene, entry, 4.79);
+    const box = new THREE.Box3().setFromObject(t.scene);
+    expect(box.getSize(new THREE.Vector3()).z).toBeCloseTo(4.79, 2);
+    expect(box.min.y).toBeCloseTo(0, 4);
+    const c = box.getCenter(new THREE.Vector3());
+    expect(Math.abs(c.x)).toBeLessThan(0.01);
+    expect(Math.abs(c.z)).toBeLessThan(0.01);
+    // Wheels got pivots at their centres (so they can spin and steer).
+    for (const k of ['fl', 'fr', 'rl', 'rr']) expect(t.scene.getObjectByName(`wheel_${k}_spin`), k).toBeDefined();
+    // Facing +z after the rotation offset: the front wheels are at +z.
+    const fl = new THREE.Vector3();
+    t.scene.getObjectByName('wheel_fl')!.getWorldPosition(fl);
+    expect(fl.z).toBeGreaterThan(0);
+    expect(t.info.wheelR).toBeCloseTo(0.35 * (4.79 / 4.7), 1);
+  });
 });

@@ -3,6 +3,8 @@
 // high-frequency movement goes through `input`.
 
 import type { DragInfo, DragRaceView } from './drag';
+import type { MissionView } from './missions';
+import type { BustedEvent, WantedState } from './police';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { TuningChange } from './tuningSystem';
@@ -79,6 +81,9 @@ export interface RpcMethods {
   'drag.info': { params: Empty; result: DragInfo };
   'drag.join': { params: { mode: 'bot' | 'player' }; result: DragInfo };
   'drag.leave': { params: Empty; result: DragInfo };
+  /** Today's missions (and start a timed one). */
+  'missions.list': { params: Empty; result: { missions: MissionView[] } };
+  'missions.start': { params: { id: string }; result: { missions: MissionView[] } };
 
   'bank.deposit': { params: { amount: number }; result: { money: number; bank: number } };
   'bank.withdraw': { params: { amount: number }; result: { money: number; bank: number } };
@@ -146,6 +151,14 @@ export interface ServerToClientEvents {
   'highway.combo': (d: { reason: 'crash' | 'expired'; count: number; earned: number }) => void;
   /** Drag strip race state (null when the strip is free). */
   'drag.update': (d: DragRaceView | null) => void;
+  /** Passive income while driving (every 10 s, by the car's value). */
+  'drive.bonus': (d: { amount: number; value: number }) => void;
+  'missions.update': (d: { missions: MissionView[] }) => void;
+  /** A mission was completed (the reward is already paid). */
+  'missions.complete': (d: { id: string; title: string; reward: string }) => void;
+  'police.wanted': (d: WantedState) => void;
+  'police.busted': (d: BustedEvent) => void;
+  'police.escaped': (d: { reward: number; xp: number }) => void;
   kicked: (reason: string) => void;
 }
 

@@ -1,5 +1,6 @@
 // Customization catalog (original, procedurally rendered options).
 
+import { ECONOMY } from './economy.config';
 import { normalizeTuning } from './tuningSystem';
 import type { VehicleMods } from './types';
 
@@ -64,6 +65,18 @@ export const ACCESSORIES: CustomOption[] = [
   { id: 'acc_lightbar', label: 'LED Light Bar', price: 900, value: 'lightbar' },
 ];
 
+/** Neon underglow kits (unlocked by level, see shared/reputation.ts). */
+export const UNDERGLOWS: CustomOption[] = [
+  { id: 'ug_none', label: 'None', price: 0, value: 'none' },
+  { id: 'ug_blue', label: 'Ice Blue Neon', price: 1_500, value: '#2b7bff' },
+  { id: 'ug_pink', label: 'Hot Pink Neon', price: 1_500, value: '#ff2bd6' },
+  { id: 'ug_green', label: 'Acid Green Neon', price: 1_500, value: '#39ff88' },
+  { id: 'ug_red', label: 'Red Neon', price: 1_500, value: '#ff2a2a' },
+  { id: 'ug_purple', label: 'Purple Neon', price: 1_700, value: '#9b5bff' },
+  { id: 'ug_white', label: 'White Neon', price: 1_700, value: '#e8f0ff' },
+  { id: 'ug_rainbow', label: 'Rainbow Cycle', price: 4_000, value: 'rainbow' },
+];
+
 export const MOD_CATALOG: Record<ModSlot, CustomOption[]> = {
   paint: PAINTS,
   wheels: WHEELS,
@@ -71,7 +84,14 @@ export const MOD_CATALOG: Record<ModSlot, CustomOption[]> = {
   bodyKit: BODY_KITS,
   headlights: HEADLIGHTS,
   accessory: ACCESSORIES,
+  underglow: UNDERGLOWS,
 };
+
+/** Level needed for a customization option (0 = always available). */
+export function optionLevel(id: string | null | undefined): number {
+  if (!id || !id.startsWith('ug_') || id === 'ug_none') return 0;
+  return id === 'ug_rainbow' ? ECONOMY.unlocks.rainbowUnderglowLevel : ECONOMY.unlocks.underglowLevel;
+}
 
 export const MOD_SLOT_LABELS: Record<ModSlot, string> = {
   paint: 'Paint',
@@ -80,6 +100,7 @@ export const MOD_SLOT_LABELS: Record<ModSlot, string> = {
   bodyKit: 'Body Kit',
   headlights: 'Headlights',
   accessory: 'Accessory',
+  underglow: 'Underglow Neon',
 };
 
 export const DEFAULT_MODS: VehicleMods = {
@@ -89,6 +110,7 @@ export const DEFAULT_MODS: VehicleMods = {
   bodyKit: 'kit_none',
   headlights: 'lights_halogen',
   accessory: 'acc_none',
+  underglow: 'ug_none',
 };
 
 const OPTION_INDEX = new Map<string, CustomOption>();

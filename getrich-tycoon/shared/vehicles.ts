@@ -332,7 +332,28 @@ export const CATALOG_MODELS: readonly VehicleModel[] = VEHICLE_MODELS.filter((m)
 
 VEHICLE_MODELS.push(...SPECIAL_MODELS);
 
-const MODEL_INDEX = new Map(VEHICLE_MODELS.map((m) => [m.id, m]));
+/**
+ * Service vehicles that are never sold: the police interceptor (a Velora Serene body with a
+ * tuned twin-turbo V8 and pursuit tyres). Found by getModel() but not part of the catalogue.
+ */
+export const POLICE_MODEL: VehicleModel = {
+  id: 'police',
+  brand: 'Police',
+  name: 'Interceptor',
+  category: 'sedan',
+  year: 2023,
+  basePrice: 0,
+  rarity: 1,
+  tier: 'common',
+  shape: { style: 'sedan', length: 4.8, width: 1.85, bodyHeight: 0.74, cabinHeight: 0.58, cabinLength: 0.45, cabinOffset: -0.05, cabinTaper: 0.16, rideHeight: 0.25, wheelRadius: 0.33, wheelWidth: 0.23 },
+  perf: { topSpeed: 36, accel: 9, brake: 13.5, handling: 1.12 },
+  specs: { kind: 'car', hp: 480, torque: 640, weight: 1850, topSpeed: 275, accel: 4.4, redline: 6800, aspiration: 'twin_turbo', drive: 'awd', cylinders: 8 },
+  colors: ['#f4f4f2'],
+  description: 'Pursuit-rated interceptor. You do not want to see it in your mirrors.',
+  exclusive: true,
+};
+
+const MODEL_INDEX = new Map([...VEHICLE_MODELS, POLICE_MODEL].map((m) => [m.id, m]));
 
 export function getModel(modelId: string): VehicleModel {
   const m = MODEL_INDEX.get(modelId);

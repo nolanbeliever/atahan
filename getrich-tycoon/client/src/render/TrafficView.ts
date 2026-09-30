@@ -1,32 +1,35 @@
 // Draws the highway traffic with instancing: one set of instanced meshes per vehicle type, so a
-// hundred cars, trucks, coaches and semis cost a few dozen draw calls. Cars close to the camera use
-// the full procedural body, distant ones a light hull. Lamps (brake lights, blinking indicators,
-// head / tail lights) and night glows are instanced too.
+// hundred cars, trucks, coaches and semis cost a few dozen draw calls. Every type is its GLB model
+// (data/highDetailVehicles.ts) baked into two geometries (paint + fixed colours); cars close to the
+// camera use the full model, distant ones its simplified (LOD) copy. Lamps (brake lights, blinking
+// indicators, head / tail lights) and night glows are instanced too.
 
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { DEFAULT_MODS } from '../../../shared/customization';
 import { TF, TRAFFIC_COUNT, trafficPose, trafficSpec, type TrafficSpec } from '../../../shared/traffic';
 import { getModel } from '../../../shared/vehicles';
 import type { ClientTrafficCar } from '../game/Traffic';
-import { heavyPart, SEMI_LAYOUT, type HeavyKey, type LampSpots } from './heavyBody';
 import { lightGlowTexture } from './Highway';
-import { VehicleView } from './VehicleMesh';
+import { vehicleTemplate, type VehicleTemplate } from './ModelLibrary';
+import { bakeTemplate } from './VehicleMesh';
 
 const NEAR_LOD = 120;
-const PERFECT = { engine: 100, transmission: 100, brakes: 100, tires: 100, body: 100, interior: 100, cleanliness: 100 };
 
 interface InstancedSet {
   meshes: { mesh: THREE.InstancedMesh; tint: 0 | 1 | 2 }[];
   n: number;
 }
 
+interface LampSpots {
+  head: [number, number, number][];
+  tail: [number, number, number][];
+  /** Indicators at the corners (facing +z, x > 0 is the vehicle's left side). */
+  ind: [number, number, number][];
+}
+
 interface PartModel {
   near: InstancedSet;
   far: InstancedSet | null;
   lamps: LampSpots;
-  /** Hull scale for the far LOD (cars). */
-  size: [number, number, number];
 }
 
 const paintMat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.45, roughness: 0.35 });
@@ -46,51 +49,50 @@ function makeSet(parts: { geo: THREE.BufferGeometry; tint: 0 | 1 | 2 }[], capaci
   return { meshes, n: 0 };
 }
 
-/** A low-detail car: body, glasshouse and wheels (unit length/width, scaled per model). */
-function hull(): { paint: THREE.BufferGeometry; fixed: THREE.BufferGeometry } {
-  const colored = (g: THREE.BufferGeometry, c: string) => {
-    const x = g.toNonIndexed();
-    x.deleteAttribute('uv');
-    const col = new THREE.Color(c);
-    const n = x.getAttribute('position').count;
-    const arr = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) arr.set([col.r, col.g, col.b], i * 3);
-    x.setAttribute('color', new THREE.BufferAttribute(arr, 3));
-    return x;
+function bakedParts(t: VehicleTemplate): { geo: THREE.BufferGeometry; tint: 0 | 1 | 2 }[] {
+  const b = bakeTemplate(t);
+  const list: { geo: THREE.BufferGeometry; tint: 0 | 1 | 2 }[] = [
+    { geo: b.paint, tint: 1 },
+    { geo: b.fixed, tint: 0 },
+  ];
+  if (b.paint2) list.push({ geo: b.paint2, tint: 2 });
+  return list;
+}
+
+/** Lamp spots of a model: its own lamp helpers (heavy vehicles) or its lamp meshes (cars). */
+function lampsOf(t: VehicleTemplate): LampSpots {
+  const pick = (prefix: string) => {
+    const out: [number, number, number][] = [];
+    t.scene.updateMatrixWorld(true);
+    t.scene.traverse((o) => {
+      if (o.name.startsWith(prefix)) {
+        const p = t.scene.worldToLocal(o.getWorldPosition(new THREE.Vector3()));
+        out.push([p.x, p.y, p.z]);
+      }
+    });
+    return out;
   };
-  const body = new THREE.BoxGeometry(1, 0.62, 1).translate(0, 0.62, 0);
-  const roof = new THREE.BoxGeometry(0.78, 0.08, 0.42).translate(0, 1.4, -0.05);
-  const glass = new THREE.BoxGeometry(0.82, 0.46, 0.5).translate(0, 1.15, -0.05);
-  const wheels: THREE.BufferGeometry[] = [];
-  for (const z of [0.32, -0.32]) for (const x of [-0.46, 0.46]) wheels.push(new THREE.BoxGeometry(0.1, 0.6, 0.14).translate(x, 0.3, z));
+  const head = pick('lamp_head_');
+  const tail = pick('lamp_tail_');
+  const ind = pick('lamp_ind_');
+  if (head.length || tail.length) return { head, tail, ind };
+  const i = t.info;
+  const L = i.length / 2;
+  const W = i.width / 2;
   return {
-    paint: mergeGeometries([colored(body, '#ffffff'), colored(roof, '#ffffff')], false)!,
-    fixed: mergeGeometries([colored(glass, '#1a2230'), ...wheels.map((w) => colored(w, '#141518'))], false)!,
+    head: i.heads.map((v) => [v.x, v.y, v.z]),
+    tail: i.tails.map((v) => [v.x, v.y, v.z]),
+    ind: [
+      [-W * 0.86, i.heads[0]!.y, L - 0.12],
+      [W * 0.86, i.heads[0]!.y, L - 0.12],
+      [-W * 0.88, i.tails[0]!.y, -L + 0.06],
+      [W * 0.88, i.tails[0]!.y, -L + 0.06],
+    ],
   };
 }
 
-/** Where a car model's lamps are (approximate, from its size). */
-function carLamps(modelId: string): LampSpots {
-  const m = getModel(modelId);
-  const L = m.shape.length / 2;
-  const W = m.shape.width / 2;
-  return {
-    head: [
-      [-W * 0.68, 0.72, L - 0.05],
-      [W * 0.68, 0.72, L - 0.05],
-    ],
-    tail: [
-      [-W * 0.72, 0.85, -L + 0.03],
-      [W * 0.72, 0.85, -L + 0.03],
-    ],
-    ind: [
-      [-W * 0.86, 0.72, L - 0.12],
-      [W * 0.86, 0.72, L - 0.12],
-      [-W * 0.88, 0.85, -L + 0.06],
-      [W * 0.88, 0.85, -L + 0.06],
-    ],
-  };
-}
+/** Along-body offsets of a semi's tractor and trailer model centres (16.4 m overall, 13.6 m trailer). */
+const SEMI_LAYOUT = { tractor: 16.4 / 2 - 3.0, trailer: -16.4 / 2 + 6.8 };
 
 export class TrafficView {
   readonly group = new THREE.Group();
@@ -111,51 +113,27 @@ export class TrafficView {
   private readonly color = new THREE.Color();
   private readonly frustum = new THREE.Frustum();
   private readonly sphere = new THREE.Sphere();
+  private readonly one = new THREE.Vector3(1, 1, 1);
 
   constructor() {
     this.group.name = 'traffic';
-    // Capacity per part type from the (deterministic) line-up.
+    // Capacity per part type from the (deterministic) line-up; models load in the background.
     const counts = new Map<string, number>();
     for (let id = 0; id < TRAFFIC_COUNT; id++) for (const key of this.keysOf(trafficSpec(id))) counts.set(key, (counts.get(key) ?? 0) + 1);
-    const hullGeo = hull();
     for (const [key, n] of counts) {
-      if (key.startsWith('car:')) {
-        const modelId = key.slice(4);
-        const view = new VehicleView({ modelId, color: '#ffffff', mods: { ...DEFAULT_MODS }, condition: PERFECT }, { hq: false });
-        const baked = view.bake();
-        view.dispose();
-        const shape = getModel(modelId).shape;
-        this.parts.set(key, {
-          near: makeSet(
-            [
-              { geo: baked.paint, tint: 1 },
-              { geo: baked.fixed, tint: 0 },
-            ],
-            n,
-            this.group,
-            true,
-          ),
-          far: makeSet(
-            [
-              { geo: hullGeo.paint, tint: 1 },
-              { geo: hullGeo.fixed, tint: 0 },
-            ],
-            n,
-            this.group,
-            false,
-          ),
-          lamps: carLamps(modelId),
-          size: [shape.width, 1, shape.length],
-        });
-      } else {
-        const hp = heavyPart(key as HeavyKey);
-        const list: { geo: THREE.BufferGeometry; tint: 0 | 1 | 2 }[] = [
-          { geo: hp.paint, tint: 1 },
-          { geo: hp.fixed, tint: 0 },
-        ];
-        if (hp.paint2) list.push({ geo: hp.paint2, tint: 2 });
-        this.parts.set(key, { near: makeSet(list, n, this.group, true), far: null, lamps: hp.lamps, size: [1, 1, 1] });
-      }
+      const car = key.startsWith('car:');
+      const id = car ? key.slice(4) : key;
+      // Cars are fitted to their catalogue length; heavy vehicles keep their modelled size.
+      const length = car ? getModel(id).shape.length : 0;
+      void Promise.all([vehicleTemplate(id, length), car ? vehicleTemplate(id, length, true) : Promise.resolve(null)])
+        .then(([full, lod]) => {
+          this.parts.set(key, {
+            near: makeSet(bakedParts(full), n, this.group, true),
+            far: lod ? makeSet(bakedParts(lod), n, this.group, false) : null,
+            lamps: lampsOf(full),
+          });
+        })
+        .catch((err) => console.warn(`traffic model ${key} failed to load`, err));
     }
     const lampCap = TRAFFIC_COUNT * 8;
     this.lampMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ toneMapped: false }), lampCap);
@@ -197,10 +175,10 @@ export class TrafficView {
     this.beams.visible = f > 0.02;
   }
 
-  private place(set: InstancedSet, x: number, z: number, yaw: number, scale: [number, number, number], c1: THREE.Color, c2: THREE.Color): void {
+  private place(set: InstancedSet, x: number, z: number, yaw: number, c1: THREE.Color, c2: THREE.Color): void {
     const i = set.n++;
     this.q.setFromAxisAngle(this.v.set(0, 1, 0), yaw);
-    this.m.compose(this.v.set(x, 0, z), this.q, new THREE.Vector3(...scale));
+    this.m.compose(this.v.set(x, 0, z), this.q, this.one);
     for (const { mesh, tint } of set.meshes) {
       mesh.setMatrixAt(i, this.m);
       if (tint === 1) mesh.setColorAt(i, c1);
@@ -268,8 +246,8 @@ export class TrafficView {
       for (const b of bodies) {
         const part = this.parts.get(b.key);
         if (!part) continue;
-        if (part.far && dist > NEAR_LOD) this.place(part.far, b.x, b.z, b.yaw, part.size, c1, c2);
-        else this.place(part.near, b.x, b.z, b.yaw, [1, 1, 1], c1, c2);
+        if (part.far && dist > NEAR_LOD) this.place(part.far, b.x, b.z, b.yaw, c1, c2);
+        else this.place(part.near, b.x, b.z, b.yaw, c1, c2);
         if (dist > 260) continue;
         const L = part.lamps;
         const night = this.night;

@@ -4,8 +4,9 @@
 
 import { MOD_CATALOG, findOption, isValidModOption } from '../../../shared/customization';
 import { ECONOMY } from '../../../shared/economy.config';
-import { BODY_SLOTS, PAINT_FINISHES, PERF_SLOTS, RIM_FINISHES, type BodySlot, type PerfSlot } from '../../../shared/modificationsData';
-import { quoteTuning, tuningOf, type TuningChange } from '../../../shared/tuningSystem';
+import { BODY_SLOTS, PAINT_FINISHES, PERF_SLOTS, RIM_FINISHES, findPart, type BodySlot, type PerfSlot } from '../../../shared/modificationsData';
+import { ECU_COUPON } from '../../../shared/missions';
+import { partPrice, quoteTuning, tuningOf, type TuningChange } from '../../../shared/tuningSystem';
 import type { Vehicle, VehicleMods } from '../../../shared/types';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
 import { GameError } from '../../errors';
@@ -117,8 +118,16 @@ export class TuningService {
       }
       if (!quote.changed && legacyChanged === 0) throw new GameError('bad_request', 'Nothing to change.');
 
-      const total = quote.total + legacyCost;
-      if (total > 0) uow.debit(player, total, 'tuning', `Tuning garage: ${modelDisplayName(veh.modelId)}`, veh.id);
+      // A Stage 1 ECU coupon (mission reward) pays for the Stage 1 remap.
+      let couponSaving = 0;
+      if (change.perf?.ecu === 'ecu_stage1' && (player.inventory[ECU_COUPON] ?? 0) > 0 && tuningOf(veh.mods).perf.ecu !== 'ecu_stage1') {
+        couponSaving = partPrice(model, findPart('ecu_stage1')!);
+        const left = (player.inventory[ECU_COUPON] ?? 0) - 1;
+        if (left > 0) player.inventory[ECU_COUPON] = left;
+        else delete player.inventory[ECU_COUPON];
+      }
+      const total = Math.max(0, quote.total + legacyCost - couponSaving);
+      if (total > 0) uow.debit(player, total, 'tuning', `Tuning garage: ${modelDisplayName(veh.modelId)}${couponSaving ? ' (ECU coupon used)' : ''}`, veh.id);
       veh.mods.tuning = quote.next;
       // Custom paint, aftermarket wheels and body parts replace the classic one-click options.
       if (change.paint && quote.next.paint) veh.mods.paint = null;

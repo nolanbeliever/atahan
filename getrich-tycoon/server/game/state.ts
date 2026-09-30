@@ -44,6 +44,8 @@ export interface CommitResult {
   auctions: AuctionRecord[];
   playerListingsChanged: boolean;
   notifications: { playerId: string; n: Notification }[];
+  /** Money movements in this commit (missions listen for sales, drag wins...). */
+  transactions: Transaction[];
 }
 
 export function isPublicVehicle(v: Vehicle | null | undefined): boolean {
@@ -163,6 +165,7 @@ export class GameState {
       auctions: [],
       playerListingsChanged: false,
       notifications: uow.notifications,
+      transactions: uow.transactions,
     };
     for (const [id, draft] of uow.playerDrafts) {
       const live = this.players.get(id);

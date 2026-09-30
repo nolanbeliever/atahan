@@ -1,5 +1,6 @@
 // Used Vehicle Market (NPC sellers + negotiation) and player-to-player purchases.
 
+import { discountedPrice } from '../../../shared/reputation';
 import { ECONOMY } from '../../../shared/economy.config';
 import { applyOffer, createSellerSession, toNegotiationState, type SellerSession } from '../../../shared/negotiation';
 import type { MarketListing, NegotiationState, PlayerListing, Vehicle } from '../../../shared/types';
@@ -134,7 +135,8 @@ export class MarketService {
 
   private currentPrice(playerId: string, l: ListingRecord): number {
     const s = this.sessions.get(`${playerId}:${l.id}`);
-    return s && s.status === 'open' ? s.counterOffer : l.askingPrice;
+    // Reputation discount on the asking price (negotiated prices are final).
+    return s && s.status === 'open' ? s.counterOffer : discountedPrice(l.askingPrice, this.ctx.state.players.get(playerId)?.level ?? 1);
   }
 
   async buy(playerId: string, params: unknown) {

@@ -2,6 +2,7 @@
 
 import { ECONOMY } from '../../../shared/economy.config';
 import { isCategoryUnlocked } from '../../../shared/progression';
+import { garageSlots } from '../../../shared/reputation';
 import type { TransactionKind, Vehicle } from '../../../shared/types';
 import { averageCondition, marketValue } from '../../../shared/valuation';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
@@ -14,8 +15,9 @@ export function assertCanOwnMore(ctx: Ctx, buyer: PlayerRecord): void {
   // Auctions the player currently leads count too: they will become owned vehicles.
   let leading = 0;
   for (const a of ctx.state.auctions.values()) if (a.status === 'active' && a.currentBidderId === buyer.id) leading++;
-  if (ctx.state.vehiclesOf(buyer.id).length + leading >= ECONOMY.player.maxOwnedVehicles) {
-    throw new GameError('conflict', `Your garage is full (max ${ECONOMY.player.maxOwnedVehicles} vehicles).`);
+  const slots = garageSlots(buyer.level);
+  if (ctx.state.vehiclesOf(buyer.id).length + leading >= slots) {
+    throw new GameError('conflict', `Your garage is full (max ${slots} vehicles at level ${buyer.level} - level up for more room).`);
   }
 }
 

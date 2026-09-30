@@ -2,6 +2,7 @@
 
 import { ECONOMY } from '../../../shared/economy.config';
 import { CHAR_RADIUS, vehicleBox } from '../../../shared/physics';
+import { spawnSlots } from '../../../shared/reputation';
 import { obbVsObb, obbVsCircle } from '../../../shared/obb';
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
 import { quickSellPrice } from '../../../shared/valuation';
@@ -15,7 +16,6 @@ import { requireIdle, requireOwned, requireVehicle } from '../guards';
 import { assertAskingPrice, settleSale } from './sales';
 
 const log = createLogger('vehicles');
-const MAX_SPAWNED = 2;
 const ENTER_RADIUS = 5;
 
 export class VehicleService {
@@ -94,7 +94,8 @@ export class VehicleService {
       if (!pos) throw new GameError('conflict', 'You are not in the world.');
       if (this.ctx.sim.chars.get(playerId)?.drivingId) throw new GameError('conflict', 'Exit your vehicle first.');
       const spawned = this.ctx.state.vehiclesOf(playerId).filter((x) => x.status === 'world' && x.id !== vehicleId);
-      if (spawned.length >= MAX_SPAWNED) throw new GameError('conflict', `You can have at most ${MAX_SPAWNED} vehicles out. Store one first.`);
+      const maxOut = spawnSlots(player.level);
+      if (spawned.length >= maxOut) throw new GameError('conflict', `You can have at most ${maxOut} vehicles out at level ${player.level}. Store one first.`);
       const spot = this.findSpawnSpot(pos.x, pos.z, pos.rot, veh.modelId, vehicleId);
       veh.status = 'world';
       veh.x = spot.x;

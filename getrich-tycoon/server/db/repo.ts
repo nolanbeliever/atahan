@@ -334,3 +334,17 @@ export async function loadAll(db: Database) {
     auctions: auctions.map(rowToAuction),
   };
 }
+
+// ---------------------------------------------------------------- missions
+
+export async function loadMissions(db: Queryable, playerId: string): Promise<unknown> {
+  const rows = await db.query('SELECT data FROM player_missions WHERE player_id=$1', [playerId]);
+  return rows[0] ? json(rows[0].data, null) : null;
+}
+
+export async function saveMissions(db: Queryable, playerId: string, data: unknown, now: number): Promise<void> {
+  await db.query(
+    'INSERT INTO player_missions (player_id, data, updated_at) VALUES ($1, $2, $3) ON CONFLICT (player_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at',
+    [playerId, JSON.stringify(data), now],
+  );
+}
