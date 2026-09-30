@@ -70,15 +70,15 @@ The **two-client multiplayer test** (`10-12`) is the critical one:
 
 ## Results from the build environment
 
-Recorded on 2026-09-29 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chromium via SwiftShader, PostgreSQL 16.13):
+Recorded on 2026-09-29/30 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chromium via SwiftShader, PostgreSQL 16.13):
 
 | Suite | SQLite | PostgreSQL |
 | --- | --- | --- |
 | `npm run typecheck` (client, server, tests) | pass | n/a |
-| Unit (Vitest) | 124 / 124 passed | n/a (no database) |
-| Integration (Vitest, real sockets) | 24 / 24 passed | 20 / 20 passed (2026-09-28, before the tuning and Rare Dealer tests) |
-| E2E (Playwright, Chromium, production build) | 7 / 7 passed (about 7.5 min) | 5 / 5 passed (2026-09-28, about 2.7 min; before the touch test was added) |
-| `npm run check:secrets` | no secrets in 141 tracked files | n/a |
+| Unit (Vitest) | 140 / 140 passed | n/a (no database) |
+| Integration (Vitest, real sockets) | 29 / 29 passed | 20 / 20 passed (2026-09-28, before the tuning and Rare Dealer tests) |
+| E2E (Playwright, Chromium, production build) | 8 / 8 passed (about 7.5 min) | 5 / 5 passed (2026-09-28, about 2.7 min; before the touch test was added) |
+| `npm run check:secrets` | no secrets in 163 tracked files | n/a |
 
 Note on flakiness: an early flake in the two-client test came from picking a listing the level-1 test account was
 not allowed to buy (category lock). The test now filters to unlocked categories. The main source of slowness is
@@ -86,3 +86,6 @@ software rendering. The tests use generous polls rather than fixed sleeps wherev
 Two more time/random-dependent cases were made deterministic: the customization charge test now starts from stock mods
 (NPC cars sometimes come with custom paint or wheels), and the Rare Dealer tests wait for a fresh 120-second rotation
 instead of starting in its last seconds.
+With the highway, the second page of the two-client test needs up to about two minutes to start under SwiftShader (the
+previous build already took over a minute measured the same way): two pages share one software GPU. The login wait and
+that test's timeout allow for it; with a real GPU a page starts in a few seconds.
