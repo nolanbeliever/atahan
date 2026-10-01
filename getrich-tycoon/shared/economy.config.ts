@@ -607,6 +607,33 @@ export const ECONOMY = {
   /** Custom number plate at Chroma Customs. */
   plates: { price: 2_500 },
 
+  /** Illegal street races (shared/streetRace.ts). */
+  streetRace: {
+    /** A race opens this often (s); the first one this long after the server starts. */
+    intervalSec: 420,
+    firstSec: 90,
+    /** Time to get to the start line and join (s), then the countdown on the grid (s). */
+    joinSec: 75,
+    countdownSec: 4,
+    /** The race is called off after this long (s); results stay up this long (s). */
+    timeLimitSec: 240,
+    resultsSec: 10,
+    prize: 20_000,
+    xpFinish: 60,
+    xpWin: 150,
+    maxPlayers: 6,
+    /** Street racer bots join to make it this many cars (at least 2). */
+    fieldSize: 4,
+    /** Bots' cruise speeds (game m/s) and how much they slow for a corner. */
+    botCruise: [21, 24, 27.5],
+    botCorner: 0.45,
+    checkpointRadius: 12,
+    joinRadius: 30,
+    /** Wanted heat for every racer this long after the green light (150 = 2 stars). */
+    heat: 150,
+    policeDelaySec: 8,
+  },
+
   /** Police tracking of a freshly stolen car (shared/cctv.ts, server/game/services/pursuit.ts). */
   pursuit: {
     /** Stay unseen (no CCTV camera, no police car close) for this long in the car and it is yours (s). */

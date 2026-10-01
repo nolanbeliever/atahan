@@ -148,6 +148,33 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
     g.closePath();
     g.fill();
   }
+  // Street race: the route (racers, and while it is open) and the start flag.
+  const race = game.race.view;
+  const route = game.race.route;
+  if (race && route) {
+    const me = game.race.me();
+    if (me || race.phase === 'open') {
+      g.save();
+      g.strokeStyle = me ? 'rgba(255,211,90,0.9)' : 'rgba(255,138,61,0.7)';
+      g.lineWidth = Math.max(2, 1.6 * s);
+      g.setLineDash([6, 4]);
+      g.beginPath();
+      route.points.forEach((p, i) => (i === 0 ? g.moveTo(tx(p.x), tz(p.z)) : g.lineTo(tx(p.x), tz(p.z))));
+      g.stroke();
+      g.restore();
+    }
+    if (me && me.place === null && !me.dnf) {
+      const cp = route.points[Math.min(me.next, route.points.length - 1)]!;
+      g.fillStyle = me.next === route.points.length - 1 ? '#2ee59d' : '#ffd35a';
+      g.beginPath();
+      g.arc(tx(cp.x), tz(cp.z), Math.max(4, 3.5 * s), 0, Math.PI * 2);
+      g.fill();
+    }
+    if (race.phase === 'open' || race.phase === 'countdown') {
+      const st = route.points[0]!;
+      badge(g, tx(st.x), tz(st.z), Math.max(8, 3.6 * s), '#ff8a3d', '🏁', turn);
+    }
+  }
   // Parked cars that can be broken into (flashing red while the alarm sounds).
   const blink = Math.floor(performance.now() / 250) % 2 === 0;
   for (const c of game.store.street.values()) {

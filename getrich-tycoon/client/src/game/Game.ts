@@ -30,6 +30,7 @@ import { SANAYI, isLifted, partLabelTr, type StreetCar } from '../../../shared/t
 import { AIR_LEVELS, hasAirRide } from '../../../shared/modificationsData';
 import { NITRO_ITEM } from '../../../shared/rewards';
 import { cameraSeeing } from '../../../shared/cctv';
+import { RACE, raceRoute, type StreetRaceView } from '../../../shared/streetRace';
 import { confetti } from '../ui/confetti';
 import { Anim, VF, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
@@ -58,6 +59,7 @@ import { CockpitRig } from '../render/Cockpit';
 import { Rain, setRoadWetness } from '../render/Weather';
 import { SanayiView } from '../render/Sanayi';
 import { CctvView } from '../render/Cctv';
+import { RaceClient } from './StreetRace';
 import { Store } from '../state/Store';
 import type { UI } from '../ui/UI';
 import { CameraController } from './CameraController';
@@ -91,6 +93,7 @@ export class Game {
   readonly trafficView = new TrafficView();
   readonly sanayi = new SanayiView();
   readonly cctv = new CctvView();
+  readonly race = new RaceClient(() => this.store.playerId);
   /** Street cars, alarms, the lifts and stripping. */
   readonly theft: TheftClient;
   /** Hands busy (lockpicking, working on a car): the character plays its work animation. */
@@ -184,7 +187,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group, this.sanayi.group, this.cctv.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.entities = new EntityViews(this.renderer.scene, () => this.store.playerId);
     this.police = new PoliceClient(this.renderer.scene);
@@ -269,11 +272,17 @@ export class Game {
         .then((r) => this.store.setBlackMarket(r))
         .catch(() => undefined);
       void this.net
+        .rpc('race.info', {})
+        .then((r) => this.onRace(r.race))
+        .catch(() => undefined);
+      void this.net
         .rpc('rewards.info', {})
         .then((r) => this.store.setRewards(r))
         .catch(() => undefined);
     });
     net.on('rewards.update', (v) => this.store.setRewards(v));
+    net.on('race.update', (r) => this.onRace(r));
+    net.on('race.checkpoint', () => this.audio.play('coin'));
     net.on('pursuit.update', (p) => this.ui?.pursuit.set(p));
     net.on('pursuit.result', (r) => {
       if (r.outcome === 'success') {
@@ -468,6 +477,7 @@ export class Game {
     this.entities.pruneNpcs(alive);
     if (s.tr) this.traffic.apply(s.tr, (this.store.serverNow() - s.t) / 1000);
     if (s.po) this.police.apply(s.po, now);
+    if (s.sr) this.race.apply(s.sr);
     if (s.dr && this.drag && s.dr.id === this.drag.id) {
       for (const [lane, z, speed] of s.dr.cars) {
         const bot = this.dragBots.get(lane);
@@ -778,6 +788,11 @@ export class Game {
     const watched = myCar?.status === 'stolen' ? cameraSeeing(rx, rz, this.store.serverNow())?.id ?? null : null;
     this.cctv.update(dt, this.store.serverNow(), watched, this.night);
     this.ui?.pursuit.update(dt);
+    // Street race: rings, bots and the HUD.
+    this.race.update(dt);
+    const meRacer = this.race.me();
+    const pos = meRacer ? this.race.position(rx, rz, (id) => this.whereIs(id)) : { place: 0, of: 0 };
+    this.ui?.race.update(this.race.view, this.store.serverNow(), { joined: !!meRacer, next: meRacer?.next ?? 0, place: pos.place, of: pos.of, dnf: !!meRacer?.dnf, finished: meRacer?.timeMs ?? null });
     // Horn + headlight flash (traffic ahead moves over).
     const horn = !!this.driving && (keys & KEY.HORN) !== 0 && this.input.enabled;
     if (horn !== this.hornOn) {
@@ -968,6 +983,12 @@ export class Game {
           secondary = { id: i.id, label: 'Drag race: $250 entry, win $500', action: () => this.ui.open('drag') };
         }
       }
+      // An open street race: join at the start line.
+      const rv = this.race.view;
+      const start = this.race.route?.points[0];
+      if (rv?.phase === 'open' && start && !this.race.joined && Math.hypot(start.x - x, start.z - z) <= RACE.joinRadius) {
+        secondary = { id: `race-${rv.id}`, label: `Sokak yarışına katıl (1.'ye ${formatMoney(rv.prize)})`, action: () => void this.joinRace() };
+      }
       // A stolen car lined up between a Sanayi lift's posts: F puts it up (exit moves to G).
       if (v?.status === 'stolen' && !isLifted(v.mods) && this.dyn) {
         const bay = this.theft.bayFor(this.dyn.x, this.dyn.z, this.dyn.rot);
@@ -1117,6 +1138,37 @@ export class Game {
     else if (code === 'KeyG') this.interactSecondary();
     else if (code === 'KeyC') this.toggleCockpit();
     else if (code === 'KeyL') this.ui.missions.toggle();
+  }
+
+  private onRace(r: StreetRaceView | null): void {
+    const before = this.race.view;
+    this.race.set(r);
+    // A new race opens: tell everyone once.
+    if (r && r.phase === 'open' && before?.id !== r.id) {
+      this.ui?.toast({ kind: 'info', title: '🏁 Sokak yarışı açıldı!', text: `${raceRoute(r.routeId)?.name}: start line marked on the map. Winner takes ${formatMoney(r.prize)}.` });
+      this.audio.play('notify');
+    }
+  }
+
+  /** Where another player is (their car while driving). */
+  private whereIs(id: string): { x: number; z: number } | null {
+    const p = this.entities.players.get(id);
+    if (!p) return null;
+    const car = p.driving ? this.entities.vehicles.get(p.driving) : undefined;
+    if (car) return { x: car.x, z: car.z };
+    const l = p.buffer.latest;
+    return l ? { x: l.x, z: l.z } : null;
+  }
+
+  private async joinRace(): Promise<void> {
+    try {
+      const r = await this.net.rpc('race.join', {});
+      this.race.set(r.race);
+      this.audio.play('unlock');
+      this.ui?.toast({ kind: 'success', title: 'Yarışa katıldın!', text: 'Wait at the start line: you go on the grid for the countdown.' });
+    } catch (err) {
+      this.ui?.error(err);
+    }
   }
 
   /** Seconds left of the nitrous shot burning in the car being driven. */

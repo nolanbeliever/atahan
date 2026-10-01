@@ -9,6 +9,7 @@ import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { MegaChoice, RewardsView } from './rewards';
 import type { PursuitOutcome, PursuitView } from './cctv';
+import type { StreetRaceView } from './streetRace';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -104,6 +105,9 @@ export interface RpcMethods {
   /** Sanayi: put the stolen car you are driving up on the lift in this bay; strip a part. */
   'sanayi.lift': { params: { vehicleId: string }; result: { vehicle: Vehicle } };
   'sanayi.strip': { params: { vehicleId: string; part: StripPart }; result: StripResult };
+  'race.info': { params: Empty; result: { race: StreetRaceView | null } };
+  'race.join': { params: Empty; result: { race: StreetRaceView } };
+  'race.leave': { params: Empty; result: { ok: true } };
   /** Forged papers: a stolen car in the Sanayi yard becomes the player's own. */
   'sanayi.papers': { params: { vehicleId: string }; result: { vehicle: Vehicle; price: number } };
   /** Pawn Shop: sell stripped parts (one kind, or all of them). */
@@ -186,6 +190,9 @@ export interface ServerToClientEvents {
   'drive.bonus': (d: { amount: number; value: number }) => void;
   'missions.update': (d: { missions: MissionView[] }) => void;
   'rewards.update': (d: RewardsView) => void;
+  /** The street race (null: none open). */
+  'race.update': (d: StreetRaceView | null) => void;
+  'race.checkpoint': (d: { next: number; of: number }) => void;
   /** Police tracking of a stolen car (null: none). */
   'pursuit.update': (d: PursuitView | null) => void;
   'pursuit.result': (d: { outcome: PursuitOutcome; vehicleId: string; modelId: string }) => void;

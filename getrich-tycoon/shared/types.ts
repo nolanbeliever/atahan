@@ -3,6 +3,7 @@
 
 import type { VehicleTuning } from './modificationsData';
 import type { DragBotSnap } from './drag';
+import type { RaceBotSnap } from './streetRace';
 import type { TrafficSnap } from './traffic';
 import type { PoliceSnap } from './police';
 
@@ -272,6 +273,7 @@ export type TransactionKind =
   | 'black_market'
   | 'pawn_sale'
   | 'reward'
+  | 'race'
   | 'police_escape';
 
 export interface Transaction {
@@ -348,6 +350,8 @@ export interface Snapshot {
   tr?: TrafficSnap[];
   /** Drag strip bot positions while a race is on (players near the strip). */
   dr?: { id: string; cars: DragBotSnap[] };
+  /** Street race bots near the player. */
+  sr?: { id: string; cars: RaceBotSnap[] };
   /** Police cars near the player. */
   po?: PoliceSnap[];
 }
