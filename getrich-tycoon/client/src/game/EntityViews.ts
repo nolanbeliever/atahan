@@ -34,7 +34,9 @@ export interface CharEntity {
 interface Boarding {
   vehicleId: string;
   kind: 'in' | 'out';
+  /** Seconds since it started (on the real clock, so a slow frame rate doesn't stretch it). */
   t: number;
+  start: number;
   from: { x: number; z: number; rot: number };
   /** Getting in: the walk to the driver's door (around the car if needed) and how long it takes. */
   path?: { x: number; z: number }[];
@@ -264,7 +266,15 @@ export class EntityViews {
   /** Seconds left of a player's enter / exit animation (0 when none). */
   boardingLeft(id: string): number {
     const b = this.players.get(id)?.board;
-    return b ? Math.max(0, (b.kind === 'in' ? (b.walk ?? 0.8) + BOARD_IN : BOARD_OUT) - b.t) : 0;
+    return b ? Math.max(0, (b.kind === 'in' ? (b.walk ?? 0.8) + BOARD_IN : BOARD_OUT) - (performance.now() - b.start) / 1000) : 0;
+  }
+
+  /** The player is busy getting in (until seated) or out (until standing beside the car): no driving / walking. */
+  boardingBusy(id: string): boolean {
+    const b = this.players.get(id)?.board;
+    if (!b) return false;
+    const t = (performance.now() - b.start) / 1000;
+    return b.kind === 'in' ? t < (b.walk ?? 0.8) + 0.55 : t < 0.8;
   }
 
   update(
@@ -374,7 +384,7 @@ export class EntityViews {
         anim = s.a;
         driving = e.driving;
       }
-      this.trackBoarding(id, e, driving);
+      this.trackBoarding(id, e, driving, now);
       const y = groundHeight(x, z);
       const puppet = this.puppets.get(id);
       const ride = driving ? this.vehicles.get(driving)?.view : undefined;
@@ -387,7 +397,7 @@ export class EntityViews {
         e.view.root.rotation.set(0, puppet.rot, 0);
         e.view.pose = puppet.pose;
         e.view.animate(puppet.anim, dt);
-      } else if (e.board && this.animateBoarding(e, x, z, dt, doorWant)) {
+      } else if (e.board && this.animateBoarding(e, x, z, dt, now, doorWant)) {
         // Getting in or out (positioned by animateBoarding).
       } else if (ride instanceof BikeView) {
         // Motorcycle riders sit on the bike.
@@ -442,7 +452,7 @@ export class EntityViews {
   }
 
   /** Start an enter / exit animation when a player's vehicle changes. */
-  private trackBoarding(id: string, e: CharEntity, driving: string | null): void {
+  private trackBoarding(id: string, e: CharEntity, driving: string | null, now: number): void {
     const prev = e.prevDriving;
     e.prevDriving = driving;
     if (prev === undefined || prev === driving) return;
@@ -451,13 +461,13 @@ export class EntityViews {
       return v && !v.view.isBike ? v : undefined;
     };
     const skip = !driving && prev ? this.skipExit.delete(id) : false;
-    if (driving && !prev && car(driving)) e.board = { vehicleId: driving, kind: 'in', t: 0, from: { ...e.foot } };
-    else if (!driving && prev && car(prev) && !skip) e.board = { vehicleId: prev, kind: 'out', t: 0, from: { ...e.foot } };
+    if (driving && !prev && car(driving)) e.board = { vehicleId: driving, kind: 'in', t: 0, start: now, from: { ...e.foot } };
+    else if (!driving && prev && car(prev) && !skip) e.board = { vehicleId: prev, kind: 'out', t: 0, start: now, from: { ...e.foot } };
     else e.board = null;
   }
 
   /** Place a character getting in / out of a car. False when the animation is over. */
-  private animateBoarding(e: CharEntity, x: number, z: number, dt: number, doors: Map<string, number>): boolean {
+  private animateBoarding(e: CharEntity, x: number, z: number, dt: number, now: number, doors: Map<string, number>): boolean {
     const b = e.board!;
     const veh = this.vehicles.get(b.vehicleId);
     if (!veh) {
@@ -485,7 +495,7 @@ export class EntityViews {
     }
     const walk = b.kind === 'in' ? b.walk ?? 0.5 : 0;
     const dur = b.kind === 'in' ? walk + BOARD_IN : BOARD_OUT;
-    b.t += dt;
+    b.t = (now - b.start) / 1000;
     if (b.t >= dur) {
       e.board = null;
       return false;

@@ -498,7 +498,7 @@ export class Game {
     let keys = this.input.keys();
     if (this.dragHold && this.driving) keys = (keys & KEY.HORN) | KEY.BRAKE;
     // Hands off while getting in / out, and during the arrest.
-    if (this.busted || this.entities.boardingLeft(this.store.playerId) > 0.15) keys = 0;
+    if (this.busted || this.entities.boardingBusy(this.store.playerId)) keys = 0;
     const cmd: InputCmd = { seq: ++this.seq, dt: SIM_DT, keys, yaw: this.cam.yaw };
     this.prev = { ...this.curr };
     if (this.driving && this.dyn) {
