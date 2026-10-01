@@ -30,6 +30,8 @@ export interface CharEntity {
   /** Last place on foot (where an enter animation starts). */
   foot: { x: number; z: number; rot: number };
   board: Boarding | null;
+  /** Riding as a passenger (vehicle and seat). */
+  riding: { vehicleId: string; seat: number } | null;
 }
 
 /** Getting into / out of a car. */
@@ -159,7 +161,7 @@ export class EntityViews {
       const isMe = id === this.myId();
       const label = isMe ? null : new Label(name, { badge: String(level), badgeColor: '#7a5cff' });
       if (label) this.scene.add(label.sprite);
-      e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: performance.now(), foot: { x: 0, z: 0, rot: 0 }, board: null };
+      e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: performance.now(), foot: { x: 0, z: 0, rot: 0 }, board: null, riding: null };
       this.players.set(id, e);
     } else {
       e.view.setAppearance(appearance);
@@ -187,7 +189,7 @@ export class EntityViews {
       this.scene.add(view.root);
       const label = new Label('Customer', { color: '#ffd166', height: 0.3 });
       this.scene.add(label.sprite);
-      e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null };
+      e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null };
       this.npcs.set(id, e);
     }
     e.buffer.push({ t, x, z, r, a, b: 0 });
@@ -299,7 +301,7 @@ export class EntityViews {
   update(
     dt: number,
     now: number,
-    local: { id: string; x: number; z: number; rot: number; anim: number; driving: string | null; speed: number; steer: number; flags: number },
+    local: { id: string; x: number; z: number; rot: number; anim: number; driving: string | null; riding: { vehicleId: string; seat: number } | null; speed: number; steer: number; flags: number },
   ): void {
     const renderT = now - INTERP_DELAY_MS;
     // Vehicles
@@ -394,6 +396,7 @@ export class EntityViews {
     for (const [id, e] of this.players) {
       let x: number, z: number, r: number, anim: number;
       let driving: string | null;
+      const riding = id === local.id ? local.riding : e.riding;
       if (id === local.id) {
         x = local.x;
         z = local.z;
@@ -413,11 +416,29 @@ export class EntityViews {
         anim = s.a;
         driving = e.driving;
       }
-      this.trackBoarding(id, e, driving, now);
+      if (!riding) this.trackBoarding(id, e, driving, now);
       const y = groundHeight(x, z);
       const puppet = this.puppets.get(id);
       const ride = driving ? this.vehicles.get(driving)?.view : undefined;
+      const carried = riding ? this.vehicles.get(riding.vehicleId)?.view : undefined;
       e.view.pose = 'none';
+      if (carried && !carried.isBike && !puppet) {
+        // Passengers sit in their seat.
+        const mount = carried.passengerMount(riding!.seat);
+        if (e.view.root.parent !== mount) mount.add(e.view.root);
+        e.board = null;
+        e.view.root.visible = true;
+        e.view.root.position.set(0, 0, 0);
+        e.view.root.rotation.set(0, 0, 0);
+        e.view.pose = 'sit';
+        e.view.animate(Anim.Idle, dt);
+        const veh = this.vehicles.get(riding!.vehicleId)!;
+        if (e.label) {
+          e.label.sprite.visible = this.showNames;
+          e.label.sprite.position.set(veh.x, groundHeight(veh.x, veh.z) + veh.lift + carried.height + 1.3, veh.z);
+        }
+        continue;
+      }
       if (puppet) {
         // Cutscene.
         this.toScene(e);

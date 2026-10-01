@@ -43,6 +43,8 @@
   - `obb.ts`: oriented-box geometry (SAT overlap with contact normal and depth, box-circle, box-box distance)
   - `physics.ts`: deterministic character and vehicle stepping (drivetrain + smoothed steering, yaw lag, slip angle), OBB
     collisions with impulse response, analytic highway barriers
+  - `passengers.ts`: passenger seats per vehicle (none on a bike, one in a coupe, three otherwise), where they sit and which
+    side they get out on (the server keeps riders with the car: `Simulation.startRiding` / `stopRiding`)
   - `theft.ts` (+ `sanayiLayout.ts`): car theft: Black Market stock windows, the lock (`lockTurn`, tolerances), strip parts
     and where to stand for each, Pawn Shop prices, the Sanayi lifts (`bayAt`) and colliders, street parking spots
   - `missions.ts`, `reputation.ts`, `police.ts`: daily missions, level unlocks (garage slots, cars out, market discount,

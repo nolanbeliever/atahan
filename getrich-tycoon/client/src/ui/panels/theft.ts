@@ -26,6 +26,13 @@ import { Panel } from '../Panel';
 const T = ECONOMY.theft;
 const TIER_LABELS = ['Economy car', 'Mid-range car', 'Premium car', 'Exotic car'];
 
+/** A Pawn Shop price, or a range when it can vary. */
+export function moneyRange(min: number, max: number): string {
+  const a = Math.round(min);
+  const b = Math.round(max);
+  return a === b ? formatMoney(a) : `${formatMoney(a)}-${formatMoney(b)}`;
+}
+
 function mmss(ms: number): string {
   const left = Math.max(0, Math.ceil(ms / 1000));
   return `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
@@ -138,7 +145,7 @@ export function blackMarketView(ctx: { store: Store; busy: boolean }, onBuy: () 
     h('li', null, h('b', null, 'Lockpick Et (E)'), ': set the pick angle (mouse / A-D), turn it (W / Space / click). Wrong angle: the pick strains and snaps, then a green zone and an arrow on the dial show where the right angle is.'),
     h('li', null, 'Drive it to the ', h('b', null, 'Sanayi'), ' (south of the city, wrench icon on the map) and line it up between a lift’s posts: ', h('b', null, 'Aracı Lifte Kaldır (F)'), '.'),
     h('li', null, 'Walk to the glowing markers round the car and strip the parts (E). At the front, open the ', h('b', null, 'engine bay'), ': engine block, gearbox, turbo, ECU, radiator, alternator, battery.'),
-    h('li', null, 'Sell the parts at the ', h('b', null, 'Pawn Shop'), ` next door: ${formatMoney(T.pawnMin)}-${formatMoney(T.pawnMax)} for a whole car (araç başı); each part fetches its share.`),
+    h('li', null, 'Sell the parts at the ', h('b', null, 'Pawn Shop'), ` next door: ${moneyRange(T.pawnMin, T.pawnMax)} for a whole car (araç başı); each part fetches its share.`),
   );
   return { el: h('div', { class: 'black-market', 'data-testid': 'black-market' }, head, card, steps), timer };
 }
@@ -167,14 +174,14 @@ export class PawnPanel extends Panel {
         'div',
         { class: 'empty', 'data-testid': 'pawn-empty' },
         h('div', { style: { fontSize: '16px', fontWeight: '800', marginBottom: '6px' } }, 'Nothing to sell'),
-        `Strip a stolen car at the Sanayi next door: all the parts of one car fetch ${formatMoney(T.pawnMin)}-${formatMoney(T.pawnMax)} here.`,
+        `Strip a stolen car at the Sanayi next door: all the parts of one car fetch ${moneyRange(T.pawnMin, T.pawnMax)} here.`,
       );
     }
     const total = rows.reduce((a, r) => ({ min: a.min + r.min, max: a.max + r.max, n: a.n + r.count }), { min: 0, max: 0, n: 0 });
     return h(
       'div',
       { class: 'col' },
-      h('div', { class: 'muted small' }, `A whole car’s parts fetch ${formatMoney(T.pawnMin)}-${formatMoney(T.pawnMax)} (araç başı), more for a dearer car and on the buyer’s good days; each part is worth its share of that.`),
+      h('div', { class: 'muted small' }, `A whole car’s parts fetch ${moneyRange(T.pawnMin, T.pawnMax)} (araç başı); each part is worth its share of that, the engine block most, the mirrors least.`),
       h(
         'table',
         { class: 'table', 'data-testid': 'pawn-list' },
@@ -189,13 +196,13 @@ export class PawnPanel extends Panel {
               { 'data-part': r.part },
               h('td', null, h('div', { style: { fontWeight: '700' } }, def.labelTr), h('div', { class: 'tiny muted' }, `${def.label} · ${r.items.map((i) => `${i.qty}× ${TIER_LABELS[i.tier]}`).join(', ')}`)),
               h('td', { class: 'mono' }, String(r.count)),
-              h('td', { class: 'mono' }, `${formatMoney(Math.round(r.min))}-${formatMoney(Math.round(r.max))}`),
+              h('td', { class: 'mono' }, moneyRange(r.min, r.max)),
               h('td', null, h('button', { class: 'btn small', disabled: this.busy, 'data-testid': 'pawn-sell-part', onclick: () => void this.sell(r.part) }, 'Sat')),
             );
           }),
         ),
       ),
-      h('div', { class: 'row between' }, h('div', { class: 'muted small' }, `${total.n} part${total.n === 1 ? '' : 's'}`), h('div', { class: 'mono' }, `${formatMoney(Math.round(total.min))}-${formatMoney(Math.round(total.max))}`)),
+      h('div', { class: 'row between' }, h('div', { class: 'muted small' }, `${total.n} part${total.n === 1 ? '' : 's'}`), h('div', { class: 'mono' }, moneyRange(total.min, total.max))),
     );
   }
 

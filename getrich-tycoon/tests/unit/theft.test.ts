@@ -85,7 +85,9 @@ describe('the lock', () => {
 });
 
 describe('parts and the Pawn Shop', () => {
-  it('pays $10,000-$15,000 for a whole car (araç başı), more for a dearer car', () => {
+  it('pays $25,000 for a whole car (araç başı)', () => {
+    expect(T.pawnMin).toBe(25_000);
+    expect(T.pawnMax).toBe(25_000);
     expect(pawnCarPrice(0, 0)).toBe(T.pawnMin);
     expect(pawnCarPrice(3, 1)).toBe(T.pawnMax);
     for (let tier = 0; tier <= 3; tier++) {
@@ -93,8 +95,9 @@ describe('parts and the Pawn Shop', () => {
         const car = pawnCarPrice(tier, r);
         expect(car).toBeGreaterThanOrEqual(T.pawnMin);
         expect(car).toBeLessThanOrEqual(T.pawnMax);
-        if (tier > 0) expect(car).toBeGreaterThan(pawnCarPrice(tier - 1, r));
-        if (r > 0) expect(car).toBeGreaterThan(pawnCarPrice(tier, r - 0.25));
+        // Never less for a dearer car or a luckier day (equal while min = max).
+        if (tier > 0) expect(car).toBeGreaterThanOrEqual(pawnCarPrice(tier - 1, r));
+        if (r > 0) expect(car).toBeGreaterThanOrEqual(pawnCarPrice(tier, r - 0.25));
       }
     }
   });
@@ -115,7 +118,7 @@ describe('parts and the Pawn Shop', () => {
     }
     // Big parts are worth more than small ones; a part a car doesn't have is worth nothing.
     expect(pawnPrice('engine', 0, 0.5)).toBeGreaterThan(pawnPrice('mirrors', 0, 0.5));
-    expect(pawnPrice('seats', 3, 0.5)).toBeGreaterThan(pawnPrice('seats', 0, 0.5));
+    expect(pawnPrice('seats', 3, 0.5)).toBeGreaterThanOrEqual(pawnPrice('seats', 0, 0.5));
     expect(partShare('exhaust', 'e')).toBe(0);
     expect(partShare('turbo', 'n')).toBe(0);
   });

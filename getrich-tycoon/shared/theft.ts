@@ -185,8 +185,8 @@ export function parsePartItem(id: string): { part: StripPart; tier: number; prof
 }
 
 /**
- * What the Pawn Shop pays for all the parts of one stripped car: $45,000-$55,000 by the car's value tier and luck
- * (r 0-1): an economy car $45,000-$50,500, an exotic one $49,500-$55,000.
+ * What the Pawn Shop pays for all the parts of one stripped car: between pawnMin and pawnMax by the car's value tier
+ * and luck (r 0-1). Both are $25,000: every car fetches $25,000.
  */
 export function pawnCarPrice(tier: number, r: number): number {
   const k = Math.max(0, Math.min(1, Math.max(0, Math.min(3, tier)) * 0.15 + Math.max(0, Math.min(1, r)) * 0.55));

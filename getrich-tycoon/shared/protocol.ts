@@ -58,6 +58,8 @@ export interface RpcMethods {
   'vehicle.store': { params: { vehicleId: string }; result: { vehicle: Vehicle } };
   'vehicle.enter': { params: { vehicleId: string }; result: { vehicleId: string } };
   'vehicle.exit': { params: Empty; result: { x: number; z: number } };
+  /** Ride along as a passenger in a car someone else is driving. */
+  'vehicle.ride': { params: { vehicleId: string }; result: { vehicleId: string; seat: number } };
 
   'dealership.buy': { params: { plotId: string; name: string }; result: { dealership: Dealership } };
   'dealership.upgrade': { params: Empty; result: { dealership: Dealership } };

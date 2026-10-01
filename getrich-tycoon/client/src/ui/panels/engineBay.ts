@@ -4,11 +4,11 @@
 // inventory as a stripped part for the Pawn Shop.
 
 import { partLabelTr, partProfile, partsFor, pawnPrice, removedParts, STRIP_PARTS, valueTier, type StripPart } from '../../../../shared/theft';
-import { formatMoney } from '../../../../shared/util';
 import { getModel, modelDisplayName } from '../../../../shared/vehicles';
 import { h, type Child } from '../dom';
 import { ICONS } from '../icons';
 import { Panel } from '../Panel';
+import { moneyRange } from './theft';
 
 /** Hotspot positions on the drawing (%; the front of the car is at the top). */
 const SPOTS: Partial<Record<StripPart, { x: number; y: number }>> = {
@@ -134,7 +134,7 @@ export class EngineBayPanel extends Panel {
               null,
               h('td', null, h('div', { style: { fontWeight: '700' } }, partLabelTr(p.id, model)), h('div', { class: 'tiny muted' }, p.label)),
               h('td', { class: 'mono' }, `${p.seconds}s`),
-              h('td', { class: 'mono' }, `${formatMoney(Math.round(pawnPrice(p.id, tier, 0, profile)))}-${formatMoney(Math.round(pawnPrice(p.id, tier, 1, profile)))}`),
+              h('td', { class: 'mono' }, moneyRange(pawnPrice(p.id, tier, 0, profile), pawnPrice(p.id, tier, 1, profile))),
               h(
                 'td',
                 null,

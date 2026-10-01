@@ -571,10 +571,10 @@ export const ECONOMY = {
     abandonSec: 600,
     /** A car on a lift that nobody works on for this long is scrapped (s). */
     liftIdleSec: 1_800,
-    /** Pawn Shop pays $45,000-$55,000 for all the parts of one stripped car (the car's value and luck); each part
-     *  fetches its share of that (shared/theft.ts pawnPrice). */
-    pawnMin: 45_000,
-    pawnMax: 55_000,
+    /** Pawn Shop pays $25,000 for all the parts of one stripped car (araç başı); each part fetches its share of that
+     *  (shared/theft.ts pawnPrice). Set min below max to make the price depend on the car's value and luck. */
+    pawnMin: 25_000,
+    pawnMax: 25_000,
     /** Stand within this many metres of a strip point to work on it. */
     stripReach: 1.7,
     xpPerTheft: 25,

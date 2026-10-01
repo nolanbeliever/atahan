@@ -2,6 +2,8 @@
 
 import { expect, test } from '@playwright/test';
 import { isCategoryUnlocked } from '../../shared/progression';
+import { calculateVehicleStats } from '../../shared/tuningSystem';
+import type { Vehicle } from '../../shared/types';
 import { getModel } from '../../shared/vehicles';
 import { collectErrors, registerAndEnter, state } from './helpers';
 
@@ -12,19 +14,28 @@ test('tuning garage previews parts, stats and the dyno; the Rare Dealer sells ro
   await registerAndEnter(page);
 
   // A car to work on.
+  // (Prefer one without performance parts: NPC cars sometimes come pre-tuned.)
+  const stock = new Set(
+    await page.evaluate(() =>
+      (window as unknown as { __getrich: { game: { store: { marketListings: { id: string; vehicle: Vehicle }[] } } } }).__getrich.game.store.marketListings
+        .filter((l) => !Object.values(l.vehicle.mods.tuning?.perf ?? {}).some(Boolean))
+        .map((l) => l.id),
+    ),
+  );
   const listing = (await state(page)).marketListings
     .filter((l) => isCategoryUnlocked(getModel(l.modelId).category, 1) && getModel(l.modelId).specs.aspiration !== 'electric')
-    .sort((x, y) => x.price - y.price)[0]!;
-  await page.evaluate(async (l) => {
+    .sort((x, y) => Number(stock.has(y.id)) - Number(stock.has(x.id)) || x.price - y.price)[0]!;
+  const bought = await page.evaluate(async (l) => {
     const net = (window as unknown as { __getrich: { game: { net: { rpc: Rpc } } } }).__getrich.game.net;
-    await net.rpc('market.buy', { listingId: l.id, expectedPrice: l.price });
+    return ((await net.rpc('market.buy', { listingId: l.id, expectedPrice: l.price })) as { vehicle: Vehicle }).vehicle;
   }, listing);
 
   // Open the garage remotely.
   await page.evaluate(() => (window as unknown as { __getrich: { game: { ui: { open: (n: string) => void } } } }).__getrich.game.ui.open('custom'));
   await expect(page.getByTestId('garage-stats')).toBeVisible();
   const hp = page.getByTestId('stat-hp');
-  const stockHp = getModel(listing.modelId).specs.hp;
+  // NPC cars sometimes come with parts fitted already: the garage starts from the car's own build.
+  const stockHp = calculateVehicleStats(getModel(listing.modelId), bought.mods.tuning).hp;
   await expect(hp).toContainText(`${stockHp} hp`);
 
   // Stage 2 pulls in its downpipe and raises the power figure.

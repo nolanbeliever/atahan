@@ -10,6 +10,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { findOption, vehicleColor } from '../../../shared/customization';
 import { RIM_FINISH_DEFS, findRimDesign, type PaintFinish } from '../../../shared/modificationsData';
 import type { VehicleCondition, VehicleMods } from '../../../shared/types';
+import { seatOffset } from '../../../shared/passengers';
 import { getModel, type VehicleModel } from '../../../shared/vehicles';
 import { PAINT_MATERIALS } from '../data/highDetailVehicles';
 import { rimTemplates, vehicleTemplate, type TemplateInfo, type VehicleTemplate } from './ModelLibrary';
@@ -203,6 +204,8 @@ export interface AnyVehicleView {
   setDoor(open: number): void;
   /** Where a seated driver's character goes (feet origin). */
   readonly driverMount: THREE.Group;
+  /** Where a passenger sits (0 front passenger, 1 rear right, 2 rear left). */
+  passengerMount(seat: number): THREE.Group;
   /** Backfire (pops & bangs). */
   pop(strength: number): void;
   dispose(): void;
@@ -502,6 +505,22 @@ abstract class ModelView implements AnyVehicleView {
       if (l.reverse) m.color.setRGB(0.95, 0.9, 0.85);
       else m.color.setRGB(tail, tail * 0.07, tail * 0.1);
     }
+  }
+
+  private passengers: THREE.Group[] = [];
+
+  passengerMount(seat: number): THREE.Group {
+    let g = this.passengers[seat];
+    if (!g) {
+      g = new THREE.Group();
+      this.body.add(g);
+      this.passengers[seat] = g;
+    }
+    // Placed from the driver's seat (the model may still be loading).
+    const d = this.driverMount.position;
+    const o = seatOffset(seat, d.x, this.length);
+    g.position.set(o.x, d.y, d.z + o.dz);
+    return g;
   }
 
   setDoor(open: number): void {

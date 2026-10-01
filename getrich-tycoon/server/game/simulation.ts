@@ -24,6 +24,7 @@ import { surfaceGrip } from '../../shared/environment';
 import { Anim, VF, type NpcSnap, type PlayerSnap, type Vehicle, type VehicleSnap } from '../../shared/types';
 import { round2 } from '../../shared/util';
 import { getModel } from '../../shared/vehicles';
+import { exitSide } from '../../shared/passengers';
 import { nearHighway } from '../../shared/highway';
 import type { GameState } from './state';
 import { TrafficSystem, type HighwayBody } from './traffic';
@@ -35,6 +36,9 @@ export interface CharacterEntity {
   rot: number;
   gait: number;
   drivingId: string | null;
+  /** Riding as a passenger in someone else's car (and which seat, see shared/passengers.ts). */
+  ridingId: string | null;
+  seat: number;
   lastSeq: number;
   /** Seconds of simulation the client may still claim (anti speed-hack). */
   budget: number;
@@ -147,7 +151,7 @@ export class Simulation {
       bodies.push({ id: o.id, x: o.x, z: o.z, rot: o.rot, speed, halfLength: m.shape.length / 2, halfWidth: m.shape.width / 2 });
     }
     for (const c of this.chars.values()) {
-      if (!c.drivingId && nearHighway(c.x, c.z, 4)) bodies.push({ id: c.id, x: c.x, z: c.z, rot: c.rot, speed: 0, halfLength: CHAR_RADIUS, halfWidth: CHAR_RADIUS });
+      if (!c.drivingId && !c.ridingId && nearHighway(c.x, c.z, 4)) bodies.push({ id: c.id, x: c.x, z: c.z, rot: c.rot, speed: 0, halfLength: CHAR_RADIUS, halfWidth: CHAR_RADIUS });
     }
     this.highwayBodies = bodies;
   }
@@ -169,7 +173,7 @@ export class Simulation {
 
   addPlayer(id: string, x: number, z: number, rot: number): CharacterEntity {
     const now = Date.now();
-    const c: CharacterEntity = { id, x, z, rot, gait: 0, drivingId: null, lastSeq: 0, budget: 0.25, budgetAt: now, interactUntil: 0, droppedCmds: 0, lastInputAt: now, hornAt: 0 };
+    const c: CharacterEntity = { id, x, z, rot, gait: 0, drivingId: null, ridingId: null, seat: 0, lastSeq: 0, budget: 0.25, budgetAt: now, interactUntil: 0, droppedCmds: 0, lastInputAt: now, hornAt: 0 };
     this.chars.set(id, c);
     return c;
   }
@@ -189,6 +193,58 @@ export class Simulation {
 
   driverOf(vehicleId: string): string | null {
     return this.drives.get(vehicleId)?.playerId ?? null;
+  }
+
+  /** Players riding along in a vehicle. */
+  ridersOf(vehicleId: string): CharacterEntity[] {
+    return [...this.chars.values()].filter((c) => c.ridingId === vehicleId);
+  }
+
+  /** Get into someone's car as a passenger (the caller checks the seat is free). */
+  startRiding(playerId: string, vehicleId: string, seat: number): void {
+    const c = this.chars.get(playerId);
+    const d = this.drives.get(vehicleId);
+    if (!c || !d) return;
+    c.ridingId = vehicleId;
+    c.seat = seat;
+    c.x = d.dyn.x;
+    c.z = d.dyn.z;
+    c.rot = d.dyn.rot;
+    c.gait = 0;
+  }
+
+  /** Get out of a car as a passenger; returns where the character stands. */
+  stopRiding(playerId: string): { x: number; z: number } | null {
+    const c = this.chars.get(playerId);
+    if (!c || !c.ridingId) return null;
+    const d = this.drives.get(c.ridingId);
+    c.ridingId = null;
+    if (d) this.placeBeside(c, d, exitSide(c.seat));
+    return { x: c.x, z: c.z };
+  }
+
+  /** Stand a character beside a car (side 1 = the driver's / left side, -1 = the right), clear of obstacles. */
+  private placeBeside(c: CharacterEntity, d: DriveState, side: 1 | -1): void {
+    const left = { x: Math.cos(d.dyn.rot), z: -Math.sin(d.dyn.rot) };
+    const off = d.params.halfWidth + 0.9;
+    const candidates = [
+      { x: d.dyn.x + left.x * off * side, z: d.dyn.z + left.z * off * side },
+      { x: d.dyn.x - left.x * off * side, z: d.dyn.z - left.z * off * side },
+      { x: d.dyn.x - Math.sin(d.dyn.rot) * (d.params.halfLength + 1), z: d.dyn.z - Math.cos(d.dyn.rot) * (d.params.halfLength + 1) },
+    ];
+    this.rebuildDynamic();
+    let chosen = candidates[0]!;
+    for (const p of candidates) {
+      const res = resolveCircle(p.x, p.z, CHAR_RADIUS, this.world);
+      if (!res.hit) {
+        chosen = p;
+        break;
+      }
+    }
+    const settled = resolveCircle(chosen.x, chosen.z, CHAR_RADIUS, this.world);
+    c.x = settled.x;
+    c.z = settled.z;
+    c.gait = 0;
   }
 
   /** Distance from the player to an interactable (with latency slack). */
@@ -239,6 +295,11 @@ export class Simulation {
   }
 
   private applyCommand(c: CharacterEntity, cmd: InputCmd): void {
+    // Passengers just ride along.
+    if (c.ridingId) {
+      this.followRide(c);
+      return;
+    }
     if (c.drivingId) {
       const d = this.drives.get(c.drivingId);
       if (!d) {
@@ -318,32 +379,33 @@ export class Simulation {
     const c = this.chars.get(playerId);
     if (!c || !c.drivingId) return null;
     const d = this.drives.get(c.drivingId);
+    if (!d) {
+      c.drivingId = null;
+      return { x: c.x, z: c.z };
+    }
+    // The passengers get out with the driver (on their own sides).
+    for (const r of this.ridersOf(d.vehicleId)) {
+      r.ridingId = null;
+      this.placeBeside(r, d, exitSide(r.seat));
+    }
     this.drives.delete(c.drivingId);
     c.drivingId = null;
-    if (!d) return { x: c.x, z: c.z };
     // Step out on the driver's (left) side, falling back to the other side / behind.
-    const left = { x: Math.cos(d.dyn.rot), z: -Math.sin(d.dyn.rot) };
-    const off = d.params.halfWidth + 0.9;
-    const candidates = [
-      { x: d.dyn.x + left.x * off, z: d.dyn.z + left.z * off },
-      { x: d.dyn.x - left.x * off, z: d.dyn.z - left.z * off },
-      { x: d.dyn.x - Math.sin(d.dyn.rot) * (d.params.halfLength + 1), z: d.dyn.z - Math.cos(d.dyn.rot) * (d.params.halfLength + 1) },
-    ];
-    this.rebuildDynamic();
-    let chosen = candidates[0]!;
-    for (const p of candidates) {
-      const res = resolveCircle(p.x, p.z, CHAR_RADIUS, this.world);
-      if (!res.hit) {
-        chosen = p;
-        break;
-      }
+    this.placeBeside(c, d, 1);
+    return { x: c.x, z: c.z };
+  }
+
+  /** A passenger sits where the car is. */
+  private followRide(c: CharacterEntity): void {
+    const d = c.ridingId ? this.drives.get(c.ridingId) : undefined;
+    if (!d) {
+      c.ridingId = null;
+      return;
     }
-    const settled = resolveCircle(chosen.x, chosen.z, CHAR_RADIUS, this.world);
-    chosen = { x: settled.x, z: settled.z };
-    c.x = chosen.x;
-    c.z = chosen.z;
+    c.x = d.dyn.x;
+    c.z = d.dyn.z;
+    c.rot = d.dyn.rot;
     c.gait = 0;
-    return chosen;
   }
 
   /** Move a driven vehicle (and its driver) to a spot, stopped (drag strip staging). */
@@ -353,6 +415,7 @@ export class Simulation {
     Object.assign(d.dyn, newVehicleDyn(x, z, rot));
     const c = this.chars.get(d.playerId);
     if (c) Object.assign(c, { x, z, rot });
+    for (const r of this.ridersOf(vehicleId)) Object.assign(r, { x, z, rot });
   }
 
   /** Teleport a character (e.g. respawn). */
@@ -369,8 +432,9 @@ export class Simulation {
     const p: PlayerSnap[] = [];
     for (const c of this.chars.values()) {
       if (now - c.lastInputAt > 300) c.gait = 0;
-      const anim = c.drivingId ? Anim.Drive : c.interactUntil > now && c.gait === 0 ? Anim.Interact : c.gait === 2 ? Anim.Run : c.gait === 1 ? Anim.Walk : Anim.Idle;
-      p.push([c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId]);
+      if (c.ridingId) this.followRide(c);
+      const anim = c.drivingId || c.ridingId ? Anim.Drive : c.interactUntil > now && c.gait === 0 ? Anim.Interact : c.gait === 2 ? Anim.Run : c.gait === 1 ? Anim.Walk : Anim.Idle;
+      p.push(c.ridingId ? [c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId, c.ridingId, c.seat] : [c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId]);
     }
     const v: VehicleSnap[] = [];
     for (const d of this.drives.values()) {

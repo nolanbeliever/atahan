@@ -12,7 +12,7 @@
 //     off the mirrors, doors, steering wheel, seats and exhaust, and from the engine bay the engine
 //     block, gearbox, turbo, ECU, radiator, alternator and battery (each takes a few seconds of
 //     work, timed by the server). The bare shell is scrapped.
-//  4. Pawn Shop: a whole car's parts sell for $45,000-$55,000 (the car's value and luck); each part
+//  4. Pawn Shop: a whole car's parts sell for $25,000 (araç başı); each part
 //     fetches its share of that.
 //
 // Stolen cars left alone are recovered by the police; cars left on a lift are scrapped eventually.
@@ -225,7 +225,7 @@ export class TheftService {
       if (car.alarmUntil > now) throw new GameError('conflict', 'The alarm is still going off. Come back later.');
       const c = this.ctx.sim.chars.get(playerId);
       if (!c) throw new GameError('conflict', 'You are not in the world.');
-      if (c.drivingId) throw new GameError('conflict', 'Get out of your car first.');
+      if (c.drivingId || c.ridingId) throw new GameError('conflict', 'Get out of the car first.');
       if (this.police.wantedOf(playerId)?.busted) throw new GameError('conflict', 'You are under arrest.');
       const model = getModel(car.modelId);
       if (!this.near(playerId, car.x, car.z, model.shape.length / 2 + T.pickReach)) throw new GameError('too_far', 'Get right next to the car.');
@@ -403,7 +403,7 @@ export class TheftService {
       if (!partsFor(model).includes(part)) throw new GameError('bad_request', 'This car has no such part.');
       if (removedParts(veh.mods).includes(part)) throw new GameError('conflict', 'That part is already off.');
       const c = this.ctx.sim.chars.get(playerId);
-      if (!c || c.drivingId) throw new GameError('conflict', 'Get out of the car to work on it.');
+      if (!c || c.drivingId || c.ridingId) throw new GameError('conflict', 'Get out of the car to work on it.');
       const at = TheftService.stripPoint(veh, part);
       // A little slack for latency, less than the gap between two work spots.
       if (Math.hypot(c.x - at.x, c.z - at.z) > T.stripReach + 0.5) throw new GameError('too_far', 'Stand at that part to take it off.');

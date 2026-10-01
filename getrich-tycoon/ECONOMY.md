@@ -184,13 +184,12 @@ All values are in `ECONOMY.theft`.
   converter 4 s (not on electric cars), and from the engine bay: engine block 8 s, gearbox 6 s, turbo / supercharger 4 s
   (forced-induction engines only), ECU 2.5 s, radiator 3 s, alternator 3 s (not on electric cars), battery 2 s. +5 XP per part;
   the server times every job. When the last part is off the shell is scrapped.
-- **Pawn Shop** (`pawn_sale`): all the parts of one car together fetch **$45,000-$55,000 per car** (araç başı):
-  `min + (max - min) × (car value tier × 0.15 + luck × 0.55)`, so an economy car pays $45,000-$50,500 and an exotic one
-  $49,500-$55,000. Each part fetches its share of that, by weight: engine block 1, gearbox 0.85, exhaust 0.8, turbo 0.75, ECU
-  0.55, doors 0.45, seats 0.4, steering wheel and radiator 0.3, alternator 0.25, battery 0.2, mirrors 0.15 (a car without an
-  exhaust, alternator or turbo shares its price among the parts it has). The luck is drawn once per sale for the parts of each
-  kind of car, and the sale's total is rounded to the dollar. Net of the $2,500 set, a car is worth $42,500-$52,500 for a
-  few minutes' work and the risk of the police.
+- **Pawn Shop** (`pawn_sale`): all the parts of one car together fetch **$25,000 per car** (araç başı). Each part fetches
+  its share of that, by weight: engine block 1, gearbox 0.85, exhaust 0.8, turbo 0.75, ECU 0.55, doors 0.45, seats 0.4,
+  steering wheel and radiator 0.3, alternator 0.25, battery 0.2, mirrors 0.15 (a car without an exhaust, alternator or
+  turbo shares the $25,000 among the parts it has). Selling a car's parts one by one adds up to the same. Net of the $2,500
+  set, a car is worth $22,500 for a few minutes' work and the risk of the police. To make the price vary with the car's
+  value and luck, set `pawnMin` below `pawnMax` (`min + (max - min) × (car value tier × 0.15 + luck × 0.55)`).
 
 ## Reputation unlocks (by level)
 

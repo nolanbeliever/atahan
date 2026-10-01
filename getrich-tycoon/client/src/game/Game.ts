@@ -1,6 +1,7 @@
 // The game client: prediction/reconciliation, rendering loop, interactions.
 
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
+import { passengerSeats } from '../../../shared/passengers';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { vehicleObstacles, worldBoxes, STATIC_CIRCLES, type ObstacleVehicle } from '../../../shared/collision';
@@ -132,6 +133,8 @@ export class Game {
   private char: CharacterState = { x: 0, z: 0, rot: 0, gait: 0 };
   private dyn: VehicleDyn | null = null;
   driving: string | null = null;
+  /** Riding along as a passenger in someone else's car. */
+  riding: { vehicleId: string; seat: number } | null = null;
   private prev = { x: 0, z: 0, rot: 0 };
   private curr = { x: 0, z: 0, rot: 0 };
   private offset = new THREE.Vector2();
@@ -416,6 +419,7 @@ export class Game {
       if (!e) continue;
       e.buffer.push({ t: now, x: p[1], z: p[2], r: p[3], a: p[4], b: 0 });
       e.driving = p[5];
+      e.riding = p[6] ? { vehicleId: p[6], seat: p[7] ?? 0 } : null;
       e.lastSeen = now;
     }
     for (const v of s.v) {
@@ -447,9 +451,26 @@ export class Game {
   }
 
   private reconcile(ack: number, self: NonNullable<Snapshot['self']>): void {
-    const [x, z, rot, drivingId, dynT] = self;
+    const [x, z, rot, drivingId, dynT, ridingId, seat] = self;
     this.pending = this.pending.filter((c) => c.seq > ack);
     const before = { x: this.curr.x, z: this.curr.z };
+    // Riding along: the server places us with the car; no prediction.
+    const riding = ridingId ? { vehicleId: ridingId, seat: seat ?? 0 } : null;
+    if ((riding?.vehicleId ?? null) !== (this.riding?.vehicleId ?? null)) {
+      this.riding = riding;
+      this.pending = [];
+      this.offset.set(0, 0);
+      this.char = { x, z, rot, gait: 0 };
+      this.curr = { x, z, rot };
+      this.prev = { ...this.curr };
+      this.audio.play('door');
+      if (!riding) this.cam.snap();
+    }
+    if (this.riding) {
+      this.curr = { x, z, rot };
+      this.char = { x, z, rot, gait: 0 };
+      return;
+    }
     if (drivingId !== this.driving) {
       // Mode switch (entered / exited a vehicle): adopt the server state.
       this.driving = drivingId;
@@ -520,6 +541,11 @@ export class Game {
   }
 
   private step(): void {
+    // A passenger has nothing to steer.
+    if (this.riding) {
+      this.prev = { ...this.curr };
+      return;
+    }
     let keys = this.input.keys();
     if (this.dragHold && this.driving) keys = (keys & KEY.HORN) | KEY.BRAKE;
     // Hands off while getting in / out, and during the arrest.
@@ -588,9 +614,15 @@ export class Game {
     if (steps >= 6) this.acc = 0;
     const alpha = this.acc / SIM_DT;
     this.offset.multiplyScalar(Math.exp(-dt * 10));
-    const rx = this.prev.x + (this.curr.x - this.prev.x) * alpha + this.offset.x;
-    const rz = this.prev.z + (this.curr.z - this.prev.z) * alpha + this.offset.y;
+    let rx = this.prev.x + (this.curr.x - this.prev.x) * alpha + this.offset.x;
+    let rz = this.prev.z + (this.curr.z - this.prev.z) * alpha + this.offset.y;
     const rrot = this.curr.rot;
+    // A passenger is wherever the car is drawn.
+    const carried = this.riding ? this.entities.vehicles.get(this.riding.vehicleId) : undefined;
+    if (carried) {
+      rx = carried.x;
+      rz = carried.z;
+    }
 
     const keys = this.input.keys();
     const moving = (keys & (KEY.FORWARD | KEY.BACK | KEY.LEFT | KEY.RIGHT)) !== 0;
@@ -611,6 +643,7 @@ export class Game {
       rot: rrot,
       anim,
       driving: this.driving,
+      riding: this.riding,
       speed: this.dyn?.speed ?? 0,
       steer: this.dyn?.steer ?? 0,
       flags,
@@ -627,7 +660,11 @@ export class Game {
       this.busted.update(dt, camera);
       if (this.busted.done && (!this.driving || this.busted.t > this.busted.duration + 1.5)) this.endBusted();
     } else if (cockpit) this.updateCockpitCamera(dt);
-    else {
+    else if (carried) {
+      // Riding along: the chase camera follows the car (it has just been placed this frame).
+      if (performance.now() - this.input.lastMouseMove > 1500) this.cam.follow(carried.rot, dt);
+      this.cam.update(new THREE.Vector3(carried.x, groundHeight(carried.x, carried.z), carried.z), dt, true, carried.lastSpeed, this.boxes);
+    } else {
       if (this.driving && this.dyn && performance.now() - this.input.lastMouseMove > 1500) this.cam.follow(this.dyn.rot, dt);
       const target = new THREE.Vector3(rx, groundHeight(rx, rz), rz);
       this.cam.update(target, dt, !!this.driving, this.dyn?.speed ?? 0, this.boxes);
@@ -647,16 +684,19 @@ export class Game {
     const stage = Number(/stage(\d)/.exec(drivenVeh?.mods.tuning?.perf.ecu ?? '')?.[1] ?? 0);
     const info = this.stepInfo;
     const dyn = this.dyn;
+    // Riding along: hear the car's engine from what the snapshots say.
+    const rideSnap = carried?.buffer.latest;
+    const rideStats = carried ? calculateVehicleStats(getModel(carried.data.modelId), carried.data.mods.tuning) : null;
     this.audio.engine({
-      driving: !!this.driving && !!dyn,
-      speed: dyn?.speed ?? 0,
+      driving: (!!this.driving && !!dyn) || !!rideSnap,
+      speed: dyn?.speed ?? carried?.lastSpeed ?? 0,
       topSpeed: params?.topSpeed ?? 30,
-      throttle: (dyn?.thr ?? 0) > 0.2,
-      profile: drivenStats?.sound ?? null,
-      redline: drivenStats?.redline ?? 6500,
+      throttle: (dyn?.thr ?? 0) > 0.2 || (!!carried && carried.accel > 0.5),
+      profile: drivenStats?.sound ?? rideStats?.sound ?? null,
+      redline: drivenStats?.redline ?? rideStats?.redline ?? 6500,
       dt,
-      rpm: dyn?.rpm,
-      gear: dyn?.gear,
+      rpm: dyn?.rpm ?? rideSnap?.rpm,
+      gear: dyn?.gear ?? rideSnap?.gear,
       boost: dyn?.boost,
       pedal: dyn?.thr,
       shifted: info.shifted,
@@ -865,7 +905,13 @@ export class Game {
     const me = this.store.playerId;
     let vehicleAction: Interaction | null = null;
     let vehicleD = Infinity;
-    if (this.driving) {
+    if (this.riding) {
+      // A passenger can only get out.
+      const ride = this.entities.vehicles.get(this.riding.vehicleId);
+      const driverId = [...this.entities.players.entries()].find(([, p]) => p.driving === this.riding?.vehicleId)?.[0] ?? null;
+      best = { id: 'exit-ride', label: 'Arabadan in', sub: `Yolcu: ${ride ? modelDisplayName(ride.data.modelId) : ''}${driverId ? ` · ${this.store.playerName(driverId)}` : ''}`, action: () => void this.exitVehicle(), vehicle: true };
+      vehicleAction = best;
+    } else if (this.driving) {
       const v = this.store.myVehicle(this.driving);
       best = { id: 'exit', label: `Exit ${v ? modelDisplayName(v.modelId) : 'vehicle'}`, action: () => void this.exitVehicle(), vehicle: true };
       vehicleAction = best;
@@ -927,6 +973,25 @@ export class Game {
             ? { id: `bay-${spot.vehicleId}`, label: 'Motor Bölmesini Aç', sub: 'Engine block, gearbox, turbo, ECU, radiator...', action: () => this.ui.open('engineBay', { vehicleId: spot.vehicleId }) }
             : { id: `strip-${spot.part}`, label: `Sök: ${spot.label}`, sub: `${spot.seconds}s · Sökülmüş Parça for the Pawn Shop`, action: () => void this.theft.startStrip(spot.vehicleId, spot.part as Exclude<typeof spot.part, 'bay'>) };
         consider(Math.max(0, Math.hypot(spot.x - x, spot.z - z) - 1), it);
+      }
+      // Someone else's car with the driver in it: get in as a passenger.
+      const riders = new Map<string, number>();
+      for (const p of this.entities.players.values()) if (p.riding) riders.set(p.riding.vehicleId, (riders.get(p.riding.vehicleId) ?? 0) + 1);
+      for (const [pid, p] of this.entities.players) {
+        if (pid === me || !p.driving) continue;
+        const e = this.entities.vehicles.get(p.driving);
+        if (!e || e.view.isBike) continue;
+        const seats = passengerSeats(getModel(e.data.modelId));
+        const free = seats - (riders.get(e.data.id) ?? 0);
+        const d = Math.hypot(e.x - x, e.z - z);
+        if (free <= 0 || d > e.view.length / 2 + 2.6 || Math.abs(e.lastSpeed) > 2) continue;
+        const vid = e.data.id;
+        const it: Interaction = { id: `ride-${vid}`, label: 'Yolcu olarak bin', sub: `${this.store.playerName(pid)} · ${modelDisplayName(e.data.modelId)} · ${free} boş koltuk`, action: () => void this.rideVehicle(vid), vehicle: true };
+        consider(d, it);
+        if (d < vehicleD) {
+          vehicleD = d;
+          vehicleAction = it;
+        }
       }
       for (const e of this.entities.vehicles.values()) {
         const stolen = e.data.ownerId === me && e.data.status === 'stolen';
@@ -1137,6 +1202,15 @@ export class Game {
     }
   }
 
+  /** Get into someone else's car as a passenger. */
+  async rideVehicle(id: string): Promise<void> {
+    try {
+      await this.net.rpc('vehicle.ride', { vehicleId: id });
+    } catch (err) {
+      this.ui.error(err);
+    }
+  }
+
   async exitVehicle(): Promise<void> {
     try {
       await this.net.rpc('vehicle.exit', {});
@@ -1170,6 +1244,7 @@ export class Game {
       position: { ...this.curr },
       yaw: this.cam.yaw,
       driving: this.driving,
+      riding: this.riding,
       money: this.store.me?.money ?? null,
       bank: this.store.me?.bank ?? null,
       level: this.store.me?.level ?? null,
