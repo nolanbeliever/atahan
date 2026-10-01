@@ -1,5 +1,6 @@
 // Builds the static 3D city from the shared layout.
 
+import { registerRoad } from './Weather';
 import * as THREE from 'three';
 import { BELT_TREES, JUNCTIONS } from '../../../shared/highway';
 import { mulberry32 } from '../../../shared/util';
@@ -65,6 +66,8 @@ export class City {
   private poolMat = new THREE.MeshBasicMaterial({ map: lightGlowTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, color: '#ffd9a0' });
   private pools: THREE.InstancedMesh | null = null;
   private skylineMat: THREE.MeshStandardMaterial | null = null;
+  /** Shop signs: neon-bright at night. */
+  private signMats: THREE.MeshStandardMaterial[] = [];
 
   constructor() {
     this.group.name = 'city';
@@ -104,7 +107,7 @@ export class City {
   }
 
   private buildRoads(): void {
-    const asphalt = new THREE.MeshStandardMaterial({ map: repeated(Tex.asphalt(), 1, 1), roughness: 0.95 });
+    const asphalt = registerRoad(new THREE.MeshStandardMaterial({ map: repeated(Tex.asphalt(), 1, 1), roughness: 0.95 }));
     const lines = ROAD_LINES;
     const hw = ROAD_WIDTH / 2;
     const addRoad = (w: number, d: number, x: number, z: number) => {
@@ -289,6 +292,7 @@ export class City {
   private addSign(text: string, accent: string, x: number, y: number, z: number, rotY: number, w: number, h: number): void {
     const tex = Tex.sign(text, { bg: '#0f1626', fg: '#ffffff', accent });
     const mat = new THREE.MeshStandardMaterial({ map: tex, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.35, roughness: 0.4 });
+    this.signMats.push(mat);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
     m.position.set(x, y, z);
     m.rotation.y = rotY;
@@ -518,6 +522,7 @@ export class City {
     this.poolMat.opacity = f * 0.5;
     if (this.pools) this.pools.visible = f > 0.02;
     if (this.skylineMat) this.skylineMat.emissiveIntensity = f * 1.6;
+    for (const m of this.signMats) m.emissiveIntensity = 0.35 + f * 1.45;
   }
 
   private buildTrees(): void {

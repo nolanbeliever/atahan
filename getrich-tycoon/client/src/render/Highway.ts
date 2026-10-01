@@ -3,6 +3,7 @@
 // that come on at night - plus the drag strip in the west belt. Geometry comes from
 // shared/highway.ts, so it lines up with the collisions and the traffic.
 
+import { registerRoad } from './Weather';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
@@ -228,8 +229,8 @@ export class HighwayView implements NightLights {
   }
 
   private buildRoadway(): void {
-    const asphalt = new THREE.MeshStandardMaterial({ map: Tex.asphalt(), roughness: 0.93, color: '#b8bcc4' });
-    const shoulder = new THREE.MeshStandardMaterial({ map: Tex.asphalt(), roughness: 0.95, color: '#9ea2a8' });
+    const asphalt = registerRoad(new THREE.MeshStandardMaterial({ map: Tex.asphalt(), roughness: 0.93, color: '#b8bcc4' }));
+    const shoulder = registerRoad(new THREE.MeshStandardMaterial({ map: Tex.asphalt(), roughness: 0.95, color: '#9ea2a8' }));
     const median = new THREE.MeshStandardMaterial({ map: Tex.concrete(), roughness: 0.9, color: '#b6b2a8' });
     const verge = new THREE.MeshStandardMaterial({ map: Tex.concrete(), roughness: 1, color: '#7d8a6a' });
     const laneEdge = MEDIAN_HALF + LANES * LANE_WIDTH;
@@ -328,7 +329,7 @@ export class HighwayView implements NightLights {
   }
 
   private buildJunctions(): void {
-    const asphalt = new THREE.MeshStandardMaterial({ map: Tex.asphalt(), roughness: 0.93, color: '#b8bcc4' });
+    const asphalt = registerRoad(new THREE.MeshStandardMaterial({ map: Tex.asphalt(), roughness: 0.93, color: '#b8bcc4' }));
     const white = new THREE.MeshStandardMaterial({ color: '#f2f2ee', roughness: 0.6 });
     const yellow = new THREE.MeshStandardMaterial({ color: '#f2c230', roughness: 0.6 });
     const roads: THREE.BufferGeometry[] = [];
@@ -419,7 +420,7 @@ export class HighwayView implements NightLights {
 
   private buildOverpasses(): void {
     const concrete = new THREE.MeshStandardMaterial({ map: Tex.concrete(), color: '#cfcbc1', roughness: 0.85 });
-    const road = new THREE.MeshStandardMaterial({ map: Tex.asphalt(), roughness: 0.93, color: '#a9adb4' });
+    const road = registerRoad(new THREE.MeshStandardMaterial({ map: Tex.asphalt(), roughness: 0.93, color: '#a9adb4' }));
     const rail = new THREE.MeshStandardMaterial({ color: '#9aa3ad', metalness: 0.7, roughness: 0.35 });
     const decks: THREE.BufferGeometry[] = [];
     const tops: THREE.BufferGeometry[] = [];
@@ -512,7 +513,7 @@ export class HighwayView implements NightLights {
 
   private buildDragStrip(): DragTreeView {
     const d = DRAG_STRIP;
-    const asphalt = new THREE.MeshStandardMaterial({ map: Tex.asphalt(), roughness: 0.9, color: '#8d9098' });
+    const asphalt = registerRoad(new THREE.MeshStandardMaterial({ map: Tex.asphalt(), roughness: 0.9, color: '#8d9098' }));
     const white = new THREE.MeshStandardMaterial({ color: '#f2f2ee', roughness: 0.6 });
     const wallMat = new THREE.MeshStandardMaterial({ map: Tex.concrete(), color: '#e3e0d8', roughness: 0.8 });
     const flat = (x0: number, x1: number, z0: number, z1: number, y: number, geos: THREE.BufferGeometry[]) => {

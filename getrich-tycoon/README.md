@@ -8,10 +8,11 @@ It runs in Chrome (and other WebGL browsers) with a real, server-authoritative N
 > Reinvest to grow from a small lot into a Mega Dealership and climb the net-worth leaderboard.
 
 All code, the regular catalogue's brands (Norda, Voltara, Velora, Granforge, Apexon, Solenne, Harlan & Finch), the city, the UI and
-the sounds are original. 3D models are generated procedurally at runtime and sounds are synthesized with WebAudio, so there are no
-third-party assets. The 10 exclusive Rare Dealer vehicles are real cars (BMW, Mercedes-Benz, Audi), named at the owner's request;
-their names live in `shared/specialVehicles.ts`, and no logos or photos are included. High-detail `.glb` models can be added for any
-vehicle (see [High-detail vehicle models](#high-detail-vehicle-models)); none are shipped.
+the sounds are original. Every vehicle is a `.glb` model (Draco-compressed, loaded with `GLTFLoader` + `DRACOLoader`); the default
+models that ship with the game are original, made for it, and sounds are synthesized with WebAudio, so there are no third-party
+assets. The 10 exclusive Rare Dealer vehicles are real cars (BMW, Mercedes-Benz, Audi), named at the owner's request; their names
+live in `shared/specialVehicles.ts`, and no logos or photos are included. Licensed models of the real cars can be dropped in for
+any vehicle (see [Vehicle models](#vehicle-models)).
 
 ---
 
@@ -20,14 +21,19 @@ vehicle (see [High-detail vehicle models](#high-detail-vehicle-models)); none ar
 | Area | What is implemented |
 | --- | --- |
 | **Multiplayer** | Socket.IO WebSockets. Movement is server-authoritative with client-side prediction and reconciliation. Remote players are interpolated. Vehicles, listings, dealerships, auctions, NPC customers and chat all sync in real time. |
-| **World** | A procedural 3D city with 9 districts: Dealership Row (8 plots), Used Vehicle Market, Hammerfall Auction House, Wrench Bros Repair & Parts Depot, Sparkle Wash & fuel station, GetRich Bank, Chroma Customs, parking lots and Fortune Plaza (spawn). A green belt with trees surrounds the city, then the highway. A shared 24-minute day/night cycle (server clock) brings dusk, stars and a moon, lit windows, street lights and headlights. |
+| **World** | A procedural 3D city with 9 districts: Dealership Row (8 plots), Used Vehicle Market, Hammerfall Auction House, Wrench Bros Repair & Parts Depot, Sparkle Wash & fuel station, GetRich Bank, Chroma Customs, parking lots and Fortune Plaza (spawn). A green belt with trees surrounds the city, then the highway. A shared **10-minute day** (server clock) with an orange sunset, stars and a moon, lit windows, neon shop signs, street and highway lights, and headlights / brake lights on every car at night. **Rain** comes in random spells for everyone: falling rain, darker skies, wet glossy roads that take a minute to dry, and **20% less tyre grip**. |
 | **Highway (No Hesi)** | The GetRich Expressway rings the city: 4 lanes each way (8 in total), white dashed lane lines and yellow edge lines, W-beam guardrails, a concrete median with crossovers, three junctions (connector roads with on/off-ramps) to the city, three road bridges over it, green sign gantries and median street lights that light up the road at night. |
 | **Traffic** | 116 server-driven vehicles: cars, box trucks, coaches and TIR semis (tractor + 13.6 m trailer that bends through the corners). Lane speeds of about 120 km/h on the left down to 80 km/h for trucks on the right; drivers follow at a safe distance (IDM), blink before they change lanes (MOBIL-style), keep right, brake for stopped cars and people, and move over when you come up fast behind them or use the horn / headlight flash (**H**). Brake lights, indicators and headlights are all visible. |
-| **Near misses** | Above 150 km/h, passing traffic within 1.2 m without touching pays **NEAR MISS / MAKAS +$100** and XP. Consecutive near misses build a combo (x2 from 3, x3 from 6, x5 from 10); the combo meter shows the combo's cash and XP and runs out after 6 s without a near miss. Any crash (or touching traffic) resets it. Near-miss cash is capped per hour. |
+| **Near misses** | Above 150 km/h, passing traffic within **50 cm** (measured between the real body outlines) without touching pays **NEAR MISS / MAKAS +$100** and XP, x1.5 for a hair's-breadth pass under 20 cm; the popup shows the gap in cm. Consecutive near misses build a combo (x2 from 3, x3 from 6, x5 from 10); the combo meter shows the combo's cash and XP and runs out after 6 s without a near miss. Any crash (or touching traffic) resets it. Near-miss cash is capped per hour. |
 | **Drag racing** | An eighth-mile drag strip in the west belt with grandstand, start/finish gantries and a Christmas tree. Pay $250 and race a bot matched to your car's performance, or wait for another player; the winner takes the $500 pool. Three red lights, then green after a random delay; moving before green is a FALSE START and loses. Reaction time, elapsed time and trap speed are measured on the server; the cars run on their tuned physics, and 0-100 / top speed come from the tuning stats. |
 | **Player** | Account (name + password), money, bank, XP/levels, reputation, stats, 17 achievements, settings, appearance, parts inventory. |
 | **Vehicles** | 15 fictional models in 8 categories plus 10 real exclusive models (9 cars and a motorcycle you ride visibly) from the Rare Dealer, each with its own detailed 3D body modelled after a real type of car (city hatch, EV, sedans, off-roader, luxury SUV, crew-cab and single-cab pickups, van, rear-engine coupe, supercar, GT, '60s cruiser with fins, roadster): curved panels, glass, wheel arches, lamps, grilles, bumpers and 6 rim styles, with small differences and no real brand names or logos. Each vehicle tracks mileage, fuel, 6 condition parts, cleanliness, mods, owner and sale status. Condition affects value, driving performance and repair cost. |
-| **Driving** | Enter or exit with **E**. Driving has acceleration, braking, reverse, handbrake, steering, collisions (with body damage), fuel use, mileage and dirt. |
+| **Driving physics** | Real longitudinal physics per car: torque curve, gearbox with shift times, clutch slip at launch, turbo spool, traction limits and weight transfer, rolling resistance and aerodynamic drag that grows with the square of speed, ABS braking (lock-up on classics). 0-100, 100-200 and 200-300 km/h match the real figures (a stock supercar needs ~25 s for 0-300). Smoothed steering, yaw inertia and speed-sensitive lock (no instant direction changes at 200+ km/h), body roll and pitch, handbrake slides. Tight body-shaped (OBB) collision boxes for every car, truck, bus and semi. |
+| **Driving** | **F** gets in and out: the character walks to the driver's door (around the car if needed), the door opens, they sit down and the door shuts; drivers are visible in their seats. **C** switches between the chase camera and a **first-person cockpit** with live rev counter and speedometer needles, a steering wheel that turns 540-1080 degrees lock to lock, a gear lever that moves through the gate, pedals that go down and a gear display. A cockpit gauge (bottom right) shows speed, gear, rpm with a shift light, turbo boost (psi), the ECU stage and ABS / TCS lights. Fuel use, mileage, dirt and body damage. |
+| **Driving bonus** | Every 10 seconds of real driving pays a bonus scaled by the car's value ($50 for a $50k car, about $350 for a $300k G 63 or M8), shown as a small "+$150 (Driving Bonus)". |
+| **Missions (Görevler)** | **L** opens the missions panel on the right: a daily set per player, for example 10 near misses without crashing ($2,500), hold 250 km/h for 5 s (a free Stage 1 ECU remap coupon), sell 2 cars within 120 s ($5,000 + 100 XP), plus extra daily goals. Rewards are paid automatically. |
+| **Police** | Near misses above 180 km/h and hitting traffic raise a **wanted level of 1-5 stars**. From 2 stars police interceptors with flashing light bars and sirens chase you (real physics cars, along the highway lanes and through the city streets). Lose them for 30 s: **ESCAPED! +$1,000 & XP**. Stopped with a police car beside you for 3 s: **BUSTED!** cutscene (the police car pulls up, hands up, handcuffs), a fine of 10% of your cash (at least $1,500), the car is towed to your garage and you walk out of the nearest garage. |
+| **Reputation unlocks** | Levels open more garage slots, more cars on the street at once, market discounts (up to 10%) and underglow neon kits (rainbow at level 15). |
 | **Buying** | Browse, filter, sort and inspect listings; buy or negotiate with data-driven NPC seller personalities. You can also buy from other players. |
 | **Repair / wash / fuel** | Per-part repairs with cost, time and a new-condition preview; parts kits; a dealership repair-bay discount; 2 wash tiers; refuelling. |
 | **Tuning garage** | At Chroma Customs, with a live 3D preview (turntable, drag to rotate). **Performance:** ECU Stage 1/2/3 (+15/+30/+60% hp, +10/+20/+40% top speed), cold air intake, single/twin/twin-scroll/big turbo and supercharger kits, intercoolers (heat soak), forged pistons & rods, cams, injectors & HPFP, cat-back/Varex/downpipe/straight-pipe exhausts, sport springs and coilovers, semi-slick and slick tyres, big brake kit and carbon ceramics. Stages need their prerequisites (Stage 2: downpipe or straight pipe; Stage 3: turbo/supercharger, forged internals, fuel system), and missing ones are added for you. **Visual:** gloss, metallic, matte and chameleon (colour-shift) paint with presets or any HEX colour, front/rear bumpers, side skirts, carbon hood, ducktail/GT/swan-neck wings, BBS-, Rays- and Rotiform-style wheels in 7 finishes, camber and drop sliders, window tint, headlights and accessories. **Dyno:** hp and Nm curves against rpm (stock vs build), a live dyno pull with engine sound, heat-soak and wheelspin figures. Everything shows live on the car and in the stats (hp, Nm, 0-100, top speed, handling, braking, grip, resale value). |
@@ -40,7 +46,7 @@ vehicle (see [High-detail vehicle models](#high-detail-vehicle-models)); none ar
 | **Chat** | Global, nearby (45 m) and system messages, with rate limiting, mutes and duplicate suppression. |
 | **UI** | HUD (money, bank, level/XP, reputation, minimap, prompts, speedometer, fuel), dock, and 17 panels, including a full map, settings and a profile with leaderboard and transaction history. |
 | **Persistence** | PostgreSQL in production, with a SQLite fallback for local development. Every transaction is written atomically; positions and driving stats are autosaved. |
-| **Audio** | Synthesized engine, UI, purchase, notification and ambient city sounds. |
+| **Audio** | Synthesized engine following the real rpm and gear changes, intake roar with an open air filter, turbo whistle and blow-off valve (with compressor flutter on Stage 2/3 builds), pops & bangs on upshifts and throttle lifts with a Varex or straight pipe, tyre screech, police sirens, rain, UI, purchase, notification and ambient city sounds. |
 
 ## Quick start (local)
 
@@ -83,8 +89,11 @@ The schema (`database/schema.sql`) is applied automatically on startup. When `DA
 | **Shift** | Sprint |
 | **Space** | Handbrake (driving) |
 | **Mouse** (click to lock) / right-drag | Camera |
-| **E** | Interact / enter / exit vehicle |
-| **F** | Use the fuel station or car wash while driving; open the drag strip at the staging lane |
+| **E** | Interact (also enters / exits a vehicle) |
+| **F** | Get into the nearest own car / get out (animated) |
+| **G** | Use the fuel station or car wash while driving; open the drag strip at the staging lane |
+| **C** | Chase camera / first-person cockpit |
+| **L** | Missions panel |
 | **H** | Horn and headlight flash (slower traffic ahead moves over) |
 | **Enter** / **T** | Chat |
 | **B** / **I** / **J** / **K** / **M** / **O** | Marketplace / Garage / Dealership / Auctions / Map / Profile |
@@ -97,29 +106,38 @@ The schema (`database/schema.sql`) is applied automatically on startup. When `DA
 | Left stick | Walk or drive (push it all the way to run) |
 | Drag anywhere on the 3D view | Camera |
 | **E** button, or tap the prompt | Interact / enter / exit vehicle |
-| **F** button | Fuel station, car wash or drag strip while driving |
+| **G** button | Fuel station, car wash or drag strip while driving |
+| **CAM** button (while driving) | Chase camera / first-person cockpit |
 | **HORN** button (hold, while driving) | Horn and headlight flash |
 | **RUN** / **BRAKE** button (hold) | Sprint on foot, handbrake while driving |
 | Bottom bar | Marketplace, Garage, Dealership, Auctions, Map, Profile, Chat, Menu |
 
-`?touch=1` or `?touch=0` in the URL forces the touch controls on or off. `?hour=22` fixes the time of day (screenshots),
-`?hq=0` turns high-detail models off.
+`?touch=1` or `?touch=0` in the URL forces the touch controls on or off. `?hour=22` fixes the time of day and `?rain=1` the
+weather (screenshots; the grip follows), `?cockpit=1` starts in the cockpit view, `?hq=0` ignores dropped-in custom models.
 
-## High-detail vehicle models
+## Vehicle models
 
-Every vehicle has a built-in procedural 3D body. To use a high-detail model instead:
+Every vehicle, highway truck, coach, semi and the police car is a `.glb` file; there are no built-in shapes in the code. The
+default models (original, made for the game, about 3.4 MB in total with a simplified far-away copy each) are in
+`client/public/assets/models/vehicles/`, and the registry is `client/src/data/highDetailVehicles.ts` (`modelUrl`, `lodUrl`,
+`scale`, `rotationOffset`, `castShadow`, `receiveShadow`, `paintMaterials`, `nodes`, `interior`, `autoFit`, `credit`).
 
-1. Get a `.glb` (Sketchfab "Downloadable" models, Poly Pizza, CGTrader...). Check the licence: CC BY needs a credit, many models
-   are for personal use only, and car brands are trademarks. Draco compression is supported and recommended, for example
+To use a real model of a car (for example a licensed BMW M3 G80 or Mercedes-AMG G 63):
+
+1. Get a `.glb` whose licence allows use in your game (Sketchfab, CGTrader, TurboSquid...; CC BY needs a credit, many models are
+   for personal use only, and car brands are trademarks). Draco compression is recommended:
    `npx @gltf-transform/cli optimize in.glb out.glb --compress draco --texture-compress webp`.
-2. Put it in `client/public/assets/models/` with the file name used in `client/src/data/highDetailVehicles.ts` (for example
-   `m3_g80_hq.glb`), or add an entry there: `vehicleId`, `modelUrl`, `scale`, `rotationOffset`, `castShadow`, `receiveShadow`
-   and `paintMaterials` (material names that take the car's paint colour).
-3. Rebuild (`npm run build`; Render does this on deploy). Only files that exist are loaded (checked at build time).
+2. Put it in `client/public/assets/models/` named after the vehicle id, e.g. `bmw_m3_g80.glb` or `mercedes_g_class.glb` (the ids
+   are in `shared/vehicles.ts` and `shared/specialVehicles.ts`). It replaces the default model automatically. Or point `modelUrl`
+   of that vehicle at the file (a path under `client/public` or a full `https://` URL).
+3. Rebuild (`npm run build`; Render does this on deploy).
 
-Models are loaded lazily with three.js `GLTFLoader` + `DRACOLoader`, fitted to the vehicle's real length, stood on the ground and
-recoloured. If the car faces backwards, change `rotationOffset.y` (0 or `Math.PI`). The procedural body stays as the fallback for
-vehicles without a file (and while a model downloads); distant highway traffic uses a light instanced version.
+Dropped-in models are fitted automatically: turned to face forward (`rotationOffset` if it comes in backwards or sideways), scaled
+to the car's real length (`scale` fine-tunes), centred, and stood on its tyres so the wheels touch the road. Wheels named like
+`wheel_fl` / `Wheel_FL` / "wheel front left" spin and steer; a `door_fl` node opens when you get in and out; `seat_driver` puts the
+cockpit camera at the driver's eyes; materials named "paint" (or listed in `paintMaterials`) take the car's colour. See the comment
+at the top of `highDetailVehicles.ts` for the full naming convention. Distant highway traffic is drawn instanced from the same
+models (the `.lod.glb` copies).
 
 ## Scripts
 
@@ -192,13 +210,14 @@ See [`.env.example`](.env.example). The important ones:
 - **Single server instance.** The authoritative world state lives in one Node process, with write-through to the database.
   This fits a free-tier deployment and hundreds of concurrent players, but it does not scale horizontally
   (see ARCHITECTURE.md).
-- **Simple arcade physics.** Vehicles use a 2D bicycle model with circle colliders. There are no multi-level roads (the highway
-  bridges are scenery), and players can walk through each other. Speeds are scaled to the small map; the speedometer shows real
-  km/h figures.
+- **Physics is 2D.** Vehicles drive on a flat plane with real longitudinal physics and a simplified lateral (yaw / slip) model;
+  there are no multi-level roads (the highway bridges are scenery), and players can walk through each other. Speeds are scaled
+  to the small map (`SPEED_SCALE` 2.1); the speedometer and all figures are real km/h.
 - **Traffic stays on the highway.** City streets have no ambient traffic, and highway traffic does not use the ramps.
-- **High-detail models are not included.** The loader is ready (see above), but no `.glb` files ship with the game, because
-  real-car models need a licence. HQ models replace the whole body, so tuning body parts and rim designs only show on the
-  procedural body.
+- **The real cars ship with original stand-in models.** The loader and the drop-in folder are ready (see above), but no models of
+  the real BMW / Mercedes / Audi cars are included, because they need a licence. A dropped-in model replaces the whole body, so
+  body-kit parts only show on models that have them (named `kits > kit_*`), and aftermarket rims on models whose wheels are
+  named.
 - **Software rendering is slow.** Without a GPU (CI containers, some VMs) Chrome falls back to SwiftShader and the game runs at a
   few FPS. It still works, and the automated tests run that way, but real play needs hardware acceleration.
 - **Free hosting sleeps.** The recommended free host spins the server down after ~15 minutes without traffic. The first visitor then

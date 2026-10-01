@@ -93,8 +93,9 @@ All parts are data in `shared/modificationsData.ts`; `shared/tuningSystem.ts` tu
 - **Heat soak:** forced induction without an intercooler loses power pull after pull (kits: 86% on the 3rd pull).
 - **Engine stress:** tunes multiply engine wear while driving (`0.12 × (stress − 1)` condition points per game km);
   forged internals (×0.55) keep it in check.
-- **Physics:** the game-scale physics (`vehicleParams`) is scaled by the same ratios as the real figures, on the server and
-  for client prediction alike.
+- **Physics:** the drivetrain simulation (`shared/drivetrain.ts`) runs on the tuned engine (torque curve, boost, redline),
+  gearbox, tyres, aero and brakes, on the server and for client prediction alike; the shown 0-100 / 0-200 / 0-300, quarter
+  mile and 100-0 braking figures are simulated from the same model.
 
 **Prices and value.** `price = base + basePrice × max(rate, value × 1.25)`. So a part always costs more than it adds to the
 resale value, even with maximum demand and rarity (at an auction: 0.93 × 0.93 of value; wholesaler: 0.68). A unit test
@@ -114,8 +115,9 @@ Stage 2 $3,700, Stage 3 $8,000, coilovers $2,900, chameleon paint $5,200. A full
 
 ## Highway near misses
 
-- A near miss is a pass (overtaking, or being overtaken) with less than 1.2 m between the two bodies, no contact, at 150 km/h
-  or more on the speedometer. Each traffic vehicle counts once per 4 s.
+- A near miss is a pass (overtaking, or being overtaken) with less than **0.5 m** between the two bodies (oriented boxes of the
+  real outlines; a semi is a tractor box and a trailer box), no contact, at 150 km/h or more on the speedometer. Under 0.2 m it
+  is a hair's-breadth pass paying x1.5. Each traffic vehicle counts once per 4 s.
 - Pays **$100 and 5 XP** times the combo multiplier: x1 for the first two, **x2** from the 3rd, **x3** from the 6th, **x5**
   from the 10th near miss in a row. The combo ends 6 s after the last near miss, or at once on a crash (an impact over 3 m/s
   or touching traffic).
@@ -130,6 +132,47 @@ Stage 2 $3,700, Stage 3 $8,000, coilovers $2,900, chameleon paint $5,200. A full
 - A false start, leaving your lane, leaving the car or not finishing within 30 s loses. A dead heat refunds both entries.
 - The bot is matched to your car (simulated eighth-mile time within about 4.5%), so racing bots is roughly a coin flip that a
   better build and a quicker reaction tip your way. Values are in `ECONOMY.drag`.
+
+## Driving bonus
+
+- Every 10 s of real driving (average above 20 km/h) pays `50 × (value / $50k) ^ 1.086` (`drive_bonus`): $50 for a $50k
+  car, about $350 for a $300k G 63 or M8, $1 minimum. Parked cars, idling and creeping earn nothing. Values are in
+  `ECONOMY.driving`.
+
+## Missions
+
+- A daily set per player (new at 00:00 UTC, `ECONOMY.missions.dailyCount` = 5): the three headline missions plus two picked
+  for the player from the pool. Rewards are paid automatically (`mission`), saved before they are paid.
+
+| Mission | Goal | Reward |
+| --- | --- | --- |
+| Clean Sweep | 10 near misses on the highway without crashing | $2,500 |
+| Flat Out | Hold 250 km/h for 5 s | Stage 1 ECU coupon (the next Stage 1 remap is free) |
+| Rush Sale | Sell 2 vehicles within 120 s of pressing Start (5 min cooldown after running out of time) | $5,000 + 100 XP |
+| Road Trip | Drive 20 km | $1,000 + 30 XP |
+| Getaway Driver | Escape a police pursuit | $2,000 + 60 XP |
+| Christmas Tree | Win a drag race | $1,500 + 40 XP |
+| Hair-Raiser | 5 near misses above 200 km/h | $2,000 + 50 XP |
+| Unstoppable | A combo of 20 near misses | $6,000 + 120 XP |
+
+## Police
+
+- Heat: +40 per near miss above 180 km/h, +90 per crash into traffic, +150 for ramming a police car (max 500); it cools
+  after 30 s without offences. Stars = heat / 100 rounded up (1-5).
+- From 2 stars police cars chase you (1-4 units by stars). Keep every unit 90 m away for 30 s: **escape**, +$1,000
+  (`police_escape`) and 60 XP.
+- Stopped (under 15 km/h) with a police car within 2.5 m for 3 s: **arrest**. Fine: 10% of cash, at least $1,500 (never more
+  than the cash) (`police_fine`); the car is towed to the garage (no fee); you respawn at the nearest garage. Values are in
+  `ECONOMY.police`.
+
+## Reputation unlocks (by level)
+
+| Unlock | Rule |
+| --- | --- |
+| Garage slots | 30, +2 every 3 levels, max 64 |
+| Cars out on the street | 2, 3 from level 8, 4 from level 18 |
+| Used Vehicle Market discount | 2% at level 5, 4% at 10, 7% at 20, 10% at 30 |
+| Underglow neon | Level 5 (rainbow cycle at level 15), at Chroma Customs |
 
 ## Selling
 

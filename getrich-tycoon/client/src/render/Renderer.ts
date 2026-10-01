@@ -1,12 +1,16 @@
 // Three.js renderer, lights, sky and quality settings.
 
 import * as THREE from 'three';
-import { nightFactor } from '../../../shared/highway';
+import { nightFactor, sunsetFactor } from '../../../shared/environment';
 import type { GraphicsQuality } from '../../../shared/types';
 
 const DAY = { top: new THREE.Color('#3f86e8'), horizon: new THREE.Color('#cfe3f7'), sun: new THREE.Color('#fff3dc'), hemiSky: new THREE.Color('#dceeff'), hemiGround: new THREE.Color('#5b6b3a') };
-const DUSK = { top: new THREE.Color('#34487f'), horizon: new THREE.Color('#f0a26c'), sun: new THREE.Color('#ffb070') };
+const DUSK = { top: new THREE.Color('#3b4a86'), horizon: new THREE.Color('#ff8a3d'), sun: new THREE.Color('#ff9a4a') };
+const RAIN = { top: new THREE.Color('#5d6673'), horizon: new THREE.Color('#9aa3ae') };
 const NIGHT = { top: new THREE.Color('#050a1a'), horizon: new THREE.Color('#131c33'), sun: new THREE.Color('#9fb4ff'), hemiSky: new THREE.Color('#4b5c8c'), hemiGround: new THREE.Color('#1a1e16') };
+
+/** Layer drawn after everything else with a fresh depth buffer (the first-person car interior). */
+export const OVERLAY_LAYER = 1;
 
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -21,6 +25,8 @@ export class Renderer {
   /** 0 by day, 1 at night. */
   night = 0;
   private fogFar = 480;
+  /** Draw the overlay layer (first-person interior) on top of the scene. */
+  overlay = false;
 
   constructor(readonly container: HTMLElement) {
     const lowGfx = new URLSearchParams(location.search).get('gfx') === 'low';
@@ -57,6 +63,9 @@ export class Renderer {
     this.sun.shadow.normalBias = 0.03;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
+    // Sun and sky light also light the overlay (cockpit) pass.
+    this.sun.layers.enable(OVERLAY_LAYER);
+    this.hemi.layers.enable(OVERLAY_LAYER);
     this.scene.add(this.buildSky());
 
     window.addEventListener('resize', () => this.resize());
@@ -151,13 +160,13 @@ export class Renderer {
   }
 
   /**
-   * Time of day (0-24 h): sun or moon, sky, fog and ambient light. Returns the night factor
-   * (0 day, 1 night) for street lights and headlights.
+   * Time of day (0-24 h) and rain (0-1): sun or moon, sky (orange at sunset, grey in the rain), fog
+   * and ambient light. Returns the night factor (0 day, 1 night) for street lights and headlights.
    */
-  setTime(hour: number): number {
+  setTime(hour: number, rain = 0): number {
     const night = nightFactor(hour);
     this.night = night;
-    const dusk = Math.max(0, 1 - Math.abs(hour - 18.9) / 1.4) + Math.max(0, 1 - Math.abs(hour - 5.9) / 1.2);
+    const dusk = sunsetFactor(hour) * (1 - rain * 0.7);
     const angle = ((hour - 6) / 12) * Math.PI;
     const elev = Math.sin(angle);
     const dir = new THREE.Vector3(Math.cos(angle) * 0.85, Math.max(0.18, elev), 0.45).normalize();
@@ -165,10 +174,11 @@ export class Renderer {
     if (night > 0.5) dir.copy(moon);
     this.sunOffset.copy(dir).multiplyScalar(130);
     const mixC = (a: THREE.Color, b: THREE.Color, c: THREE.Color) => new THREE.Color().copy(a).lerp(c, Math.min(1, dusk) * (1 - night)).lerp(b, night);
-    const top = mixC(DAY.top, NIGHT.top, DUSK.top);
-    const horizon = mixC(DAY.horizon, NIGHT.horizon, DUSK.horizon);
+    const overcast = rain * 0.75 * (1 - night * 0.6);
+    const top = mixC(DAY.top, NIGHT.top, DUSK.top).lerp(RAIN.top.clone().multiplyScalar(1 - night * 0.85), overcast);
+    const horizon = mixC(DAY.horizon, NIGHT.horizon, DUSK.horizon).lerp(RAIN.horizon.clone().multiplyScalar(1 - night * 0.85), overcast);
     this.sun.color.copy(mixC(DAY.sun, NIGHT.sun, DUSK.sun));
-    this.sun.intensity = night > 0.5 ? 0.3 + (1 - night) * 0.6 : 2.3 * (0.3 + 0.7 * Math.max(0, elev)) * (1 - night) + 0.3 * night;
+    this.sun.intensity = (night > 0.5 ? 0.3 + (1 - night) * 0.6 : 2.3 * (0.3 + 0.7 * Math.max(0, elev)) * (1 - night) + 0.3 * night) * (1 - 0.6 * rain);
     this.hemi.color.copy(DAY.hemiSky).lerp(NIGHT.hemiSky, night);
     this.hemi.groundColor.copy(DAY.hemiGround).lerp(NIGHT.hemiGround, night);
     this.hemi.intensity = 1.1 - 0.72 * night;
@@ -176,17 +186,41 @@ export class Renderer {
     (u.top!.value as THREE.Color).copy(top);
     (u.horizon!.value as THREE.Color).copy(horizon);
     (u.sunDir!.value as THREE.Vector3).copy(dir);
-    u.sunAmt!.value = 1 - night;
+    u.sunAmt!.value = (1 - night) * (1 - rain);
     u.night!.value = night;
     (this.scene.background as THREE.Color).copy(horizon);
     const fog = this.scene.fog as THREE.Fog;
     fog.color.copy(horizon);
-    fog.far = this.fogFar * (1 - 0.25 * night);
+    fog.far = this.fogFar * (1 - 0.25 * night) * (1 - 0.45 * rain);
+    fog.near = 140 * (1 - 0.6 * rain);
     this.renderer.toneMappingExposure = 0.92 + 0.1 * night;
+    // The image-based ambient light dims at night and under rain clouds.
+    this.scene.environmentIntensity = (1 - 0.82 * night) * (1 - 0.3 * rain);
     return night;
   }
 
   render(): void {
-    this.renderer.render(this.scene, this.camera);
+    const r = this.renderer;
+    if (!this.overlay) {
+      r.render(this.scene, this.camera);
+      return;
+    }
+    // Two passes: the world, then the car's interior over it (so the outside body shell never hides
+    // the dashboard or steering wheel). Shadows are not re-rendered for the second pass.
+    this.camera.layers.set(0);
+    r.render(this.scene, this.camera);
+    const autoClear = r.autoClear;
+    const shadows = r.shadowMap.autoUpdate;
+    const bg = this.scene.background;
+    r.autoClear = false;
+    r.shadowMap.autoUpdate = false;
+    this.scene.background = null;
+    r.clearDepth();
+    this.camera.layers.set(OVERLAY_LAYER);
+    r.render(this.scene, this.camera);
+    this.camera.layers.set(0);
+    this.scene.background = bg;
+    r.autoClear = autoClear;
+    r.shadowMap.autoUpdate = shadows;
   }
 }

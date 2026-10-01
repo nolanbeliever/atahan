@@ -1,6 +1,5 @@
 // UI manager: HUD, chat, minimap, toasts, modal panels.
 
-import { KMH_PER_MS } from '../../../shared/drivetrain';
 import { ECONOMY } from '../../../shared/economy.config';
 import { CHAT_MAX } from '../../../shared/protocol';
 import { levelProgress } from '../../../shared/progression';
@@ -12,6 +11,9 @@ import { RpcError } from '../net/Network';
 import { clear, h, icon } from './dom';
 import { ICONS } from './icons';
 import { DragHud, NearMissHud } from './HighwayHud';
+import { GaugeHud } from './Gauge';
+import { MissionsHud } from './MissionsHud';
+import { WantedHud } from './WantedHud';
 import { Minimap } from './Minimap';
 import type { Panel, PanelArg } from './Panel';
 import { createPanel, type PanelName } from './panels';
@@ -116,8 +118,8 @@ export class UI {
     zone: HTMLElement;
     prompt: HTMLElement;
     drive: HTMLElement;
-    speed: HTMLElement;
     gauge: HTMLElement;
+    missionsBtn: HTMLElement;
     reconnect: HTMLElement;
     offers: HTMLElement;
     dealerBtn: HTMLElement;
@@ -127,6 +129,9 @@ export class UI {
   private toasts: HTMLElement;
   readonly nearMiss = new NearMissHud();
   readonly dragHud = new DragHud();
+  readonly cluster = new GaugeHud();
+  readonly wanted = new WantedHud();
+  readonly missions = new MissionsHud();
   private overlay: HTMLElement | null = null;
   private panel: Panel | null = null;
   private lastPromptKey = '';
@@ -162,15 +167,29 @@ export class UI {
       'data-testid': 'prompt',
       onclick: (e: MouseEvent) => ((e.target as HTMLElement).closest('.alt') ? this.game.interactSecondary() : this.game.interact()),
     });
-    const speed = h('div', { class: 'v' }, '0');
     const gauge = h('div', { class: 'gauge' });
-    const drive = h('div', { class: 'drive-hud' }, gauge, h('div', { class: 'speedo' }, speed, h('div', { class: 'u' }, 'KM/H')));
+    const camBtn = h('button', { class: 'cam-btn', 'data-testid': 'camera-toggle', title: 'Cockpit / chase camera (C)', onclick: () => this.game.toggleCockpit() }, '◉ CAM', h('span', { class: 'hk' }, 'C'));
+    const drive = h('div', { class: 'drive-hud' }, h('div', { class: 'drive-side' }, gauge, camBtn), this.cluster.el);
     const reconnect = h('div', { class: 'reconnect' }, 'Connection lost - reconnecting...');
     const offers = h('div', { class: 'passthrough' });
 
     const dockBtn = (label: string, svg: string, hk: string, panel: PanelName, testid: string) =>
       h('button', { title: label, 'data-testid': testid, onclick: () => this.open(panel) }, icon(svg), h('span', { class: 'hk' }, hk), h('span', { class: 'tip' }, `${label} (${hk})`), h('span', { class: 'dot' }));
     const dealerBtn = dockBtn('Dealership', ICONS.store, 'J', 'dealership', 'dock-dealership');
+    // Missions open a drawer beside the dock (the game keeps running).
+    const missionsBtn = h(
+      'button',
+      { title: 'Missions', 'data-testid': 'dock-missions', onclick: () => this.missions.toggle() },
+      icon(ICONS.flag),
+      h('span', { class: 'hk' }, 'L'),
+      h('span', { class: 'tip' }, 'Missions · Görevler (L)'),
+      h('span', { class: 'dot' }),
+    );
+    this.missions.onStart = (id) =>
+      void this.game.net
+        .rpc('missions.start', { id })
+        .then((r) => this.missions.set(r.missions))
+        .catch((err) => this.error(err));
     const marketBtn = dockBtn('Marketplace', ICONS.market, 'B', 'market', 'dock-market');
     const dock = h(
       'div',
@@ -180,6 +199,7 @@ export class UI {
       dealerBtn,
       dockBtn('Auctions', ICONS.gavel, 'K', 'auctions', 'dock-auctions'),
       dockBtn('Map', ICONS.map, 'M', 'map', 'dock-map'),
+      missionsBtn,
       dockBtn('Profile', ICONS.user, 'O', 'profile', 'dock-profile'),
       h('button', { title: 'Chat', 'data-testid': 'dock-chat', onclick: () => this.chat.toggle() }, icon(ICONS.chat), h('span', { class: 'hk' }, 'T'), h('span', { class: 'tip' }, 'Chat (T)'), h('span', { class: 'dot' })),
       dockBtn('Menu', ICONS.menu, 'Esc', 'menu', 'dock-menu'),
@@ -189,6 +209,7 @@ export class UI {
       'div',
       { class: 'hud-top-left' },
       h('div', { class: 'player-card' }, level, h('div', null, name, h('div', { class: 'xp-bar' }, xpFill), xpText, rep)),
+      this.wanted.el,
     );
     const right = h(
       'div',
@@ -202,13 +223,16 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'WASD'), 'Move'),
       h('span', null, h('span', { class: 'kbd' }, 'Shift'), 'Sprint'),
       h('span', null, h('span', { class: 'kbd' }, 'E'), 'Interact'),
+      h('span', null, h('span', { class: 'kbd' }, 'F'), 'Get in / out'),
+      h('span', null, h('span', { class: 'kbd' }, 'C'), 'Cockpit view'),
+      h('span', null, h('span', { class: 'kbd' }, 'L'), 'Missions'),
       h('span', null, h('span', { class: 'kbd' }, 'H'), 'Horn'),
       h('span', null, h('span', { class: 'kbd' }, 'Click'), 'Mouse look'),
       h('span', null, h('span', { class: 'kbd' }, 'Enter'), 'Chat'),
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
-    this.root.append(top, right, dock, prompt, drive, this.nearMiss.el, this.dragHud.el, this.chat.el, hint, offers, this.toasts, reconnect);
-    this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, speed, gauge, reconnect, offers, dealerBtn, marketBtn, hint };
+    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.chat.el, hint, offers, this.toasts, this.wanted.banner, reconnect);
+    this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 
   // ------------------------------------------------------------ HUD
@@ -268,6 +292,7 @@ export class UI {
     this.hud.cash.textContent = formatMoney(p.money);
     this.hud.bank.textContent = `Bank ${formatMoney(p.bank)}`;
     this.hud.dealerBtn.classList.toggle('alert', !p.dealershipPlotId && p.money >= 12_000);
+    this.missions.setLevel(p.level);
     if (this.panel) this.panel.onStoreChange();
   }
 
@@ -291,20 +316,25 @@ export class UI {
       this.touch.setActions(null, null);
       return;
     }
-    el.append(h('span', { class: 'kbd' }, 'E'), h('div', null, h('div', null, i.label), i.sub ? h('div', { class: 'sub' }, i.sub) : null));
-    if (secondary) el.append(h('div', { class: 'alt' }, h('span', { class: 'kbd', style: { background: '#ffc53d' } }, 'F'), h('div', null, secondary.label)));
+    el.append(h('span', { class: 'kbd' }, i.vehicle ? 'F' : 'E'), h('div', null, h('div', null, i.label), i.sub ? h('div', { class: 'sub' }, i.sub) : null));
+    if (secondary) el.append(h('div', { class: 'alt' }, h('span', { class: 'kbd', style: { background: '#ffc53d' } }, 'G'), h('div', null, secondary.label)));
     el.classList.add('show');
     this.touch.setActions(i, secondary);
+  }
+
+  /** Dot on the missions button while some are still open. */
+  setMissionsPending(n: number): void {
+    this.hud.missionsBtn.classList.toggle('alert', n > 0);
   }
 
   updateDriving(): void {
     const id = this.game.driving;
     const v = id ? this.game.store.myVehicle(id) : undefined;
     this.touch.update();
-    this.hud.drive.classList.toggle('show', !!v);
+    this.hud.drive.classList.toggle('show', !!v && !this.game.inCutscene);
+    this.missions.el.classList.toggle('compact', !!v);
     this.hud.hint.style.display = v ? 'none' : '';
     if (!v) return;
-    this.hud.speed.textContent = String(Math.round(Math.abs(this.game.speed) * KMH_PER_MS));
     clear(this.hud.gauge);
     this.hud.gauge.append(
       h('div', { class: 'name' }, modelDisplayName(v.modelId)),

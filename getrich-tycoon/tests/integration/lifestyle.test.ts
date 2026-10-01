@@ -28,9 +28,19 @@ afterAll(async () => {
 });
 
 async function buyCheapest(client: TestClient): Promise<string> {
-  const { listings } = await client.rpc('market.list', {});
   const level = server.game.state.players.get(client.playerId)!.level;
-  const l = listings.filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, level)).sort((a, b) => a.askingPrice - b.askingPrice)[0]!;
+  const pick = async () => {
+    const { listings } = await client.rpc('market.list', {});
+    return listings.filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, level)).sort((a, b) => a.askingPrice - b.askingPrice)[0];
+  };
+  let l = await pick();
+  // Earlier tests may have bought the lot empty: restock it now instead of waiting for the refill timer.
+  for (let i = 0; !l && i < 10; i++) {
+    (server.game.market as unknown as { slotCooldown: Map<number, number> }).slotCooldown.clear();
+    await server.game.market.refresh();
+    l = await pick();
+  }
+  if (!l) throw new Error('no vehicle on the market');
   const { vehicle } = await client.rpc('market.buy', { listingId: l.id, expectedPrice: discountedPrice(l.askingPrice, level) });
   const uow = server.game.state.begin();
   const v = uow.vehicle(vehicle.id);
@@ -80,13 +90,13 @@ describe('reputation unlocks', () => {
     const l = listings.filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, 10)).sort((a, b) => a.askingPrice - b.askingPrice)[0]!;
     // The old (undiscounted) price is refused, the discounted one is charged.
     expect(await client.rpcRaw('market.buy', { listingId: l.id, expectedPrice: l.askingPrice })).toMatchObject({ ok: false, code: 'conflict' });
-    const money0 = cash(client);
     const res = await client.rpc('market.buy', { listingId: l.id, expectedPrice: discountedPrice(l.askingPrice, 10) });
     expect(res.price).toBe(discountedPrice(l.askingPrice, 10));
     expect(res.price).toBeLessThan(l.askingPrice);
-    // (A first-purchase achievement may pay $250 back.)
-    expect(money0 - cash(client)).toBeGreaterThanOrEqual(res.price - 250);
-    expect(money0 - cash(client)).toBeLessThanOrEqual(res.price);
+    // The ledger shows the discounted price (cash can also move from achievement / level rewards).
+    const { transactions } = await client.rpc('transactions', {});
+    const buy = transactions.find((t) => t.kind === 'market_buy' && t.vehicleId === l.vehicle.id);
+    expect(buy?.amount).toBe(-res.price);
     client.close();
   });
 });
@@ -148,7 +158,10 @@ describe('missions', () => {
     const done = await client.waitFor<{ id: string; reward: string }>('missions.complete', (d) => d.id === 'sell2');
     expect(done.reward).toContain('$5,000');
     await sleep(300);
-    expect(cash(client)).toBe(money0 + p1 + p2 + 5_000);
+    // Cash: both sales and the $5,000 reward (achievements may add their own rewards on top).
+    expect(cash(client)).toBeGreaterThanOrEqual(money0 + p1 + p2 + 5_000);
+    const { transactions } = await client.rpc('transactions', {});
+    expect(transactions.filter((t) => t.kind === 'mission').reduce((a, t) => a + t.amount, 0)).toBe(5_000);
     expect(missions(client).find((m) => m.id === 'sell2')!.done).toBe(true);
     expect(await client.rpcRaw('missions.start', { id: 'sell2' })).toMatchObject({ ok: false, code: 'conflict' });
     client.close();

@@ -2,7 +2,7 @@
 // stance. Prices, prerequisites and effects come from the shared tuning system; the server only
 // accepts what `quoteTuning` accepts and charges exactly its total.
 
-import { MOD_CATALOG, findOption, isValidModOption } from '../../../shared/customization';
+import { MOD_CATALOG, findOption, isValidModOption, optionLevel } from '../../../shared/customization';
 import { ECONOMY } from '../../../shared/economy.config';
 import { BODY_SLOTS, PAINT_FINISHES, PERF_SLOTS, RIM_FINISHES, findPart, type BodySlot, type PerfSlot } from '../../../shared/modificationsData';
 import { ECU_COUPON } from '../../../shared/missions';
@@ -17,8 +17,8 @@ import { requireIdle, requireNear, requireOwned } from '../guards';
 
 const log = createLogger('tuning');
 
-type LegacySlot = 'tint' | 'headlights' | 'accessory';
-const LEGACY_SLOTS: readonly LegacySlot[] = ['tint', 'headlights', 'accessory'];
+type LegacySlot = 'tint' | 'headlights' | 'accessory' | 'underglow';
+const LEGACY_SLOTS: readonly LegacySlot[] = ['tint', 'headlights', 'accessory', 'underglow'];
 
 function partId(v: unknown, what: string): string | null {
   if (v === null) return null;
@@ -111,7 +111,9 @@ export class TuningService {
       let legacyChanged = 0;
       for (const slot of LEGACY_SLOTS) {
         const next = legacy[slot];
-        if (next === undefined || next === veh.mods[slot]) continue;
+        if (next === undefined || next === (veh.mods[slot] ?? 'ug_none')) continue;
+        const need = optionLevel(next);
+        if (player.level < need) throw new GameError('forbidden', `${findOption(next)?.label ?? 'That option'} unlocks at level ${need}.`);
         legacyCost += findOption(next)?.price ?? 0;
         veh.mods[slot] = next;
         legacyChanged++;

@@ -31,11 +31,20 @@
   - `world.ts`: city layout, colliders, plots, display slots, interactables
   - `highway.ts`: the ring highway as a rounded-square centreline (straights + circular corners) in `(s, offset)` coordinates:
     lanes, analytic barriers with gaps (junctions, median crossovers), bridges, sign gantries, street lights, the drag strip,
-    belt trees and the shared day/night clock (`gameHour`, `nightFactor`)
+    belt trees and the drag strip
+  - `environment.ts`: the shared 10-minute day (`gameHour`, `nightFactor`, `sunsetFactor`) and the weather (`rainAt`,
+    `wetnessAt`, `surfaceGrip`: rain spells per 150 s slot, derived from the server clock, so nothing is sent over the network)
   - `traffic.ts`: traffic vehicle kinds, the deterministic line-up (`trafficSpec(id)`: kind, model, colours, cruising speed,
-    home lane), lane speed limits, poses and multi-circle colliders
+    home lane), lane speed limits, poses and segment boxes (a semi is a tractor box + a trailer box)
   - `drag.ts`: drag race views, results and timing
-  - `physics.ts`: deterministic character and vehicle stepping, collision
+  - `drivetrain.ts`: real longitudinal vehicle dynamics in SI units (torque curve, turbo spool, gearbox and shift times, clutch
+    slip, traction and weight transfer, rolling resistance, aero drag, ABS / lock-up brakes), calibrated per model to its real
+    0-100 and top speed; `performanceFigures` simulates 0-100 / 0-200 / 0-300, the quarter mile and 100-0 braking
+  - `obb.ts`: oriented-box geometry (SAT overlap with contact normal and depth, box-circle, box-box distance)
+  - `physics.ts`: deterministic character and vehicle stepping (drivetrain + smoothed steering, yaw lag, slip angle), OBB
+    collisions with impulse response, analytic highway barriers
+  - `missions.ts`, `reputation.ts`, `police.ts`: daily missions, level unlocks (garage slots, cars out, market discount,
+    underglow) and the wanted-level types
   - `collision.ts`: builds the same collision world on both sides
   - `protocol.ts`: typed RPC map, events and validation helpers
 - **`server/`**:
@@ -45,26 +54,39 @@
   - `game/simulation.ts` is the movement simulation, speed-hack protection and snapshot building.
   - `game/services/*` contains one module per gameplay system (`tuning.ts`: the tuning garage, `rareMarket.ts`: the Rare Dealer rotation,
     `highway.ts`: near-miss detection, combos, batched payouts and traffic yielding, `drag.ts`: drag strip queue, bot matching,
-    lights, false starts, timing and the pool).
+    lights, false starts, timing and the pool, `driving.ts`: the driving bonus every 10 s, `missions.ts`: daily mission
+    progress and rewards, `police.ts`: heat and stars, police interceptors (physics cars routed over the city road grid and the
+    highway lanes), escapes and arrests).
   - `game/traffic.ts` is the traffic driver model (IDM car following + MOBIL-style lane changes with indicators, keep-right,
     yielding; players, walkers and parked cars are obstacles).
   - `db/` holds the PostgreSQL and SQLite adapters behind one small `Database` interface, plus the repository (row mapping, parameterized SQL).
 - **`client/`**:
   - `game/Game.ts` runs the loop, fixed-step prediction, reconciliation and interactions.
   - `game/EntityViews.ts` owns all dynamic scene objects.
-  - `render/*` generates everything procedurally: city, vehicles, characters, dealership levels. `render/batch.ts` merges static meshes per material to keep draw calls low.
+  - `render/*` builds the city, characters and dealership levels procedurally; every vehicle is a `.glb` model. `render/batch.ts` merges static meshes per material to keep draw calls low.
   - Tuning: `shared/modificationsData.ts` (parts data) and `shared/tuningSystem.ts` (pure `calculateVehicleStats`, dyno curves, prices, `quoteTuning`) are used by both the server (authoritative pricing/validation, physics) and the client (`ui/panels/garage.ts`, `ui/DynoChart.ts`, `render/Studio.ts` for the 3D preview and Rare Dealer pictures, `audio/Audio.ts` for the engine voice).
-  - Motorcycles: `render/bikeBody.ts` builds the bike; `BikeView` leans into corners and carries the rider.
-  - Vehicle bodies: `render/carDesigns.ts` describes each model with numbers (side profile, plan shape, greenhouse, axles, lamps, grille, bumpers, rims). `render/carBody.ts` lofts the body from superellipse cross-sections with wheel-arch cut-outs, adds a glass greenhouse and conforms lamps, grilles and plates to the surface. The result is merged into a few material slots (trim and lamps use vertex colours) and cached per model. `render/VehicleMesh.ts` adds per-vehicle paint, dirt, damage and mods on top; parked cars use one merged wheel mesh and switch to animated wheels only while moving.
+  - Vehicle models: `data/highDetailVehicles.ts` is the registry (one `.glb` + far-away `.lod.glb` per vehicle, traffic kind and
+    the police car); `render/ModelLibrary.ts` loads them with `GLTFLoader` + `DRACOLoader`, fits dropped-in models (orientation,
+    real length, centre, tyres on the road), finds wheels / door / seat / exhausts / lamps / kit parts by name and caches a
+    template per model. `render/VehicleMesh.ts` clones it per vehicle and dresses it (paint, dirt, damage, tint, lamps, rims,
+    kits, stance, underglow), animates wheels, body roll / pitch, brake / reverse / head lights, the driver's door and exhaust
+    flames, and merges parked vehicles into a few meshes. `BikeView` leans into corners and carries the rider.
+  - Interior and cutscenes: `render/Cockpit.ts` fits the shared `cockpit.glb` at the driver's seat with live needles, steering
+    wheel, gear lever, pedals and a gear screen; it is drawn in a second pass (`Renderer.overlay`, layer 1) so the outer body
+    never hides it. `game/EntityViews.ts` animates getting in and out (walk to the door, door, sit) and seats the drivers;
+    `game/Busted.ts` plays the arrest cutscene; `game/Police.ts` renders police cars with wig-wag light bars.
+  - Weather: `render/Weather.ts` (rain streaks around the camera, wet-road materials); `Renderer#setTime(hour, rain)` runs the
+    sky (orange at sunset, grey in the rain), sun / moon, image-based light and fog.
+  - HUD: `ui/Gauge.ts` (canvas rev counter, speed, gear, boost, stage, ABS / TCS, driving bonus pop-up), `ui/WantedHud.ts`
+    (stars, escape countdown, arrest meter, BUSTED / ESCAPED / mission banners), `ui/MissionsHud.ts` (the missions drawer).
   - Highway: `render/Highway.ts` sweeps the carriageways, markings, guardrails, median, ramps, bridges, gantries, lights and
     the drag strip from `shared/highway.ts`. `game/Traffic.ts` extrapolates the traffic between updates (errors fade out) and
-    feeds its colliders to local prediction; `render/TrafficView.ts` draws it with instancing (one set per vehicle type:
-    baked procedural cars near the camera, light hulls far away, `render/heavyBody.ts` trucks, coaches and semis) plus
-    instanced brake lights, indicators and night glows. `render/Renderer.ts#setTime` runs the sky, sun/moon and fog.
-  - High-detail models: `data/highDetailVehicles.ts` lists `.glb` files per vehicle; `render/HqModels.ts` loads them lazily with
-    `GLTFLoader` + `DRACOLoader`, fits and recolours them, and `VehicleView`/`BikeView` swap them in when loaded. The Vite plugin
-    `vite-plugin-hq-models.ts` provides `virtual:hq-models` (the files present at build time) so missing files are never
-    requested. The Draco decoder is bundled by three.js; the CSP allows it (`'wasm-unsafe-eval'`, `worker-src blob:`).
+    feeds its boxes to local prediction; `render/TrafficView.ts` draws it with instancing (each vehicle's GLB baked into two
+    geometries near the camera, the LOD copy far away) plus instanced brake lights, indicators and night glows.
+  - Custom models: the Vite plugin `vite-plugin-hq-models.ts` provides `virtual:hq-models` (the files dropped into
+    `client/public/assets/models/` at build time), so a `<vehicleId>.glb` there replaces the default model without any request
+    for missing files. The Draco decoder is bundled by three.js; the CSP allows it (`'wasm-unsafe-eval'`, `worker-src blob:`,
+    `connect-src blob:` for embedded textures).
   - `ui/*` is a DOM UI. `ui/dom.ts` only ever inserts text via `textContent`.
 
 ## Multiplayer model

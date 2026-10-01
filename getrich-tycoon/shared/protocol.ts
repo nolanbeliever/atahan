@@ -71,7 +71,7 @@ export interface RpcMethods {
   'custom.apply': { params: { vehicleId: string; mods: Partial<VehicleMods> }; result: { vehicle: Vehicle; cost: number } };
   /** Tuning garage: performance parts, body parts, paint, wheels, stance and classic options in one job. */
   'tuning.apply': {
-    params: { vehicleId: string; change: TuningChange; legacy?: Partial<Pick<VehicleMods, 'tint' | 'headlights' | 'accessory'>> };
+    params: { vehicleId: string; change: TuningChange; legacy?: Partial<Pick<VehicleMods, 'tint' | 'headlights' | 'accessory' | 'underglow'>> };
     result: { vehicle: Vehicle; cost: number; seconds: number };
   };
   'rare.list': { params: Empty; result: RareMarketState };

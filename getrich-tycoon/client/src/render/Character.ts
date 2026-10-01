@@ -1,4 +1,5 @@
-// Original low-poly character with procedural animation (idle/walk/run/interact, riding).
+// Original low-poly character with procedural animation (idle/walk/run/interact, riding) and poses
+// for cutscenes: seated in a car, ducking through a door, hands up, handcuffed.
 
 import * as THREE from 'three';
 import { Anim, type Appearance } from '../../../shared/types';
@@ -15,6 +16,9 @@ function part(mat: THREE.Material, sx: number, sy: number, sz: number, x: number
   return m;
 }
 
+/** Police officer uniform. */
+export const POLICE_OFFICER: Appearance = { skin: '#c68642', shirt: '#1d2b4f', pants: '#141b2e', hair: '#1b1b1b' };
+
 export const NPC_PALETTE: Appearance[] = [
   { skin: '#f1c27d', shirt: '#6c757d', pants: '#343a40', hair: '#4a2c2a' },
   { skin: '#8d5524', shirt: '#e9c46a', pants: '#264653', hair: '#1b1b1b' },
@@ -26,7 +30,12 @@ export const NPC_PALETTE: Appearance[] = [
   { skin: '#8d5524', shirt: '#06d6a0', pants: '#073b4c', hair: '#4a2c2a' },
 ];
 
+/** Poses that override the arm / leg animation. */
+export type Pose = 'none' | 'sit' | 'duck' | 'handsUp' | 'cuffed';
+
 export class CharacterView {
+  /** Current pose (set every frame by whoever animates the character). */
+  pose: Pose = 'none';
   readonly root = new THREE.Group();
   private readonly rig = new THREE.Group();
   private hipL = new THREE.Group();
@@ -97,6 +106,30 @@ export class CharacterView {
     const swing = moving ? Math.sin(this.phase) * (running ? 0.95 : 0.55) : 0;
     const k = Math.min(1, dt * 12);
     const lerp = (obj: THREE.Object3D, target: number) => (obj.rotation.x += (target - obj.rotation.x) * k);
+    const lerpZ = (obj: THREE.Object3D, target: number) => (obj.rotation.z += (target - obj.rotation.z) * k);
+    const pose = this.pose;
+    lerpZ(this.shL, pose === 'cuffed' ? -0.32 : pose === 'handsUp' ? 0.18 : 0);
+    lerpZ(this.shR, pose === 'cuffed' ? 0.32 : pose === 'handsUp' ? -0.18 : 0);
+    if (pose === 'sit' || pose === 'duck') {
+      // Seated (hands on the wheel) or bending in through a door.
+      const sit = pose === 'sit';
+      lerp(this.hipL, sit ? -1.45 : -0.8);
+      lerp(this.hipR, sit ? -1.45 : -0.6);
+      lerp(this.shL, sit ? -1.15 : -0.7);
+      lerp(this.shR, sit ? -1.15 : -0.5);
+      this.rig.position.y += ((sit ? 0 : -0.18) - this.rig.position.y) * k;
+      this.rig.rotation.x += ((sit ? 0.05 : 0.55) - this.rig.rotation.x) * k;
+      return;
+    }
+    if (pose === 'handsUp' || pose === 'cuffed') {
+      lerp(this.hipL, 0);
+      lerp(this.hipR, 0);
+      lerp(this.shL, pose === 'handsUp' ? -2.85 + Math.sin(this.time * 3) * 0.04 : 0.42);
+      lerp(this.shR, pose === 'handsUp' ? -2.85 - Math.sin(this.time * 3) * 0.04 : 0.42);
+      this.rig.position.y += (0 - this.rig.position.y) * k;
+      this.rig.rotation.x += ((pose === 'cuffed' ? 0.12 : 0) - this.rig.rotation.x) * k;
+      return;
+    }
     if (anim === Anim.Drive) {
       // Seated on a motorcycle: thighs forward, hands on the bars, leaning in a little.
       lerp(this.hipL, -0.9);

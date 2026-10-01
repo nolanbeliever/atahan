@@ -24,6 +24,7 @@ export class TouchControls {
   private readonly alt: HTMLButtonElement;
   private readonly hold: HTMLButtonElement;
   private readonly horn: HTMLButtonElement;
+  private readonly camBtn: HTMLButtonElement;
   private hornPointer: number | null = null;
   private stickPointer: number | null = null;
   private nx = 0;
@@ -35,10 +36,15 @@ export class TouchControls {
     this.knob = h('div', { class: 'knob' });
     this.stick = h('div', { class: 'touch-stick', 'data-testid': 'touch-stick' }, h('div', { class: 'base' }), this.knob);
     this.act = h('button', { class: 'tbtn act', 'data-testid': 'touch-action', 'aria-label': 'Interact' }, 'E');
-    this.alt = h('button', { class: 'tbtn alt', 'data-testid': 'touch-alt', 'aria-label': 'Secondary action' }, 'F');
+    this.alt = h('button', { class: 'tbtn alt', 'data-testid': 'touch-alt', 'aria-label': 'Secondary action' }, 'G');
+    this.camBtn = h('button', { class: 'tbtn cam', 'data-testid': 'touch-camera', 'aria-label': 'Switch camera' }, 'CAM');
     this.hold = h('button', { class: 'tbtn hold', 'data-testid': 'touch-hold' }, 'RUN');
     this.horn = h('button', { class: 'tbtn horn', 'data-testid': 'touch-horn', 'aria-label': 'Horn' }, 'HORN');
-    this.el = h('div', { class: 'touch-controls' }, this.stick, h('div', { class: 'touch-actions' }, this.horn, this.alt, this.hold, this.act));
+    this.el = h('div', { class: 'touch-controls' }, this.stick, h('div', { class: 'touch-actions' }, this.camBtn, this.horn, this.alt, this.hold, this.act));
+    this.camBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      ui.game.toggleCockpit();
+    });
     this.horn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       this.hornPointer = e.pointerId;
@@ -99,6 +105,7 @@ export class TouchControls {
     const label = this.ui.game.driving ? 'BRAKE' : 'RUN';
     if (this.hold.textContent !== label) this.hold.textContent = label;
     this.horn.classList.toggle('show', !!this.ui.game.driving);
+    this.camBtn.classList.toggle('show', !!this.ui.game.driving);
   }
 
   private bindStick(): void {

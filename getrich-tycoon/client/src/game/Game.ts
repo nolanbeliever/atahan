@@ -18,11 +18,14 @@ import {
   type InputCmd,
   type VehicleDyn,
 } from '../../../shared/physics';
-import { surfaceGrip } from '../../../shared/environment';
+import { KMH_PER_MS } from '../../../shared/drivetrain';
+import { rainAt, surfaceGrip, wetnessAt } from '../../../shared/environment';
+import type { MissionView } from '../../../shared/missions';
+import type { BustedEvent, WantedState } from '../../../shared/police';
 import type { DragRaceView } from '../../../shared/drag';
 import { DRAG_STRIP, gameHour } from '../../../shared/highway';
 import type { PrivateState } from '../../../shared/protocol';
-import { Anim, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
+import { Anim, VF, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
 import {
@@ -44,12 +47,16 @@ import { HighwayView } from '../render/Highway';
 import { TrafficView } from '../render/TrafficView';
 import { Effects } from '../render/Effects';
 import { Renderer } from '../render/Renderer';
-import { createVehicleView, type AnyVehicleView } from '../render/VehicleMesh';
+import { createVehicleView, type AnyVehicleView, type VehicleView } from '../render/VehicleMesh';
+import { CockpitRig } from '../render/Cockpit';
+import { Rain, setRoadWetness } from '../render/Weather';
 import { Store } from '../state/Store';
 import type { UI } from '../ui/UI';
 import { CameraController } from './CameraController';
 import { EntityViews } from './EntityViews';
 import { Input } from './Input';
+import { BustedCutscene } from './Busted';
+import { PoliceClient } from './Police';
 import { TrafficClient } from './Traffic';
 
 export interface Interaction {
@@ -57,7 +64,12 @@ export interface Interaction {
   label: string;
   sub?: string;
   action: () => void;
+  /** Getting into / out of a vehicle (the F key). */
+  vehicle?: boolean;
 }
+
+const COCKPIT_FOV = 74;
+const CHASE_FOV = 62;
 
 const MAX_PENDING = 150;
 
@@ -82,6 +94,25 @@ export class Game {
   })();
   readonly effects: Effects;
   readonly entities: EntityViews;
+  readonly police: PoliceClient;
+  private rain = new Rain();
+  /** Rain now (0-1) and how wet the roads are. */
+  weather = { rain: 0, wet: 0 };
+  private forcedRain: number | null = (() => {
+    const v = new URLSearchParams(location.search).get('rain');
+    return v !== null && Number.isFinite(Number(v)) ? Number(v) : null;
+  })();
+  /** First-person cockpit chosen (C key / camera button). */
+  cockpitOn = new URLSearchParams(location.search).get('cockpit') === '1';
+  private cockpit: { id: string; rig: CockpitRig } | null = null;
+  private lookYaw = 0;
+  private lookPitch = 0;
+  private busted: BustedCutscene | null = null;
+  wanted: WantedState = { stars: 0, units: 0, escapeLeft: null, bust: 0 };
+  /** What the physics did since the last frame (gauge lights, tyre sounds, shifts). */
+  private stepInfo = { abs: false, wheelspin: 0, sliding: false, locked: false, shifted: 0 };
+  private vehicleAction: Interaction | null = null;
+  private missionTimer = 0;
   readonly input: Input;
   readonly cam: CameraController;
   readonly audio = new AudioSystem();
@@ -135,6 +166,8 @@ export class Game {
     this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group);
     this.effects = new Effects(this.renderer.scene);
     this.entities = new EntityViews(this.renderer.scene, () => this.store.playerId);
+    this.police = new PoliceClient(this.renderer.scene);
+    this.renderer.scene.add(this.rain.mesh);
     // Pops & bangs from our own exhaust flash flames at the tips.
     this.audio.onPop = (strength) => {
       if (this.driving) this.entities.vehicles.get(this.driving)?.view.pop(strength);
@@ -185,6 +218,12 @@ export class Game {
       this.ui?.setReconnecting(false);
       this.ui?.onWelcome();
       void this.refreshAuctions();
+      this.endBusted();
+      this.police.clear();
+      void this.net
+        .rpc('missions.list', {})
+        .then((r) => this.onMissions(r.missions))
+        .catch(() => undefined);
       void this.net
         .rpc('rare.list', {})
         .then((s) => this.store.setRare(s))
@@ -213,6 +252,22 @@ export class Game {
       if (e.reason === 'crash' && e.count > 0) this.audio.play('crash');
     });
     net.on('drag.update', (d) => this.onDrag(d));
+    net.on('drive.bonus', (d) => this.ui?.cluster.showBonus(d.amount));
+    net.on('missions.update', (d) => this.onMissions(d.missions));
+    net.on('missions.complete', (d) => {
+      this.ui?.wanted.mission(d.title, d.reward);
+      this.audio.play('levelup');
+    });
+    net.on('police.wanted', (w) => {
+      if (w.stars > this.wanted.stars) this.audio.play(w.stars >= 2 ? 'foul' : 'notify');
+      this.wanted = w;
+      this.ui?.wanted.set(w);
+    });
+    net.on('police.busted', (e) => this.startBusted(e));
+    net.on('police.escaped', (d) => {
+      this.ui?.wanted.escaped(d.reward, d.xp);
+      this.audio.play('levelup');
+    });
     net.on('auction.update', (a) => {
       const idx = this.auctions.findIndex((x) => x.id === a.id);
       if (a.status !== 'active') {
@@ -354,6 +409,7 @@ export class Game {
     }
     this.entities.pruneNpcs(alive);
     if (s.tr) this.traffic.apply(s.tr, (this.store.serverNow() - s.t) / 1000);
+    if (s.po) this.police.apply(s.po, now);
     if (s.dr && this.drag && s.dr.id === this.drag.id) {
       for (const [lane, z, speed] of s.dr.cars) {
         const bot = this.dragBots.get(lane);
@@ -429,7 +485,8 @@ export class Game {
     this.dynamic.length = 0;
     vehicleObstacles(list, this.dynamic);
     this.traffic.boxesNear(this.curr.x, this.curr.z, 70, this.dynamic);
-    this.world.grip = surfaceGrip(this.store.serverNow());
+    this.police.boxesNear(this.curr.x, this.curr.z, 70, this.dynamic);
+    this.world.grip = this.forcedRain !== null ? 1 - 0.2 * Math.min(1, this.forcedRain / 0.7) : surfaceGrip(this.store.serverNow());
   }
 
   /** Lined up on the drag strip while staging: only the brakes work (the server does the same). */
@@ -440,13 +497,21 @@ export class Game {
   private step(): void {
     let keys = this.input.keys();
     if (this.dragHold && this.driving) keys = (keys & KEY.HORN) | KEY.BRAKE;
+    // Hands off while getting in / out, and during the arrest.
+    if (this.busted || this.entities.boardingLeft(this.store.playerId) > 0.15) keys = 0;
     const cmd: InputCmd = { seq: ++this.seq, dt: SIM_DT, keys, yaw: this.cam.yaw };
     this.prev = { ...this.curr };
     if (this.driving && this.dyn) {
       const v = this.store.myVehicle(this.driving);
       if (v) {
         const params = vehicleParams(getModel(v.modelId), v.condition, v.fuel, v.mods);
-        stepVehicle(this.dyn, cmd, params, this.world, this.driving);
+        const r = stepVehicle(this.dyn, cmd, params, this.world, this.driving);
+        const info = this.stepInfo;
+        info.abs ||= r.abs;
+        info.locked ||= r.locked;
+        info.sliding ||= r.sliding;
+        info.wheelspin = Math.max(info.wheelspin, r.wheelspin);
+        info.shifted += r.shifted;
         this.curr = { x: this.dyn.x, z: this.dyn.z, rot: this.dyn.rot };
       }
     } else {
@@ -478,7 +543,14 @@ export class Game {
       return;
     }
     const mouse = this.input.consumeMouse();
-    if (this.input.enabled) this.cam.applyMouse(mouse.dx, mouse.dy);
+    const cockpit = this.cockpitActive();
+    if (this.input.enabled && !this.busted) {
+      if (cockpit) {
+        const k = 0.0025 * this.cam.sensitivity;
+        this.lookYaw = Math.max(-1.9, Math.min(1.9, this.lookYaw - mouse.dx * k));
+        this.lookPitch = Math.max(-0.7, Math.min(0.5, this.lookPitch - mouse.dy * k * (this.cam.invertY ? -1 : 1)));
+      } else this.cam.applyMouse(mouse.dx, mouse.dy);
+    }
 
     this.rebuildDynamic();
     this.acc += dt;
@@ -498,6 +570,14 @@ export class Game {
     const keys = this.input.keys();
     const moving = (keys & (KEY.FORWARD | KEY.BACK | KEY.LEFT | KEY.RIGHT)) !== 0;
     const anim = moving ? (keys & KEY.SPRINT ? Anim.Run : Anim.Walk) : Anim.Idle;
+    let flags = 0;
+    if (this.dyn && this.driving) {
+      if (this.dyn.brk > 0.05) flags |= VF.BRAKE;
+      if (this.dyn.gear < 0) flags |= VF.REVERSE;
+    }
+    this.entities.hideLocalDriver = cockpit && !this.busted;
+    document.body.classList.toggle('cockpit-view', cockpit && !this.busted);
+    this.renderer.overlay = cockpit && !this.busted;
     this.entities.update(dt, now, {
       id: this.store.playerId,
       x: rx,
@@ -507,11 +587,25 @@ export class Game {
       driving: this.driving,
       speed: this.dyn?.speed ?? 0,
       steer: this.dyn?.steer ?? 0,
+      flags,
     });
 
-    if (this.driving && this.dyn && performance.now() - this.input.lastMouseMove > 1500) this.cam.follow(this.dyn.rot, dt);
-    const target = new THREE.Vector3(rx, groundHeight(rx, rz), rz);
-    this.cam.update(target, dt, !!this.driving, this.dyn?.speed ?? 0, this.boxes);
+    const camera = this.renderer.camera;
+    const fov = cockpit && !this.busted ? COCKPIT_FOV : CHASE_FOV;
+    if (camera.fov !== fov) {
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+      this.cam.snap();
+    }
+    if (this.busted) {
+      this.busted.update(dt, camera);
+      if (this.busted.done && (!this.driving || this.busted.t > this.busted.duration + 1.5)) this.endBusted();
+    } else if (cockpit) this.updateCockpitCamera(dt);
+    else {
+      if (this.driving && this.dyn && performance.now() - this.input.lastMouseMove > 1500) this.cam.follow(this.dyn.rot, dt);
+      const target = new THREE.Vector3(rx, groundHeight(rx, rz), rz);
+      this.cam.update(target, dt, !!this.driving, this.dyn?.speed ?? 0, this.boxes);
+    }
     if (this.debugCam) {
       const [cx, cy, cz, lx, ly, lz] = this.debugCam as [number, number, number, number, number, number];
       this.renderer.camera.position.set(cx, cy, cz);
@@ -523,15 +617,48 @@ export class Game {
     const drivenVeh = this.driving ? this.store.myVehicle(this.driving) : undefined;
     const drivenModel = drivenVeh ? getModel(drivenVeh.modelId) : null;
     const drivenStats = drivenModel && drivenVeh ? calculateVehicleStats(drivenModel, drivenVeh.mods.tuning) : null;
+    const params = drivenModel && drivenVeh ? vehicleParams(drivenModel, drivenVeh.condition, drivenVeh.fuel, drivenVeh.mods) : null;
+    const stage = Number(/stage(\d)/.exec(drivenVeh?.mods.tuning?.perf.ecu ?? '')?.[1] ?? 0);
+    const info = this.stepInfo;
+    const dyn = this.dyn;
     this.audio.engine({
-      driving: !!this.driving,
-      speed: this.dyn?.speed ?? 0,
-      topSpeed: drivenModel && drivenVeh ? vehicleParams(drivenModel, drivenVeh.condition, drivenVeh.fuel, drivenVeh.mods).topSpeed : 30,
-      throttle: (keys & KEY.FORWARD) !== 0,
+      driving: !!this.driving && !!dyn,
+      speed: dyn?.speed ?? 0,
+      topSpeed: params?.topSpeed ?? 30,
+      throttle: (dyn?.thr ?? 0) > 0.2,
       profile: drivenStats?.sound ?? null,
       redline: drivenStats?.redline ?? 6500,
       dt,
+      rpm: dyn?.rpm,
+      gear: dyn?.gear,
+      boost: dyn?.boost,
+      pedal: dyn?.thr,
+      shifted: info.shifted,
+      stage,
+      wheelspin: info.wheelspin,
+      sliding: info.sliding,
+      locked: info.locked,
     });
+    // Cockpit gauge cluster and the first-person interior.
+    if (dyn && params) {
+      const pt = params.pt;
+      const kmh = Math.abs(dyn.speed) * KMH_PER_MS;
+      const maxPsi = pt.turbo?.maxPsi ?? 0;
+      this.ui?.cluster.draw({ kmh, rpm: dyn.rpm, redline: pt.redline, gear: dyn.gear, psi: maxPsi * dyn.boost, maxPsi, electric: pt.electric, stage, abs: info.abs || info.locked, slip: info.wheelspin > 0.12, limiter: dyn.rpm >= pt.redline * 0.995 }, dt);
+      this.cockpit?.rig.update({ kmh, rpm: dyn.rpm, gear: dyn.gear, steer: dyn.input, wheelTurns: pt.wheelTurns, throttle: dyn.thr, brake: dyn.brk, automatic: !/manual/i.test(pt.gearbox), electric: pt.electric, dt });
+    }
+    this.stepInfo = { abs: false, wheelspin: 0, sliding: false, locked: false, shifted: 0 };
+    // Police cars, their sirens, and the rain.
+    this.police.night = this.night;
+    this.police.update(dt, now);
+    this.audio.siren(this.police.nearestSiren(rx, rz));
+    this.audio.rain(this.weather.rain);
+    this.rain.update(dt, camera, this.weather.rain, this.renderer.graphics === 'low' ? 0.35 : this.renderer.graphics === 'medium' ? 0.65 : 1);
+    this.missionTimer -= dt;
+    if (this.missionTimer <= 0) {
+      this.missionTimer = 1;
+      this.ui?.missions.tick(this.store.serverNow());
+    }
     this.effects.update(dt);
     this.city.update(dt);
     // Horn + headlight flash (traffic ahead moves over).
@@ -572,8 +699,11 @@ export class Game {
   // ------------------------------------------------------------ highway, drag strip, time of day
 
   private updateDayNight(): void {
-    const hour = this.forcedHour ?? gameHour(this.store.serverNow());
-    const night = this.renderer.setTime(hour);
+    const now = this.store.serverNow();
+    const hour = this.forcedHour ?? gameHour(now);
+    this.weather = this.forcedRain !== null ? { rain: this.forcedRain, wet: this.forcedRain } : { rain: rainAt(now), wet: wetnessAt(now) };
+    setRoadWetness(this.weather.wet);
+    const night = this.renderer.setTime(hour, this.weather.rain);
     this.night = night;
     this.city.setNight(night);
     this.highway.setNight(night);
@@ -701,9 +831,12 @@ export class Game {
       }
     };
     const me = this.store.playerId;
+    let vehicleAction: Interaction | null = null;
+    let vehicleD = Infinity;
     if (this.driving) {
       const v = this.store.myVehicle(this.driving);
-      best = { id: 'exit', label: `Exit ${v ? modelDisplayName(v.modelId) : 'vehicle'}`, action: () => void this.exitVehicle() };
+      best = { id: 'exit', label: `Exit ${v ? modelDisplayName(v.modelId) : 'vehicle'}`, action: () => void this.exitVehicle(), vehicle: true };
+      vehicleAction = best;
       for (const i of INTERACTABLES) {
         if ((i.kind === 'fuel' || i.kind === 'wash') && Math.hypot(i.x - x, i.z - z) <= i.radius + 3) {
           secondary = { id: i.id, label: i.kind === 'fuel' ? 'Refuel this vehicle' : 'Drive-through wash', action: () => this.ui.open(i.kind, { vehicleId: this.driving }) };
@@ -747,7 +880,12 @@ export class Game {
           const l = e.listing;
           consider(d, { id: v.id, label: `Inspect ${modelDisplayName(v.modelId)}`, sub: `Asking ${formatMoney(l.askingPrice)} - seller: ${l.sellerName}`, action: () => this.ui.open('inspect', { listingId: l.id }) });
         } else if (v.ownerId === me && v.status === 'world') {
-          consider(d, { id: v.id, label: `Drive ${modelDisplayName(v.modelId)}`, sub: `Fuel ${Math.round(v.fuel)}%`, action: () => void this.enterVehicle(v.id) });
+          const it: Interaction = { id: v.id, label: `Drive ${modelDisplayName(v.modelId)}`, sub: `Fuel ${Math.round(v.fuel)}%`, action: () => void this.enterVehicle(v.id), vehicle: true };
+          consider(d, it);
+          if (d < vehicleD) {
+            vehicleD = d;
+            vehicleAction = it;
+          }
         } else if (v.ownerId === me && v.status === 'displayed') {
           consider(d, { id: v.id, label: `Manage display: ${modelDisplayName(v.modelId)}`, sub: v.salePrice ? `Listed at ${formatMoney(v.salePrice)}` : 'Not for sale', action: () => this.ui.open('dealership') });
         } else if (v.status === 'displayed' && v.salePrice !== null) {
@@ -757,7 +895,12 @@ export class Game {
     }
     this.interaction = best;
     this.secondary = secondary;
-    this.ui?.setPrompt(best, secondary);
+    this.vehicleAction = this.busted ? null : vehicleAction;
+    if (this.busted) {
+      this.interaction = null;
+      this.secondary = null;
+    }
+    this.ui?.setPrompt(this.interaction, this.secondary);
   }
 
   private onKey(code: string, e: KeyboardEvent): void {
@@ -791,7 +934,90 @@ export class Game {
       return;
     }
     if (code === 'KeyE') this.interact();
-    else if (code === 'KeyF') this.interactSecondary();
+    else if (code === 'KeyF') this.vehicleKey();
+    else if (code === 'KeyG') this.interactSecondary();
+    else if (code === 'KeyC') this.toggleCockpit();
+    else if (code === 'KeyL') this.ui.missions.toggle();
+  }
+
+  /** F: get into the nearest own car, or out of the one being driven. */
+  vehicleKey(): void {
+    if (!this.vehicleAction || this.ui?.anyOpen() || this.busted) return;
+    this.audio.play('click');
+    this.vehicleAction.action();
+  }
+
+  /** C / camera button: chase camera <-> first-person cockpit. */
+  toggleCockpit(): void {
+    this.cockpitOn = !this.cockpitOn;
+    this.lookYaw = 0;
+    this.lookPitch = 0;
+    this.audio.play('click');
+  }
+
+  /** Is the cockpit view on this frame (driving a car, seated, no cutscene)? Builds / drops the rig. */
+  private cockpitActive(): boolean {
+    const id = this.driving;
+    const e = id ? this.entities.vehicles.get(id) : undefined;
+    const on = this.cockpitOn && !!id && !!e && !e.view.isBike && !this.busted && this.entities.boardingLeft(this.store.playerId) === 0;
+    if (!on || !e || !id) {
+      if (this.cockpit) {
+        this.cockpit.rig.dispose();
+        this.cockpit = null;
+      }
+      return false;
+    }
+    if (this.cockpit?.id !== id) {
+      this.cockpit?.rig.dispose();
+      this.cockpit = { id, rig: new CockpitRig(e.view as VehicleView) };
+    }
+    return true;
+  }
+
+  /** First person: the camera at the driver's eyes, moving with the body; the mouse looks around. */
+  private updateCockpitCamera(dt: number): void {
+    const e = this.driving ? this.entities.vehicles.get(this.driving) : undefined;
+    if (!e) return;
+    const view = e.view as VehicleView;
+    if (performance.now() - this.input.lastMouseMove > 1500) {
+      this.lookYaw *= Math.exp(-dt * 3);
+      this.lookPitch *= Math.exp(-dt * 3);
+    }
+    view.root.updateMatrixWorld(true);
+    // A touch above and behind the eye point, so the wheel and dials are in view.
+    const eye = (view.info?.seat ?? new THREE.Vector3(0.38, 1.15, 0)).clone().add(new THREE.Vector3(0, 0.05, -0.12));
+    const camera = this.renderer.camera;
+    camera.position.copy(view.body.localToWorld(eye));
+    const body = view.body.getWorldQuaternion(new THREE.Quaternion());
+    // Glance into the corner a little with the steering.
+    const glance = (this.dyn?.input ?? 0) * 0.12;
+    const look = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.lookPitch - 0.15, Math.PI + this.lookYaw + glance, 0, 'YXZ'));
+    camera.quaternion.copy(body).multiply(look);
+  }
+
+  private onMissions(missions: MissionView[]): void {
+    this.ui?.missions.set(missions);
+    this.ui?.setMissionsPending(missions.filter((m) => !m.done).length);
+  }
+
+  /** Arrested: play the cutscene (the server releases the player at a garage when it ends). */
+  private startBusted(e: BustedEvent): void {
+    this.endBusted();
+    const id = this.driving;
+    const view = id ? this.entities.vehicles.get(id)?.view : undefined;
+    this.ui?.closeAll();
+    this.audio.horn(false);
+    this.busted = new BustedCutscene(e, this.store.playerId, this.renderer.scene, this.entities, this.police, view ? id : null, view ? view.width / 2 : 0.3, () => {
+      this.ui?.wanted.busted(e);
+      this.audio.play('foul');
+    });
+  }
+
+  private endBusted(): void {
+    if (!this.busted) return;
+    this.busted.dispose();
+    this.busted = null;
+    this.cam.snap();
   }
 
   /** Run the current primary interaction (E key, prompt tap, touch action button). */
@@ -822,6 +1048,22 @@ export class Game {
     } catch (err) {
       this.ui.error(err);
     }
+  }
+
+  /** An arrest cutscene is playing. */
+  get inCutscene(): boolean {
+    return this.busted !== null;
+  }
+
+  /** Debug: what the camera sees at a screen point (normalised -1..1), nearest first. */
+  debugPick(x: number, y: number): { name: string; parent: string; material: string; distance: number }[] {
+    const r = new THREE.Raycaster();
+    r.setFromCamera(new THREE.Vector2(x, y), this.renderer.camera);
+    return r
+      .intersectObjects(this.renderer.scene.children, true)
+      .filter((h) => (h.object as THREE.Mesh).isMesh && h.object.visible)
+      .slice(0, 5)
+      .map((h) => ({ name: h.object.name, parent: h.object.parent?.name ?? '', material: ((h.object as THREE.Mesh).material as THREE.Material).name, distance: Math.round(h.distance * 100) / 100 }));
   }
 
   /** Test/debug hook: read-only snapshot of client state. */

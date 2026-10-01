@@ -44,7 +44,8 @@ export class NearMissHud {
     this.pop.append(
       h('div', { class: 'nm-title' }, 'NEAR MISS', h('span', null, ' · MAKAS')),
       h('div', { class: 'nm-amount' }, e.capped && e.amount === 0 ? `+${e.xp} XP` : `+${formatMoney(e.amount)}`),
-      h('div', { class: 'nm-sub' }, `${e.mult > 1 ? `x${e.mult} COMBO · ` : ''}${e.gap.toFixed(2)} m · ${e.kind.toUpperCase()}${e.capped ? ' · hourly cash limit' : ''}`),
+      ...(e.close ? [h('div', { class: 'nm-close' }, `HAIR'S BREADTH · x${ECONOMY.highway.closeBonus}`)] : []),
+      h('div', { class: 'nm-sub' }, `${e.mult > 1 ? `x${e.mult} COMBO · ` : ''}${Math.round(e.gap * 100)} cm · ${e.kind.toUpperCase()}${e.capped ? ' · hourly cash limit' : ''}`),
     );
     this.pop.className = `nm-pop show m${e.mult}`;
     if (this.popTimer) clearTimeout(this.popTimer);

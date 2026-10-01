@@ -400,10 +400,11 @@ export class PoliceService {
     for (const u of w.units) if (!nearest || Math.hypot(u.dyn.x - me.x, u.dyn.z - me.z) < Math.hypot(nearest.dyn.x - me.x, nearest.dyn.z - me.z)) nearest = u;
     w.units = nearest ? [nearest] : [];
     if (nearest) {
+      // Stopped alongside on the driver's (left) side, a little ahead, leaving room for the door.
       const rx = Math.cos(me.rot);
       const rz = -Math.sin(me.rot);
-      const side = me.hw + this.params.halfWidth + 1.1;
-      Object.assign(nearest.dyn, newVehicleDyn(me.x - rx * side + Math.sin(me.rot) * 1.2, me.z - rz * side + Math.cos(me.rot) * 1.2, me.rot));
+      const side = me.hw + this.params.halfWidth + 2.4;
+      Object.assign(nearest.dyn, newVehicleDyn(me.x + rx * side + Math.sin(me.rot) * 1.8, me.z + rz * side + Math.cos(me.rot) * 1.8, me.rot));
       nearest.parked = true;
     }
     const d = me.vehicleId ? this.ctx.sim.drives.get(me.vehicleId) : undefined;

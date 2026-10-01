@@ -1,7 +1,8 @@
 // Vehicles on screen: a clone of the vehicle's GLB model (see ModelLibrary.ts and
 // data/highDetailVehicles.ts) dressed per vehicle: paint (with custom finishes, dirt and damage),
 // glass tint, lamp colours, aftermarket rims, body-kit parts, stance, spinning/steering wheels, body
-// roll and pitch, brake / reverse / head lights, the driver's door and exhaust flames.
+// roll and pitch, brake / reverse / head lights, the driver's door, exhaust flames, underglow neon and
+// a seat for the driver's character.
 // Parked vehicles are merged into a few meshes (cheap to draw) and unmerged when they move.
 
 import * as THREE from 'three';
@@ -35,6 +36,32 @@ const RIM_MODS: Record<string, { style: string; finish: Finish }> = {
 };
 
 const flameMat = new THREE.SpriteMaterial({ color: '#ffb347', transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+
+let glowTex: THREE.CanvasTexture | null = null;
+
+/** Soft rectangular glow for underglow neon (white, tinted per car). */
+function underglowTexture(): THREE.CanvasTexture {
+  if (glowTex) return glowTex;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+  const img = g.createImageData(64, 128);
+  for (let y = 0; y < 128; y++) {
+    for (let x = 0; x < 64; x++) {
+      // Distance outside an inner rectangle, faded towards the edges.
+      const dx = Math.max(0, Math.abs(x - 31.5) - 14) / 18;
+      const dy = Math.max(0, Math.abs(y - 63.5) - 44) / 20;
+      const a = Math.max(0, 1 - Math.hypot(dx, dy)) ** 1.6;
+      const i = (y * 64 + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
+      img.data[i + 3] = Math.round(a * 255);
+    }
+  }
+  g.putImageData(img, 0, 0);
+  glowTex = new THREE.CanvasTexture(c);
+  return glowTex;
+}
 
 /** Seconds a vehicle must stand still before it is merged into a static mesh. */
 const FREEZE_DELAY = 3;
@@ -174,6 +201,8 @@ export interface AnyVehicleView {
   setLights(l: VehicleLights): void;
   /** Driver's door 0 (shut) - 1 (open). */
   setDoor(open: number): void;
+  /** Where a seated driver's character goes (feet origin). */
+  readonly driverMount: THREE.Group;
   /** Backfire (pops & bangs). */
   pop(strength: number): void;
   dispose(): void;
@@ -196,6 +225,8 @@ abstract class ModelView implements AnyVehicleView {
   readonly root = new THREE.Group();
   /** Rolls and pitches with the car's motion (and drops with lowered suspension). */
   readonly body = new THREE.Group();
+  /** The driver's character sits here (feet origin, placed from the model's seat). */
+  readonly driverMount = new THREE.Group();
   /** Car wheels live outside the body so they stay planted while the body rolls. */
   protected readonly wheelRoot = new THREE.Group();
   abstract readonly isBike: boolean;
@@ -227,6 +258,9 @@ abstract class ModelView implements AnyVehicleView {
   private roll = 0;
   private pitch = 0;
   protected drop = 0;
+  private glow: THREE.Mesh | null = null;
+  private glowColor: string | null = null;
+  private glowHue = Math.random();
 
   constructor(look: VehicleLook, opts: { lod?: boolean } = {}) {
     this.look = look;
@@ -235,6 +269,7 @@ abstract class ModelView implements AnyVehicleView {
     this.width = this.vm.shape.width;
     this.height = this.vm.shape.rideHeight + this.vm.shape.bodyHeight + this.vm.shape.cabinHeight;
     this.root.add(this.body, this.wheelRoot);
+    this.body.add(this.driverMount);
     this.ready = vehicleTemplate(look.modelId, this.length, opts.lod)
       .then((t) => {
         if (this.disposed) return;
@@ -249,6 +284,8 @@ abstract class ModelView implements AnyVehicleView {
     this.model = model;
     this.info = t.info;
     this.height = t.info.height;
+    // Character origin is at its feet with the eyes 1.76 m up; seated, the eyes meet the seat's eye.
+    this.driverMount.position.set(t.info.seat.x, t.info.seat.y - 1.72, t.info.seat.z - 0.05);
     this.paintKeys = (t.entry.paintMaterials ?? PAINT_MATERIALS).map((k) => k.toLowerCase());
     this.body.add(model);
     this.found(model);
@@ -355,6 +392,29 @@ abstract class ModelView implements AnyVehicleView {
     if (!this.isBike) for (const w of this.wheels) w.pivot.rotation.z = (w.left ? 1 : -1) * camber;
     this.applyBody();
     this.applyLights();
+    this.setUnderglow(findOption(look.mods.underglow)?.value ?? 'none');
+  }
+
+  /** Neon under the car: a soft additive glow on the road (brighter at night). */
+  private setUnderglow(value: string): void {
+    const want = value === 'none' ? null : value;
+    if (want === this.glowColor) return;
+    this.glowColor = want;
+    if (this.glow) {
+      (this.glow.material as THREE.Material).dispose();
+      this.glow.geometry.dispose();
+      this.glow.removeFromParent();
+      this.glow = null;
+    }
+    if (!want || this.isBike) return;
+    const mat = new THREE.MeshBasicMaterial({ map: underglowTexture(), color: want === 'rainbow' ? '#ff2bd6' : want, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.5, toneMapped: false });
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(this.width * 1.45, this.length * 1.12).rotateX(-Math.PI / 2), mat);
+    glow.position.y = 0.035;
+    glow.renderOrder = 2;
+    glow.name = 'underglow';
+    this.glow = glow;
+    this.root.add(glow);
+    this.applyLights();
   }
 
   private rimSwap = new Map<THREE.Mesh, THREE.BufferGeometry>();
@@ -412,6 +472,7 @@ abstract class ModelView implements AnyVehicleView {
 
   private applyLights(): void {
     const l = this.lights;
+    if (this.glow) (this.glow.material as THREE.MeshBasicMaterial).opacity = 0.32 + 0.68 * Math.min(1, l.night * 1.5);
     // Unlit lamp materials (not tone mapped): dimmer when off, full when on.
     const head = 0.72 + 0.28 * Math.min(1, l.night * 2);
     for (const m of this.heads) m.color.set(findOption(this.look.mods.headlights)?.value ?? '#fff4d6').multiplyScalar(head);
@@ -454,6 +515,10 @@ abstract class ModelView implements AnyVehicleView {
       if (w.front) w.pivot.rotation.y = steer;
     }
     this.flames?.update(dt);
+    if (this.glow && this.glowColor === 'rainbow') {
+      this.glowHue = (this.glowHue + dt * 0.18) % 1;
+      (this.glow.material as THREE.MeshBasicMaterial).color.setHSL(this.glowHue, 1, 0.55);
+    }
   }
 
   // ---------------------------------------------------------------- merging parked vehicles
@@ -524,6 +589,7 @@ abstract class ModelView implements AnyVehicleView {
   dispose(): void {
     this.disposed = true;
     this.thaw();
+    this.setUnderglow('none');
     for (const m of this.owned) m.dispose();
     this.owned = [];
     this.root.removeFromParent();

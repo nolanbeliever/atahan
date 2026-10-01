@@ -221,7 +221,14 @@ export function fitTemplate(scene: THREE.Group, entry: HighDetailVehicle, length
     return [new THREE.Vector3(fitted.x * 0.34, fallbackY, fallbackZ), new THREE.Vector3(-fitted.x * 0.34, fallbackY, fallbackZ)];
   };
   const seatNode = entry.nodes?.seat ? findNode(holder, (n) => n === entry.nodes!.seat) : findNode(holder, (n) => n === 'seat_driver');
-  const seat = seatNode ? centreOf(seatNode) : new THREE.Vector3(fitted.x * 0.2, Math.min(fitted.y - 0.25, 1.15), fitted.z * 0.02);
+  // The driver's eye: an empty marks it directly; a seat mesh is taken at its centre, near the top
+  // of the backrest.
+  let seat = new THREE.Vector3(fitted.x * 0.2, Math.min(fitted.y - 0.25, 1.15), fitted.z * 0.02);
+  if (seatNode) {
+    const sb = new THREE.Box3().setFromObject(seatNode);
+    if (sb.isEmpty()) seat = holder.worldToLocal(seatNode.getWorldPosition(new THREE.Vector3()));
+    else seat = centreOf(seatNode).setY(holder.worldToLocal(new THREE.Vector3(0, sb.max.y, 0)).y - 0.05);
+  }
   let wheelR = 0.33;
   const w = holder.getObjectByName('wheel_fl') ?? holder.getObjectByName('wheel_front');
   if (w) wheelR = new THREE.Box3().setFromObject(w).getSize(new THREE.Vector3()).y / 2;

@@ -2,7 +2,7 @@
 // chassis), paint finishes with a colour picker, body parts, wheels & stance and a dyno. Every
 // change previews live (3D, stats, dyno); the server re-prices and validates on Apply.
 
-import { MOD_CATALOG, MOD_SLOT_LABELS, findOption } from '../../../../shared/customization';
+import { MOD_CATALOG, MOD_SLOT_LABELS, findOption, optionLevel } from '../../../../shared/customization';
 import {
   BODY_SLOTS,
   HEX_COLOR,
@@ -51,8 +51,8 @@ import { Panel } from '../Panel';
 import { vehicleTitle } from '../widgets';
 
 type Tab = 'performance' | 'paint' | 'body' | 'wheels' | 'dyno';
-type LegacySlot = 'tint' | 'headlights' | 'accessory';
-const LEGACY_SLOTS: LegacySlot[] = ['tint', 'headlights', 'accessory'];
+type LegacySlot = 'tint' | 'headlights' | 'accessory' | 'underglow';
+const LEGACY_SLOTS: LegacySlot[] = ['tint', 'headlights', 'accessory', 'underglow'];
 const LEVEL_LABEL = ['', 'Street', 'Sport', 'Race', 'Pro'];
 
 const pct = (x: number) => `${x > 0 ? '+' : ''}${Math.round(x * 100)}%`;
@@ -131,7 +131,7 @@ export class TuningGaragePanel extends Panel {
 
   private legacyCost(v: Vehicle): number {
     let cost = 0;
-    for (const s of LEGACY_SLOTS) if (this.legacy[s] && this.legacy[s] !== v.mods[s]) cost += findOption(this.legacy[s])?.price ?? 0;
+    for (const s of LEGACY_SLOTS) if (this.legacy[s] && this.legacy[s] !== (v.mods[s] ?? 'ug_none')) cost += findOption(this.legacy[s])?.price ?? 0;
     return cost;
   }
 
@@ -153,7 +153,7 @@ export class TuningGaragePanel extends Panel {
   }
 
   private changes(v: Vehicle, q: TuningQuote): number {
-    return q.lines.length + LEGACY_SLOTS.filter((s) => this.legacy[s] && this.legacy[s] !== v.mods[s]).length;
+    return q.lines.length + LEGACY_SLOTS.filter((s) => this.legacy[s] && this.legacy[s] !== (v.mods[s] ?? 'ug_none')).length;
   }
 
   private reset(): void {
@@ -548,7 +548,7 @@ export class TuningGaragePanel extends Panel {
               ),
             ),
           ),
-      h('div', { class: 'section-title' }, 'Glass & lights'),
+      h('div', { class: 'section-title' }, 'Glass, lights & neon'),
       LEGACY_SLOTS.map((slot) =>
         h(
           'div',
@@ -557,21 +557,25 @@ export class TuningGaragePanel extends Panel {
           h(
             'div',
             { class: 'gopt-grid' },
-            MOD_CATALOG[slot].map((o) =>
-              this.optionButton({
-                active: (this.legacy[slot] ?? v.mods[slot]) === o.id,
-                installed: v.mods[slot] === o.id,
+            MOD_CATALOG[slot].map((o) => {
+              const current = v.mods[slot] ?? 'ug_none';
+              const need = optionLevel(o.id);
+              const locked = need > (this.ui.game.store.me?.level ?? 1);
+              return this.optionButton({
+                active: (this.legacy[slot] ?? current) === o.id,
+                installed: current === o.id,
+                disabled: locked ? `🔒 Unlocks at level ${need}` : null,
                 title: o.label,
                 price: o.price,
                 testid: `mod-${slot}-${o.id}`,
-                swatch: slot === 'headlights' ? o.value : undefined,
+                swatch: slot === 'headlights' || (slot === 'underglow' && o.value.startsWith('#')) ? o.value : slot === 'underglow' && o.value === 'rainbow' ? 'linear-gradient(90deg,#ff2a2a,#ffd23f,#39ff88,#2b7bff,#ff2bd6)' : undefined,
                 onclick: () => {
-                  if (o.id === v.mods[slot]) delete this.legacy[slot];
+                  if (o.id === current) delete this.legacy[slot];
                   else this.legacy[slot] = o.id;
                   this.refresh();
                 },
-              }),
-            ),
+              });
+            }),
           ),
         ),
       ),

@@ -1,19 +1,35 @@
 // Lightweight WebAudio sound system. All sounds are synthesized (no assets).
-// The engine voice follows the vehicle's tuning (see tuningSystem.SoundProfile): exhaust type,
-// induction (turbo whistle, blow-off valve, supercharger whine), intake roar, cams and pops & bangs.
+// The engine voice follows the drivetrain simulation (real rpm, gear changes, turbo boost) and the
+// vehicle's tuning (see tuningSystem.SoundProfile): exhaust type, induction (turbo whistle, blow-off
+// valve with compressor flutter on Stage 2/3 builds, supercharger whine), open-filter intake roar,
+// cams, and pops & bangs on upshifts and throttle lifts with a valved or straight-through exhaust.
+// Also: tyre screech, police sirens and rain.
 
 import type { ExhaustType } from '../../../shared/modificationsData';
 import type { SoundProfile } from '../../../shared/tuningSystem';
 
 export interface EngineInput {
   driving: boolean;
-  /** Physics speed (m/s) and top speed, used to pick a gear and rpm. */
+  /** Physics speed (m/s) and top speed (used when no rpm is given). */
   speed: number;
   topSpeed: number;
   throttle: boolean;
   profile: SoundProfile | null;
   redline: number;
   dt: number;
+  /** From the drivetrain simulation: engine rpm, gear, turbo boost (0-1), throttle pedal (0-1). */
+  rpm?: number;
+  gear?: number;
+  boost?: number;
+  pedal?: number;
+  /** A gear change happened this frame: +1 upshift, -1 downshift. */
+  shifted?: number;
+  /** ECU stage 0-3 (Stage 2/3 turbo builds flutter on lift). */
+  stage?: number;
+  /** Tyres: wheelspin (0-1+), sliding sideways, locked under braking. */
+  wheelspin?: number;
+  sliding?: boolean;
+  locked?: boolean;
 }
 
 /** How each exhaust sounds: volume, brightness, distortion and rasp. */
@@ -65,6 +81,13 @@ export class AudioSystem {
   private rpm = 800;
   private boost = 0;
   private lastThrottle = false;
+  private lastGear = 0;
+  private screechFilter: BiquadFilterNode | null = null;
+  private screechGain: GainNode | null = null;
+  private sirenOsc: OscillatorNode | null = null;
+  private sirenGain: GainNode | null = null;
+  private sirenLfo: OscillatorNode | null = null;
+  private rainGain: GainNode | null = null;
   private dyno: { rpm: number; throttle: boolean; profile: SoundProfile; redline: number } | null = null;
   /** Called when the exhaust pops (to flash flames on the car). */
   onPop: ((strength: number) => void) | null = null;
@@ -202,7 +225,51 @@ export class AudioSystem {
     this.whineGain = ctx.createGain();
     this.whineGain.gain.value = 0;
     this.whine.connect(this.whineGain).connect(this.sfxBus);
-    for (const o of [this.engineOsc, this.engineOsc2, this.raspOsc, this.lumpLfo, this.whistle, this.whine]) o.start();
+    // Tyre screech: narrow band noise, wobbling a little.
+    this.screechFilter = ctx.createBiquadFilter();
+    this.screechFilter.type = 'bandpass';
+    this.screechFilter.frequency.value = 1150;
+    this.screechFilter.Q.value = 5;
+    this.screechGain = ctx.createGain();
+    this.screechGain.gain.value = 0;
+    noise.connect(this.screechFilter).connect(this.screechGain).connect(this.sfxBus);
+    // Police siren: a wailing two-tone (an LFO sweeps the pitch).
+    this.sirenOsc = ctx.createOscillator();
+    this.sirenOsc.type = 'sawtooth';
+    this.sirenOsc.frequency.value = 900;
+    this.sirenLfo = ctx.createOscillator();
+    this.sirenLfo.type = 'triangle';
+    this.sirenLfo.frequency.value = 0.55;
+    const sweep = ctx.createGain();
+    sweep.gain.value = 320;
+    this.sirenLfo.connect(sweep).connect(this.sirenOsc.frequency);
+    const sirenLp = ctx.createBiquadFilter();
+    sirenLp.type = 'lowpass';
+    sirenLp.frequency.value = 2200;
+    this.sirenGain = ctx.createGain();
+    this.sirenGain.gain.value = 0;
+    this.sirenOsc.connect(sirenLp).connect(this.sirenGain).connect(this.sfxBus);
+    // Rain: bright hiss on the ambient bus.
+    const rainHp = ctx.createBiquadFilter();
+    rainHp.type = 'highpass';
+    rainHp.frequency.value = 2400;
+    this.rainGain = ctx.createGain();
+    this.rainGain.gain.value = 0;
+    noise.connect(rainHp).connect(this.rainGain).connect(this.ambientBus);
+    for (const o of [this.engineOsc, this.engineOsc2, this.raspOsc, this.lumpLfo, this.whistle, this.whine, this.sirenOsc, this.sirenLfo]) o.start();
+  }
+
+  /** Police siren loudness from the distance to the nearest police car with lights on (m). */
+  siren(distance: number): void {
+    if (!this.ctx || !this.sirenGain) return;
+    const k = Number.isFinite(distance) ? Math.max(0, 1 - distance / 140) : 0;
+    this.sirenGain.gain.setTargetAtTime(0.06 * k * k, this.ctx.currentTime, 0.15);
+  }
+
+  /** Rain intensity 0-1. */
+  rain(amount: number): void {
+    if (!this.ctx || !this.rainGain) return;
+    this.rainGain.gain.setTargetAtTime(0.16 * Math.max(0, Math.min(1, amount)), this.ctx.currentTime, 0.6);
   }
 
   /** Drive the engine synth from the dyno screen (null = back to normal driving). */
@@ -222,7 +289,11 @@ export class AudioSystem {
     const throttle = dyno ? dyno.throttle : e.throttle;
     let rpm: number;
     if (dyno) rpm = dyno.rpm;
-    else {
+    else if (e.driving && e.rpm !== undefined) {
+      // Straight from the drivetrain simulation (it shifts, slips the clutch and hits the limiter).
+      this.rpm += (Math.max(idle * 0.9, e.rpm) - this.rpm) * Math.min(1, e.dt * 25);
+      rpm = this.rpm;
+    } else {
       // Six-speed gearbox: rpm climbs through each gear, drops at the shift.
       const frac = Math.min(1, Math.abs(e.speed) / Math.max(1, e.topSpeed));
       let target = idle;
@@ -264,15 +335,20 @@ export class AudioSystem {
 
     // Intake roar on throttle (loud with an open cold air intake).
     this.intakeFilter!.frequency.setTargetAtTime(300 + rpm * 0.08, t, 0.08);
-    this.intakeGain!.gain.setTargetAtTime(active && throttle && !electric ? (profile?.intake ? 0.09 : 0.025) * (rpm / redline) : 0, t, 0.08);
+    const pedal = e.pedal ?? (throttle ? 1 : 0);
+    this.intakeFilter!.Q.value = profile?.intake ? 0.8 : 1.2;
+    this.intakeGain!.gain.setTargetAtTime(active && pedal > 0.05 && !electric ? (profile?.intake ? 0.13 : 0.025) * pedal * (0.25 + rpm / redline) : 0, t, 0.06);
 
     // Boost: turbos spool with rpm under load, superchargers whine with rpm.
     const ind = profile?.induction ?? 'na';
     const turbo = ind === 'single' || ind === 'twin' || ind === 'twinscroll' || ind === 'bigturbo' || ind === 'factory_turbo';
     const spoolAt = ind === 'bigturbo' ? 0.5 : ind === 'twinscroll' ? 0.28 : 0.35;
-    const boostTarget = active && turbo && throttle ? Math.max(0, Math.min(1, (rpm / redline - spoolAt * 0.6) / 0.4)) : 0;
     const prevBoost = this.boost;
-    this.boost += (boostTarget - this.boost) * Math.min(1, e.dt * (boostTarget > this.boost ? 3 : 8));
+    if (!dyno && e.driving && e.boost !== undefined) this.boost = turbo ? e.boost : 0;
+    else {
+      const boostTarget = active && turbo && throttle ? Math.max(0, Math.min(1, (rpm / redline - spoolAt * 0.6) / 0.4)) : 0;
+      this.boost += (boostTarget - this.boost) * Math.min(1, e.dt * (boostTarget > this.boost ? 3 : 8));
+    }
     const kitLoud = ind === 'factory_turbo' ? 0.4 : 1;
     this.turboGain!.gain.setTargetAtTime(this.boost * 0.05 * kitLoud, t, 0.05);
     this.whistle!.frequency.setTargetAtTime(1800 + this.boost * 3800, t, 0.05);
@@ -286,14 +362,30 @@ export class AudioSystem {
       this.whineGain!.gain.setTargetAtTime(active && blower ? (ind === 'supercharger' ? 0.03 : 0.012) * (0.4 + rpm / redline) : 0, t, 0.08);
     }
 
-    // Throttle lift: blow-off valve on turbo builds, pops & bangs from a loud exhaust.
+    // Throttle lift or upshift: the blow-off valve vents (Stage 2/3 and kit turbos flutter:
+    // "stu-tu-tu"); a valved / straight-through exhaust pops and bangs.
     const lifted = this.lastThrottle && !throttle;
     this.lastThrottle = throttle;
-    if (active && lifted && turbo && prevBoost > 0.45) this.blowOff(prevBoost);
-    if (active && lifted && !electric && rpm > redline * 0.45 && profile && Math.random() < profile.pops) {
-      this.backfire(profile.pops);
-      this.onPop?.(profile.pops);
+    const gear = e.gear ?? 0;
+    const upshift = (e.shifted ?? 0) > 0 || (e.gear !== undefined && this.lastGear > 0 && gear > this.lastGear);
+    this.lastGear = gear;
+    const big = (e.stage ?? 0) >= 2 || (turbo && ind !== 'factory_turbo');
+    if (active && (lifted || upshift) && turbo && prevBoost > 0.35) {
+      if (big) this.flutter(prevBoost);
+      else this.blowOff(prevBoost);
     }
+    const loudPipe = exhaust === 'varex' || exhaust === 'straight' || exhaust === 'downpipe';
+    const popChance = profile ? (loudPipe ? Math.max(profile.pops, upshift ? 0.8 : 0.6) : profile.pops) : 0;
+    if (active && !electric && profile && (lifted || (upshift && loudPipe)) && rpm > redline * 0.45 && Math.random() < popChance) {
+      const strength = Math.min(1, popChance * (exhaust === 'straight' ? 1.2 : 1));
+      this.backfire(strength);
+      this.onPop?.(strength);
+    }
+
+    // Tyres: screech when spinning, sliding or locked.
+    const slip = active && !dyno ? Math.min(1, Math.max((e.wheelspin ?? 0) * 0.8, e.sliding ? 0.75 : 0, e.locked ? 0.9 : 0)) : 0;
+    this.screechFilter!.frequency.setTargetAtTime(1000 + Math.sin(t * 13) * 120 + slip * 300, t, 0.05);
+    this.screechGain!.gain.setTargetAtTime(Math.abs(e.speed) > 1 || (e.wheelspin ?? 0) > 0.3 ? slip * 0.1 : 0, t, 0.05);
 
     // Occasional distant horn for city ambience.
     this.hornTimer -= e.dt;
@@ -327,6 +419,15 @@ export class AudioSystem {
   private blowOff(boost: number): void {
     if (!this.ctx) return;
     this.burst(this.ctx.currentTime, 0.35, 'highpass', 2500, 0.08 * boost);
+  }
+
+  /** Blow-off valve with compressor surge: a few quick "tu-tu-tu" chirps. */
+  private flutter(boost: number): void {
+    if (!this.ctx) return;
+    const at = this.ctx.currentTime;
+    this.burst(at, 0.28, 'highpass', 2200, 0.07 * boost);
+    const n = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) this.burst(at + 0.02 + i * 0.038, 0.03, 'bandpass', 1500 + Math.random() * 400, (0.11 - i * 0.015) * boost);
   }
 
   /** A string of pops and bangs. */

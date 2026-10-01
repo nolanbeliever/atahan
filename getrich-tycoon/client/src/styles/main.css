@@ -510,3 +510,86 @@ body.touch .modal-close { width: 44px; height: 44px; }
 .drag-rules { margin: 12px 0 0; padding-left: 18px; color: var(--text-dim); font-size: 13px; line-height: 1.6; }
 body.touch .nm-combo { top: auto; bottom: calc(300px + env(safe-area-inset-bottom)); right: calc(18px + env(safe-area-inset-right)); }
 @media (max-width: 700px) { .dt-card { min-width: 0; width: 94vw; } .nm-title { font-size: 26px; } .nm-amount { font-size: 36px; } }
+
+/* ---------------------------------------------------------------- gauge cluster, camera button */
+.drive-hud { right: 84px; bottom: 18px; align-items: flex-end; }
+.drive-side { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.gauge-cluster { position: relative; width: 230px; height: 230px; filter: drop-shadow(0 10px 26px rgba(0,0,0,0.45)); }
+.gauge-canvas { display: block; }
+.cam-btn { position: relative; height: 34px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-weight: 800; font-size: 12px; letter-spacing: 0.06em; cursor: pointer; }
+.cam-btn:hover { background: var(--panel-3); }
+.cam-btn .hk { position: absolute; right: 8px; top: 9px; font-size: 9px; color: var(--text-faint); }
+.drive-bonus { position: absolute; left: 50%; top: -6px; transform: translate(-50%, 0); white-space: nowrap; font-weight: 800; font-size: 13px; color: #7cf5c4; text-shadow: 0 2px 8px rgba(0,0,0,0.7); opacity: 0; pointer-events: none; }
+.drive-bonus.show { animation: driveBonus 2.6s ease-out forwards; }
+@keyframes driveBonus { 0% { opacity: 0; transform: translate(-50%, 8px); } 12% { opacity: 0.95; transform: translate(-50%, 0); } 75% { opacity: 0.85; } 100% { opacity: 0; transform: translate(-50%, -22px); } }
+.nm-close { font-size: 13px; font-weight: 900; letter-spacing: 0.12em; color: #ff7bf2; margin-top: 2px; }
+
+/* ---------------------------------------------------------------- wanted level */
+.wanted { display: none; align-self: flex-start; padding: 8px 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); min-width: 190px; }
+.wanted.show { display: block; }
+.wanted-stars { display: flex; gap: 3px; font-size: 24px; line-height: 1; }
+.wstar { color: rgba(255,255,255,0.18); text-shadow: 0 1px 2px #000; }
+.wstar.on { color: #ffd23f; }
+.wanted.pursuit .wstar.on { animation: wantedFlash 0.7s steps(1) infinite; }
+.wanted.pursuit .wstar.on:nth-child(even) { animation-delay: 0.35s; }
+@keyframes wantedFlash { 0% { color: #ff3b47; } 50% { color: #3b7bff; } }
+.wanted-status { margin-top: 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-dim); }
+.wanted-bust { display: none; margin-top: 6px; align-items: center; gap: 8px; font-size: 10px; font-weight: 900; letter-spacing: 0.1em; color: #ff6b78; }
+.wanted-bust.show { display: flex; }
+.wanted-bust-bar { flex: 1; height: 6px; border-radius: 4px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.wanted-bust-bar div { height: 100%; background: #ff3b47; transition: width 0.25s; }
+
+/* ---------------------------------------------------------------- big banners: BUSTED / ESCAPED / mission */
+.big-banner { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity 0.35s; }
+.big-banner.show { opacity: 1; }
+.big-banner .bb-card { text-align: center; padding: 18px 34px; border-radius: 20px; transform: scale(0.85); transition: transform 0.35s; }
+.big-banner.show .bb-card { transform: scale(1); }
+.big-banner .bb-title { font-size: 72px; font-weight: 900; letter-spacing: 0.04em; line-height: 1; text-shadow: 0 6px 30px rgba(0,0,0,0.8); }
+.big-banner .bb-text { margin-top: 10px; font-size: 22px; font-weight: 800; text-shadow: 0 3px 14px rgba(0,0,0,0.85); }
+.big-banner .bb-sub { margin-top: 4px; font-size: 14px; color: var(--text-dim); text-shadow: 0 2px 10px #000; }
+.big-banner .bb-kicker { font-size: 12px; font-weight: 900; letter-spacing: 0.16em; color: var(--gold); text-shadow: 0 2px 10px #000; }
+.big-banner.busted { background: radial-gradient(ellipse at center, rgba(120,0,10,0.15), rgba(0,0,0,0.55)); }
+.big-banner.busted .bb-title { color: #ff3b47; }
+.big-banner.escaped .bb-title { color: #2ee59d; }
+.big-banner.mission { place-items: start center; padding-top: 16vh; }
+.big-banner.mission .bb-card { background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.big-banner.mission .bb-title { font-size: 34px; color: #fff; text-shadow: none; margin-top: 4px; }
+.big-banner.mission .bb-text { font-size: 18px; color: var(--money); text-shadow: none; }
+
+/* ---------------------------------------------------------------- missions drawer */
+.missions-drawer { position: absolute; right: 80px; top: 230px; width: 300px; max-height: calc(100vh - 260px); overflow-y: auto; display: none; flex-direction: column; gap: 10px; padding: 14px; border-radius: 18px; background: var(--panel-solid, var(--panel)); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.missions-drawer.show { display: flex; }
+.ms-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.ms-title { font-size: 18px; font-weight: 900; }
+.ms-sub { font-size: 11px; color: var(--text-dim); }
+.ms-list { display: flex; flex-direction: column; gap: 8px; }
+.ms-card { padding: 10px 12px; border-radius: 13px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); }
+.ms-card.done { opacity: 0.6; border-color: rgba(46,229,157,0.45); }
+.ms-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ms-row.small { font-size: 11px; margin-top: 4px; }
+.ms-name { font-weight: 800; font-size: 14px; }
+.ms-desc { font-size: 12px; color: var(--text-dim); margin-top: 3px; line-height: 1.35; }
+.ms-bar { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.1); margin-top: 8px; overflow: hidden; }
+.ms-bar div { height: 100%; background: linear-gradient(90deg, #4f8cff, #2ee59d); }
+.ms-reward { font-weight: 800; color: var(--money); text-align: right; }
+.ms-sec { font-size: 11px; font-weight: 900; letter-spacing: 0.1em; color: var(--text-faint); text-transform: uppercase; margin-top: 4px; }
+.ms-perks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ms-next { display: flex; gap: 10px; align-items: center; font-size: 12px; margin-top: 6px; }
+.ms-next .lvl { min-width: 34px; text-align: center; padding: 3px 6px; border-radius: 8px; background: rgba(122,92,255,0.25); font-weight: 900; font-size: 11px; }
+
+.tbtn.cam { right: 10px; bottom: 222px; width: 58px; height: 46px; font-size: 11px; letter-spacing: 0.05em; display: none; }
+.tbtn.cam.show { display: grid; }
+body.touch .missions-drawer { right: 12px; top: 130px; width: min(300px, 80vw); max-height: 55vh; }
+body.touch .cam-btn { display: none; }
+@media (max-width: 900px) {
+  .gauge-cluster { transform: scale(0.78); transform-origin: bottom right; }
+  .big-banner .bb-title { font-size: 46px; }
+  .big-banner .bb-text { font-size: 16px; }
+}
+@media (max-height: 520px) {
+  body.touch .gauge-cluster { transform: scale(0.6); transform-origin: bottom right; }
+}
+.missions-drawer.compact { max-height: max(220px, calc(100vh - 560px)); }
+/* First-person view: keep the steering wheel and dials clear. */
+body.cockpit-view .drive-side .gauge { display: none; }
+body.cockpit-view .prompt { bottom: auto; top: 96px; }

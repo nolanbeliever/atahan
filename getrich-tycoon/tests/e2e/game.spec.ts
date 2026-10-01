@@ -236,3 +236,46 @@ test('vehicles are drivable: spawn from garage, enter with E, drive, exit', asyn
   expect(parked?.status).toBe('world');
   expect(errors).toEqual([]);
 });
+
+test('F gets in and out (door animation), C switches to the cockpit, the gauge and missions panel work', async ({ page }) => {
+  const errors = collectErrors(page);
+  await registerAndEnter(page);
+  const listing = (await state(page)).marketListings
+    .filter((l) => isCategoryUnlocked(getModel(l.modelId).category, 1))
+    .sort((x, y) => x.price - y.price)[0]!;
+  await page.evaluate(async (l) => {
+    const net = (window as unknown as { __getrich: { game: { net: { rpc: (m: string, p: unknown) => Promise<unknown> } } } }).__getrich.game.net;
+    await net.rpc('market.buy', { listingId: l.id, expectedPrice: l.price });
+    await net.rpc('vehicle.spawn', { vehicleId: l.vehicleId });
+  }, listing);
+  await expect(page.getByTestId('prompt')).toContainText('Drive', { timeout: 60_000 });
+  await page.locator('#game-root canvas').focus();
+  await page.keyboard.press('KeyF');
+  await expect.poll(async () => (await state(page)).driving, { timeout: 60_000 }).toBe(listing.vehicleId);
+  // The enter animation runs (the character walks to the door, the door opens, it sits down).
+  type G = { game: { entities: { boardingLeft: (id: string) => number }; store: { playerId: string }; cockpitOn: boolean; renderer: { overlay: boolean } } };
+  const boarding = () => page.evaluate(() => {
+    const g = (window as unknown as { __getrich: G }).__getrich.game;
+    return g.entities.boardingLeft(g.store.playerId);
+  });
+  await expect.poll(boarding, { timeout: 60_000 }).toBe(0);
+  // Cockpit gauge cluster is drawn while driving.
+  await expect(page.getByTestId('gauge')).toBeVisible();
+  // C: first-person cockpit (interior drawn in its own pass), C again: back to the chase camera.
+  await page.keyboard.press('KeyC');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __getrich: G }).__getrich.game.renderer.overlay), { timeout: 30_000 }).toBe(true);
+  await page.keyboard.press('KeyC');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __getrich: G }).__getrich.game.renderer.overlay), { timeout: 30_000 }).toBe(false);
+  // L: missions panel with today's missions (the three headline ones always included).
+  await page.keyboard.press('KeyL');
+  await expect(page.getByTestId('missions')).toBeVisible();
+  for (const id of ['clean10', 'hold250', 'sell2']) await expect(page.getByTestId(`mission-${id}`)).toBeVisible();
+  await page.keyboard.press('KeyL');
+  await expect(page.getByTestId('missions')).toBeHidden();
+  // Nobody is chasing us: no wanted stars.
+  await expect(page.getByTestId('wanted')).toBeHidden();
+  // F again: out of the car.
+  await page.keyboard.press('KeyF');
+  await expect.poll(async () => (await state(page)).driving, { timeout: 60_000 }).toBeNull();
+  expect(errors).toEqual([]);
+});
