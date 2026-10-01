@@ -4,15 +4,15 @@
 //     10 minutes (real time; the count survives restarts).
 //  2. Street cars: cars parked at city kerbs and broken-down cars on the highway shoulder (not
 //     anybody's property). Next to one, with a set, a player starts the lockpick mini-game: the
-//     lock has a secret sweet spot (only the server knows it); each turn of the pick tells how far
-//     the cylinder moved, a wrong turn snaps a pick, three snapped picks lose the set, set off the
+//     lock has a secret sweet spot (only the server knows it); a wrong turn snaps a pick and says
+//     which way the sweet spot is and roughly how far, three snapped picks lose the set, set off the
 //     car alarm and bring the police (2 stars). Opening the lock makes the car the player's stolen
 //     car (status 'stolen'): drivable, but it can't be stored, sold, listed or displayed.
 //  3. Sanayi: drive the stolen car between the posts of a lift and put it up; walk round it and take
 //     off the mirrors, doors, steering wheel, seats and exhaust, and from the engine bay the engine
 //     block, gearbox, turbo, ECU, radiator, alternator and battery (each takes a few seconds of
 //     work, timed by the server). The bare shell is scrapped.
-//  4. Pawn Shop: a whole car's parts sell for $10,000-$15,000 (the car's value and luck); each part
+//  4. Pawn Shop: a whole car's parts sell for $45,000-$55,000 (the car's value and luck); each part
 //     fetches its share of that.
 //
 // Stolen cars left alone are recovered by the police; cars left on a lift are scrapped eventually.
@@ -26,6 +26,7 @@ import {
   bayAt,
   blackMarketEpoch,
   lockDifficulty,
+  lockHint,
   lockTolerance,
   lockTurn,
   nextRestockAt,
@@ -277,10 +278,12 @@ export class TheftService {
       if (turn >= 1) {
         this.sessions.delete(playerId);
         const vehicleId = await this.steal(playerId, car);
-        return { turn: 1, opened: true, picksLeft: s.picks, failed: false, vehicleId };
+        return { turn: 1, opened: true, picksLeft: s.picks, failed: false, vehicleId, dir: 0, band: 0 };
       }
+      // A miss tells which way the sweet spot is and roughly how far.
+      const hint = lockHint(s.sweet - angle);
       s.picks--;
-      if (s.picks > 0) return { turn, opened: false, picksLeft: s.picks, failed: false, vehicleId: null };
+      if (s.picks > 0) return { turn, opened: false, picksLeft: s.picks, failed: false, vehicleId: null, ...hint };
       // Out of picks: the set is gone, the alarm goes off and the police come (2 stars).
       this.sessions.delete(playerId);
       car.alarmUntil = now + T.alarmSec * 1000;
@@ -288,7 +291,7 @@ export class TheftService {
       this.ctx.hub.broadcast('car.alarm', { carId: car.id, x: car.x, z: car.z, until: car.alarmUntil });
       this.police.raiseHeat(playerId, T.failHeat);
       this.ctx.hub.notify(playerId, { kind: 'warning', title: 'ALARM! The lock beat you', text: 'Maymuncuk kırıldı, alarm çalıyor: polis geliyor (2 yıldız).' });
-      return { turn, opened: false, picksLeft: 0, failed: true, vehicleId: null };
+      return { turn, opened: false, picksLeft: 0, failed: true, vehicleId: null, ...hint };
     });
   }
 

@@ -191,6 +191,9 @@ export interface LockpickResult {
   picksLeft: number;
   /** All picks snapped: the set is gone, the alarm sounds, police are coming. */
   failed: boolean;
+  /** Missed: which way the sweet spot is (+1 a bigger angle, to the right) and how far (band, see hintBands). */
+  dir: -1 | 0 | 1;
+  band: number;
   /** The stolen car (now yours to drive) when opened. */
   vehicleId: string | null;
 }

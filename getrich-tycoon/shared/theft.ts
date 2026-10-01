@@ -67,6 +67,19 @@ export function lockTurn(diff: number, tolerance: number): number {
   return k <= 0 ? 0 : Math.min(0.92, k * k);
 }
 
+/** Which way the sweet spot is from a try (+1: a bigger angle, to the right) and how far (band 0-3, see hintBands). */
+export function lockHint(diff: number): { dir: -1 | 0 | 1; band: number } {
+  const away = Math.abs(diff);
+  const band = T.hintBands.findIndex((b) => away < b);
+  return { dir: diff > 0 ? 1 : diff < 0 ? -1 : 0, band: band < 0 ? T.hintBands.length : band };
+}
+
+/** The angles a hint band covers (degrees from the try), for the screen. */
+export function hintBandRange(band: number): [number, number] {
+  const bands = T.hintBands;
+  return [band === 0 ? 0 : bands[band - 1]!, band < bands.length ? bands[band]! : 180];
+}
+
 /** The pick's angle range on screen (degrees): 0 = pointing left, 180 = pointing right. */
 export const PICK_RANGE: [number, number] = [0, 180];
 
@@ -172,8 +185,8 @@ export function parsePartItem(id: string): { part: StripPart; tier: number; prof
 }
 
 /**
- * What the Pawn Shop pays for all the parts of one stripped car: $10,000-$15,000 by the car's value tier and luck
- * (r 0-1): an economy car $10,000-$12,750, an exotic one $12,250-$15,000.
+ * What the Pawn Shop pays for all the parts of one stripped car: $45,000-$55,000 by the car's value tier and luck
+ * (r 0-1): an economy car $45,000-$50,500, an exotic one $49,500-$55,000.
  */
 export function pawnCarPrice(tier: number, r: number): number {
   const k = Math.max(0, Math.min(1, Math.max(0, Math.min(3, tier)) * 0.15 + Math.max(0, Math.min(1, r)) * 0.55));

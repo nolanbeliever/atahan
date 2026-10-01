@@ -548,13 +548,15 @@ export const ECONOMY = {
     tryCooldownMs: 600,
     /** Sweet-spot tolerance (degrees either side) by the car's value: dearer cars, finer locks. */
     tolerance: [
-      { maxValue: 20_000, deg: 7 },
-      { maxValue: 60_000, deg: 5.5 },
-      { maxValue: 150_000, deg: 4.5 },
-      { maxValue: Number.POSITIVE_INFINITY, deg: 3.5 },
+      { maxValue: 20_000, deg: 14 },
+      { maxValue: 60_000, deg: 11 },
+      { maxValue: 150_000, deg: 9 },
+      { maxValue: Number.POSITIVE_INFINITY, deg: 7 },
     ],
     /** Beyond this many degrees off, the cylinder doesn't move at all. */
-    turnRange: 60,
+    turnRange: 90,
+    /** After a snapped pick the lock tells which way the sweet spot is and how far: under 15°, 15-30°, 30-50°, more. */
+    hintBands: [15, 30, 50],
     /** How close to the car body you must stand (m). */
     pickReach: 2.6,
     /** Failing a lock: car alarm and police heat for 2 stars. */
@@ -569,10 +571,10 @@ export const ECONOMY = {
     abandonSec: 600,
     /** A car on a lift that nobody works on for this long is scrapped (s). */
     liftIdleSec: 1_800,
-    /** Pawn Shop pays $10,000-$15,000 for all the parts of one stripped car (the car's value and luck); each part
+    /** Pawn Shop pays $45,000-$55,000 for all the parts of one stripped car (the car's value and luck); each part
      *  fetches its share of that (shared/theft.ts pawnPrice). */
-    pawnMin: 10_000,
-    pawnMax: 15_000,
+    pawnMin: 45_000,
+    pawnMax: 55_000,
     /** Stand within this many metres of a strip point to work on it. */
     stripReach: 1.7,
     xpPerTheft: 25,

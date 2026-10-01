@@ -78,7 +78,7 @@ from earlier builds (2026-09-28); the suites run unchanged against PostgreSQL wi
 | Suite | SQLite | PostgreSQL |
 | --- | --- | --- |
 | `npm run typecheck` (client, server, tests) | pass | n/a |
-| Unit (Vitest) | 158 / 158 passed | n/a (no database) |
+| Unit (Vitest) | 160 / 160 passed | n/a (no database) |
 | Integration (Vitest, real sockets) | 42 / 42 passed (three runs in a row) | 20 / 20 passed (2026-09-28, before the tuning, Rare Dealer, highway and lifestyle tests) |
 | E2E (Playwright, Chromium, production build) | 10 / 10 passed (about 10 min) | 5 / 5 passed (2026-09-28; before the touch, tuning, highway and driving-controls tests) |
 | `npm run check:secrets` | no secrets in 250 tracked files | n/a |

@@ -172,9 +172,10 @@ All values are in `ECONOMY.theft`.
 - **Black Market:** Lockpick & Testere Seti, $2,500 (`black_market`). One stock of 5 for the whole city, full again at the start
   of every 10-minute window of the server clock (the count survives restarts in `world_state`).
 - **Lockpick:** starting on a car uses one set (3 picks). Each turn either opens the lock (pick within the sweet spot's
-  tolerance: 7° on cars under $20k, 5.5° under $60k, 4.5° under $150k, 3.5° above) or snaps a pick and says how far the cylinder
-  turned. Three snapped picks: the alarm sounds for 30 s and the player's heat rises to at least 180 (**2 stars**). 90 s to
-  finish; walking away loses the set. +25 XP per car.
+  tolerance: 14° on cars under $20k, 11° under $60k, 9° under $150k, 7° above) or snaps a pick. A snapped pick tells which
+  way the sweet spot is and how far (under 15°, 15-30°, 30-50° or more), drawn as a green zone and an arrow on the dial,
+  so a careful player opens most locks with the second pick. Three snapped picks: the alarm sounds for 30 s and the
+  player's heat rises to at least 180 (**2 stars**). 90 s to finish; walking away loses the set. +25 XP per car.
 - **Street cars:** 12 at city kerbs and 4 on the highway shoulder, generated like NPC cars (no motorcycles or exclusives); a
   new one parks 2 minutes after one is taken.
 - **Stolen cars** (`stolen`): drivable, never stored, sold, listed, displayed or counted in net worth or garage slots. Busted in
@@ -183,13 +184,13 @@ All values are in `ECONOMY.theft`.
   converter 4 s (not on electric cars), and from the engine bay: engine block 8 s, gearbox 6 s, turbo / supercharger 4 s
   (forced-induction engines only), ECU 2.5 s, radiator 3 s, alternator 3 s (not on electric cars), battery 2 s. +5 XP per part;
   the server times every job. When the last part is off the shell is scrapped.
-- **Pawn Shop** (`pawn_sale`): all the parts of one car together fetch **$10,000-$15,000 per car** (araç başı):
-  `min + (max - min) × (car value tier × 0.15 + luck × 0.55)`, so an economy car pays $10,000-$12,750 and an exotic one
-  $12,250-$15,000. Each part fetches its share of that, by weight: engine block 1, gearbox 0.85, exhaust 0.8, turbo 0.75, ECU
+- **Pawn Shop** (`pawn_sale`): all the parts of one car together fetch **$45,000-$55,000 per car** (araç başı):
+  `min + (max - min) × (car value tier × 0.15 + luck × 0.55)`, so an economy car pays $45,000-$50,500 and an exotic one
+  $49,500-$55,000. Each part fetches its share of that, by weight: engine block 1, gearbox 0.85, exhaust 0.8, turbo 0.75, ECU
   0.55, doors 0.45, seats 0.4, steering wheel and radiator 0.3, alternator 0.25, battery 0.2, mirrors 0.15 (a car without an
   exhaust, alternator or turbo shares its price among the parts it has). The luck is drawn once per sale for the parts of each
-  kind of car, and the sale's total is rounded to the dollar. Net of the $2,500 set, a car is worth $7,500-$12,500 for a few
-  minutes' work and the risk of the police.
+  kind of car, and the sale's total is rounded to the dollar. Net of the $2,500 set, a car is worth $42,500-$52,500 for a
+  few minutes' work and the risk of the police.
 
 ## Reputation unlocks (by level)
 

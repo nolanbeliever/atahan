@@ -135,7 +135,7 @@ export function blackMarketView(ctx: { store: Store; busy: boolean }, onBuy: () 
     'ol',
     { class: 'bm-steps' },
     h('li', null, 'Find a parked car on a city street or a broken-down one on the highway shoulder.'),
-    h('li', null, h('b', null, 'Lockpick Et (E)'), ': set the pick angle (mouse / A-D), turn it (W / Space / click). Wrong angle: the pick strains and snaps.'),
+    h('li', null, h('b', null, 'Lockpick Et (E)'), ': set the pick angle (mouse / A-D), turn it (W / Space / click). Wrong angle: the pick strains and snaps, then a green zone and an arrow on the dial show where the right angle is.'),
     h('li', null, 'Drive it to the ', h('b', null, 'Sanayi'), ' (south of the city, wrench icon on the map) and line it up between a lift’s posts: ', h('b', null, 'Aracı Lifte Kaldır (F)'), '.'),
     h('li', null, 'Walk to the glowing markers round the car and strip the parts (E). At the front, open the ', h('b', null, 'engine bay'), ': engine block, gearbox, turbo, ECU, radiator, alternator, battery.'),
     h('li', null, 'Sell the parts at the ', h('b', null, 'Pawn Shop'), ` next door: ${formatMoney(T.pawnMin)}-${formatMoney(T.pawnMax)} for a whole car (araç başı); each part fetches its share.`),

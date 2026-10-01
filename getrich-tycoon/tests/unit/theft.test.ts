@@ -15,7 +15,9 @@ import {
   bayAt,
   blackMarketEpoch,
   inSanayi,
+  hintBandRange,
   lockDifficulty,
+  lockHint,
   lockTolerance,
   lockTurn,
   nextRestockAt,
@@ -52,6 +54,24 @@ describe('the lock', () => {
     }
     expect(lockTurn(5 + T.turnRange, 5)).toBe(0);
     expect(lockTurn(-(5 + T.turnRange + 10), 5)).toBe(0);
+  });
+
+  it('a miss tells which way the sweet spot is and how far', () => {
+    expect(lockHint(10)).toEqual({ dir: 1, band: 0 });
+    expect(lockHint(-20)).toEqual({ dir: -1, band: 1 });
+    expect(lockHint(40)).toEqual({ dir: 1, band: 2 });
+    expect(lockHint(-120)).toEqual({ dir: -1, band: 3 });
+    expect(hintBandRange(0)).toEqual([0, 15]);
+    expect(hintBandRange(1)).toEqual([15, 30]);
+    expect(hintBandRange(2)).toEqual([30, 50]);
+    expect(hintBandRange(3)).toEqual([50, 180]);
+    // Aiming at the middle of the hinted zone opens an economy car's lock on the next pick.
+    const tol = T.tolerance[0]!.deg;
+    for (let d = tol + 0.5; d < 168; d += 0.5) {
+      const { band } = lockHint(d);
+      const [lo, hi] = hintBandRange(band);
+      if (band < 3) expect(Math.abs((lo + hi) / 2 - d)).toBeLessThanOrEqual(tol);
+    }
   });
 
   it('dearer cars have tighter locks', () => {

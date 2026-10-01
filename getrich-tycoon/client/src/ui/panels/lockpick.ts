@@ -1,13 +1,14 @@
 // The lockpick mini-game. A car door lock seen close up: the pick sits in the keyway and the
 // player sets its angle (mouse, A/D or a drag on touch screens), then turns the cylinder with the
-// tension saw (W / Space / click / the TURN button). Only the server knows the sweet spot: it says
-// how far the cylinder turned. Off the spot the cylinder stops short, the pick strains and snaps;
-// three snapped picks and the alarm goes off. On the spot the lock opens and the car is yours.
+// tension saw (W / Space / click / the TURN button). Only the server knows the sweet spot. Off the
+// spot the cylinder stops short, the pick strains and snaps, and the lock gives a hint: which way
+// the sweet spot is and roughly how far (shown as a green zone on the dial and an arrow). Three
+// snapped picks and the alarm goes off. On the spot the lock opens and the car is yours.
 
 import { ECONOMY } from '../../../../shared/economy.config';
 import { vehicleColor } from '../../../../shared/customization';
 import type { LockpickResult } from '../../../../shared/protocol';
-import type { LockDifficulty } from '../../../../shared/theft';
+import { hintBandRange, type LockDifficulty } from '../../../../shared/theft';
 import { clamp } from '../../../../shared/util';
 import { modelDisplayName } from '../../../../shared/vehicles';
 import { RpcError } from '../../net/Network';
@@ -80,6 +81,9 @@ export class LockpickPanel extends Panel {
   private tickAngle = 90;
   private paint = '#3a4a66';
   private unbind: (() => void)[] = [];
+  /** Earlier tries and what the lock said. */
+  private tries: { angle: number; dir: -1 | 0 | 1; band: number }[] = [];
+  private tryAngle = 90;
 
   title() {
     return 'Lockpick Et';
@@ -140,6 +144,7 @@ export class LockpickPanel extends Panel {
         h('span', null, h('span', { class: 'kbd' }, 'W'), h('span', { class: 'kbd' }, 'Space'), h('span', { class: 'kbd' }, 'Click'), 'Çevir / turn'),
         h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Vazgeç (set is lost)'),
       ),
+      h('div', { class: 'lp-tip' }, 'İpucu: maymuncuk kırılınca kadranda yeşil bölge ve ok çıkar - doğru açı o yeşil bölgenin içinde. Tip: after a snap, aim into the green zone.'),
       this.turnBtn,
     );
     return this.root;
@@ -191,6 +196,7 @@ export class LockpickPanel extends Panel {
     this.stateT = 0;
     this.target = null;
     this.result = null;
+    this.tryAngle = this.angle;
     this.message = 'Çeviriyorsun... Turning...';
     this.messageColor = '#cfd6e6';
     this.game.audio.play('pick');
@@ -259,11 +265,12 @@ export class LockpickPanel extends Panel {
           this.breakPick();
           const r = this.result!;
           this.picksLeft = r.picksLeft;
-          const turn = r.turn;
-          this.message = r.failed
-            ? 'Son maymuncuk da kırıldı! ALARM - polis geliyor ★★'
-            : `KIRILDI! ${turn >= 0.75 ? 'Çok yakın - çok az oynat.' : turn >= 0.4 ? 'Yaklaşıyorsun.' : turn > 0.05 ? 'Uzak.' : 'Çok uzak: silindir hiç dönmedi.'} (${this.picksLeft} left)`;
-          this.messageColor = '#ff5c7a';
+          this.tries.push({ angle: this.tryAngle, dir: r.dir, band: r.band });
+          const [lo, hi] = hintBandRange(r.band);
+          const way = r.dir > 0 ? 'SAĞA →' : 'SOLA ←';
+          const far = hi >= 180 ? `${lo}°'den fazla` : `${lo}-${hi}°`;
+          this.message = r.failed ? 'Son maymuncuk da kırıldı! ALARM - polis geliyor ★★' : `KIRILDI! ${way} çevir: doğru açı ${far} ${r.dir > 0 ? 'sağda' : 'solda'} (${this.picksLeft} hak)`;
+          this.messageColor = r.failed ? '#ff5c7a' : '#ffd27a';
         }
         break;
       case 'snap':
@@ -276,8 +283,8 @@ export class LockpickPanel extends Panel {
           } else {
             this.state = 'aim';
             this.slide = 0;
-            this.message = 'Yeni maymuncuk. New pick - adjust the angle.';
-            this.messageColor = '#cfd6e6';
+            // Keep the hint on screen for the next try.
+            this.messageColor = '#ffd27a';
           }
         }
         break;
@@ -315,6 +322,73 @@ export class LockpickPanel extends Panel {
     ] as const) {
       this.shards.push({ x: CX + d.x * (from + len / 2), y: CY + d.y * (from + len / 2), vx: d.x * 120 + (Math.random() - 0.5) * 80, vy: -160 - Math.random() * 120, a: Math.atan2(d.y, d.x), va: (Math.random() - 0.5) * 12, len });
     }
+  }
+
+  /** Where the sweet spot can be after the hints so far (degrees), or null before the first miss. */
+  private zone(): [number, number] | null {
+    let zone: [number, number] | null = null;
+    for (const t of this.tries) {
+      const [lo, hi] = hintBandRange(t.band);
+      const a = t.dir > 0 ? [t.angle + lo, t.angle + hi] : [t.angle - hi, t.angle - lo];
+      const next: [number, number] = [clamp(Math.min(a[0]!, a[1]!), 0, 180), clamp(Math.max(a[0]!, a[1]!), 0, 180)];
+      // Narrow it down with every hint (start again from the latest if they disagree).
+      if (zone && Math.max(zone[0], next[0]) < Math.min(zone[1], next[1])) zone = [Math.max(zone[0], next[0]), Math.min(zone[1], next[1])];
+      else zone = next;
+    }
+    return zone;
+  }
+
+  /** The green zone where the sweet spot is, marks for the earlier tries and an arrow from the last one. */
+  private drawHints(g: CanvasRenderingContext2D): void {
+    const zone = this.zone();
+    if (!zone) return;
+    const rad = (a: number) => Math.PI + (a * Math.PI) / 180;
+    g.save();
+    g.translate(CX, CY);
+    const pulse = 0.55 + 0.25 * Math.sin(performance.now() / 260);
+    g.strokeStyle = `rgba(46,229,157,${pulse})`;
+    g.lineWidth = 20;
+    g.lineCap = 'butt';
+    g.beginPath();
+    g.arc(0, 0, GUIDE_R - 6, rad(zone[0]), rad(Math.max(zone[1], zone[0] + 0.5)));
+    g.stroke();
+    // Earlier tries: red notches on the dial.
+    for (const t of this.tries) {
+      const r = (t.angle * Math.PI) / 180;
+      const x = -Math.cos(r);
+      const y = -Math.sin(r);
+      g.strokeStyle = '#ff5c7a';
+      g.lineWidth = 4;
+      g.beginPath();
+      g.moveTo(x * (GUIDE_R - 18), y * (GUIDE_R - 18));
+      g.lineTo(x * (GUIDE_R + 8), y * (GUIDE_R + 8));
+      g.stroke();
+    }
+    // Arrow along the dial from the last try towards the zone.
+    const last = this.tries[this.tries.length - 1]!;
+    const from = last.angle + last.dir * 4;
+    const to = clamp(last.angle + last.dir * 14, 0, 180);
+    const R = GUIDE_R + 16;
+    g.strokeStyle = '#2ee59d';
+    g.fillStyle = '#2ee59d';
+    g.lineWidth = 4;
+    g.beginPath();
+    g.arc(0, 0, R, rad(Math.min(from, to)), rad(Math.max(from, to)));
+    g.stroke();
+    const tip = rad(to);
+    const tx = Math.cos(tip) * R;
+    const ty = Math.sin(tip) * R;
+    // Tangent direction at the tip (clockwise for a bigger angle).
+    const s = last.dir >= 0 ? 1 : -1;
+    const dx = -Math.sin(tip) * s;
+    const dy = Math.cos(tip) * s;
+    g.beginPath();
+    g.moveTo(tx + dx * 10, ty + dy * 10);
+    g.lineTo(tx - dy * 7, ty + dx * 7);
+    g.lineTo(tx + dy * 7, ty - dx * 7);
+    g.closePath();
+    g.fill();
+    g.restore();
   }
 
   // ---------------------------------------------------------------- drawing
@@ -370,6 +444,7 @@ export class LockpickPanel extends Panel {
       }
     }
     g.restore();
+    this.drawHints(g);
 
     // Cylinder: chrome bezel, brass face, keyway turning with it.
     const turn = (this.rot * Math.PI) / 2;

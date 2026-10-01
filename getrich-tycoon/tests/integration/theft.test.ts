@@ -105,6 +105,9 @@ describe('lockpicking', () => {
     expect(miss.picksLeft).toBe(2);
     expect(miss.turn).toBeGreaterThan(0);
     expect(miss.turn).toBeLessThan(1);
+    // ... and the lock says which way the sweet spot is and roughly how far (15-30 degrees).
+    expect(miss.dir).toBe(s.sweet > off ? 1 : -1);
+    expect(miss.band).toBe(1);
     // Too fast: one turn at a time.
     expect(await client.rpcRaw('lockpick.try', { sessionId: started.sessionId, angle: s.sweet })).toMatchObject({ ok: false, code: 'rate_limited' });
     await sleep(T.tryCooldownMs + 50);
