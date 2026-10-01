@@ -228,6 +228,12 @@ export const PERFORMANCE_PARTS: TuningPart[] = [
     suspension: { defaultDrop: 4, maxDrop: 9, maxCamber: 7 },
   },
   {
+    id: 'susp_air', slot: 'suspension', name: 'Air Ride Suspension', level: 3,
+    description: 'Air bags and an on-board compressor. While driving press K: normal, low, or slammed on the ground. Handling +18%.',
+    effects: { handling: 0.18 }, value: 0.05, cost: { base: 2600, rate: 0 }, installSec: 14, only: { kind: ['car'] },
+    suspension: { defaultDrop: 2, maxDrop: 8, maxCamber: 6 },
+  },
+  {
     id: 'tire_semislick', slot: 'tires', name: 'Semi-Slick Tyres', level: 2,
     description: 'Track-day rubber that is still road legal: quicker 0-100, less wheelspin.',
     effects: { grip: 0.15, handling: 0.06, braking: 0.06, accel: 0.03 }, value: 0.02, cost: { base: 650, rate: 0 }, installSec: 5,
@@ -344,6 +350,21 @@ export const ALIGNMENT_COST = 150;
 
 /** Stance limits without aftermarket suspension. */
 export const STOCK_SUSPENSION = { defaultDrop: 0, maxDrop: 0, maxCamber: 1.5 };
+
+/** Air ride: the part, its heights (K while driving) and how far each drops the body (cm). */
+export const AIR_PART = 'susp_air';
+export const AIR_LEVELS = ['Normal', 'Alçak', 'Yerde'] as const;
+
+export function hasAirRide(tuning: VehicleTuning | undefined): boolean {
+  return tuning?.perf.suspension === AIR_PART;
+}
+
+/** Body drop (cm) at an air ride height; level 0 is the stance set in the garage. */
+export function airDropCm(level: number, stanceDrop: number): number {
+  if (level >= 2) return 11;
+  if (level === 1) return Math.max(stanceDrop, 6.5);
+  return stanceDrop;
+}
 
 export const SLOT_LABELS: Record<PerfSlot | BodySlot, string> = {
   ecu: 'ECU Tuning (Stages)',

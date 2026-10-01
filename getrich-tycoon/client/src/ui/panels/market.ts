@@ -30,7 +30,9 @@ type SortKey = 'price_asc' | 'price_desc' | 'value' | 'condition' | 'mileage' | 
 
 export class MarketPanel extends Panel {
   readonly name = 'market';
-  private tab: 'npc' | 'players' | 'rare' | 'black' = (this.arg.tab as 'npc' | 'players' | 'rare' | 'black') ?? 'npc';
+  private tab: 'npc' | 'players' | 'rare' | 'black' | 'sell' = (this.arg.tab as 'npc' | 'players' | 'rare' | 'black' | 'sell') ?? 'npc';
+  /** Asking prices typed on the sell tab (vehicle id -> price). */
+  private asks = new Map<string, number>();
   private timerEl: HTMLElement | null = null;
   private timer = 0;
   private category: VehicleCategory | 'all' = 'all';
@@ -44,6 +46,7 @@ export class MarketPanel extends Panel {
   }
   override subtitle() {
     if (this.tab === 'black') return 'Karaborsa: tools for the night shift';
+    if (this.tab === 'sell') return 'İlan Ver: put your own cars up for sale on the classifieds';
     return this.tab === 'rare' ? 'Special stock that changes every 2 minutes' : 'Browse used vehicles from NPC sellers and other players';
   }
   iconSvg() {
@@ -55,6 +58,8 @@ export class MarketPanel extends Panel {
     this.listen(this.store.on('market', () => this.refresh()));
     this.listen(this.store.on('rare', () => this.refresh()));
     this.listen(this.store.on('blackMarket', () => this.refresh()));
+    this.listen(this.store.on('vehicle', () => this.tab === 'sell' && this.refresh()));
+    this.listen(this.store.on('vehicles', () => this.tab === 'sell' && this.refresh()));
     // Rare Dealer / Black Market countdowns; if the restock broadcast is late, ask for it.
     let asked = 0;
     let askedBm = 0;
@@ -113,6 +118,81 @@ export class MarketPanel extends Panel {
     return out.sort(cmp[this.sort]);
   }
 
+  /** Your cars: list one on the classifieds at your price, or take a listing down. Stolen cars need
+   *  forged papers from the Sanayi first. */
+  private sellView(): Child {
+    const trends = this.store.trends;
+    const mine = this.store.myVehicles();
+    const driving = this.game.driving;
+    const sellable = mine.filter((v) => (v.status === 'stored' || v.status === 'world') && v.id !== driving);
+    const listed = mine.filter((v) => v.status === 'listed');
+    const stolen = mine.filter((v) => v.status === 'stolen');
+    const fee = ECONOMY.fees.classifiedListingFee;
+    const row = (v: Vehicle, right: Child, sub?: string) => {
+      const t = vehicleTitle(v);
+      const avg = Math.round(Object.values(v.condition).reduce((a, b) => a + b, 0) / Object.values(v.condition).length);
+      return h(
+        'div',
+        { class: 'sell-row', 'data-testid': 'sell-row', 'data-vehicle': v.id },
+        h('div', { class: 'grow' }, h('div', { style: { fontWeight: '800' } }, t.name), h('div', { class: 'tiny muted' }, sub ?? `${t.meta} · ${formatKm(v.mileage)} · condition ${avg}% · value ${formatMoney(marketValue(v, trends))}`)),
+        right,
+      );
+    };
+    const listForm = (v: Vehicle) => {
+      const value = marketValue(v, trends);
+      const ask = this.asks.get(v.id) ?? Math.round((value * 1.08) / 50) * 50;
+      const input = h('input', { class: 'input mono sell-price', type: 'number', min: '1', step: '50', value: String(ask), 'data-testid': 'sell-price' });
+      input.addEventListener('input', () => this.asks.set(v.id, Math.round(Number(input.value) || 0)));
+      return h(
+        'div',
+        { class: 'row', style: { gap: '6px', alignItems: 'center' } },
+        input,
+        h(
+          'button',
+          {
+            class: 'btn small primary',
+            disabled: this.busy,
+            'data-testid': 'sell-list',
+            onclick: () =>
+              void this.act(
+                () => this.net.rpc('vehicle.list', { vehicleId: v.id, price: this.asks.get(v.id) ?? ask }),
+                () => {
+                  this.asks.delete(v.id);
+                  this.ui.success('İlana çıktı!', `${vehicleTitle(v).name} is now listed for ${formatMoney(this.store.myVehicle(v.id)?.salePrice ?? ask)}.`);
+                  void this.load();
+                },
+              ),
+          },
+          'İlana koy',
+        ),
+      );
+    };
+    return h(
+      'div',
+      { class: 'col sell-view' },
+      h('div', { class: 'tiny muted' }, `Set your price and list a car on the classifieds: other players see it under Player Listings. Listing fee ${formatMoney(fee)}, ${Math.round(ECONOMY.fees.saleFeeRate * 100)}% commission when it sells. A listed car stays off the road until you take it down.`),
+      h('div', { class: 'section-title' }, `Satılık araçların (${sellable.length})`),
+      sellable.length ? sellable.map((v) => row(v, listForm(v))) : h('div', { class: 'empty small' }, 'No car to list. Cars being driven, shown at a dealership or at auction cannot be listed.'),
+      h('div', { class: 'section-title' }, `İlandakiler (${listed.length})`),
+      listed.length
+        ? listed.map((v) =>
+            row(
+              v,
+              h('div', { class: 'row', style: { gap: '8px', alignItems: 'center' } }, h('span', { class: 'money' }, formatMoney(v.salePrice ?? 0)), h('button', { class: 'btn small', disabled: this.busy, 'data-testid': 'sell-unlist', onclick: () => void this.act(() => this.net.rpc('vehicle.unlist', { vehicleId: v.id }), () => void this.load()) }, 'İlandan kaldır')),
+            ),
+          )
+        : h('div', { class: 'empty small' }, 'Nothing listed right now.'),
+      stolen.length ? h('div', { class: 'section-title' }, `Çalıntı araçlar (${stolen.length})`) : null,
+      stolen.map((v) =>
+        row(
+          v,
+          h('button', { class: 'btn small', onclick: () => this.ui.open('map') }, 'Sanayi (harita)'),
+          v.mods.strip ? 'On a Sanayi lift: for parts only.' : 'Stolen: get forged papers at the Sanayi office (park it in the yard) to sell it here.',
+        ),
+      ),
+    );
+  }
+
   renderBody(): Child {
     const level = this.store.me?.level ?? 1;
     const trends = this.store.trends;
@@ -123,7 +203,9 @@ export class MarketPanel extends Panel {
       h('button', { class: this.tab === 'players' ? 'active' : '', 'data-testid': 'market-tab-players', onclick: () => ((this.tab = 'players'), this.refresh()) }, `Player Listings (${this.playerListings.length})`),
       h('button', { class: `${this.tab === 'rare' ? 'active' : ''} rare-tab`, 'data-testid': 'market-tab-rare', onclick: () => ((this.tab = 'rare'), this.refresh()) }, 'Rare Dealer'),
       h('button', { class: `${this.tab === 'black' ? 'active' : ''} black-tab`, 'data-testid': 'market-tab-black', title: 'Black Market', onclick: () => ((this.tab = 'black'), this.refresh()) }, icon(ICONS.mask), 'Black Market'),
+      h('button', { class: `${this.tab === 'sell' ? 'active' : ''} sell-tab`, 'data-testid': 'market-tab-sell', onclick: () => ((this.tab = 'sell'), this.refresh()) }, icon(ICONS.tag), 'İlan Ver · Sell'),
     );
+    if (this.tab === 'sell') return [tabs, this.sellView()];
     if (this.tab === 'black') {
       const view = blackMarketView({ store: this.store, busy: this.busy }, () => void this.buyLockpick());
       this.timerEl = view.timer;

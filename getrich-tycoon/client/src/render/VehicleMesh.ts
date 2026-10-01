@@ -8,7 +8,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { findOption, vehicleColor } from '../../../shared/customization';
-import { RIM_FINISH_DEFS, findRimDesign, type PaintFinish } from '../../../shared/modificationsData';
+import { RIM_FINISH_DEFS, airDropCm, findRimDesign, hasAirRide, type PaintFinish } from '../../../shared/modificationsData';
+import { plateText } from '../../../shared/plates';
 import type { VehicleCondition, VehicleMods } from '../../../shared/types';
 import { seatOffset } from '../../../shared/passengers';
 import { getModel, type VehicleModel } from '../../../shared/vehicles';
@@ -16,6 +17,8 @@ import { PAINT_MATERIALS } from '../data/highDetailVehicles';
 import { rimTemplates, vehicleTemplate, type TemplateInfo, type VehicleTemplate } from './ModelLibrary';
 
 export interface VehicleLook {
+  /** The vehicle's id (its own registration plate). */
+  id?: string;
   modelId: string;
   color: string;
   mods: VehicleMods;
@@ -37,6 +40,7 @@ const RIM_MODS: Record<string, { style: string; finish: Finish }> = {
 };
 
 const flameMat = new THREE.SpriteMaterial({ color: '#ffb347', transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+const nitroMat = new THREE.SpriteMaterial({ color: '#4fa8ff', transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
 
 let glowTex: THREE.CanvasTexture | null = null;
 
@@ -68,7 +72,9 @@ function underglowTexture(): THREE.CanvasTexture {
 const FREEZE_DELAY = 3;
 
 export function lookSignature(v: VehicleLook): string {
-  return [v.modelId, v.color, JSON.stringify(v.mods), Math.round(v.condition.cleanliness / 8), Math.round(v.condition.body / 15)].join('|');
+  // Air ride height and plate text change in place (no rebuild).
+  const { air: _air, plate: _plate, ...mods } = v.mods;
+  return [v.modelId, v.color, JSON.stringify(mods), Math.round(v.condition.cleanliness / 8), Math.round(v.condition.body / 15)].join('|');
 }
 
 /** Body paint for a look: factory/classic colours use the standard paint, custom finishes their own. */
@@ -167,11 +173,111 @@ class Flames {
       s.scale.set(k, k * 0.8, 1);
     }
   }
+  private nos = false;
+  /** A nitrous shot: a steady, flickering blue flame. */
+  nitro(on: boolean): void {
+    if (on === this.nos) return;
+    this.nos = on;
+    for (const s of this.sprites) {
+      s.material = on ? nitroMat : flameMat;
+      s.visible = on;
+    }
+  }
   update(dt: number): void {
+    if (this.nos) {
+      for (const s of this.sprites) {
+        const k = 0.26 + Math.random() * 0.22;
+        s.scale.set(k, k * 0.75, 1);
+      }
+      return;
+    }
     if (this.t <= 0) return;
     this.t -= dt;
     if (this.t <= 0) for (const s of this.sprites) s.visible = false;
   }
+}
+
+// ------------------------------------------------------------------ number plates
+
+const PLATE_W = 0.52;
+const PLATE_H = 0.12;
+
+/** Plate art: white with the blue TR band, black lettering (like a Turkish plate). */
+function plateTexture(text: string): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 60;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#f2f3ee';
+  g.fillRect(0, 0, 256, 60);
+  g.fillStyle = '#1f47b8';
+  g.fillRect(0, 0, 30, 60);
+  g.fillStyle = '#ffffff';
+  g.font = 'bold 14px Arial, sans-serif';
+  g.textAlign = 'center';
+  g.fillText('TR', 15, 50);
+  g.strokeStyle = '#151515';
+  g.lineWidth = 3;
+  g.strokeRect(1.5, 1.5, 253, 57);
+  g.fillStyle = '#121212';
+  let size = 40;
+  g.font = `bold ${size}px "Arial Narrow", Arial, sans-serif`;
+  while (size > 18 && g.measureText(text).width > 212) {
+    size -= 2;
+    g.font = `bold ${size}px "Arial Narrow", Arial, sans-serif`;
+  }
+  g.textBaseline = 'middle';
+  g.fillText(text, 143, 32);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+/** Where the plates go on a model: found once by casting rays at the bumpers (body space). */
+const plateGeoCache = new WeakMap<object, THREE.BufferGeometry | null>();
+
+function plateGeometry(t: VehicleTemplate, bike: boolean): THREE.BufferGeometry | null {
+  if (plateGeoCache.has(t)) return plateGeoCache.get(t)!;
+  const scene = t.scene;
+  scene.updateMatrixWorld(true);
+  const meshes: THREE.Mesh[] = [];
+  scene.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || Array.isArray(m.material)) return;
+    if (/wheel|tire|tyre|rim|exhaust|glass|window/i.test(`${m.name} ${m.material.name}`)) return;
+    meshes.push(m);
+  });
+  const avg = (v: THREE.Vector3[], k: 'y' | 'z', d: number) => (v.length ? v.reduce((a, p) => a + p[k], 0) / v.length : d);
+  // Headlights tell which way the model faces.
+  const front = Math.sign(avg(t.info.heads, 'z', 1)) || 1;
+  const reach = t.info.length;
+  const parts: THREE.BufferGeometry[] = [];
+  const ray = new THREE.Raycaster();
+  for (const end of bike ? [-front] : [front, -front]) {
+    const lampY = avg(end === front ? t.info.heads : t.info.tails, 'y', t.info.height * 0.42);
+    let pos: THREE.Vector3 | null = null;
+    for (const y of [lampY - 0.17, lampY - 0.28, lampY - 0.07, lampY + 0.05]) {
+      if (y < 0.18) continue;
+      ray.set(new THREE.Vector3(0, y, end * reach), new THREE.Vector3(0, 0, -end));
+      ray.far = reach;
+      const hit = ray.intersectObjects(meshes, false)[0];
+      if (hit) {
+        pos = hit.point.clone();
+        pos.z += end * 0.014;
+        break;
+      }
+    }
+    pos ??= new THREE.Vector3(0, Math.max(0.3, lampY - 0.15), (end * t.info.length) / 2 + end * 0.01);
+    const g = new THREE.PlaneGeometry(PLATE_W, PLATE_H);
+    if (end < 0) g.rotateY(Math.PI);
+    g.translate(pos.x, pos.y, pos.z);
+    parts.push(g);
+  }
+  const merged = parts.length ? mergeGeometries(parts, false) : null;
+  for (const g of parts) g.dispose();
+  plateGeoCache.set(t, merged);
+  return merged;
 }
 
 export interface VehicleLights {
@@ -208,6 +314,8 @@ export interface AnyVehicleView {
   passengerMount(seat: number): THREE.Group;
   /** Backfire (pops & bangs). */
   pop(strength: number): void;
+  /** Blue nitrous flames from the exhausts while a shot burns. */
+  setNitro(on: boolean): void;
   dispose(): void;
   readonly meshCount: number;
 }
@@ -267,6 +375,14 @@ abstract class ModelView implements AnyVehicleView {
   private roll = 0;
   private pitch = 0;
   protected drop = 0;
+  /** Body drop the air ride is heading for (m); the body moves there gradually. */
+  private dropTarget = 0;
+  private airLevel = 0;
+  private dressed = false;
+  private nos = false;
+  private plate: THREE.Mesh | null = null;
+  private plateShown = '';
+  private template: VehicleTemplate | null = null;
   private glow: THREE.Mesh | null = null;
   private glowColor: string | null = null;
   private glowHue = Math.random();
@@ -291,6 +407,7 @@ abstract class ModelView implements AnyVehicleView {
   private attach(t: VehicleTemplate): void {
     const model = t.scene.clone(true);
     this.model = model;
+    this.template = t;
     this.info = t.info;
     this.height = t.info.height;
     // Character origin is at its feet with the eyes 1.76 m up; seated, the eyes meet the seat's eye.
@@ -400,13 +517,45 @@ abstract class ModelView implements AnyVehicleView {
     else this.restoreRims();
     // Stance: the body drops into the arches, wheels tilt with camber.
     const t = look.mods.tuning;
-    this.drop = Math.min((t?.drop ?? 0) / 100, 0.12);
+    this.setAir(look, !this.dressed);
+    this.dressed = true;
     const camber = ((t?.camber ?? 0) * Math.PI) / 180;
     if (!this.isBike) for (const w of this.wheels) w.pivot.rotation.z = (w.left ? 1 : -1) * camber;
     this.applyBody();
     this.applyLights();
     this.setUnderglow(findOption(look.mods.underglow)?.value ?? 'none');
     this.applyStrip(look.mods.strip?.removed ?? []);
+    this.setPlate(look);
+  }
+
+  /** Air ride height (or the garage stance): snap there, or let the body move there gradually. */
+  private setAir(look: VehicleLook, snap: boolean): void {
+    const t = look.mods.tuning;
+    this.airLevel = look.mods.air ?? 0;
+    const cm = hasAirRide(t) ? airDropCm(this.airLevel, t?.drop ?? 0) : (t?.drop ?? 0);
+    this.dropTarget = Math.min(cm / 100, 0.12);
+    if (snap) {
+      this.drop = this.dropTarget;
+      this.applyBody();
+    }
+  }
+
+  /** Number plates front and back (motorcycles: back only), with the car's registration or custom text. */
+  private setPlate(look: VehicleLook): void {
+    const text = look.id ? plateText(look.id, look.mods) : (look.mods.plate ?? 'GETRICH');
+    if (!this.template || text === this.plateShown) return;
+    this.plateShown = text;
+    if (!this.plate) {
+      const geo = plateGeometry(this.template, this.isBike);
+      if (!geo) return;
+      this.plate = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.15 }));
+      this.plate.name = 'plates';
+      this.body.add(this.plate);
+    }
+    const mat = this.plate.material as THREE.MeshStandardMaterial;
+    mat.map?.dispose();
+    mat.map = plateTexture(text);
+    mat.needsUpdate = true;
   }
 
   /** Parts stripped at the Sanayi: mirrors gone, doors gone (the openings show). */
@@ -472,8 +621,17 @@ abstract class ModelView implements AnyVehicleView {
 
   update(look: VehicleLook): void {
     this.look = look;
+    if ((look.mods.air ?? 0) !== this.airLevel) this.setAir(look, false);
+    this.setPlate(look);
     if (lookSignature(look) === this.signature) return;
     this.dress(look);
+  }
+
+  setNitro(on: boolean): void {
+    if (on === this.nos) return;
+    this.nos = on;
+    if (on) this.thaw();
+    this.flames?.nitro(on);
   }
 
   setMotion(roll: number, pitch: number): void {
@@ -541,7 +699,14 @@ abstract class ModelView implements AnyVehicleView {
   protected keepLive = false;
 
   animate(speed: number, steer: number, dt: number): void {
-    const moving = Math.abs(speed) > 0.01 || Math.abs(steer) > 0.001 || this.doorOpen > 0 || this.keepLive;
+    const settling = Math.abs(this.drop - this.dropTarget) > 1e-4;
+    const moving = Math.abs(speed) > 0.01 || Math.abs(steer) > 0.001 || this.doorOpen > 0 || this.keepLive || settling || this.nos;
+    if (settling) {
+      // Air ride: the bags fill or vent over a second or two.
+      const step = dt * 0.075;
+      this.drop = Math.abs(this.dropTarget - this.drop) <= step ? this.dropTarget : this.drop + Math.sign(this.dropTarget - this.drop) * step;
+      this.applyBody();
+    }
     if (moving) {
       this.still = 0;
       this.thaw();
@@ -637,6 +802,12 @@ abstract class ModelView implements AnyVehicleView {
     this.setUnderglow('none');
     for (const m of this.owned) m.dispose();
     this.owned = [];
+    if (this.plate) {
+      const mat = this.plate.material as THREE.MeshStandardMaterial;
+      mat.map?.dispose();
+      mat.dispose();
+      this.plate = null;
+    }
     this.root.removeFromParent();
   }
 

@@ -56,6 +56,10 @@ export interface VehicleMods {
   tuning?: VehicleTuning;
   /** A stolen car up on a Sanayi lift and the parts taken off it (see shared/theft.ts). */
   strip?: StripState;
+  /** Custom number plate text (shared/plates.ts); none = the car's own registration. */
+  plate?: string;
+  /** Air ride height 0-2 (with the Air Ride suspension, K while driving). */
+  air?: number;
 }
 
 export interface StripState {
@@ -234,6 +238,7 @@ export interface PlayerPrivate {
 }
 
 export type TransactionKind =
+  | 'papers'
   | 'market_buy'
   | 'player_buy'
   | 'player_sale'
@@ -319,6 +324,8 @@ export const VF = {
   /** Big turbo boost (whistle). */
   BOOST: 8,
   HORN: 16,
+  /** A nitrous shot is burning (blue exhaust flames). */
+  NITRO: 32,
 } as const;
 /** [id, x, z, rot, anim, appearanceStyle] - NPC customers */
 export type NpcSnap = [string, number, number, number, number, number];

@@ -27,6 +27,8 @@ import type { DragRaceView } from '../../../shared/drag';
 import { DRAG_STRIP, gameHour } from '../../../shared/highway';
 import type { PrivateState } from '../../../shared/protocol';
 import { SANAYI, isLifted, partLabelTr, type StreetCar } from '../../../shared/theft';
+import { AIR_LEVELS, hasAirRide } from '../../../shared/modificationsData';
+import { NITRO_ITEM } from '../../../shared/rewards';
 import { Anim, VF, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
@@ -143,6 +145,7 @@ export class Game {
   private seq = 0;
   /** Last time the player did something (playtime rewards count active time only). */
   private activeAt = 0;
+  private fovKick = 0;
   private lastYaw = 0;
   private acc = 0;
   private last = performance.now();
@@ -648,6 +651,7 @@ export class Game {
     if (this.dyn && this.driving) {
       if (this.dyn.brk > 0.05) flags |= VF.BRAKE;
       if (this.dyn.gear < 0) flags |= VF.REVERSE;
+      if ((this.dyn.nitro ?? 0) > 0) flags |= VF.NITRO;
     }
     this.entities.hideLocalDriver = cockpit && !this.busted;
     document.body.classList.toggle('cockpit-view', cockpit && !this.busted);
@@ -667,10 +671,14 @@ export class Game {
 
     const camera = this.renderer.camera;
     const fov = cockpit && !this.busted ? COCKPIT_FOV : CHASE_FOV;
-    if (camera.fov !== fov) {
-      camera.fov = fov;
+    // A nitrous shot widens the view a little (speed rush).
+    this.fovKick += ((this.nitroLeft() > 0 ? 9 : 0) - this.fovKick) * Math.min(1, dt * 4);
+    if (this.fovKick < 0.05) this.fovKick = 0;
+    if (camera.fov !== fov + this.fovKick) {
+      const switched = Math.abs(camera.fov - (fov + this.fovKick)) > 10;
+      camera.fov = fov + this.fovKick;
       camera.updateProjectionMatrix();
-      this.cam.snap();
+      if (switched) this.cam.snap();
     }
     if (this.busted) {
       this.busted.update(dt, camera);
@@ -1065,6 +1073,15 @@ export class Game {
       return;
     }
     if (this.ui.anyOpen()) return;
+    // Behind the wheel: N fires a nitrous shot, K works the air ride.
+    if (this.driving && code === 'KeyN') {
+      void this.useNitro();
+      return;
+    }
+    if (this.driving && code === 'KeyK') {
+      void this.airRide();
+      return;
+    }
     const hot: Record<string, Parameters<UI['open']>[0]> = {
       KeyB: 'market',
       KeyI: 'inventory',
@@ -1082,6 +1099,47 @@ export class Game {
     else if (code === 'KeyG') this.interactSecondary();
     else if (code === 'KeyC') this.toggleCockpit();
     else if (code === 'KeyL') this.ui.missions.toggle();
+  }
+
+  /** Seconds left of the nitrous shot burning in the car being driven. */
+  nitroLeft(): number {
+    return this.driving ? (this.dyn?.nitro ?? 0) : 0;
+  }
+
+  /** Special Nitro: a few seconds of extra torque (one item per shot). */
+  async useNitro(): Promise<void> {
+    if (!this.driving || !this.dyn || (this.dyn.nitro ?? 0) > 0) return;
+    if ((this.store.me?.inventory[NITRO_ITEM] ?? 0) < 1) {
+      this.ui?.toast({ kind: 'info', title: 'Special Nitro yok', text: '7 günlük giriş serisinin 6. gün ödülü: 3 tüp Special Nitro.' });
+      this.audio.play('error');
+      return;
+    }
+    try {
+      const r = await this.net.rpc('vehicle.nitro', {});
+      // The server burns the same shot; predict it right away.
+      if (this.dyn) this.dyn.nitro = r.seconds;
+      this.audio.play('nitro');
+    } catch (err) {
+      this.ui?.error(err);
+    }
+  }
+
+  /** Air ride: normal, low, slammed (K while driving). */
+  async airRide(): Promise<void> {
+    const id = this.driving;
+    const v = id ? this.store.myVehicle(id) : undefined;
+    if (!v) return;
+    if (!hasAirRide(v.mods.tuning)) {
+      this.ui?.toast({ kind: 'info', title: 'Air süspansiyon yok', text: 'Chroma Customs > Performance > Suspension: "Air Ride Suspension" tak, sonra sürerken K ile indir / kaldır.' });
+      return;
+    }
+    try {
+      const r = await this.net.rpc('vehicle.air', {});
+      this.audio.play('air');
+      this.ui?.toast({ kind: 'info', title: `Air ride: ${AIR_LEVELS[r.level]}`, text: r.level === 2 ? 'Yere yapıştı!' : r.level === 1 ? 'Alçaltıldı.' : 'Normal sürüş yüksekliği.' });
+    } catch (err) {
+      this.ui?.error(err);
+    }
   }
 
   private inHall(x: number, z: number): boolean {

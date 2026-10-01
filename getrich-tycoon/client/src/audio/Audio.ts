@@ -72,7 +72,9 @@ export type Sfx =
   | 'ratchet'
   | 'clunk'
   | 'lift'
-  | 'reward';
+  | 'reward'
+  | 'nitro'
+  | 'air';
 
 export class AudioSystem {
   private ctx: AudioContext | null = null;
@@ -542,6 +544,21 @@ export class AudioSystem {
         // A cash register, coins and a fanfare.
         if (this.ctx && this.noiseBuf) for (let i = 0; i < 8; i++) this.burst(this.ctx.currentTime + i * 0.06, 0.05, 'bandpass', 4200 + (i % 3) * 700, 0.1);
         return this.tone([784, 988, 1175, 1568, 1976], 0.28, 'triangle', 0.13, undefined, 0.07);
+      case 'nitro': {
+        // A hiss as the solenoid opens, then the roar of the shot.
+        if (!this.ctx || !this.noiseBuf) return;
+        const t = this.ctx.currentTime;
+        this.burst(t, 0.25, 'highpass', 5200, 0.12);
+        this.burst(t + 0.08, 1.6, 'bandpass', 900, 0.16);
+        this.burst(t + 0.1, 2.4, 'lowpass', 320, 0.12);
+        return;
+      }
+      case 'air':
+        // Air bags venting / filling.
+        if (!this.ctx || !this.noiseBuf) return;
+        this.burst(this.ctx.currentTime, 0.7, 'highpass', 3800, 0.09);
+        this.burst(this.ctx.currentTime + 0.05, 0.5, 'bandpass', 1600, 0.05);
+        return;
       case 'lift': {
         if (!this.ctx) return;
         const ctx = this.ctx;

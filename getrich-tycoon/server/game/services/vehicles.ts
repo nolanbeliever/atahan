@@ -9,11 +9,14 @@ import { quickSellPrice } from '../../../shared/valuation';
 import { clamp } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
 import { passengerSeats } from '../../../shared/passengers';
+import { AIR_LEVELS, hasAirRide } from '../../../shared/modificationsData';
+import { normalizePlate, plateProblem } from '../../../shared/plates';
+import { NITRO_ITEM } from '../../../shared/rewards';
 import { GameError } from '../../errors';
 import { createLogger } from '../../logger';
 import * as val from '../../validate';
 import { K, type Ctx } from '../context';
-import { requireIdle, requireOwned, requireVehicle } from '../guards';
+import { requireIdle, requireNear, requireOwned, requireVehicle } from '../guards';
 import { assertAskingPrice, settleSale } from './sales';
 
 const log = createLogger('vehicles');
@@ -206,6 +209,76 @@ export class VehicleService {
       const me = this.ctx.state.players.get(playerId);
       if (driver && me) this.ctx.hub.notify(d.playerId, { kind: 'info', title: 'Yolcu bindi', text: `${me.name} is riding along in your ${modelDisplayName(veh.modelId)}.` });
       return { vehicleId, seat };
+    });
+  }
+
+  /** Fire a nitrous shot in the car being driven (uses one Special Nitro). */
+  async nitro(playerId: string): Promise<{ left: number; seconds: number }> {
+    return this.ctx.locks.run([K.player(playerId)], async () => {
+      const c = this.ctx.sim.chars.get(playerId);
+      const d = c?.drivingId ? this.ctx.sim.drives.get(c.drivingId) : undefined;
+      if (!c || !d) throw new GameError('conflict', 'Get in a car first.');
+      if ((d.dyn.nitro ?? 0) > 0) throw new GameError('conflict', 'Nitro is already burning.');
+      const uow = this.ctx.state.begin();
+      const player = uow.player(playerId);
+      const have = player.inventory[NITRO_ITEM] ?? 0;
+      if (have < 1) throw new GameError('conflict', 'Special Nitro yok: 7 günlük giriş serisinin 6. gün ödülü.');
+      if (have > 1) player.inventory[NITRO_ITEM] = have - 1;
+      else delete player.inventory[NITRO_ITEM];
+      await uow.commit();
+      d.dyn.nitro = ECONOMY.nitro.seconds;
+      return { left: have - 1, seconds: ECONOMY.nitro.seconds };
+    });
+  }
+
+  private airAt = new Map<string, number>();
+
+  /** Air ride: raise or drop the car being driven (normal / low / slammed). */
+  async air(playerId: string, params: unknown): Promise<{ level: number }> {
+    const p = val.obj(params);
+    const want = p.level === undefined || p.level === null ? null : val.int(p.level, 'level', 0, AIR_LEVELS.length - 1);
+    const c = this.ctx.sim.chars.get(playerId);
+    const vehicleId = c?.drivingId;
+    if (!vehicleId) throw new GameError('conflict', 'Get in a car first.');
+    return this.ctx.locks.run([K.player(playerId), K.vehicle(vehicleId)], async () => {
+      const now = Date.now();
+      if (now - (this.airAt.get(vehicleId) ?? 0) < 500) throw new GameError('rate_limited', 'The compressor is still working.');
+      const uow = this.ctx.state.begin();
+      const veh = uow.vehicle(vehicleId);
+      if (!hasAirRide(veh.mods.tuning)) throw new GameError('conflict', 'This car has no air ride (fit Air Ride Suspension at Chroma Customs).');
+      const level = want ?? ((veh.mods.air ?? 0) + 1) % AIR_LEVELS.length;
+      if (level === 0) delete veh.mods.air;
+      else veh.mods.air = level;
+      await uow.commit();
+      this.airAt.set(vehicleId, now);
+      return { level };
+    });
+  }
+
+  /** A custom number plate, pressed at Chroma Customs. */
+  async plate(playerId: string, params: unknown): Promise<{ plate: string | null }> {
+    const p = val.obj(params);
+    const vehicleId = val.id(p.vehicleId, 'vehicle');
+    if (typeof p.text !== 'string' || p.text.length > 40) throw new GameError('bad_request', 'Invalid plate text.');
+    const text = normalizePlate(p.text);
+    if (text) {
+      const problem = plateProblem(text);
+      if (problem) throw new GameError('bad_request', problem);
+    }
+    return this.ctx.locks.run([K.player(playerId), K.vehicle(vehicleId)], async () => {
+      requireNear(this.ctx, playerId, 'custom');
+      const uow = this.ctx.state.begin();
+      const player = uow.player(playerId);
+      const veh = uow.vehicle(vehicleId);
+      requireOwned(veh, player);
+      if (veh.status === 'stolen' || veh.mods.strip) throw new GameError('conflict', 'Not on a stolen car.');
+      if ((veh.mods.plate ?? '') === text) throw new GameError('bad_request', 'The car already has that plate.');
+      if (text) {
+        uow.debit(player, ECONOMY.plates.price, 'tuning', `Custom plate "${text}": ${modelDisplayName(veh.modelId)}`, veh.id);
+        veh.mods.plate = text;
+      } else delete veh.mods.plate;
+      await uow.commit();
+      return { plate: veh.mods.plate ?? null };
     });
   }
 

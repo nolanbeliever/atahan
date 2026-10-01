@@ -12,11 +12,14 @@ import {
   pawnPrice,
   removedParts,
   stripPart,
+  inSanayiYard,
+  papersPrice,
   type BlackMarketInfo,
   type StripPart,
 } from '../../../../shared/theft';
 import type { Vehicle } from '../../../../shared/types';
 import { formatMoney } from '../../../../shared/util';
+import { marketValue } from '../../../../shared/valuation';
 import { getModel, modelDisplayName } from '../../../../shared/vehicles';
 import type { Store } from '../../state/Store';
 import { h, icon, type Child } from '../dom';
@@ -285,6 +288,7 @@ export class SanayiPanel extends Panel {
       mine.length
         ? h('div', { class: 'pill gold', style: { alignSelf: 'flex-start' } }, `Your stolen car${mine.length > 1 ? 's' : ''}: ${mine.map((v) => modelDisplayName(v.modelId)).join(', ')} - drive it onto a free lift`)
         : null,
+      this.renderPapers(mine),
       h(
         'table',
         { class: 'table' },
@@ -304,6 +308,47 @@ export class SanayiPanel extends Panel {
         ),
       ),
       h('div', { class: 'muted small' }, `Stolen cars left alone for ${T.abandonSec / 60} minutes are recovered by the police; cars left on a lift for ${T.liftIdleSec / 60} minutes go for scrap. Strip every part and the shell is scrapped for you.`),
+    );
+  }
+
+  /** Forged papers: make a stolen car parked in the yard your own (then keep it or sell it). */
+  private renderPapers(mine: Vehicle[]): Child {
+    const trends = this.store.trends;
+    return h(
+      'div',
+      { class: 'col', style: { gap: '6px' } },
+      h('div', { class: 'section-title' }, 'Sahte Evrak · Forged papers'),
+      h('div', { class: 'tiny muted' }, `Parçalamak istemiyor musun? Çalıntı arabayı Sanayi bahçesine park et, arabadan in, evrakını çıkar: araç tamamen senin olur, garajına koyabilir ya da Marketplace'te ilana çıkarabilirsin. Ücret: değerinin %${Math.round(T.papersRate * 100)}'i (en az ${formatMoney(T.papersMin)}).`),
+      mine.length === 0
+        ? h('div', { class: 'tiny muted' }, 'Bahçede çalıntı araban yok.')
+        : mine.map((v) => {
+            const price = papersPrice(marketValue(v, trends));
+            const here = inSanayiYard(v.x, v.z);
+            const driving = this.game.driving === v.id;
+            return h(
+              'div',
+              { class: 'row between papers-row', 'data-testid': 'papers-row' },
+              h('div', null, h('div', { style: { fontWeight: '800' } }, modelDisplayName(v.modelId)), h('div', { class: 'tiny muted' }, `Değeri ~${formatMoney(marketValue(v, trends))}`)),
+              h(
+                'button',
+                {
+                  class: 'btn small primary',
+                  disabled: this.busy || !here || driving,
+                  title: !here ? 'Önce arabayı Sanayi bahçesine getir.' : driving ? 'Önce arabadan in.' : '',
+                  'data-testid': 'papers-buy',
+                  onclick: () =>
+                    void this.act(
+                      () => this.net.rpc('sanayi.papers', { vehicleId: v.id }),
+                      (r) => {
+                        this.game.audio.play('purchase');
+                        this.ui.toast({ kind: 'success', title: 'ARAÇ TAMAMEN SENİN!', text: `${modelDisplayName(r.vehicle.modelId)} - evrak ücreti ${formatMoney(r.price)}. Marketplace > İlan Ver'den satabilirsin.` });
+                      },
+                    ),
+                },
+                !here ? 'Bahçeye getir' : driving ? 'Arabadan in' : `Evrak çıkar (${formatMoney(price)})`,
+              ),
+            );
+          }),
     );
   }
 

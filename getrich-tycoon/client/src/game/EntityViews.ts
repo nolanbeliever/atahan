@@ -374,6 +374,7 @@ export class EntityViews {
       if (e.view instanceof BikeView) e.view.ridden = e.driven;
       // Brake, reverse and tail lights; headlights on while someone drives it at night (or flashes).
       e.view.setLights({ brake: e.driven && (flags & VF.BRAKE) !== 0, reverse: e.driven && (flags & VF.REVERSE) !== 0, night: e.driven ? this.night : 0 });
+      e.view.setNitro(e.driven && (flags & VF.NITRO) !== 0);
       const mine = local.driving === id;
       const flash = mine ? this.flash : 0;
       if (e.driven && (this.night > 0.02 || flash > 0.02)) {

@@ -61,6 +61,12 @@ export interface RpcMethods {
   'vehicle.exit': { params: Empty; result: { x: number; z: number } };
   /** Ride along as a passenger in a car someone else is driving. */
   'vehicle.ride': { params: { vehicleId: string }; result: { vehicleId: string; seat: number } };
+  /** Fire a nitrous shot (one Special Nitro from the inventory) in the car being driven. */
+  'vehicle.nitro': { params: Empty; result: { left: number; seconds: number } };
+  /** Air ride: next height (or a given one) for the car being driven. */
+  'vehicle.air': { params: { level?: number }; result: { level: number } };
+  /** Press a custom number plate at Chroma Customs ('' puts the car's own registration back). */
+  'vehicle.plate': { params: { vehicleId: string; text: string }; result: { plate: string | null } };
 
   'dealership.buy': { params: { plotId: string; name: string }; result: { dealership: Dealership } };
   'dealership.upgrade': { params: Empty; result: { dealership: Dealership } };
@@ -97,6 +103,8 @@ export interface RpcMethods {
   /** Sanayi: put the stolen car you are driving up on the lift in this bay; strip a part. */
   'sanayi.lift': { params: { vehicleId: string }; result: { vehicle: Vehicle } };
   'sanayi.strip': { params: { vehicleId: string; part: StripPart }; result: StripResult };
+  /** Forged papers: a stolen car in the Sanayi yard becomes the player's own. */
+  'sanayi.papers': { params: { vehicleId: string }; result: { vehicle: Vehicle; price: number } };
   /** Pawn Shop: sell stripped parts (one kind, or all of them). */
   'pawn.sell': { params: { part?: StripPart }; result: { amount: number; count: number } };
   /** Today's missions (and start a timed one). */

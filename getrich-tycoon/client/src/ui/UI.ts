@@ -3,7 +3,8 @@
 import { ECONOMY } from '../../../shared/economy.config';
 import { CHAT_MAX } from '../../../shared/protocol';
 import { levelProgress } from '../../../shared/progression';
-import { PLAYTIME_MILESTONES, type RewardsView } from '../../../shared/rewards';
+import { NITRO_ITEM, PLAYTIME_MILESTONES, type RewardsView } from '../../../shared/rewards';
+import { AIR_LEVELS, hasAirRide } from '../../../shared/modificationsData';
 import type { ChatMessage, CustomerOffer, Notification } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
 import { modelDisplayName } from '../../../shared/vehicles';
@@ -130,6 +131,7 @@ export class UI {
     hint: HTMLElement;
   };
   private toasts: HTMLElement;
+  private driveExtras!: { nosBtn: HTMLElement; nosFill: HTMLElement; nosText: HTMLElement; airBtn: HTMLElement };
   readonly nearMiss = new NearMissHud();
   readonly dragHud = new DragHud();
   readonly cluster = new GaugeHud();
@@ -175,7 +177,13 @@ export class UI {
     });
     const gauge = h('div', { class: 'gauge' });
     const camBtn = h('button', { class: 'cam-btn', 'data-testid': 'camera-toggle', title: 'Cockpit / chase camera (C)', onclick: () => this.game.toggleCockpit() }, '◉ CAM', h('span', { class: 'hk' }, 'C'));
-    const drive = h('div', { class: 'drive-hud' }, h('div', { class: 'drive-side' }, gauge, camBtn), this.cluster.el);
+    // Nitro (N) and air ride (K) buttons, shown when the car has them.
+    const nosFill = h('span', { class: 'nos-fill' });
+    const nosText = h('span', { class: 'nos-text' }, 'NOS');
+    const nosBtn = h('button', { class: 'cam-btn nos-btn', 'data-testid': 'nos-btn', title: 'Special Nitro (N)', onclick: () => void this.game.useNitro() }, nosFill, nosText, h('span', { class: 'hk' }, 'N'));
+    const airBtn = h('button', { class: 'cam-btn air-btn', 'data-testid': 'air-btn', title: 'Air ride (K)', onclick: () => void this.game.airRide() }, 'AIR', h('span', { class: 'hk' }, 'K'));
+    const drive = h('div', { class: 'drive-hud' }, h('div', { class: 'drive-side' }, gauge, camBtn, nosBtn, airBtn), this.cluster.el);
+    this.driveExtras = { nosBtn, nosFill, nosText, airBtn };
     const reconnect = h('div', { class: 'reconnect' }, 'Connection lost - reconnecting...');
     const offers = h('div', { class: 'passthrough' });
 
@@ -371,6 +379,17 @@ export class UI {
     this.missions.el.classList.toggle('compact', !!v);
     this.hud.hint.style.display = v ? 'none' : '';
     if (!v) return;
+    // Nitro: shots left, and how much of the burning one is left.
+    const x = this.driveExtras;
+    const shots = this.game.store.me?.inventory[NITRO_ITEM] ?? 0;
+    const burn = Math.max(0, this.game.nitroLeft()) / ECONOMY.nitro.seconds;
+    x.nosBtn.style.display = shots > 0 || burn > 0 ? '' : 'none';
+    x.nosBtn.classList.toggle('burning', burn > 0);
+    x.nosFill.style.width = `${Math.round(burn * 100)}%`;
+    x.nosText.textContent = burn > 0 ? 'NOS!' : `NOS ×${shots}`;
+    const air = hasAirRide(v.mods.tuning);
+    x.airBtn.style.display = air ? '' : 'none';
+    if (air) x.airBtn.firstChild!.textContent = `AIR: ${AIR_LEVELS[v.mods.air ?? 0]}`;
     clear(this.hud.gauge);
     this.hud.gauge.append(
       h('div', { class: 'name' }, modelDisplayName(v.modelId)),

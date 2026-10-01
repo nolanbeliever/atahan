@@ -318,3 +318,15 @@ export function stealable(modelId: string): boolean {
   const m = getModel(modelId);
   return m.specs.kind !== 'bike' && !m.exclusive;
 }
+
+/** The Sanayi yard (fence line): stolen cars parked here can get forged papers. */
+export function inSanayiYard(x: number, z: number): boolean {
+  const y = SANAYI.yard;
+  return x >= y.minX && x <= y.maxX && z >= y.minZ && z <= y.maxZ;
+}
+
+/** Forged papers for a stolen car worth `value`. */
+export function papersPrice(value: number): number {
+  const T = ECONOMY.theft;
+  return Math.max(T.papersMin, Math.round((value * T.papersRate) / 50) * 50);
+}

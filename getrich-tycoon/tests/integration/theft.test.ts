@@ -5,8 +5,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ECONOMY } from '../../shared/economy.config';
 import { starsFor } from '../../server/game/services/police';
 import { TheftService } from '../../server/game/services/theft';
-import { LIFT_BAYS, LOCKPICK_ITEM, STRIP_PARTS, lockTolerance, parsePartItem, partProfile, partShare, partsFor, removedParts, type BlackMarketInfo, type StreetCar, type StripPart } from '../../shared/theft';
+import { LIFT_BAYS, LOCKPICK_ITEM, SANAYI, STRIP_PARTS, lockTolerance, papersPrice, parsePartItem, partProfile, partShare, partsFor, removedParts, type BlackMarketInfo, type StreetCar, type StripPart } from '../../shared/theft';
 import { getModel } from '../../shared/vehicles';
+import { marketValue } from '../../shared/valuation';
 import { INTERACTABLES } from '../../shared/world';
 import type { RunningServer } from '../../server/main';
 import { connectNew, resetPostgres, setMoney, sleep, startServer, type TestClient } from '../helpers/server';
@@ -149,7 +150,44 @@ describe('lockpicking', () => {
 });
 
 describe('Sanayi and the Pawn Shop', () => {
-  it('lift, strip every part (the car loses them), scrap the shell and sell the car\u2019s parts for $10-15k in all', async () => {
+  it('forged papers make a stolen car yours, to keep or list on the Marketplace', async () => {
+    const { client } = await connectNew(server);
+    await setMoney(server, client.playerId, 200_000);
+    const vehicleId = await stealCar(client);
+    if (server.game.sim.isDriven(vehicleId)) await client.rpc('vehicle.exit', {});
+    // A stolen car can't go on the classifieds.
+    expect((await client.rpcRaw('vehicle.list', { vehicleId, price: 20_000 })).ok).toBe(false);
+    expect(await client.rpcRaw('sanayi.papers', { vehicleId })).toMatchObject({ ok: false, code: 'too_far' });
+    const office = INTERACTABLES.find((i) => i.kind === 'sanayi')!;
+    server.game.sim.teleport(client.playerId, office.x, office.z);
+    // The car has to be in the yard.
+    expect(await client.rpcRaw('sanayi.papers', { vehicleId })).toMatchObject({ ok: false, code: 'too_far' });
+    const move = server.game.state.begin();
+    const mv = move.vehicle(vehicleId);
+    mv.x = (SANAYI.yard.minX + SANAYI.yard.maxX) / 2;
+    mv.z = SANAYI.yard.minZ + 4;
+    await move.commit();
+    const live = server.game.state.vehicles.get(vehicleId)!;
+    const price = papersPrice(marketValue(live, server.game.state.trends));
+    expect(price).toBeGreaterThanOrEqual(T.papersMin);
+    const m0 = cash(client);
+    const r = await client.rpc('sanayi.papers', { vehicleId });
+    expect(r.price).toBe(price);
+    expect(r.vehicle.status).toBe('world');
+    expect(cash(client)).toBe(m0 - price);
+    const { transactions } = await client.rpc('transactions', {});
+    expect(transactions.find((t) => t.kind === 'papers')?.amount).toBe(-price);
+    await client.waitFor<{ title: string }>('notify', (n) => n.title === 'Araç tamamen senin!');
+    // Only once; now it lists like any other car.
+    expect(await client.rpcRaw('sanayi.papers', { vehicleId })).toMatchObject({ ok: false, code: 'conflict' });
+    const listed = await client.rpc('vehicle.list', { vehicleId, price: Math.round(marketValue(live, server.game.state.trends)) });
+    expect(listed.vehicle.status).toBe('listed');
+    // And the police no longer take it back when left alone.
+    expect(server.game.state.vehicles.get(vehicleId)!.status).toBe('listed');
+    client.close();
+  });
+
+  it('lift, strip every part (the car loses them), scrap the shell and sell the car\u2019s parts for $25,000 in all', async () => {
     const { client } = await connectNew(server);
     const vehicleId = await stealCar(client);
     const model = getModel(server.game.state.vehicles.get(vehicleId)!.modelId);

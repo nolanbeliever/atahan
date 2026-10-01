@@ -553,6 +553,11 @@ body.touch .nm-combo { top: auto; bottom: calc(300px + env(safe-area-inset-botto
 .cam-btn { position: relative; height: 34px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-weight: 800; font-size: 12px; letter-spacing: 0.06em; cursor: pointer; }
 .cam-btn:hover { background: var(--panel-3); }
 .cam-btn .hk { position: absolute; right: 8px; top: 9px; font-size: 9px; color: var(--text-faint); }
+.nos-btn { overflow: hidden; color: #9fd0ff; border-color: rgba(79,168,255,0.45); }
+.nos-btn .nos-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, rgba(79,168,255,0.55), rgba(140,90,255,0.55)); transition: width 0.1s linear; }
+.nos-btn .nos-text { position: relative; }
+.nos-btn.burning { color: #fff; box-shadow: 0 0 18px rgba(79,168,255,0.6); }
+.air-btn { color: #c6f7e6; font-size: 11px; }
 .drive-bonus { position: absolute; left: 50%; top: -6px; transform: translate(-50%, 0); white-space: nowrap; font-weight: 800; font-size: 13px; color: #7cf5c4; text-shadow: 0 2px 8px rgba(0,0,0,0.7); opacity: 0; pointer-events: none; }
 .drive-bonus.show { animation: driveBonus 2.6s ease-out forwards; }
 @keyframes driveBonus { 0% { opacity: 0; transform: translate(-50%, 8px); } 12% { opacity: 0.95; transform: translate(-50%, 0); } 75% { opacity: 0.85; } 100% { opacity: 0; transform: translate(-50%, -22px); } }
@@ -709,3 +714,13 @@ body.touch .lp-turn { display: inline-flex; }
   .rw-boxes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rw-miles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Custom number plate (Chroma Customs). */
+.plate-input { width: 170px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 800; background: #f2f3ee; color: #121212; border: 2px solid #151515; border-left: 16px solid #1f47b8; }
+.tiny.red { color: var(--danger); }
+
+/* Marketplace sell tab, Sanayi forged papers. */
+.sell-view { gap: 10px; }
+.sell-row, .papers-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); }
+.sell-price { width: 130px; }
+.subtabs .sell-tab { color: var(--money); }

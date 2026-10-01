@@ -579,9 +579,12 @@ export const ECONOMY = {
     stripReach: 1.7,
     xpPerTheft: 25,
     xpPerPart: 5,
+    /** Forged papers (sahte evrak) at the Sanayi office make a complete stolen car yours, to keep or
+     *  sell on the Marketplace: this share of its market value, at least papersMin. */
+    papersRate: 0.15,
+    papersMin: 3_000,
   },
 
-  /** Missions: daily set (resets at 00:00 UTC) with automatic rewards. */
   /** Daily login streak and playtime milestones (shared/rewards.ts). */
   rewards: {
     /** Special Nitro shots in the day-6 box. */
@@ -601,7 +604,10 @@ export const ECONOMY = {
     /** Top speed limiter lifted by this much while it burns. */
     limiter: 0.12,
   },
+  /** Custom number plate at Chroma Customs. */
+  plates: { price: 2_500 },
 
+  /** Missions: daily set (resets at 00:00 UTC) with automatic rewards. */
   missions: {
     dailyCount: 5,
     /** The timed sell mission can be restarted after this long (s). */

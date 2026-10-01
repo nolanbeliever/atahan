@@ -38,6 +38,8 @@ import {
   partShare,
   removedParts,
   stealable,
+  inSanayiYard,
+  papersPrice,
   stockLeft,
   stripPart,
   valueTier,
@@ -49,6 +51,7 @@ import type { LockpickResult, StripResult } from '../../../shared/protocol';
 import { PAWN_BONUS_ITEM } from '../../../shared/rewards';
 import type { Vehicle } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
+import { marketValue } from '../../../shared/valuation';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
 import { GameError } from '../../errors';
 import { newId } from '../../ids';
@@ -380,6 +383,36 @@ export class TheftService {
       this.lastUsed.set(vehicleId, Date.now());
       this.ctx.sim.rebuildDynamic();
       return { vehicle: this.ctx.state.vehicles.get(vehicleId)! };
+    });
+  }
+
+  /** Forged papers (sahte evrak): a complete stolen car parked in the Sanayi yard becomes the
+   *  player's own car, to keep, store or sell on the Marketplace. */
+  async papers(playerId: string, params: unknown): Promise<{ vehicle: Vehicle; price: number }> {
+    const p = val.obj(params);
+    const vehicleId = val.id(p.vehicleId, 'vehicle');
+    return this.ctx.locks.run([K.player(playerId), K.vehicle(vehicleId)], async () => {
+      requireNear(this.ctx, playerId, 'sanayi');
+      const live = this.ctx.state.vehicles.get(vehicleId);
+      if (!live || live.ownerId !== playerId) throw new GameError('not_found', 'Vehicle not found.');
+      if (live.status !== 'stolen') throw new GameError('conflict', 'Only stolen cars need papers.');
+      if (live.mods.strip) throw new GameError('conflict', 'A car on the lift is for parts only.');
+      if (this.ctx.sim.isDriven(vehicleId)) throw new GameError('conflict', 'Park the car and get out first.');
+      if (!inSanayiYard(live.x, live.z)) throw new GameError('too_far', 'Park the car in the Sanayi yard first.');
+      const owned = this.ctx.state.vehiclesOf(playerId).filter((v) => v.status !== 'stolen').length;
+      if (owned >= ECONOMY.player.maxOwnedVehicles) throw new GameError('conflict', 'Your garage is full.');
+      const price = papersPrice(marketValue(live, this.ctx.state.trends));
+      const uow = this.ctx.state.begin();
+      const player = uow.player(playerId);
+      const veh = uow.vehicle(vehicleId);
+      uow.debit(player, price, 'papers', `Sahte evrak: ${modelDisplayName(veh.modelId)}`, veh.id);
+      veh.status = 'world';
+      veh.purchasePrice = price;
+      uow.notify(playerId, { kind: 'success', title: 'Araç tamamen senin!', text: `${modelDisplayName(veh.modelId)}: evraklar hazır. Garajına koyabilir ya da Marketplace'te ilana çıkarabilirsin.` });
+      await uow.commit();
+      this.lastUsed.delete(vehicleId);
+      log.info('stolen car papered', { playerId, vehicleId, price });
+      return { vehicle: this.ctx.state.vehicles.get(vehicleId)!, price };
     });
   }
 

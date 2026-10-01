@@ -318,7 +318,8 @@ export class Simulation {
         (d.dyn.gear < 0 ? VF.REVERSE : 0) |
         (res.sliding || res.locked || res.wheelspin > 0.25 ? VF.SLIDE : 0) |
         (d.dyn.boost > 0.6 ? VF.BOOST : 0) |
-        (keys & KEY.HORN ? VF.HORN : 0);
+        (keys & KEY.HORN ? VF.HORN : 0) |
+        ((d.dyn.nitro ?? 0) > 0 ? VF.NITRO : 0);
       if (res.hitId) {
         d.lastHitId = res.hitId;
         d.lastHitAt = Date.now();

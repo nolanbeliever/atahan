@@ -4,6 +4,8 @@
 
 import { MOD_CATALOG, MOD_SLOT_LABELS, SPECIAL_NEON, findOption, optionLevel } from '../../../../shared/customization';
 import { NEON_SPECIAL_ITEM } from '../../../../shared/rewards';
+import { ECONOMY } from '../../../../shared/economy.config';
+import { PLATE_MAX, defaultPlate, normalizePlate, plateProblem } from '../../../../shared/plates';
 import {
   BODY_SLOTS,
   HEX_COLOR,
@@ -150,7 +152,57 @@ export class TuningGaragePanel extends Panel {
   }
 
   private look(v: Vehicle, q: TuningQuote): VehicleLook {
-    return { modelId: v.modelId, color: v.color, condition: v.condition, mods: this.previewMods(v, q) };
+    const mods = this.previewMods(v, q);
+    // The plate being typed shows on the preview.
+    if (this.plateDraft !== null) {
+      const text = normalizePlate(this.plateDraft);
+      if (!text) delete mods.plate;
+      else if (!plateProblem(text)) mods.plate = text;
+    }
+    return { id: v.id, modelId: v.modelId, color: v.color, condition: v.condition, mods };
+  }
+
+  /** Custom plate text being typed (null: not touched). */
+  private plateDraft: string | null = null;
+
+  /** Number plate: type your own text and press it ($2,500), or put the car's registration back. */
+  private plateSection(v: Vehicle): Child {
+    const current = v.mods.plate ?? null;
+    const draft = this.plateDraft ?? current ?? '';
+    const input = h('input', { class: 'input mono plate-input', maxlength: String(PLATE_MAX + 3), placeholder: defaultPlate(v.id), value: draft, 'data-testid': 'plate-input' });
+    const note = h('div', { class: 'tiny muted' });
+    const btn = h('button', { class: 'btn primary small', 'data-testid': 'plate-apply', onclick: () => void this.applyPlate(v, input.value) }, `Plakayı bas (${formatMoney(ECONOMY.plates.price)})`);
+    const check = () => {
+      const text = normalizePlate(input.value);
+      const problem = text ? plateProblem(text) : null;
+      note.textContent = problem ?? (text ? `Plaka: ${text}` : `Kendi plakası: ${defaultPlate(v.id)}`);
+      note.classList.toggle('red', !!problem);
+      (btn as HTMLButtonElement).disabled = this.busy || !text || !!problem || text === current;
+    };
+    input.addEventListener('input', () => {
+      this.plateDraft = input.value;
+      check();
+      this.live();
+    });
+    check();
+    return h(
+      'div',
+      { class: 'gslot' },
+      h('div', { class: 'gslot-head' }, 'Plaka · Number plate'),
+      h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap', alignItems: 'center' } }, input, btn, current ? h('button', { class: 'btn small ghost', 'data-testid': 'plate-reset', onclick: () => void this.applyPlate(v, '') }, 'Orijinal plaka') : null),
+      note,
+    );
+  }
+
+  private async applyPlate(v: Vehicle, text: string): Promise<void> {
+    await this.act(
+      () => this.net.rpc('vehicle.plate', { vehicleId: v.id, text }),
+      (r) => {
+        this.plateDraft = null;
+        this.game.audio.play('purchase');
+        this.ui.toast({ kind: 'success', title: r.plate ? `Yeni plaka: ${r.plate}` : 'Orijinal plaka takıldı', text: 'Plaka arabanın önünde ve arkasında.' });
+      },
+    );
   }
 
   private changes(v: Vehicle, q: TuningQuote): number {
@@ -161,6 +213,7 @@ export class TuningGaragePanel extends Panel {
     this.change = {};
     this.legacy = {};
     this.paintFinish = null;
+    this.plateDraft = null;
   }
 
   private setPerf(model: VehicleModel, v: Vehicle, slot: PerfSlot, id: string | null): void {
@@ -589,6 +642,7 @@ export class TuningGaragePanel extends Panel {
           ),
         ),
       ),
+      this.plateSection(v),
     ];
   }
 
