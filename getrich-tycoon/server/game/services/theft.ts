@@ -12,7 +12,8 @@
 //     off the mirrors, doors, steering wheel, seats and exhaust, and from the engine bay the engine
 //     block, gearbox, turbo, ECU, radiator, alternator and battery (each takes a few seconds of
 //     work, timed by the server). The bare shell is scrapped.
-//  4. Pawn Shop: every part sells for $10,000-$15,000 (part, the car's value and luck).
+//  4. Pawn Shop: a whole car's parts sell for $10,000-$15,000 (the car's value and luck); each part
+//     fetches its share of that.
 //
 // Stolen cars left alone are recovered by the police; cars left on a lift are scrapped eventually.
 
@@ -31,7 +32,9 @@ import {
   parsePartItem,
   partItemId,
   partsFor,
-  pawnPrice,
+  partProfile,
+  pawnCarPrice,
+  partShare,
   removedParts,
   stealable,
   stockLeft,
@@ -418,7 +421,7 @@ export class TheftService {
       const player = uow.player(playerId);
       const v = uow.vehicle(vehicleId);
       const removed = [...removedParts(v.mods), part];
-      addItem(player.inventory, partItemId(part, valueTier(model)), 1);
+      addItem(player.inventory, partItemId(part, valueTier(model), partProfile(model)), 1);
       uow.grantXp(player, T.xpPerPart);
       const all = partsFor(model).every((x) => removed.includes(x));
       if (all) {
@@ -445,16 +448,23 @@ export class TheftService {
       requireNear(this.ctx, playerId, 'pawn');
       const uow = this.ctx.state.begin();
       const player = uow.player(playerId);
-      let amount = 0;
+      // Parts from the same kind of car share one price for this sale (so a whole car fetches $10,000-$15,000).
+      const groups = new Map<string, { tier: number; share: number }>();
       let count = 0;
       for (const [id, qty] of Object.entries(player.inventory)) {
         const item = parsePartItem(id);
         if (!item || (only && item.part !== only) || qty <= 0) continue;
-        for (let i = 0; i < qty; i++) amount += pawnPrice(item.part, item.tier, this.ctx.rng());
+        const key = `${item.tier}:${item.profile}`;
+        const g = groups.get(key) ?? { tier: item.tier, share: 0 };
+        g.share += partShare(item.part, item.profile) * qty;
+        groups.set(key, g);
         count += qty;
         delete player.inventory[id];
       }
       if (count === 0) throw new GameError('bad_request', 'You have no parts to sell.');
+      let exact = 0;
+      for (const g of groups.values()) exact += pawnCarPrice(g.tier, this.ctx.rng()) * g.share;
+      const amount = Math.max(1, Math.round(exact));
       uow.credit(player, amount, 'pawn_sale', `Pawn Shop: ${count} part${count === 1 ? '' : 's'}`);
       uow.notify(playerId, { kind: 'money', title: `Parçalar Pawn Shop'a satıldı: +${formatMoney(amount)}`, text: `${count} parça (${count} part${count === 1 ? '' : 's'})` });
       await uow.commit();

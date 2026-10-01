@@ -3,7 +3,7 @@
 // take it off; the work takes a few seconds (timed by the server) and the part goes into the
 // inventory as a stripped part for the Pawn Shop.
 
-import { partLabelTr, partsFor, pawnPrice, removedParts, STRIP_PARTS, valueTier, type StripPart } from '../../../../shared/theft';
+import { partLabelTr, partProfile, partsFor, pawnPrice, removedParts, STRIP_PARTS, valueTier, type StripPart } from '../../../../shared/theft';
 import { formatMoney } from '../../../../shared/util';
 import { getModel, modelDisplayName } from '../../../../shared/vehicles';
 import { h, type Child } from '../dom';
@@ -91,6 +91,7 @@ export class EngineBayPanel extends Panel {
     const off = new Set(removedParts(v.mods));
     const job = this.game.theft.job;
     const tier = valueTier(model);
+    const profile = partProfile(model);
     this.fills.clear();
     const engineParts = STRIP_PARTS.filter((p) => p.group === 'engine' && has.has(p.id));
     const spots = engineParts.map((p) => {
@@ -133,7 +134,7 @@ export class EngineBayPanel extends Panel {
               null,
               h('td', null, h('div', { style: { fontWeight: '700' } }, partLabelTr(p.id, model)), h('div', { class: 'tiny muted' }, p.label)),
               h('td', { class: 'mono' }, `${p.seconds}s`),
-              h('td', { class: 'mono' }, `${formatMoney(pawnPrice(p.id, tier, 0))}-${formatMoney(pawnPrice(p.id, tier, 1))}`),
+              h('td', { class: 'mono' }, `${formatMoney(Math.round(pawnPrice(p.id, tier, 0, profile)))}-${formatMoney(Math.round(pawnPrice(p.id, tier, 1, profile)))}`),
               h(
                 'td',
                 null,

@@ -22,7 +22,10 @@ import {
   parsePartItem,
   partItemId,
   partLabelTr,
+  partProfile,
+  partShare,
   partsFor,
+  pawnCarPrice,
   pawnPrice,
   stealable,
   stockLeft,
@@ -62,19 +65,39 @@ describe('the lock', () => {
 });
 
 describe('parts and the Pawn Shop', () => {
-  it('pays $10,000-$15,000 for any part, more for dearer parts and cars', () => {
-    for (const p of STRIP_PARTS) {
+  it('pays $10,000-$15,000 for a whole car (araç başı), more for a dearer car', () => {
+    expect(pawnCarPrice(0, 0)).toBe(T.pawnMin);
+    expect(pawnCarPrice(3, 1)).toBe(T.pawnMax);
+    for (let tier = 0; tier <= 3; tier++) {
+      for (const r of [0, 0.25, 0.5, 0.75, 1]) {
+        const car = pawnCarPrice(tier, r);
+        expect(car).toBeGreaterThanOrEqual(T.pawnMin);
+        expect(car).toBeLessThanOrEqual(T.pawnMax);
+        if (tier > 0) expect(car).toBeGreaterThan(pawnCarPrice(tier - 1, r));
+        if (r > 0) expect(car).toBeGreaterThan(pawnCarPrice(tier, r - 0.25));
+      }
+    }
+  });
+
+  it('splits a car\u2019s price over its parts: every car\u2019s parts add up to its price', () => {
+    for (const m of VEHICLE_MODELS.filter((v) => stealable(v.id))) {
+      const profile = partProfile(m);
+      const parts = partsFor(m);
+      expect(parts.reduce((a, p) => a + partShare(p, profile), 0)).toBeCloseTo(1, 9);
       for (let tier = 0; tier <= 3; tier++) {
-        for (const r of [0, 0.3, 0.7, 1]) {
-          const price = pawnPrice(p.id, tier, r);
-          expect(price).toBeGreaterThanOrEqual(T.pawnMin);
-          expect(price).toBeLessThanOrEqual(T.pawnMax);
-          expect(price % 10).toBe(0);
+        for (const r of [0, 0.5, 1]) {
+          const sum = parts.reduce((a, p) => a + pawnPrice(p, tier, r, profile), 0);
+          expect(sum).toBeCloseTo(pawnCarPrice(tier, r), 6);
+          expect(sum).toBeGreaterThanOrEqual(T.pawnMin - 1e-6);
+          expect(sum).toBeLessThanOrEqual(T.pawnMax + 1e-6);
         }
       }
     }
+    // Big parts are worth more than small ones; a part a car doesn't have is worth nothing.
     expect(pawnPrice('engine', 0, 0.5)).toBeGreaterThan(pawnPrice('mirrors', 0, 0.5));
     expect(pawnPrice('seats', 3, 0.5)).toBeGreaterThan(pawnPrice('seats', 0, 0.5));
+    expect(partShare('exhaust', 'e')).toBe(0);
+    expect(partShare('turbo', 'n')).toBe(0);
   });
 
   it('every car has the body and engine parts it should', () => {
@@ -95,9 +118,15 @@ describe('parts and the Pawn Shop', () => {
   });
 
   it('round-trips inventory ids and rejects anything else', () => {
-    for (const p of STRIP_PARTS) for (let tier = 0; tier <= 3; tier++) expect(parsePartItem(partItemId(p.id, tier))).toEqual({ part: p.id, tier });
-    expect(partItemId('engine', 9)).toBe('stolen_part:engine:3');
-    for (const bad of ['stolen_part:wheels:1', 'stolen_part:engine:4', 'stolen_part:engine', 'engine_kit', 'lockpick_set']) expect(parsePartItem(bad)).toBeNull();
+    for (const p of STRIP_PARTS) {
+      for (let tier = 0; tier <= 3; tier++) {
+        for (const profile of ['e', 'n', 't'] as const) expect(parsePartItem(partItemId(p.id, tier, profile))).toEqual({ part: p.id, tier, profile });
+      }
+    }
+    expect(partItemId('engine', 9, 'n')).toBe('stolen_part:engine:3:n');
+    // Ids from before the car profile was added count as forced-induction cars.
+    expect(parsePartItem('stolen_part:seats:2')).toEqual({ part: 'seats', tier: 2, profile: 't' });
+    for (const bad of ['stolen_part:wheels:1:t', 'stolen_part:engine:4:t', 'stolen_part:engine:1:x', 'stolen_part:engine', 'engine_kit', 'lockpick_set']) expect(parsePartItem(bad)).toBeNull();
   });
 
   it('values cars in four tiers', () => {

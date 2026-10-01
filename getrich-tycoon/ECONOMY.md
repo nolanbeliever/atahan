@@ -183,9 +183,13 @@ All values are in `ECONOMY.theft`.
   converter 4 s (not on electric cars), and from the engine bay: engine block 8 s, gearbox 6 s, turbo / supercharger 4 s
   (forced-induction engines only), ECU 2.5 s, radiator 3 s, alternator 3 s (not on electric cars), battery 2 s. +5 XP per part;
   the server times every job. When the last part is off the shell is scrapped.
-- **Pawn Shop:** each part sells for $10,000-$15,000 (`pawn_sale`): `min + (max - min) × (part weight × 0.5 + car value tier ×
-  0.12 + luck × 0.4)`, rounded to $10. A whole car is 9-12 parts, so a stripped car pays about $90,000-$180,000 for a set,
-  a few minutes' work and the risk of the police; lower `pawnMin` / `pawnMax` to make it less lucrative.
+- **Pawn Shop** (`pawn_sale`): all the parts of one car together fetch **$10,000-$15,000 per car** (araç başı):
+  `min + (max - min) × (car value tier × 0.15 + luck × 0.55)`, so an economy car pays $10,000-$12,750 and an exotic one
+  $12,250-$15,000. Each part fetches its share of that, by weight: engine block 1, gearbox 0.85, exhaust 0.8, turbo 0.75, ECU
+  0.55, doors 0.45, seats 0.4, steering wheel and radiator 0.3, alternator 0.25, battery 0.2, mirrors 0.15 (a car without an
+  exhaust, alternator or turbo shares its price among the parts it has). The luck is drawn once per sale for the parts of each
+  kind of car, and the sale's total is rounded to the dollar. Net of the $2,500 set, a car is worth $7,500-$12,500 for a few
+  minutes' work and the risk of the police.
 
 ## Reputation unlocks (by level)
 

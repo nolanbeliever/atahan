@@ -95,7 +95,7 @@ export interface StripPartDef {
   group: 'body' | 'engine';
   /** Seconds of work to take it off. */
   seconds: number;
-  /** Where on the Pawn Shop's price range this part sits (0 cheap - 1 dear). */
+  /** How much of the car's Pawn Shop price this part is worth (relative; a car's parts share its price). */
   weight: number;
   /** Where the mechanic stands to take it off, in the car's frame (x left, z forward) from its size
    *  (ahead of and behind the lift posts, which stand level with the car's middle). */
@@ -126,15 +126,25 @@ export function stripPart(id: string): StripPartDef | undefined {
   return PART_INDEX.get(id as StripPart);
 }
 
-/** Parts a car has: electric cars have no exhaust or alternator, only forced-induction engines a turbo. */
-export function partsFor(model: VehicleModel): StripPart[] {
+/** Which parts a car has: e electric (no exhaust, alternator or turbo), n naturally aspirated (no turbo), t turbo / supercharged. */
+export type PartProfile = 'e' | 'n' | 't';
+
+export function partProfile(model: VehicleModel): PartProfile {
   const asp = model.specs.aspiration;
-  const electric = asp === 'electric';
+  return asp === 'electric' ? 'e' : asp === 'turbo' || asp === 'twin_turbo' || asp === 'supercharged' ? 't' : 'n';
+}
+
+function profileParts(profile: PartProfile): StripPart[] {
   return STRIP_PARTS.filter((p) => {
-    if (p.id === 'exhaust' || p.id === 'alternator') return !electric;
-    if (p.id === 'turbo') return asp === 'turbo' || asp === 'twin_turbo' || asp === 'supercharged';
+    if (p.id === 'exhaust' || p.id === 'alternator') return profile !== 'e';
+    if (p.id === 'turbo') return profile === 't';
     return true;
   }).map((p) => p.id);
+}
+
+/** Parts a car has: electric cars have no exhaust or alternator, only forced-induction engines a turbo. */
+export function partsFor(model: VehicleModel): StripPart[] {
+  return profileParts(partProfile(model));
 }
 
 /** A part's Turkish name on a given car (an electric car's engine is its motor). */
@@ -150,22 +160,37 @@ export function valueTier(model: VehicleModel): number {
   return v < 20_000 ? 0 : v < 60_000 ? 1 : v < 150_000 ? 2 : 3;
 }
 
-/** Inventory item id of a stripped part (with the value tier of the car it came from). */
-export function partItemId(part: StripPart, tier: number): string {
-  return `stolen_part:${part}:${Math.max(0, Math.min(3, Math.round(tier)))}`;
+/** Inventory item id of a stripped part (with the value tier and part profile of the car it came from). */
+export function partItemId(part: StripPart, tier: number, profile: PartProfile = 't'): string {
+  return `stolen_part:${part}:${Math.max(0, Math.min(3, Math.round(tier)))}:${profile}`;
 }
 
-export function parsePartItem(id: string): { part: StripPart; tier: number } | null {
-  const m = /^stolen_part:([a-z]+):([0-3])$/.exec(id);
+export function parsePartItem(id: string): { part: StripPart; tier: number; profile: PartProfile } | null {
+  const m = /^stolen_part:([a-z]+):([0-3])(?::([ent]))?$/.exec(id);
   if (!m || !PART_INDEX.has(m[1] as StripPart)) return null;
-  return { part: m[1] as StripPart, tier: Number(m[2]) };
+  return { part: m[1] as StripPart, tier: Number(m[2]), profile: (m[3] as PartProfile | undefined) ?? 't' };
 }
 
-/** What the Pawn Shop pays for one part: $10,000-$15,000 by part, the car's value and luck (r 0-1). */
-export function pawnPrice(part: StripPart, tier: number, r: number): number {
-  const def = PART_INDEX.get(part)!;
-  const k = Math.max(0, Math.min(1, def.weight * 0.5 + tier * 0.12 + r * 0.4));
-  return Math.round((T.pawnMin + (T.pawnMax - T.pawnMin) * k) / 10) * 10;
+/**
+ * What the Pawn Shop pays for all the parts of one stripped car: $10,000-$15,000 by the car's value tier and luck
+ * (r 0-1): an economy car $10,000-$12,750, an exotic one $12,250-$15,000.
+ */
+export function pawnCarPrice(tier: number, r: number): number {
+  const k = Math.max(0, Math.min(1, Math.max(0, Math.min(3, tier)) * 0.15 + Math.max(0, Math.min(1, r)) * 0.55));
+  return T.pawnMin + (T.pawnMax - T.pawnMin) * k;
+}
+
+/** A part's share of its car's Pawn Shop price (a car's parts add up to 1). */
+export function partShare(part: StripPart, profile: PartProfile = 't'): number {
+  const parts = profileParts(profile);
+  if (!parts.includes(part)) return 0;
+  const total = parts.reduce((a, p) => a + PART_INDEX.get(p)!.weight, 0);
+  return PART_INDEX.get(part)!.weight / total;
+}
+
+/** What one part fetches (exact dollars; the Pawn Shop rounds the total of a sale). */
+export function pawnPrice(part: StripPart, tier: number, r: number, profile: PartProfile = 't'): number {
+  return pawnCarPrice(tier, r) * partShare(part, profile);
 }
 
 /** Strip state helpers. */

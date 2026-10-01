@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ECONOMY } from '../../shared/economy.config';
 import { starsFor } from '../../server/game/services/police';
 import { TheftService } from '../../server/game/services/theft';
-import { LIFT_BAYS, LOCKPICK_ITEM, STRIP_PARTS, lockTolerance, parsePartItem, partsFor, removedParts, type BlackMarketInfo, type StreetCar, type StripPart } from '../../shared/theft';
+import { LIFT_BAYS, LOCKPICK_ITEM, STRIP_PARTS, lockTolerance, parsePartItem, partProfile, partShare, partsFor, removedParts, type BlackMarketInfo, type StreetCar, type StripPart } from '../../shared/theft';
 import { getModel } from '../../shared/vehicles';
 import { INTERACTABLES } from '../../shared/world';
 import type { RunningServer } from '../../server/main';
@@ -146,7 +146,7 @@ describe('lockpicking', () => {
 });
 
 describe('Sanayi and the Pawn Shop', () => {
-  it('lift, strip every part (the car loses them), scrap the shell and sell the parts for $10-15k each', async () => {
+  it('lift, strip every part (the car loses them), scrap the shell and sell the car\u2019s parts for $10-15k in all', async () => {
     const { client } = await connectNew(server);
     const vehicleId = await stealCar(client);
     const model = getModel(server.game.state.vehicles.get(vehicleId)!.modelId);
@@ -189,14 +189,16 @@ describe('Sanayi and the Pawn Shop', () => {
     const pawn = INTERACTABLES.find((i) => i.kind === 'pawn')!;
     server.game.sim.teleport(client.playerId, pawn.x, pawn.z);
     const money0 = cash(client);
+    // One part fetches its share of the car's price; the whole car's parts $10,000-$15,000 together (araç başı).
     const one = await client.rpc('pawn.sell', { part: parts[0] as StripPart });
     expect(one.count).toBe(1);
-    expect(one.amount).toBeGreaterThanOrEqual(T.pawnMin);
-    expect(one.amount).toBeLessThanOrEqual(T.pawnMax);
+    const share = partShare(parts[0]!, partProfile(model));
+    expect(one.amount).toBeGreaterThanOrEqual(Math.floor(T.pawnMin * share));
+    expect(one.amount).toBeLessThanOrEqual(Math.ceil(T.pawnMax * share));
     const rest = await client.rpc('pawn.sell', {});
     expect(rest.count).toBe(parts.length - 1);
-    expect(rest.amount).toBeGreaterThanOrEqual(T.pawnMin * rest.count);
-    expect(rest.amount).toBeLessThanOrEqual(T.pawnMax * rest.count);
+    expect(one.amount + rest.amount).toBeGreaterThanOrEqual(T.pawnMin - 1);
+    expect(one.amount + rest.amount).toBeLessThanOrEqual(T.pawnMax + 1);
     expect(cash(client)).toBe(money0 + one.amount + rest.amount);
     expect(Object.keys(inv(client)).some((id) => parsePartItem(id))).toBe(false);
     const n = await client.waitFor<{ title: string; text: string }>('notify', (d) => d.title.includes('Pawn Shop'));

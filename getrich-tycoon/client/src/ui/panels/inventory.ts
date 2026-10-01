@@ -60,7 +60,7 @@ export class InventoryPanel extends Panel {
           null,
           h('tr', null, h('td', null, 'Lockpick & Testere Seti'), h('td', { class: 'muted' }, 'Pick a parked car\u2019s lock (3 picks). Black Market.'), h('td', { class: 'mono', 'data-testid': 'inv-lockpicks' }, String(sets))),
           stolen.map((r) =>
-            h('tr', { 'data-part': r.part }, h('td', null, `Sökülmüş Parça: ${stripPart(r.part)!.labelTr}`), h('td', { class: 'muted' }, `Pawn Shop pays ${formatMoney(r.min)}-${formatMoney(r.max)}`), h('td', { class: 'mono' }, String(r.count))),
+            h('tr', { 'data-part': r.part }, h('td', null, `Sökülmüş Parça: ${stripPart(r.part)!.labelTr}`), h('td', { class: 'muted' }, `Pawn Shop pays ${formatMoney(Math.round(r.min))}-${formatMoney(Math.round(r.max))}`), h('td', { class: 'mono' }, String(r.count))),
           ),
         ),
       ),
