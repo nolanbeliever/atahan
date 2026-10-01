@@ -71,15 +71,22 @@ The **two-client multiplayer test** (`10-12`) is the critical one:
 
 ## Results from the build environment
 
-Recorded on 2026-09-29/30 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chromium via SwiftShader, PostgreSQL 16.13):
+Recorded on 2026-10-01 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chromium via SwiftShader). PostgreSQL results are
+from earlier builds (2026-09-28); the suites run unchanged against PostgreSQL with `TEST_DATABASE_URL`.
 
 | Suite | SQLite | PostgreSQL |
 | --- | --- | --- |
 | `npm run typecheck` (client, server, tests) | pass | n/a |
 | Unit (Vitest) | 140 / 140 passed | n/a (no database) |
-| Integration (Vitest, real sockets) | 29 / 29 passed | 20 / 20 passed (2026-09-28, before the tuning and Rare Dealer tests) |
-| E2E (Playwright, Chromium, production build) | 8 / 8 passed (about 7.5 min) | 5 / 5 passed (2026-09-28, about 2.7 min; before the touch test was added) |
-| `npm run check:secrets` | no secrets in 163 tracked files | n/a |
+| Integration (Vitest, real sockets) | 37 / 37 passed | 20 / 20 passed (2026-09-28, before the tuning, Rare Dealer, highway and lifestyle tests) |
+| E2E (Playwright, Chromium, production build) | 9 / 9 passed (about 7 min) | 5 / 5 passed (2026-09-28; before the touch, tuning, highway and driving-controls tests) |
+| `npm run check:secrets` | no secrets in 230 tracked files | n/a |
+
+Under SwiftShader the game renders at 1-2 FPS, and the client caps a frame at 0.1 s of simulated time, so the game runs
+several times slower than real time there. With real acceleration a worn starter car needs a few seconds of simulated time
+to move, so the driving checks keep the throttle (or the touch stick) held until the car has moved, and back out if it was
+parked nose-up to a bench. Animations that must match the server (getting in and out, the arrest cutscene) run on the real
+clock.
 
 Note on flakiness: an early flake in the two-client test came from picking a listing the level-1 test account was
 not allowed to buy (category lock). The test now filters to unlocked categories. The main source of slowness is
