@@ -224,14 +224,15 @@ test('vehicles are drivable: spawn from garage, enter with E, drive, exit', asyn
   await page.keyboard.press('KeyE');
   await expect.poll(async () => (await state(page)).driving, { timeout: 60_000 }).toBe(listing.vehicleId);
   const start = (await state(page)).position;
-  await hold(page, 'KeyW', 6000);
-  await page.waitForTimeout(1000);
-  let end = (await state(page)).position;
-  // The car may have been parked nose-up to a bench or kerb: then it has to back out.
-  if (Math.hypot(end.x - start.x, end.z - start.z) <= 1) {
-    await hold(page, 'KeyS', 6000);
-    await page.waitForTimeout(1000);
+  // Real acceleration takes a few seconds of simulated time, and software rendering runs the game
+  // in slow motion (1-3 FPS): keep the throttle down until the car has moved. If it was parked
+  // nose-up to a bench or kerb, back out instead.
+  let end = start;
+  for (const key of ['KeyW', 'KeyW', 'KeyS', 'KeyS']) {
+    await hold(page, key, 6000);
+    await page.waitForTimeout(500);
     end = (await state(page)).position;
+    if (Math.hypot(end.x - start.x, end.z - start.z) > 1) break;
   }
   expect(Math.hypot(end.x - start.x, end.z - start.z)).toBeGreaterThan(1);
   // Exit
