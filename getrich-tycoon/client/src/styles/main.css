@@ -540,7 +540,7 @@ body.touch .nm-combo { top: auto; bottom: calc(300px + env(safe-area-inset-botto
 .wanted-bust-bar div { height: 100%; background: #ff3b47; transition: width 0.25s; }
 
 /* ---------------------------------------------------------------- big banners: BUSTED / ESCAPED / mission */
-.big-banner { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity 0.35s; }
+.big-banner { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none !important; opacity: 0; transition: opacity 0.35s; }
 .big-banner.show { opacity: 1; }
 .big-banner .bb-card { text-align: center; padding: 18px 34px; border-radius: 20px; transform: scale(0.85); transition: transform 0.35s; }
 .big-banner.show .bb-card { transform: scale(1); }
