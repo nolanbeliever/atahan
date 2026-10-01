@@ -119,6 +119,34 @@ export class PoliceService {
     if (kmh >= ECONOMY.police.fastNearMissKmh) this.addHeat(playerId, ECONOMY.police.heatNearMissFast);
   }
 
+  /** Wanted stars of a player (0: none). */
+  starsOf(playerId: string): number {
+    const w = this.wanted.get(playerId);
+    return w && !w.busted ? starsFor(w.heat) : 0;
+  }
+
+  /** The police cars after a player (combat: officers get out of them). */
+  unitsOf(playerId: string): readonly { id: number; dyn: VehicleDyn }[] {
+    return this.wanted.get(playerId)?.units ?? [];
+  }
+
+  /** A police car destroyed (it is replaced later while the pursuit goes on). */
+  removeUnit(unitId: number): void {
+    for (const w of this.wanted.values()) w.units = w.units.filter((u) => u.id !== unitId);
+    this.publishObstacles();
+  }
+
+  /** Drop a player's wanted level (wasted: they wake up in hospital with a clean slate). */
+  clearWanted(playerId: string): void {
+    if (!this.wanted.has(playerId)) return;
+    const w = this.wanted.get(playerId)!;
+    w.heat = 0;
+    w.units = [];
+    this.send(playerId, w, true);
+    this.wanted.delete(playerId);
+    this.publishObstacles();
+  }
+
   /** Distance from a point to the player's nearest pursuing police car (Infinity: none). */
   nearestUnit(playerId: string, x: number, z: number): number {
     const w = this.wanted.get(playerId);

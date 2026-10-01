@@ -20,6 +20,8 @@ const PLACE_LABEL: Record<InteractKind, string> = {
   drag: 'the Drag Strip',
   pawn: 'the Pawn Shop',
   sanayi: 'the Sanayi garage',
+  ammu: 'Ammu-Nation',
+  hospital: 'the hospital',
 };
 
 export function requireNear(ctx: Ctx, playerId: string, kind: InteractKind): void {

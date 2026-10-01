@@ -10,6 +10,7 @@ import type { RareMarketState } from './rareMarket';
 import type { MegaChoice, RewardsView } from './rewards';
 import type { PursuitOutcome, PursuitView } from './cctv';
 import type { StreetRaceView } from './streetRace';
+import type { ExplosionFx, HealthView, ShotFx, WeaponId } from './weapons';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -105,6 +106,10 @@ export interface RpcMethods {
   /** Sanayi: put the stolen car you are driving up on the lift in this bay; strip a part. */
   'sanayi.lift': { params: { vehicleId: string }; result: { vehicle: Vehicle } };
   'sanayi.strip': { params: { vehicleId: string; part: StripPart }; result: StripResult };
+  'ammu.buy': { params: { item: string }; result: { item: string; money: number } };
+  'hospital.heal': { params: Empty; result: HealthView };
+  'weapon.equip': { params: { weapon: WeaponId | null }; result: { weapon: WeaponId | null } };
+  'combat.health': { params: Empty; result: HealthView };
   'race.info': { params: Empty; result: { race: StreetRaceView | null } };
   'race.join': { params: Empty; result: { race: StreetRaceView } };
   'race.leave': { params: Empty; result: { ok: true } };
@@ -190,6 +195,12 @@ export interface ServerToClientEvents {
   'drive.bonus': (d: { amount: number; value: number }) => void;
   'missions.update': (d: { missions: MissionView[] }) => void;
   'rewards.update': (d: RewardsView) => void;
+  /** Shots, blasts, car damage, health and WASTED. */
+  'combat.shot': (d: ShotFx) => void;
+  'combat.explosion': (d: ExplosionFx) => void;
+  'combat.carHp': (d: { id: string; hp: number }) => void;
+  'combat.health': (d: HealthView) => void;
+  'combat.wasted': (d: { lost: string[]; respawnInMs: number }) => void;
   /** The street race (null: none open). */
   'race.update': (d: StreetRaceView | null) => void;
   'race.checkpoint': (d: { next: number; of: number }) => void;
@@ -254,6 +265,8 @@ export interface NearMissEvent {
 
 export interface ClientToServerEvents {
   input: (cmds: InputCmd[]) => void;
+  /** A shot: [weapon, muzzle x, y, z, yaw, pitch, shot number]. */
+  fire: (shot: unknown[]) => void;
   rpc: (req: RpcRequest, ack: (res: RpcResponse) => void) => void;
 }
 

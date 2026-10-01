@@ -40,6 +40,7 @@ import { MissionService } from './services/missions';
 import { RewardService } from './services/rewards';
 import { PursuitService } from './services/pursuit';
 import { StreetRaceService } from './services/streetRace';
+import { CombatService } from './services/combat';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
 import { HighwayService } from './services/highway';
@@ -92,6 +93,7 @@ export class GameServer implements Hub {
   readonly rewards: RewardService;
   readonly pursuit: PursuitService;
   readonly streetRace: StreetRaceService;
+  readonly combat: CombatService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -135,6 +137,7 @@ export class GameServer implements Hub {
     this.theft = new TheftService(this.ctx, this.police, this.vehicles);
     this.pursuit = new PursuitService(this.ctx, this.police);
     this.streetRace = new StreetRaceService(this.ctx, this.police);
+    this.combat = new CombatService(this.ctx, this.police, this.theft, this.customers, this.vehicles);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -188,6 +191,10 @@ export class GameServer implements Hub {
       'sanayi.lift': (pid, p) => this.theft.lift(pid, p),
       'sanayi.strip': (pid, p) => this.theft.strip(pid, p),
       'sanayi.papers': (pid, p) => this.theft.papers(pid, p),
+      'ammu.buy': (pid, p) => this.combat.buy(pid, p),
+      'hospital.heal': (pid) => this.combat.heal(pid),
+      'weapon.equip': (pid, p) => this.combat.equip(pid, p),
+      'combat.health': (pid) => this.combat.healthView(pid),
       'race.info': () => ({ race: this.streetRace.view() }),
       'race.join': async (pid) => ({ race: await this.streetRace.join(pid) }),
       'race.leave': (pid) => (this.streetRace.leave(pid), { ok: true as const }),
@@ -357,6 +364,14 @@ export class GameServer implements Hub {
       if (!session.inputBucket.take()) return;
       this.sim.handleInputs(playerId, cmds);
     });
+    socket.on('fire', (shot) => {
+      if (!session.inputBucket.take()) return;
+      try {
+        this.combat.fire(playerId, shot);
+      } catch (err) {
+        log.error('fire failed', { playerId, error: (err as Error).message });
+      }
+    });
     socket.on('rpc', (req, ack) => {
       if (typeof ack !== 'function') return;
       this.handleRpc(session, req).then(ack, () => ack({ ok: false, error: 'Server error', code: 'server_error' }));
@@ -371,6 +386,7 @@ export class GameServer implements Hub {
     this.broadcast('player.upsert', this.publicPlayer(playerId));
     await this.missions.load(playerId);
     await this.rewards.load(playerId);
+    this.combat.welcome(playerId);
     for (const m of this.chat.history) socket.emit('chat', m);
     log.info('player connected', { playerId, name: record.name, online: this.sessions.size });
 
@@ -393,6 +409,7 @@ export class GameServer implements Hub {
     this.theft.forget(playerId);
     this.pursuit.forget(playerId);
     this.streetRace.forget(playerId);
+    this.combat.forget(playerId);
     await this.missions.forget(playerId);
     await this.rewards.forget(playerId);
     const c = this.sim.chars.get(playerId);
@@ -610,6 +627,7 @@ export class GameServer implements Hub {
     this.police.tick(dt, now);
     this.pursuit.tick(dt, now);
     this.streetRace.tick(dt, now);
+    this.combat.tick(dt, now);
     this.missions.tickFast(dt);
   }
 

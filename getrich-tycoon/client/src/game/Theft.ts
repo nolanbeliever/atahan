@@ -78,6 +78,16 @@ export function stripTargets(v: Vehicle): StripTarget[] {
 export class TheftClient {
   readonly group = new THREE.Group();
   private cars = new Map<string, StreetView>();
+
+  /** The view of a street car (combat damage). */
+  viewOf(id: string): AnyVehicleView | undefined {
+    return this.cars.get(id)?.view;
+  }
+
+  /** Street cars as boxes (aiming): id, centre, heading, half length and width. */
+  boxes(): { id: string; x: number; z: number; rot: number; hl: number; hw: number }[] {
+    return [...this.cars.values()].map((c) => ({ id: c.car.id, x: c.car.x, z: c.car.z, rot: c.car.rot, hl: c.view.length / 2, hw: c.view.width / 2 }));
+  }
   private alarms = new Map<string, { x: number; z: number; until: number }>();
   private blinkT = 0;
   private markers = new THREE.Group();

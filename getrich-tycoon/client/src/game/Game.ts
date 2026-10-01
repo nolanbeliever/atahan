@@ -60,6 +60,7 @@ import { Rain, setRoadWetness } from '../render/Weather';
 import { SanayiView } from '../render/Sanayi';
 import { CctvView } from '../render/Cctv';
 import { RaceClient } from './StreetRace';
+import { CombatClient } from './Combat';
 import { Store } from '../state/Store';
 import type { UI } from '../ui/UI';
 import { CameraController } from './CameraController';
@@ -94,6 +95,7 @@ export class Game {
   readonly sanayi = new SanayiView();
   readonly cctv = new CctvView();
   readonly race = new RaceClient(() => this.store.playerId);
+  combat!: CombatClient;
   /** Street cars, alarms, the lifts and stripping. */
   readonly theft: TheftClient;
   /** Hands busy (lockpicking, working on a car): the character plays its work animation. */
@@ -189,6 +191,8 @@ export class Game {
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
+    this.combat = new CombatClient(this);
+    this.combat.onChange = () => this.updateGunHud();
     this.entities = new EntityViews(this.renderer.scene, () => this.store.playerId);
     this.police = new PoliceClient(this.renderer.scene);
     this.entities.serverNow = () => this.store.serverNow();
@@ -271,6 +275,12 @@ export class Game {
         .rpc('blackmarket.info', {})
         .then((r) => this.store.setBlackMarket(r))
         .catch(() => undefined);
+      this.combat.equipped = null;
+      this.entities.players.get(w.playerId)?.view.setWeapon(0);
+      void this.net
+        .rpc('combat.health', {})
+        .then((v) => this.store.setHealth(v))
+        .catch(() => undefined);
       void this.net
         .rpc('race.info', {})
         .then((r) => this.onRace(r.race))
@@ -283,6 +293,11 @@ export class Game {
     net.on('rewards.update', (v) => this.store.setRewards(v));
     net.on('race.update', (r) => this.onRace(r));
     net.on('race.checkpoint', () => this.audio.play('coin'));
+    net.on('combat.shot', (sh) => this.combat.onShot(sh));
+    net.on('combat.explosion', (e) => this.combat.onExplosion(e));
+    net.on('combat.carHp', (d) => this.combat.onCarHp(d.id, d.hp));
+    net.on('combat.health', (v) => this.combat.onHealth(v));
+    net.on('combat.wasted', (d) => this.combat.onWasted(d.lost, d.respawnInMs));
     net.on('pursuit.update', (p) => this.ui?.pursuit.set(p));
     net.on('pursuit.result', (r) => {
       if (r.outcome === 'success') {
@@ -398,6 +413,7 @@ export class Game {
       this.refreshDealerships();
       this.rebuildBoxes();
     });
+    s.on('health', (v) => this.ui?.combat.setHealth(v));
   }
 
   private refreshDealerships(): void {
@@ -417,6 +433,7 @@ export class Game {
 
   private onSelf(st: PrivateState): void {
     const p = st.player;
+    this.combat?.onInventory();
     const me = this.store.players.get(p.id);
     this.entities.ensurePlayer(p.id, p.name, p.level, p.appearance);
     if (me) me.appearance = p.appearance;
@@ -459,6 +476,7 @@ export class Game {
       e.buffer.push({ t: now, x: p[1], z: p[2], r: p[3], a: p[4], b: 0 });
       e.driving = p[5];
       e.riding = p[6] ? { vehicleId: p[6], seat: p[7] ?? 0 } : null;
+      e.view.setWeapon(p[8] ?? 0);
       e.lastSeen = now;
     }
     for (const v of s.v) {
@@ -590,6 +608,9 @@ export class Game {
     if (this.dragHold && this.driving) keys = (keys & KEY.HORN) | KEY.BRAKE;
     // Hands off while getting in / out, and during the arrest.
     if (this.busted || this.entities.boardingBusy(this.store.playerId)) keys = 0;
+    // A gun drawn on foot: face where the camera looks.
+    if (this.combat.equipped && !this.driving && !this.combat.dead) keys |= KEY.AIM;
+    if (this.combat.dead) keys = 0;
     const cmd: InputCmd = { seq: ++this.seq, dt: SIM_DT, keys, yaw: this.cam.yaw };
     if (keys !== 0 || Math.abs(cmd.yaw - this.lastYaw) > 1e-3) this.activeAt = performance.now();
     this.lastYaw = cmd.yaw;
@@ -716,6 +737,9 @@ export class Game {
       const target = new THREE.Vector3(rx, groundHeight(rx, rz), rz);
       this.cam.update(target, dt, !!this.driving, this.dyn?.speed ?? 0, this.boxes);
     }
+    // A blast nearby shakes the camera.
+    const shake = this.combat.fx.shake;
+    if (shake > 0) camera.position.add(new THREE.Vector3((Math.random() - 0.5) * shake * 0.6, (Math.random() - 0.5) * shake * 0.4, (Math.random() - 0.5) * shake * 0.6));
     if (this.debugCam) {
       const [cx, cy, cz, lx, ly, lz] = this.debugCam as [number, number, number, number, number, number];
       this.renderer.camera.position.set(cx, cy, cz);
@@ -788,6 +812,9 @@ export class Game {
     const watched = myCar?.status === 'stolen' ? cameraSeeing(rx, rz, this.store.serverNow())?.id ?? null : null;
     this.cctv.update(dt, this.store.serverNow(), watched, this.night);
     this.ui?.pursuit.update(dt);
+    // Guns: firing, effects, damaged cars.
+    this.combat.update(dt);
+    this.updateGunHud();
     // Street race: rings, bots and the HUD.
     this.race.update(dt);
     const meRacer = this.race.me();
@@ -817,6 +844,7 @@ export class Game {
     if (this.minimapTimer <= 0) {
       this.minimapTimer = 0.1;
       this.ui?.minimap.draw(this, rx, rz, this.cam.yaw);
+      this.combat.refreshViews();
       this.ui?.updateDriving();
       this.ui?.setZone(zoneAt(rx, rz)?.name ?? '');
     }
@@ -1121,6 +1149,7 @@ export class Game {
       void this.airRide();
       return;
     }
+    if (this.combat.onKey(code)) return;
     const hot: Record<string, Parameters<UI['open']>[0]> = {
       KeyB: 'market',
       KeyI: 'inventory',
@@ -1148,6 +1177,23 @@ export class Game {
       this.ui?.toast({ kind: 'info', title: '🏁 Sokak yarışı açıldı!', text: `${raceRoute(r.routeId)?.name}: start line marked on the map. Winner takes ${formatMoney(r.prize)}.` });
       this.audio.play('notify');
     }
+  }
+
+  /** Where the local player is (predicted). */
+  localPosition(): { x: number; z: number; rot: number } {
+    return { x: this.curr.x, z: this.curr.z, rot: this.curr.rot };
+  }
+
+  private gunKey = '';
+
+  private updateGunHud(): void {
+    const w = this.combat.equipped;
+    const onFoot = !this.driving && !this.riding;
+    const ammo = this.combat.ammo();
+    const key = `${w?.id}|${ammo}|${onFoot}`;
+    if (key === this.gunKey) return;
+    this.gunKey = key;
+    this.ui?.combat.setGun(w, ammo, onFoot);
   }
 
   /** Where another player is (their car while driving). */

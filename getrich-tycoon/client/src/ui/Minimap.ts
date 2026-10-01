@@ -18,10 +18,12 @@ export const INTERACT_COLORS: Record<string, string> = {
   drag: '#ff8c1a',
   pawn: '#ff4fd8',
   sanayi: '#ffb020',
+  ammu: '#e63946',
+  hospital: '#ff5c7a',
 };
 
 /** Places with their own map symbol (drawn upright on a round badge). */
-const BADGES: Record<string, string> = { sanayi: '🔧', pawn: '$' };
+const BADGES: Record<string, string> = { sanayi: '🔧', pawn: '$', ammu: '🔫', hospital: '✚' };
 
 function badge(g: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, glyph: string, turn: number): void {
   g.save();

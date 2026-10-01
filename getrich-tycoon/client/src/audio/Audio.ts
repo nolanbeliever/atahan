@@ -74,7 +74,10 @@ export type Sfx =
   | 'lift'
   | 'reward'
   | 'nitro'
-  | 'air';
+  | 'air'
+  | 'empty'
+  | 'hit'
+  | 'wasted';
 
 export class AudioSystem {
   private ctx: AudioContext | null = null;
@@ -544,6 +547,14 @@ export class AudioSystem {
         // A cash register, coins and a fanfare.
         if (this.ctx && this.noiseBuf) for (let i = 0; i < 8; i++) this.burst(this.ctx.currentTime + i * 0.06, 0.05, 'bandpass', 4200 + (i % 3) * 700, 0.1);
         return this.tone([784, 988, 1175, 1568, 1976], 0.28, 'triangle', 0.13, undefined, 0.07);
+      case 'empty':
+        return this.tone([1800], 0.03, 'square', 0.04);
+      case 'hit':
+        if (!this.ctx || !this.noiseBuf) return;
+        this.burst(this.ctx.currentTime, 0.12, 'lowpass', 600, 0.25);
+        return this.tone([180, 120], 0.08, 'sine', 0.12);
+      case 'wasted':
+        return this.tone([392, 330, 262, 196], 0.45, 'triangle', 0.12, undefined, 0.22);
       case 'nitro': {
         // A hiss as the solenoid opens, then the roar of the shot.
         if (!this.ctx || !this.noiseBuf) return;
@@ -581,6 +592,48 @@ export class AudioSystem {
         return;
       }
     }
+  }
+
+  /** A gunshot (volume 0-1 for distance). */
+  shot(kind: 'pistol' | 'shotgun' | 'rifle' | 'deagle' | 'rpg' | 'minigun', volume: number): void {
+    if (!this.ctx || !this.noiseBuf || volume <= 0.02) return;
+    const t = this.ctx.currentTime;
+    const v = Math.min(1, volume);
+    switch (kind) {
+      case 'pistol':
+        this.burst(t, 0.09, 'highpass', 1800, 0.32 * v);
+        this.burst(t, 0.16, 'lowpass', 700, 0.36 * v);
+        return;
+      case 'deagle':
+        this.burst(t, 0.12, 'highpass', 1400, 0.4 * v);
+        this.burst(t, 0.3, 'lowpass', 450, 0.55 * v);
+        return;
+      case 'shotgun':
+        this.burst(t, 0.12, 'highpass', 1100, 0.38 * v);
+        this.burst(t, 0.42, 'lowpass', 380, 0.62 * v);
+        return;
+      case 'rifle':
+        this.burst(t, 0.07, 'highpass', 2200, 0.3 * v);
+        this.burst(t, 0.12, 'lowpass', 900, 0.3 * v);
+        return;
+      case 'minigun':
+        this.burst(t, 0.05, 'bandpass', 1600, 0.22 * v);
+        this.burst(t, 0.06, 'lowpass', 600, 0.22 * v);
+        return;
+      case 'rpg':
+        this.burst(t, 0.6, 'bandpass', 900, 0.3 * v);
+        this.burst(t + 0.05, 0.9, 'lowpass', 300, 0.25 * v);
+        return;
+    }
+  }
+
+  /** An explosion. */
+  boom(volume: number): void {
+    if (!this.ctx || !this.noiseBuf || volume <= 0.02) return;
+    const t = this.ctx.currentTime;
+    this.burst(t, 1.6, 'lowpass', 220, 0.9 * volume);
+    this.burst(t, 0.5, 'bandpass', 700, 0.5 * volume);
+    this.burst(t + 0.1, 2.2, 'lowpass', 120, 0.6 * volume);
   }
 
   private alarmNodes: { osc: OscillatorNode; lfo: OscillatorNode; gain: GainNode; pulse: GainNode } | null = null;

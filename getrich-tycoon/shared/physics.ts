@@ -18,8 +18,10 @@ export const KEY = {
   BRAKE: 32,
   /** Horn + headlight flash: slower traffic ahead moves over. */
   HORN: 64,
+  /** A gun drawn: the character faces where the camera looks (and strafes). */
+  AIM: 128,
 } as const;
-export const MAX_KEYS = 127;
+export const MAX_KEYS = 255;
 
 export interface InputCmd {
   seq: number;
@@ -224,15 +226,17 @@ export function moveDirection(keys: number, yaw: number): { x: number; z: number
 export function stepCharacter(s: CharacterState, cmd: Pick<InputCmd, 'keys' | 'yaw' | 'dt'>, world: CollisionWorld, selfId?: string): void {
   const dt = clamp(cmd.dt, 0, MAX_CMD_DT);
   const dir = moveDirection(cmd.keys, cmd.yaw);
+  const aiming = (cmd.keys & KEY.AIM) !== 0;
+  // Gun drawn: face the aim (and walk sideways / backwards without turning round).
+  if (aiming) s.rot += angleDiff(s.rot, cmd.yaw) * Math.min(1, CHAR_TURN_RATE * 1.5 * dt);
   if (!dir) {
     s.gait = 0;
     return;
   }
-  const running = (cmd.keys & KEY.SPRINT) !== 0;
+  const running = (cmd.keys & KEY.SPRINT) !== 0 && !aiming;
   const speed = running ? RUN_SPEED : WALK_SPEED;
   s.gait = running ? 2 : 1;
-  const target = Math.atan2(dir.x, dir.z);
-  s.rot += angleDiff(s.rot, target) * Math.min(1, CHAR_TURN_RATE * dt);
+  if (!aiming) s.rot += angleDiff(s.rot, Math.atan2(dir.x, dir.z)) * Math.min(1, CHAR_TURN_RATE * dt);
   const res = resolveCircle(s.x + dir.x * speed * dt, s.z + dir.z * speed * dt, CHAR_RADIUS, world, selfId, s);
   s.x = res.x;
   s.z = res.z;

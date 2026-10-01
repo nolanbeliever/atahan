@@ -634,6 +634,37 @@ export const ECONOMY = {
     policeDelaySec: 8,
   },
 
+  /** Guns, health and fights (shared/weapons.ts, server/game/services/combat.ts). */
+  combat: {
+    playerHp: 100,
+    /** Health comes back this long after the last hit (s), this fast (HP/s). */
+    regenDelaySec: 8,
+    regenPerSec: 3,
+    /** Hospital: patch-up price at the front desk. */
+    healPrice: 500,
+    /** Wanted heat for shooting at a person or a police officer / police car (300 = 3 stars). */
+    heatPerson: 300,
+    heatPolice: 400,
+    heatShots: 40,
+    /** Vehicles: body HP; a blown engine's explosion. */
+    vehicleHp: 100,
+    explosionRadius: 6,
+    explosionDamage: 90,
+    /** Ambient pedestrians on the sidewalks and their health. */
+    pedestrians: 14,
+    pedestrianHp: 35,
+    pedRespawnSec: 25,
+    /** Police officers get out from 3 stars: health, how often and how hard they shoot. */
+    officerStars: 3,
+    officerHp: 70,
+    officerFireSec: 1.1,
+    officerDamage: [5, 9],
+    officerRange: 38,
+    officerAccuracy: 0.55,
+    /** Bullets fired at a moving car mostly hit the car, not the driver. */
+    inCarShare: 0.35,
+  },
+
   /** Police tracking of a freshly stolen car (shared/cctv.ts, server/game/services/pursuit.ts). */
   pursuit: {
     /** Stay unseen (no CCTV camera, no police car close) for this long in the car and it is yours (s). */

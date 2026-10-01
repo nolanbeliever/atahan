@@ -148,6 +148,19 @@ export class CustomerService {
     this.ctx.sim.npcs.set(npc.id, npc);
   }
 
+  /** A customer shot dead (combat): gone, with any offer they were making. */
+  kill(npcId: string): boolean {
+    const c = this.customers.get(npcId);
+    if (!c) return false;
+    if (c.offerId) {
+      const o = this.offers.get(c.offerId);
+      this.offers.delete(c.offerId);
+      if (o) this.ctx.hub.sendTo(o.ownerId, 'offer.closed', c.offerId);
+    }
+    this.customers.delete(npcId);
+    return true;
+  }
+
   private besideVehicle(plot: Plot, v: Vehicle): { x: number; z: number } {
     const m = getModel(v.modelId);
     const off = m.shape.width / 2 + 1.1;

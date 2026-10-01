@@ -3,6 +3,7 @@
 //
 // Coordinates: metres. +x = east, +z = south, y = up. A yaw of 0 faces +z.
 
+import { AMMU_NATION, HOSPITAL } from './compounds';
 import { dealershipLevel } from './economy.config';
 import { DRAG_BOXES, DRAG_STRIP, highwayCircles } from './highway';
 import { SANAYI, SANAYI_BOXES, SANAYI_CIRCLES } from './theft';
@@ -64,7 +65,7 @@ export const ZONES: Zone[] = [
   { id: 'sanayi', name: 'Sanayi Industrial Estate', cx: (SANAYI.yard.minX + SANAYI.yard.maxX) / 2, cz: (SANAYI.yard.minZ + SANAYI.yard.maxZ) / 2, color: '#8d6e63' },
 ];
 
-export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag' | 'pawn' | 'sanayi';
+export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag' | 'pawn' | 'sanayi' | 'ammu' | 'hospital';
 
 export interface Interactable {
   id: string;
@@ -114,6 +115,9 @@ export const BUILDINGS: Building[] = [
   { id: 'repair_garage', box: box(64, 110, 62, 88), height: 9, color: '#6c757d', kind: 'service', facing: 'south', sign: 'WRENCH BROS REPAIR', signColor: '#e76f51' },
   // Parts shop
   { id: 'parts_shop', box: box(116, 138, 62, 82), height: 6, color: '#e9c46a', kind: 'office', facing: 'south', sign: 'PARTS DEPOT', signColor: '#264653' },
+  // Out in the green belt: the hospital (north) and the Ammu-Nation gun shop (east).
+  { id: 'hospital', box: HOSPITAL.box, height: 14, color: '#eef2f6', kind: 'service', facing: 'south', sign: 'GETRICH GENERAL HOSPITAL', signColor: '#e63946' },
+  { id: 'ammu_nation', box: AMMU_NATION.box, height: 7, color: '#3d405b', kind: 'office', facing: 'west', sign: 'AMMU-NATION', signColor: '#e63946' },
 ];
 
 /** Decorative/structural circular obstacles. */
@@ -141,6 +145,8 @@ export const INTERACTABLES: Interactable[] = [
   { id: 'drag', kind: 'drag', x: DRAG_STRIP.stage.x, z: DRAG_STRIP.stage.z, radius: DRAG_STRIP.stage.radius, label: 'Drag Strip - race for $500' },
   { id: 'pawn', kind: 'pawn', x: SANAYI.pawn.minX - 2.5, z: (SANAYI.pawn.minZ + SANAYI.pawn.maxZ) / 2, radius: 5, label: 'Enter the Pawn Shop' },
   { id: 'sanayi', kind: 'sanayi', x: SANAYI.hall.minX + 4, z: SANAYI.hall.minZ + 4, radius: 4, label: 'Sanayi garage office' },
+  { id: 'ammu', kind: 'ammu', x: AMMU_NATION.door.x, z: AMMU_NATION.door.z, radius: 4.5, label: 'Enter Ammu-Nation' },
+  { id: 'hospital', kind: 'hospital', x: HOSPITAL.respawn.x, z: HOSPITAL.respawn.z - 3, radius: 4.5, label: 'Hospital · Hastane' },
 ];
 
 export const SERVICE_INTERACT_SLACK = 6;

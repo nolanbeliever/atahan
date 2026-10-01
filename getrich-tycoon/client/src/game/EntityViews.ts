@@ -9,7 +9,7 @@ import { angleDiff, clamp, formatMoney, lerpAngle } from '../../../shared/util';
 import { modelDisplayName } from '../../../shared/vehicles';
 import { LIFT_HEIGHT } from '../../../shared/theft';
 import { groundHeight } from '../render/City';
-import { CharacterView, NPC_PALETTE, type Pose } from '../render/Character';
+import { CharacterView, NPC_PALETTE, POLICE_OFFICER, type Pose } from '../render/Character';
 import { Label } from '../render/Labels';
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
 import { getModel } from '../../../shared/vehicles';
@@ -185,10 +185,14 @@ export class EntityViews {
   upsertNpc(id: string, style: number, t: number, x: number, z: number, r: number, a: number): void {
     let e = this.npcs.get(id);
     if (!e) {
-      const view = new CharacterView(NPC_PALETTE[style % NPC_PALETTE.length]!);
+      // Customers (npc_), people in the street (ped_, no label) and police officers on foot (cop_).
+      const cop = id.startsWith('cop_');
+      const ped = id.startsWith('ped_');
+      const view = new CharacterView(cop ? POLICE_OFFICER : NPC_PALETTE[style % NPC_PALETTE.length]!);
+      if (cop) view.setWeapon(1);
       this.scene.add(view.root);
-      const label = new Label('Customer', { color: '#ffd166', height: 0.3 });
-      this.scene.add(label.sprite);
+      const label = ped ? null : new Label(cop ? 'POLICE' : 'Customer', { color: cop ? '#7aa7ff' : '#ffd166', height: 0.3 });
+      if (label) this.scene.add(label.sprite);
       e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null };
       this.npcs.set(id, e);
     }

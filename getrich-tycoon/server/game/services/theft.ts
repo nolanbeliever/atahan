@@ -202,6 +202,20 @@ export class TheftService {
     return true;
   }
 
+  /** A street car (not anybody's), for the combat service. */
+  streetCar(id: string): StreetCar | undefined {
+    return this.cars.get(id);
+  }
+
+  /** A street car shot to pieces: towed away, another one parks there later. */
+  wreckStreetCar(id: string): void {
+    const car = this.cars.get(id);
+    if (!car) return;
+    this.cars.delete(id);
+    this.respawn.set(car.spot, Date.now() + T.respawnSec * 1000);
+    this.publish();
+  }
+
   /** Share the street cars with everyone and make them solid. */
   private publish(): void {
     const cars = this.publicCars();

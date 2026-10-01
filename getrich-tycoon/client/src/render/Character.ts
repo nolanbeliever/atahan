@@ -30,6 +30,67 @@ export const NPC_PALETTE: Appearance[] = [
   { skin: '#8d5524', shirt: '#06d6a0', pants: '#073b4c', hair: '#4a2c2a' },
 ];
 
+/** A gun in the hand, built from boxes (barrel along +z before it is turned into the hand). */
+const gunMats = new Map<string, THREE.MeshStandardMaterial>();
+function gunMat(color: string, metal = 0.5): THREE.MeshStandardMaterial {
+  let m = gunMats.get(color);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color, metalness: metal, roughness: 0.38 });
+    gunMats.set(color, m);
+  }
+  return m;
+}
+
+function gunModel(slot: number): THREE.Group {
+  const g = new THREE.Group();
+  const add = (mat: THREE.Material, sx: number, sy: number, sz: number, x: number, y: number, z: number) => g.add(part(mat, sx, sy, sz, x, y, z));
+  const dark = gunMat('#26282c');
+  switch (slot) {
+    case 1: // pistol
+      add(dark, 0.05, 0.07, 0.22, 0, 0.02, 0.06);
+      add(dark, 0.045, 0.12, 0.06, 0, -0.06, -0.02);
+      break;
+    case 2: // shotgun
+      add(dark, 0.05, 0.05, 0.75, 0, 0.03, 0.28);
+      add(gunMat('#6b4426', 0.1), 0.06, 0.08, 0.3, 0, 0.0, -0.18);
+      add(gunMat('#6b4426', 0.1), 0.06, 0.05, 0.16, 0, -0.01, 0.3);
+      break;
+    case 3: // rifle
+      add(gunMat('#3a3326'), 0.06, 0.08, 0.55, 0, 0.02, 0.12);
+      add(dark, 0.03, 0.03, 0.32, 0, 0.04, 0.52);
+      add(dark, 0.045, 0.16, 0.06, 0, -0.08, 0.14);
+      add(gunMat('#5a4630', 0.1), 0.05, 0.08, 0.22, 0, -0.01, -0.22);
+      break;
+    case 4: // golden desert eagle
+      add(gunMat('#d4af37', 0.95), 0.06, 0.09, 0.28, 0, 0.03, 0.08);
+      add(gunMat('#b8962e', 0.9), 0.05, 0.14, 0.07, 0, -0.07, -0.03);
+      break;
+    case 5: {
+      // laser RPG on the shoulder
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.05, 12), gunMat('#4a5a3a', 0.2));
+      tube.rotation.x = Math.PI / 2;
+      tube.position.set(0, 0.06, 0.2);
+      tube.castShadow = true;
+      g.add(tube);
+      add(dark, 0.05, 0.12, 0.06, 0, -0.06, 0.05);
+      add(gunMat('#ff2a3a', 0), 0.03, 0.03, 0.06, 0.06, 0.1, 0.5);
+      break;
+    }
+    case 6: {
+      // minigun: six barrels round a hub
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        add(gunMat('#555b63', 0.8), 0.022, 0.022, 0.62, Math.cos(a) * 0.045, 0.04 + Math.sin(a) * 0.045, 0.4);
+      }
+      add(dark, 0.14, 0.14, 0.3, 0, 0.04, 0.0);
+      break;
+    }
+    default:
+      break;
+  }
+  return g;
+}
+
 /** Poses that override the arm / leg animation. */
 export type Pose = 'none' | 'sit' | 'duck' | 'handsUp' | 'cuffed';
 
@@ -47,6 +108,8 @@ export class CharacterView {
   private phase = Math.random() * 10;
   private time = Math.random() * 10;
   private appearanceKey = '';
+  private gun: THREE.Group | null = null;
+  private gunSlot = 0;
 
   constructor(appearance: Appearance) {
     this.root.add(this.rig);
@@ -98,6 +161,22 @@ export class CharacterView {
     this.rig.add(part(eyeMat, 0.05, 0.05, 0.02, -0.07, 1.76, 0.151));
   }
 
+  /** The gun in the right hand (shared/weapons.ts slot; 0: none). */
+  setWeapon(slot: number): void {
+    if (slot === this.gunSlot) return;
+    this.gunSlot = slot;
+    if (this.gun) {
+      this.gun.removeFromParent();
+      this.gun = null;
+    }
+    if (slot <= 0) return;
+    this.gun = gunModel(slot);
+    // In the hand, barrel along the arm (the arm points forward when aiming).
+    this.gun.rotation.x = Math.PI / 2;
+    this.gun.position.set(0, -0.62, 0.02);
+    this.shR.add(this.gun);
+  }
+
   animate(anim: number, dt: number): void {
     this.time += dt;
     const moving = anim === Anim.Walk || anim === Anim.Run;
@@ -108,7 +187,17 @@ export class CharacterView {
     const lerp = (obj: THREE.Object3D, target: number) => (obj.rotation.x += (target - obj.rotation.x) * k);
     const lerpZ = (obj: THREE.Object3D, target: number) => (obj.rotation.z += (target - obj.rotation.z) * k);
     const pose = this.pose;
-    lerpZ(this.shL, pose === 'cuffed' ? -0.32 : pose === 'handsUp' ? 0.18 : 0);
+    // Down on the ground (shot): fall back and lie still.
+    if (anim === Anim.Dead) {
+      this.rig.rotation.x += (-1.5 - this.rig.rotation.x) * Math.min(1, dt * 6);
+      this.rig.position.y += (0.16 - this.rig.position.y) * k;
+      lerp(this.shL, -2.6);
+      lerp(this.shR, -2.4);
+      lerp(this.hipL, 0.15);
+      lerp(this.hipR, -0.1);
+      return;
+    }
+    lerpZ(this.shL, pose === 'cuffed' ? -0.32 : pose === 'handsUp' ? 0.18 : anim === Anim.Aim ? -0.55 : 0);
     lerpZ(this.shR, pose === 'cuffed' ? 0.32 : pose === 'handsUp' ? -0.18 : 0);
     if (pose === 'sit' || pose === 'duck') {
       // Seated (hands on the wheel) or bending in through a door.
@@ -142,6 +231,15 @@ export class CharacterView {
     }
     lerp(this.hipL, swing);
     lerp(this.hipR, -swing);
+    if (anim === Anim.Aim || (this.gunSlot > 0 && anim !== Anim.Run)) {
+      // Both arms up, gun pointing forward (a big gun sits lower, at the hip).
+      const heavy = this.gunSlot === 5 || this.gunSlot === 6 || this.gunSlot === 2 || this.gunSlot === 3;
+      lerp(this.shR, heavy ? -1.25 : -1.52);
+      lerp(this.shL, heavy ? -1.1 : -1.38);
+      this.rig.position.y = moving ? Math.abs(Math.sin(this.phase)) * 0.03 : 0;
+      this.rig.rotation.x += (0 - this.rig.rotation.x) * k;
+      return;
+    }
     if (anim === Anim.Interact) {
       lerp(this.shR, -1.35 + Math.sin(this.time * 9) * 0.15);
       lerp(this.shL, 0.1);

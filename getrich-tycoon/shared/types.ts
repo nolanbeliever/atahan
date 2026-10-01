@@ -274,6 +274,8 @@ export type TransactionKind =
   | 'pawn_sale'
   | 'reward'
   | 'race'
+  | 'weapon'
+  | 'hospital'
   | 'police_escape';
 
 export interface Transaction {
@@ -307,11 +309,15 @@ export const Anim = {
   Run: 2,
   Drive: 3,
   Interact: 4,
+  /** Down on the ground (shot). */
+  Dead: 5,
+  /** Gun up, aiming. */
+  Aim: 6,
 } as const;
 export type AnimState = (typeof Anim)[keyof typeof Anim];
 
-/** Compact snapshot tuples (bandwidth): [id, x, z, rot, anim, drivingVehicleId, ridingVehicleId, passenger seat] */
-export type PlayerSnap = [string, number, number, number, number, string | null, (string | null)?, number?];
+/** Compact snapshot tuples (bandwidth): [id, x, z, rot, anim, drivingVehicleId, ridingVehicleId, passenger seat, gun slot] */
+export type PlayerSnap = [string, number, number, number, number, string | null, (string | null)?, number?, number?];
 /**
  * [id, x, z, rot, speed, steer, rpm, gear, flags (VF)] - only vehicles that are currently being
  * driven.

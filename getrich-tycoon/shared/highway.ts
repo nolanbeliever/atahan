@@ -11,6 +11,7 @@
 // anti-clockwise. In both, lane 0 is the fast lane next to the median and lane 3 the slow lane.
 
 import { inSanayi } from './sanayiLayout';
+import { inCompound } from './compounds';
 
 export const HW_HALF = 240;
 export const HW_RADIUS = 90;
@@ -365,6 +366,7 @@ export const BELT_TREES: { x: number; z: number; s: number }[] = (() => {
     if (inJunctionArea(x, z, 6)) continue;
     if (x < -168 && x > -216 && z > -210 && z < 212) continue; // drag strip and its paddock
     if (inSanayi(x, z, 6)) continue; // the Sanayi industrial estate
+    if (inCompound(x, z, 10)) continue; // the hospital and Ammu-Nation
     const hp = projectToHighway(x, z);
     if (OVERPASSES.some((o) => Math.abs(deltaS(o.s, hp.s)) < 12)) continue; // bridge embankments
     out.push({ x, z, s: 0.9 + rng() * 0.8 });

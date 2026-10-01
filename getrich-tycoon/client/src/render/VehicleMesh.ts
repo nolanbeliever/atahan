@@ -10,6 +10,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { findOption, vehicleColor } from '../../../shared/customization';
 import { RIM_FINISH_DEFS, airDropCm, findRimDesign, hasAirRide, type PaintFinish } from '../../../shared/modificationsData';
 import { plateText } from '../../../shared/plates';
+import type { VehicleDamageLook } from '../../../shared/weapons';
 import type { VehicleCondition, VehicleMods } from '../../../shared/types';
 import { seatOffset } from '../../../shared/passengers';
 import { getModel, type VehicleModel } from '../../../shared/vehicles';
@@ -316,6 +317,10 @@ export interface AnyVehicleView {
   pop(strength: number): void;
   /** Blue nitrous flames from the exhausts while a shot burns. */
   setNitro(on: boolean): void;
+  /** Bullet damage: broken glass, parts off, a burnt-out wreck (null: none). */
+  setShotDamage(d: VehicleDamageLook | null): void;
+  /** Where engine smoke comes out (world space). */
+  hoodPoint(out: THREE.Vector3): THREE.Vector3;
   dispose(): void;
   readonly meshCount: number;
 }
@@ -526,6 +531,10 @@ abstract class ModelView implements AnyVehicleView {
     this.setUnderglow(findOption(look.mods.underglow)?.value ?? 'none');
     this.applyStrip(look.mods.strip?.removed ?? []);
     this.setPlate(look);
+    if (this.shot) {
+      this.burnt = false;
+      this.applyShot();
+    }
   }
 
   /** Air ride height (or the garage stance): snap there, or let the body move there gradually. */
@@ -560,12 +569,75 @@ abstract class ModelView implements AnyVehicleView {
 
   /** Parts stripped at the Sanayi: mirrors gone, doors gone (the openings show). */
   private applyStrip(removed: readonly string[]): void {
+    this.stripped = removed;
     for (const m of this.mirrors) m.visible = !removed.includes('mirrors');
     this.doorsOff = removed.includes('doors');
-    if (this.door) this.door.visible = !this.doorsOff;
-    if (this.doorR) this.doorR.visible = !this.doorsOff;
-    if (this.cavity) this.cavity.visible = this.doorsOff || this.doorOpen > 0.02;
-    if (this.cavityR) this.cavityR.visible = this.doorsOff;
+    const shot = this.shot;
+    const offL = this.doorsOff || !!shot?.doorL;
+    const offR = this.doorsOff || !!shot?.doorR;
+    if (this.door) this.door.visible = !offL;
+    if (this.doorR) this.doorR.visible = !offR;
+    if (this.cavity) this.cavity.visible = offL || this.doorOpen > 0.02;
+    if (this.cavityR) this.cavityR.visible = offR;
+  }
+
+  private stripped: readonly string[] = [];
+  private shot: VehicleDamageLook | null = null;
+  private burnt = false;
+
+  setShotDamage(d: VehicleDamageLook | null): void {
+    const key = d ? `${d.glass}${d.bumper}${d.doorL}${d.doorR}${d.blown}` : '';
+    const was = this.shot ? `${this.shot.glass}${this.shot.bumper}${this.shot.doorL}${this.shot.doorR}${this.shot.blown}` : '';
+    this.shot = d;
+    if (key === was) return;
+    this.thaw();
+    this.applyShot();
+  }
+
+  /** Show the bullet damage on the model (again after a re-dress). */
+  private applyShot(): void {
+    const d = this.shot;
+    const model = this.model;
+    if (!model) return;
+    model.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const orig = (mesh.userData.orig as THREE.Material | undefined) ?? (mesh.material as THREE.Material);
+      const name = `${mesh.name} ${Array.isArray(orig) ? '' : orig.name}`.toLowerCase();
+      if (/glass|window/.test(name) && !/light|lamp/.test(name)) mesh.visible = !(d?.glass ?? false);
+      if (/bumper/.test(name)) mesh.visible = !(d?.bumper ?? false);
+    });
+    this.applyStrip(this.stripped);
+    // A burnt-out shell: everything goes dark.
+    const burnt = !!d?.blown;
+    if (burnt !== this.burnt) {
+      this.burnt = burnt;
+      model.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh || Array.isArray(mesh.material)) return;
+        const m = mesh.material as THREE.MeshStandardMaterial;
+        if (!m.color) return;
+        if (burnt) {
+          mesh.userData.burntFrom ??= m.color.getHex();
+          const c = m.clone();
+          c.color.setHex(0x161412);
+          if ('metalness' in c) c.metalness = 0.1;
+          if ('roughness' in c) c.roughness = 0.95;
+          mesh.userData.burntMat = c;
+          mesh.userData.liveMat = mesh.material;
+          mesh.material = c;
+          this.owned.push(c);
+        } else if (mesh.userData.liveMat) {
+          mesh.material = mesh.userData.liveMat as THREE.Material;
+          delete mesh.userData.liveMat;
+        }
+      });
+    }
+  }
+
+  hoodPoint(out: THREE.Vector3): THREE.Vector3 {
+    out.set(0, this.height * 0.55, this.length * 0.32);
+    return this.root.localToWorld(out);
   }
 
   /** Neon under the car: a soft additive glow on the road (brighter at night). */

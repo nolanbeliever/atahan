@@ -36,20 +36,33 @@ export class Input {
   private lastTouch = -Infinity;
   private look: { id: number; x: number; y: number } | null = null;
   private pressedHandlers: ((code: string, e: KeyboardEvent) => void)[] = [];
+  /** Left button held while the mouse is captured (shooting), and clicks not handled yet. */
+  fireHeld = false;
+  private fireClicks = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', (e) => this.onKey(e, true));
     window.addEventListener('keyup', (e) => this.onKey(e, false));
-    window.addEventListener('blur', () => this.down.clear());
+    window.addEventListener('blur', () => {
+      this.down.clear();
+      this.fireHeld = false;
+    });
     window.addEventListener('touchstart', () => (this.lastTouch = performance.now()), { capture: true, passive: true });
     canvas.addEventListener('click', () => {
       if (this.enabled && !this.recentTouch() && document.pointerLockElement !== canvas) this.requestLock();
     });
     canvas.addEventListener('mousedown', (e) => {
       if (this.recentTouch()) return;
+      if (e.button === 0 && document.pointerLockElement === canvas) {
+        this.fireHeld = true;
+        this.fireClicks++;
+      }
       if (e.button === 2 || document.pointerLockElement !== canvas) this.dragging = true;
     });
-    window.addEventListener('mouseup', () => (this.dragging = false));
+    window.addEventListener('mouseup', (e) => {
+      this.dragging = false;
+      if (e.button === 0) this.fireHeld = false;
+    });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === canvas || (this.dragging && !this.recentTouch())) {
@@ -127,6 +140,19 @@ export class Input {
     let k = this.touchSource?.() ?? 0;
     for (const code of this.down) k |= KEYMAP[code] ?? 0;
     return k;
+  }
+
+  /** Clicks of the fire button since the last call. */
+  consumeFire(): number {
+    const n = this.fireClicks;
+    this.fireClicks = 0;
+    return n;
+  }
+
+  /** A click from an on-screen FIRE button. */
+  touchFire(down: boolean): void {
+    this.fireHeld = down;
+    if (down) this.fireClicks++;
   }
 
   consumeMouse(): { dx: number; dy: number } {

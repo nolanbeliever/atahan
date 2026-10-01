@@ -3,6 +3,7 @@
 import type { PrivateState } from '../../../shared/protocol';
 import type { RareMarketState } from '../../../shared/rareMarket';
 import type { RewardsView } from '../../../shared/rewards';
+import type { HealthView } from '../../../shared/weapons';
 import { LOCKPICK_ITEM, type BlackMarketInfo, type StreetCar } from '../../../shared/theft';
 import type {
   CategoryTrends,
@@ -32,6 +33,7 @@ export interface StoreEvents extends Record<string, unknown> {
   street: StreetCar[];
   blackMarket: BlackMarketInfo;
   rewards: RewardsView;
+  health: HealthView;
 }
 
 export class Store extends Emitter<StoreEvents> {
@@ -49,6 +51,8 @@ export class Store extends Emitter<StoreEvents> {
   street = new Map<string, StreetCar>();
   /** Daily streak and playtime rewards (null until fetched) and when they arrived (local clock). */
   rewards: RewardsView | null = null;
+  /** The player's health (fights). */
+  health: HealthView | null = null;
   rewardsAt = 0;
   /** Black Market lockpick stock (null until fetched). */
   blackMarket: BlackMarketInfo | null = null;
@@ -116,6 +120,11 @@ export class Store extends Emitter<StoreEvents> {
     this.clockOffset = s.serverTime - Date.now();
     this.rare = s;
     this.emit('rare', s);
+  }
+
+  setHealth(v: HealthView): void {
+    this.health = v;
+    this.emit('health', v);
   }
 
   setRewards(v: RewardsView): void {

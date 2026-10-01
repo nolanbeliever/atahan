@@ -51,6 +51,9 @@ export interface CharacterEntity {
   lastYaw: number;
   /** Last time the horn / headlight flash was used (ms). */
   hornAt: number;
+  /** Gun drawn (shared/weapons.ts slot, 0: none) and down (WASTED). */
+  weapon: number;
+  dead: boolean;
 }
 
 export interface DriveState {
@@ -176,7 +179,7 @@ export class Simulation {
 
   addPlayer(id: string, x: number, z: number, rot: number): CharacterEntity {
     const now = Date.now();
-    const c: CharacterEntity = { id, x, z, rot, gait: 0, drivingId: null, ridingId: null, seat: 0, lastSeq: 0, budget: 0.25, budgetAt: now, interactUntil: 0, droppedCmds: 0, lastInputAt: now, activeAt: now, lastYaw: 0, hornAt: 0 };
+    const c: CharacterEntity = { id, x, z, rot, gait: 0, drivingId: null, ridingId: null, seat: 0, lastSeq: 0, budget: 0.25, budgetAt: now, interactUntil: 0, droppedCmds: 0, lastInputAt: now, activeAt: now, lastYaw: 0, hornAt: 0, weapon: 0, dead: false };
     this.chars.set(id, c);
     return c;
   }
@@ -300,6 +303,8 @@ export class Simulation {
   }
 
   private applyCommand(c: CharacterEntity, cmd: InputCmd): void {
+    // Down (WASTED): no moving until the hospital.
+    if (c.dead) return;
     // Passengers just ride along.
     if (c.ridingId) {
       this.followRide(c);
@@ -439,8 +444,22 @@ export class Simulation {
     for (const c of this.chars.values()) {
       if (now - c.lastInputAt > 300) c.gait = 0;
       if (c.ridingId) this.followRide(c);
-      const anim = c.drivingId || c.ridingId ? Anim.Drive : c.interactUntil > now && c.gait === 0 ? Anim.Interact : c.gait === 2 ? Anim.Run : c.gait === 1 ? Anim.Walk : Anim.Idle;
-      p.push(c.ridingId ? [c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId, c.ridingId, c.seat] : [c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId]);
+      const anim = c.dead
+        ? Anim.Dead
+        : c.drivingId || c.ridingId
+          ? Anim.Drive
+          : c.interactUntil > now && c.gait === 0
+            ? Anim.Interact
+            : c.gait === 2
+              ? Anim.Run
+              : c.gait === 1
+                ? Anim.Walk
+                : c.weapon > 0
+                  ? Anim.Aim
+                  : Anim.Idle;
+      if (c.ridingId) p.push([c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId, c.ridingId, c.seat]);
+      else if (c.weapon > 0) p.push([c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId, null, 0, c.weapon]);
+      else p.push([c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId]);
     }
     const v: VehicleSnap[] = [];
     for (const d of this.drives.values()) {
