@@ -138,3 +138,10 @@ CREATE TABLE IF NOT EXISTS player_missions (
   data TEXT NOT NULL,
   updated_at BIGINT NOT NULL
 );
+
+-- Daily login streak and playtime milestones per player (JSON document, see shared/rewards.ts).
+CREATE TABLE IF NOT EXISTS player_rewards (
+  player_id TEXT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,
+  updated_at BIGINT NOT NULL
+);

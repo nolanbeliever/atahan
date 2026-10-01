@@ -431,7 +431,7 @@ abstract class ModelView implements AnyVehicleView {
       this.glow = null;
     }
     if (!want || this.isBike) return;
-    const mat = new THREE.MeshBasicMaterial({ map: underglowTexture(), color: want === 'rainbow' ? '#ff2bd6' : want, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.5, toneMapped: false });
+    const mat = new THREE.MeshBasicMaterial({ map: underglowTexture(), color: want === 'rainbow' ? '#ff2bd6' : want === 'plasma' ? '#7a3cff' : want, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.5, toneMapped: false });
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(this.width * 1.45, this.length * 1.12).rotateX(-Math.PI / 2), mat);
     glow.position.y = 0.035;
     glow.renderOrder = 2;
@@ -558,6 +558,11 @@ abstract class ModelView implements AnyVehicleView {
     if (this.glow && this.glowColor === 'rainbow') {
       this.glowHue = (this.glowHue + dt * 0.18) % 1;
       (this.glow.material as THREE.MeshBasicMaterial).color.setHSL(this.glowHue, 1, 0.55);
+    } else if (this.glow && this.glowColor === 'plasma') {
+      // Plazma Neon: purple and cyan breathing into each other.
+      this.glowHue = (this.glowHue + dt * 0.6) % 1;
+      const k = 0.5 + 0.5 * Math.sin(this.glowHue * Math.PI * 2);
+      (this.glow.material as THREE.MeshBasicMaterial).color.setRGB(0.48 * (1 - k), 0.24 + 0.66 * k, 1);
     }
   }
 

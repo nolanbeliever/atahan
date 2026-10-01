@@ -266,20 +266,20 @@ export interface VehicleDyn extends DriveState {
 }
 
 export function newVehicleDyn(x: number, z: number, rot: number): VehicleDyn {
-  return { x, z, rot, steer: 0, input: 0, yaw: 0, slip: 0, speed: 0, rpm: 0, gear: 1, shift: 0, boost: 0, thr: 0, brk: 0 };
+  return { x, z, rot, steer: 0, input: 0, yaw: 0, slip: 0, speed: 0, rpm: 0, gear: 1, shift: 0, boost: 0, thr: 0, brk: 0, nitro: 0 };
 }
 
 /** Compact wire format of the authoritative vehicle state (see SelfSnap). */
-export type DynTuple = [number, number, number, number, number, number, number, number, number, number, number, number, number, number];
+export type DynTuple = [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 
 export function dynToTuple(d: VehicleDyn): DynTuple {
   const r = (v: number, k = 1000) => Math.round(v * k) / k;
-  return [r(d.x), r(d.z), r(d.rot, 10000), r(d.speed), r(d.steer, 10000), r(d.input, 10000), r(d.yaw, 10000), r(d.slip, 10000), Math.round(d.rpm), d.gear, r(d.shift), r(d.boost), r(d.thr), r(d.brk)];
+  return [r(d.x), r(d.z), r(d.rot, 10000), r(d.speed), r(d.steer, 10000), r(d.input, 10000), r(d.yaw, 10000), r(d.slip, 10000), Math.round(d.rpm), d.gear, r(d.shift), r(d.boost), r(d.thr), r(d.brk), r(d.nitro ?? 0)];
 }
 
 export function dynFromTuple(t: readonly number[]): VehicleDyn {
-  const [x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk] = t as DynTuple;
-  return { x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk };
+  const [x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk, nitro] = t as DynTuple;
+  return { x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk, nitro: nitro ?? 0 };
 }
 
 export interface VehicleParams {

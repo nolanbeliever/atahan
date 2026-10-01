@@ -228,6 +228,8 @@ export class UnitOfWork {
   readonly notices: NoticeRecord[] = [];
   readonly notifications: { playerId: string; n: Notification }[] = [];
   readonly worldValues = new Map<string, string>();
+  /** Reward state documents written in the same transaction (player id -> state). */
+  readonly rewardWrites = new Map<string, unknown>();
   newTrends: CategoryTrends | null = null;
   private committed = false;
   readonly now = Date.now();
@@ -307,6 +309,11 @@ export class UnitOfWork {
   /** Persist a small piece of world state (JSON string) with this unit of work. */
   setWorldValue(key: string, value: string): void {
     this.worldValues.set(key, value);
+  }
+
+  /** Save a player's reward state with this transaction (a claim and its payout are one write). */
+  setRewardState(playerId: string, state: unknown): void {
+    this.rewardWrites.set(playerId, structuredClone(state));
   }
 
   setTrends(t: CategoryTrends): void {
@@ -430,6 +437,7 @@ export class UnitOfWork {
       for (const t of this.transactions) await repo.insertTransaction(q, t);
       for (const n of this.notices) await repo.insertNotice(q, n);
       for (const [k, v] of this.worldValues) await repo.setWorldValue(q, k, v);
+      for (const [pid, data] of this.rewardWrites) await repo.saveRewards(q, pid, data, now);
     });
     const result = this.state.apply(this);
     this.state.onCommit(result);

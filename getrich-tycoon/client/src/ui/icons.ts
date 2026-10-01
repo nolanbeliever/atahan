@@ -27,5 +27,6 @@ export const ICONS = {
   mask: svg('<path d="M3 9c3-2 6-2 9 0 3-2 6-2 9 0 0 5-3 8-5 8-1.6 0-2.6-1.4-4-1.4S9.6 17 8 17c-2 0-5-3-5-8z"/><circle cx="8" cy="11.5" r="1.4"/><circle cx="16" cy="11.5" r="1.4"/>'),
   coins: svg('<ellipse cx="9" cy="7" rx="6" ry="3"/><path d="M3 7v4c0 1.7 2.7 3 6 3s6-1.3 6-3V7"/><path d="M9 14v3c0 1.7 2.7 3 6 3s6-1.3 6-3v-4c0-1.6-2.4-2.9-5.5-3"/>'),
   lift: svg('<path d="M4 21V5"/><path d="M20 21V5"/><path d="M4 11h16"/><path d="M7 11V8h10v3"/><path d="M2 21h20"/>'),
+  gift: svg('<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v9h14v-9"/><path d="M12 8v13"/><path d="M12 8c-1.5-3.5-6-4.5-6-1.5S10 8 12 8zm0 0c1.5-3.5 6-4.5 6-1.5S14 8 12 8z"/>'),
   handshake: svg('<path d="M11 17l2 2a1.4 1.4 0 0 0 2-2"/><path d="M14 14l2.5 2.5a1.4 1.4 0 0 0 2-2L15 11"/><path d="M21 11l-3.5-3.5L13 9 9 5 3 11l6 6 2-2"/>'),
 };

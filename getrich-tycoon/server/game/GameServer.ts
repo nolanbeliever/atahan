@@ -37,6 +37,7 @@ import { DealershipService } from './services/dealership';
 import { DragService } from './services/drag';
 import { DrivingService } from './services/driving';
 import { MissionService } from './services/missions';
+import { RewardService } from './services/rewards';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
 import { HighwayService } from './services/highway';
@@ -86,6 +87,7 @@ export class GameServer implements Hub {
   readonly drag: DragService;
   readonly driving: DrivingService;
   readonly missions: MissionService;
+  readonly rewards: RewardService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -124,6 +126,7 @@ export class GameServer implements Hub {
     this.drag = new DragService(this.ctx);
     this.driving = new DrivingService(this.ctx);
     this.missions = new MissionService(this.ctx);
+    this.rewards = new RewardService(this.ctx);
     this.police = new PoliceService(this.ctx, this.vehicles);
     this.theft = new TheftService(this.ctx, this.police, this.vehicles);
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
@@ -176,6 +179,9 @@ export class GameServer implements Hub {
       'sanayi.strip': (pid, p) => this.theft.strip(pid, p),
       'pawn.sell': (pid, p) => this.theft.sell(pid, p),
       'missions.list': (pid) => this.missions.list(pid),
+      'rewards.info': (pid) => this.rewards.view(pid),
+      'rewards.daily': (pid) => this.rewards.claimDaily(pid),
+      'rewards.playtime': (pid, p) => this.rewards.claimPlaytime(pid, p),
       'missions.start': (pid, p) => this.missions.start(pid, p),
       'bank.deposit': (pid, p) => this.bank.deposit(pid, p),
       'bank.withdraw': (pid, p) => this.bank.withdraw(pid, p),
@@ -350,6 +356,7 @@ export class GameServer implements Hub {
     socket.emit('welcome', { playerId, self: this.privateState(playerId), world: this.worldInit(), protocol: PROTOCOL_VERSION });
     this.broadcast('player.upsert', this.publicPlayer(playerId));
     await this.missions.load(playerId);
+    await this.rewards.load(playerId);
     for (const m of this.chat.history) socket.emit('chat', m);
     log.info('player connected', { playerId, name: record.name, online: this.sessions.size });
 
@@ -371,6 +378,7 @@ export class GameServer implements Hub {
     this.police.forget(playerId);
     this.theft.forget(playerId);
     await this.missions.forget(playerId);
+    await this.rewards.forget(playerId);
     const c = this.sim.chars.get(playerId);
     if (c?.drivingId) {
       const vehicleId = c.drivingId;
@@ -405,6 +413,9 @@ export class GameServer implements Hub {
     if (!session.rpcBucket.take()) return { ok: false, error: 'Too many requests. Slow down.', code: 'rate_limited' };
     const handler = Object.prototype.hasOwnProperty.call(this.handlers, req.method) ? this.handlers[req.method as RpcName] : undefined;
     if (!handler) return { ok: false, error: 'Unknown action.', code: 'bad_request' };
+    // Using a menu counts as playing (playtime rewards).
+    const ch = this.ctx.sim.chars.get(session.playerId);
+    if (ch && req.method !== 'rewards.info') ch.activeAt = Date.now();
     const run = (async (): Promise<RpcResponse> => {
       try {
         const result = await handler(session.playerId, req.params ?? {});
@@ -586,6 +597,7 @@ export class GameServer implements Hub {
     await this.highway.flush();
     await this.driving.tick();
     await this.missions.tick();
+    await this.rewards.tick();
     await this.theft.tick();
     if (this.cfg.simulation) {
       await this.customers.tick();

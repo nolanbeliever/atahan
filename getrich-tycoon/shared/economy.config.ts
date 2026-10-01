@@ -582,6 +582,26 @@ export const ECONOMY = {
   },
 
   /** Missions: daily set (resets at 00:00 UTC) with automatic rewards. */
+  /** Daily login streak and playtime milestones (shared/rewards.ts). */
+  rewards: {
+    /** Special Nitro shots in the day-6 box. */
+    nitroOnDay6: 3,
+    vipCoinsOnDay7: 10,
+    vipCoinsOnMega: 5,
+    /** Playtime only counts while the player did something in the last this-many seconds. */
+    activeTimeoutSec: 120,
+    /** Pawn Shop bonus coupon: next sale pays this much more. */
+    pawnBonus: 0.5,
+  },
+
+  /** Nitrous: a shot gives more torque for a few seconds (shared/drivetrain.ts). */
+  nitro: {
+    seconds: 5,
+    torque: 0.6,
+    /** Top speed limiter lifted by this much while it burns. */
+    limiter: 0.12,
+  },
+
   missions: {
     dailyCount: 5,
     /** The timed sell mission can be restarted after this long (s). */

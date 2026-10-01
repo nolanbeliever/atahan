@@ -121,6 +121,35 @@ label.field { display: grid; gap: 6px; font-size: 12px; color: var(--text-dim); 
 .wallet .cash { font-size: 28px; font-weight: 900; color: var(--money); letter-spacing: -0.5px; font-variant-numeric: tabular-nums; text-shadow: 0 2px 18px rgba(46,229,157,0.25); transition: transform 0.2s; }
 .wallet .cash.bump { transform: scale(1.08); }
 .wallet .bank { font-size: 12px; color: var(--text-dim); font-weight: 600; }
+.wallet-row { display: flex; gap: 10px; align-items: stretch; }
+
+/* Gift box: playtime countdown, glows when a reward is waiting. */
+.gift-hud { display: flex; align-items: center; gap: 9px; padding: 8px 12px 8px 9px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); color: var(--text); cursor: pointer; font: inherit; text-align: left; backdrop-filter: blur(8px); transition: transform 0.12s, border-color 0.2s; }
+.gift-hud:hover { transform: translateY(-1px); border-color: var(--line-strong); }
+.gift-icon { width: 34px; height: 34px; display: grid; place-items: center; }
+.gift-icon svg { width: 34px; height: 34px; filter: drop-shadow(0 2px 6px rgba(255,92,122,0.35)); }
+.gift-text { display: flex; flex-direction: column; min-width: 88px; }
+.gift-title { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); white-space: nowrap; }
+.gift-time { font-size: 17px; font-weight: 900; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gift-hud.ready { border-color: rgba(255,197,61,0.7); animation: gift-glow 1.4s ease-in-out infinite; }
+.gift-hud.ready .gift-icon { animation: gift-wiggle 1.4s ease-in-out infinite; }
+.gift-hud.ready .gift-time { font-size: 14px; color: #ffe08a; }
+@keyframes gift-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,197,61,0.0), var(--shadow); } 50% { box-shadow: 0 0 26px 4px rgba(255,197,61,0.55), var(--shadow); } }
+@keyframes gift-wiggle { 0%, 60%, 100% { transform: rotate(0) scale(1); } 70% { transform: rotate(-12deg) scale(1.12); } 80% { transform: rotate(10deg) scale(1.12); } 90% { transform: rotate(-6deg) scale(1.06); } }
+
+/* Confetti and the "reward collected" banner. */
+.confetti-layer { position: fixed; inset: 0; pointer-events: none; z-index: 9000; overflow: hidden; }
+.confetti-bit, .confetti-bill { position: absolute; width: 9px; height: 14px; border-radius: 2px; margin: -7px 0 0 -4px; animation-name: confetti-fly; animation-timing-function: cubic-bezier(.15,.7,.4,1); animation-fill-mode: both; }
+.confetti-bill { width: auto; height: auto; padding: 1px 5px; background: #2ee59d; color: #063d26; font-weight: 900; font-size: 13px; border-radius: 3px; font-style: normal; }
+@keyframes confetti-fly {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  45% { transform: translate(var(--dx), var(--dy)) rotate(calc(var(--spin) * 0.5)); opacity: 1; }
+  100% { transform: translate(calc(var(--dx) * 1.2), calc(var(--dy) + var(--fall))) rotate(var(--spin)); opacity: 0; }
+}
+.reward-banner { position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%); z-index: 8999; pointer-events: none; text-align: center; padding: 18px 34px; border-radius: 20px; background: radial-gradient(circle at 50% 0%, rgba(255,214,107,0.28), rgba(16,22,38,0.94) 70%); border: 1px solid rgba(255,197,61,0.6); box-shadow: 0 0 60px rgba(255,197,61,0.35), var(--shadow); animation: reward-banner 2.6s ease both; }
+.reward-banner .rb-title { font-size: 30px; font-weight: 900; letter-spacing: 0.02em; color: #ffd66b; text-shadow: 0 3px 18px rgba(255,176,32,0.6); }
+.reward-banner .rb-text { margin-top: 6px; font-size: 16px; font-weight: 800; color: var(--money); }
+@keyframes reward-banner { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); } 20% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%) scale(1); } }
 .minimap { width: 190px; height: 190px; border-radius: 50%; overflow: hidden; border: 3px solid rgba(255,255,255,0.14); box-shadow: var(--shadow); background: #0f1a14; position: relative; }
 .minimap canvas { width: 100%; height: 100%; display: block; }
 .minimap .zone-label { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 4px #000; pointer-events: none; }
@@ -346,6 +375,11 @@ body.touch .modal-close { width: 44px; height: 44px; }
   body.touch .xp-text, body.touch .rep { display: none; }
   body.touch .wallet { padding: 6px 12px; min-width: 0; }
   body.touch .wallet .cash { font-size: 20px; }
+  body.touch .gift-hud { padding: 5px 8px; }
+  body.touch .gift-icon, body.touch .gift-icon svg { width: 24px; height: 24px; }
+  body.touch .gift-text { min-width: 0; }
+  body.touch .gift-title { display: none; }
+  body.touch .gift-time { font-size: 13px; }
   body.touch .minimap { width: 100px; height: 100px; }
   body.touch .touch-stick { width: 130px; height: 130px; }
   body.touch .touch-stick .knob { width: 52px; height: 52px; margin: -26px 0 0 -26px; }
@@ -644,3 +678,34 @@ body.touch .lp-turn { display: inline-flex; }
 .eb-spot.done .eb-name { color: var(--text-dim); text-decoration: line-through; }
 .eb-spot.working .eb-dot { animation: none; }
 @keyframes ebpulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.14); } }
+
+/* ---------------------------------------------------------------- rewards panel */
+.rewards { gap: 18px; }
+.rw-section { display: flex; flex-direction: column; gap: 10px; }
+.rw-section h3 { margin: 0; font-size: 15px; font-weight: 900; letter-spacing: 0.02em; }
+.rw-boxes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.rw-box, .rw-mile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--line); text-align: center; min-height: 128px; justify-content: space-between; }
+.rw-box.big { grid-column: span 2; background: linear-gradient(145deg, rgba(255,197,61,0.18), rgba(122,92,255,0.18)); border-color: rgba(255,197,61,0.45); }
+.rw-box.claimed, .rw-mile.claimed { opacity: 0.55; }
+.rw-box.today, .rw-mile.today { border-color: rgba(255,197,61,0.85); animation: gift-glow 1.4s ease-in-out infinite; }
+.rw-box.locked .rw-icon { opacity: 0.45; }
+.rw-day { font-size: 11px; font-weight: 900; letter-spacing: 0.1em; color: var(--text-dim); }
+.rw-icon svg { width: 30px; height: 30px; color: var(--gold); }
+.rw-box.big .rw-icon svg { width: 40px; height: 40px; }
+.rw-title { font-size: 13px; font-weight: 800; line-height: 1.25; }
+.rw-state { font-size: 12px; font-weight: 800; color: var(--money); }
+.rw-state.muted { color: var(--text-faint); }
+.rw-claim { font-weight: 900; letter-spacing: 0.04em; }
+.rw-bar { position: relative; height: 14px; border-radius: 99px; background: rgba(255,255,255,0.08); margin: 4px 6px 22px; }
+.rw-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--gold)); transition: width 0.5s linear; }
+.rw-tick { position: absolute; top: -3px; width: 4px; height: 20px; margin-left: -2px; border-radius: 2px; background: var(--text-faint); }
+.rw-tick.claimed { background: var(--money); }
+.rw-tick span { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 800; color: var(--text-dim); white-space: nowrap; }
+.rw-miles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.rw-mile { min-height: 116px; }
+.rw-mile.big { background: linear-gradient(145deg, rgba(46,229,157,0.14), rgba(255,197,61,0.16)); }
+.rw-choice { display: flex; flex-direction: column; gap: 5px; width: 100%; }
+@media (max-width: 760px) {
+  .rw-boxes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rw-miles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

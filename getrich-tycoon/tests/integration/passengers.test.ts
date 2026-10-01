@@ -52,7 +52,9 @@ describe('passengers', () => {
     const vehicleId = await driveCar(driver);
     // Nobody drives a parked car; you can't ride in your own.
     expect(await driver.rpcRaw('vehicle.ride', { vehicleId })).toMatchObject({ ok: false, code: 'conflict' });
-    // Too far away.
+    // Too far away (new players appear around the same spot, so move the rider off first).
+    const at = server.game.sim.drives.get(vehicleId)!.dyn;
+    server.game.sim.teleport(rider.playerId, at.x + 30, at.z + 30);
     expect(await rider.rpcRaw('vehicle.ride', { vehicleId })).toMatchObject({ ok: false, code: 'too_far' });
     besideCar(rider, vehicleId);
     const r = await rider.rpc('vehicle.ride', { vehicleId });

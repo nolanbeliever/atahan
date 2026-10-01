@@ -2,9 +2,10 @@
 // stance. Prices, prerequisites and effects come from the shared tuning system; the server only
 // accepts what `quoteTuning` accepts and charges exactly its total.
 
-import { MOD_CATALOG, findOption, isValidModOption, optionLevel } from '../../../shared/customization';
+import { MOD_CATALOG, SPECIAL_NEON, findOption, isValidModOption, optionLevel } from '../../../shared/customization';
 import { ECONOMY } from '../../../shared/economy.config';
 import { BODY_SLOTS, PAINT_FINISHES, PERF_SLOTS, RIM_FINISHES, findPart, type BodySlot, type PerfSlot } from '../../../shared/modificationsData';
+import { NEON_SPECIAL_ITEM, RIM_COUPON } from '../../../shared/rewards';
 import { ECU_COUPON } from '../../../shared/missions';
 import { partPrice, quoteTuning, tuningOf, type TuningChange } from '../../../shared/tuningSystem';
 import type { Vehicle, VehicleMods } from '../../../shared/types';
@@ -114,6 +115,7 @@ export class TuningService {
         if (next === undefined || next === (veh.mods[slot] ?? 'ug_none')) continue;
         const need = optionLevel(next);
         if (player.level < need) throw new GameError('forbidden', `${findOption(next)?.label ?? 'That option'} unlocks at level ${need}.`);
+        if (next === SPECIAL_NEON && (player.inventory[NEON_SPECIAL_ITEM] ?? 0) < 1) throw new GameError('forbidden', 'Plazma Neon is the 2-hour playtime reward.');
         legacyCost += findOption(next)?.price ?? 0;
         veh.mods[slot] = next;
         legacyChanged++;
@@ -128,8 +130,19 @@ export class TuningService {
         if (left > 0) player.inventory[ECU_COUPON] = left;
         else delete player.inventory[ECU_COUPON];
       }
+      // The rim & paint reward coupon pays for new wheels and paint in one visit.
+      const rimPaint = quote.lines.filter((l) => l.kind === 'paint' || l.kind === 'rim').reduce((a, l) => a + l.cost, 0);
+      let rimCoupon = 0;
+      if (rimPaint > 0 && (player.inventory[RIM_COUPON] ?? 0) > 0) {
+        rimCoupon = rimPaint;
+        const left = (player.inventory[RIM_COUPON] ?? 0) - 1;
+        if (left > 0) player.inventory[RIM_COUPON] = left;
+        else delete player.inventory[RIM_COUPON];
+      }
+      couponSaving += rimCoupon;
       const total = Math.max(0, quote.total + legacyCost - couponSaving);
-      if (total > 0) uow.debit(player, total, 'tuning', `Tuning garage: ${modelDisplayName(veh.modelId)}${couponSaving ? ' (ECU coupon used)' : ''}`, veh.id);
+      const used = [couponSaving - rimCoupon > 0 ? 'ECU coupon' : '', rimCoupon > 0 ? 'rim & paint coupon' : ''].filter(Boolean).join(', ');
+      if (total > 0) uow.debit(player, total, 'tuning', `Tuning garage: ${modelDisplayName(veh.modelId)}${used ? ` (${used} used)` : ''}`, veh.id);
       veh.mods.tuning = quote.next;
       // Custom paint, aftermarket wheels and body parts replace the classic one-click options.
       if (change.paint && quote.next.paint) veh.mods.paint = null;

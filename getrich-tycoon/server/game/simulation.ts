@@ -46,6 +46,9 @@ export interface CharacterEntity {
   interactUntil: number;
   droppedCmds: number;
   lastInputAt: number;
+  /** Last time the player actually did something (pressed a key, turned the camera, used a menu). */
+  activeAt: number;
+  lastYaw: number;
   /** Last time the horn / headlight flash was used (ms). */
   hornAt: number;
 }
@@ -173,7 +176,7 @@ export class Simulation {
 
   addPlayer(id: string, x: number, z: number, rot: number): CharacterEntity {
     const now = Date.now();
-    const c: CharacterEntity = { id, x, z, rot, gait: 0, drivingId: null, ridingId: null, seat: 0, lastSeq: 0, budget: 0.25, budgetAt: now, interactUntil: 0, droppedCmds: 0, lastInputAt: now, hornAt: 0 };
+    const c: CharacterEntity = { id, x, z, rot, gait: 0, drivingId: null, ridingId: null, seat: 0, lastSeq: 0, budget: 0.25, budgetAt: now, interactUntil: 0, droppedCmds: 0, lastInputAt: now, activeAt: now, lastYaw: 0, hornAt: 0 };
     this.chars.set(id, c);
     return c;
   }
@@ -289,6 +292,8 @@ export class Simulation {
       }
       c.budget -= dt;
       c.lastInputAt = now;
+      if (keys !== 0 || Math.abs(yaw - c.lastYaw) > 1e-3) c.activeAt = now;
+      c.lastYaw = yaw;
       if (keys & KEY.HORN) c.hornAt = now;
       this.applyCommand(c, { seq, dt, keys, yaw });
     }

@@ -11,6 +11,7 @@ import { BankPanel, FuelPanel, PartsPanel, RepairPanel, WashPanel } from './serv
 import { EngineBayPanel } from './engineBay';
 import { LockpickPanel } from './lockpick';
 import { PawnPanel, SanayiPanel } from './theft';
+import { RewardsPanel } from './rewards';
 
 const PANELS = {
   menu: MenuPanel,
@@ -37,6 +38,7 @@ const PANELS = {
   sanayi: SanayiPanel,
   lockpick: LockpickPanel,
   engineBay: EngineBayPanel,
+  rewards: RewardsPanel,
 } satisfies Record<string, new (ui: UI, arg: PanelArg) => Panel>;
 
 export type PanelName = keyof typeof PANELS;

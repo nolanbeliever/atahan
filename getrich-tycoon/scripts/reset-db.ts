@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import pg from 'pg';
 import { loadConfig } from '../server/config';
 
-const TABLES = ['notices', 'transactions', 'auctions', 'market_listings', 'dealerships', 'vehicles', 'sessions', 'players', 'world_state', 'schema_info'];
+const TABLES = ['player_rewards', 'player_missions', 'notices', 'transactions', 'auctions', 'market_listings', 'dealerships', 'vehicles', 'sessions', 'players', 'world_state', 'schema_info'];
 
 if (!process.argv.includes('--yes')) {
   console.error('This deletes ALL players, vehicles and dealerships. Re-run with --yes to confirm.');

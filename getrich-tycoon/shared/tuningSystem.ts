@@ -582,6 +582,8 @@ export interface TuningQuoteLine {
   label: string;
   cost: number;
   seconds: number;
+  /** What the line is for (the rim & paint reward coupon pays for 'paint' and 'rim' lines). */
+  kind?: 'part' | 'paint' | 'rim' | 'alignment';
 }
 
 export interface TuningQuote {
@@ -608,7 +610,7 @@ export function quoteTuning(model: VehicleModel, current: VehicleTuning, change:
     changed = true;
     if (id === null) {
       delete into[slot];
-      lines.push({ label: `${SLOT_LABELS[slot]}: back to stock`, cost: 0, seconds: 3 });
+      lines.push({ label: `${SLOT_LABELS[slot]}: back to stock`, cost: 0, seconds: 3, kind: 'part' });
       return;
     }
     const part = findPart(id);
@@ -617,7 +619,7 @@ export function quoteTuning(model: VehicleModel, current: VehicleTuning, change:
       return;
     }
     into[slot] = id;
-    lines.push({ label: part.name, cost: partPrice(model, part), seconds: part.installSec });
+    lines.push({ label: part.name, cost: partPrice(model, part), seconds: part.installSec, kind: 'part' });
   };
 
   const prevSuspension = next.perf.suspension ?? null;
@@ -636,7 +638,7 @@ export function quoteTuning(model: VehicleModel, current: VehicleTuning, change:
       if (next.paint) {
         next.paint = null;
         changed = true;
-        lines.push({ label: 'Factory paint', cost: paintPrice(model, 'gloss'), seconds: 8 });
+        lines.push({ label: 'Factory paint', cost: paintPrice(model, 'gloss'), seconds: 8, kind: 'paint' });
       }
     } else if (!PAINT_FINISHES.includes(p.finish) || !HEX_COLOR.test(p.color) || (p.color2 !== undefined && !HEX_COLOR.test(p.color2))) {
       issues.push('Invalid paint colour.');
@@ -646,7 +648,7 @@ export function quoteTuning(model: VehicleModel, current: VehicleTuning, change:
       if (!same) {
         next.paint = want;
         changed = true;
-        lines.push({ label: `${PAINT_FINISH_DEFS[want.finish].name} paint ${want.color}${want.color2 ? ` / ${want.color2}` : ''}`, cost: paintPrice(model, want.finish), seconds: 10 });
+        lines.push({ label: `${PAINT_FINISH_DEFS[want.finish].name} paint ${want.color}${want.color2 ? ` / ${want.color2}` : ''}`, cost: paintPrice(model, want.finish), seconds: 10, kind: 'paint' });
       }
     }
   }
@@ -657,18 +659,18 @@ export function quoteTuning(model: VehicleModel, current: VehicleTuning, change:
       if (next.rim) {
         next.rim = null;
         changed = true;
-        lines.push({ label: 'Factory wheels', cost: 0, seconds: 4 });
+        lines.push({ label: 'Factory wheels', cost: 0, seconds: 4, kind: 'rim' });
       }
     } else if (!findRimDesign(r.design) || !RIM_FINISHES.includes(r.finish)) {
       issues.push('Invalid wheel choice.');
     } else if (!next.rim || next.rim.design !== r.design) {
       next.rim = { design: r.design, finish: r.finish };
       changed = true;
-      lines.push({ label: `${findRimDesign(r.design)!.name} wheels`, cost: rimPrice(model, r.design), seconds: 6 });
+      lines.push({ label: `${findRimDesign(r.design)!.name} wheels`, cost: rimPrice(model, r.design), seconds: 6, kind: 'rim' });
     } else if (next.rim.finish !== r.finish) {
       next.rim = { design: r.design, finish: r.finish };
       changed = true;
-      lines.push({ label: 'Wheel refinish', cost: RIM_REFINISH_COST, seconds: 5 });
+      lines.push({ label: 'Wheel refinish', cost: RIM_REFINISH_COST, seconds: 5, kind: 'rim' });
     }
   }
 
@@ -690,7 +692,7 @@ export function quoteTuning(model: VehicleModel, current: VehicleTuning, change:
     next.drop = drop;
     next.camber = camber;
     changed = true;
-    if (manual && !suspensionChanged) lines.push({ label: `Alignment (drop ${drop} cm, camber -${camber}°)`, cost: ALIGNMENT_COST, seconds: 4 });
+    if (manual && !suspensionChanged) lines.push({ label: `Alignment (drop ${drop} cm, camber -${camber}°)`, cost: ALIGNMENT_COST, seconds: 4, kind: 'alignment' });
   }
 
   issues.push(...tuningIssues(model, next));

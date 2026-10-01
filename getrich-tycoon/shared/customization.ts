@@ -75,7 +75,12 @@ export const UNDERGLOWS: CustomOption[] = [
   { id: 'ug_purple', label: 'Purple Neon', price: 1_700, value: '#9b5bff' },
   { id: 'ug_white', label: 'White Neon', price: 1_700, value: '#e8f0ff' },
   { id: 'ug_rainbow', label: 'Rainbow Cycle', price: 4_000, value: 'rainbow' },
+  // Unlocked by the 2-hour playtime reward (shared/rewards.ts), not by level.
+  { id: 'ug_plasma', label: 'Plazma Neon (Özel)', price: 0, value: 'plasma' },
 ];
+
+/** The underglow the 2-hour playtime reward unlocks. */
+export const SPECIAL_NEON = 'ug_plasma';
 
 export const MOD_CATALOG: Record<ModSlot, CustomOption[]> = {
   paint: PAINTS,
@@ -89,7 +94,7 @@ export const MOD_CATALOG: Record<ModSlot, CustomOption[]> = {
 
 /** Level needed for a customization option (0 = always available). */
 export function optionLevel(id: string | null | undefined): number {
-  if (!id || !id.startsWith('ug_') || id === 'ug_none') return 0;
+  if (!id || !id.startsWith('ug_') || id === 'ug_none' || id === SPECIAL_NEON) return 0;
   return id === 'ug_rainbow' ? ECONOMY.unlocks.rainbowUnderglowLevel : ECONOMY.unlocks.underglowLevel;
 }
 

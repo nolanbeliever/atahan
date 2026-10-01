@@ -14,6 +14,7 @@
 // 0-100 km/h time and top speed (see `calibrate`). Tuning parts then change power, torque, weight,
 // grip and aero, and the simulation shows what that does - nothing is scaled by hand.
 
+import { ECONOMY } from './economy.config';
 import { findPart, type VehicleTuning } from './modificationsData';
 import { dynoCurve, rawVehicleStats, type VehicleStats } from './tuningSystem';
 import { clamp } from './util';
@@ -101,6 +102,8 @@ export interface DriveState {
   /** Throttle and brake pedal positions 0-1 (they move smoothly, not instantly). */
   thr: number;
   brk: number;
+  /** Seconds of nitrous left (a shot burns down once fired). */
+  nitro?: number;
 }
 
 export interface DriveInput {
@@ -128,6 +131,8 @@ export interface DriveOut {
   shifted: number;
   /** Rev limiter or speed limiter cutting power. */
   limiting: boolean;
+  /** A nitrous shot is burning. */
+  nitro?: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -478,7 +483,7 @@ export function absEfficiency(pt: Powertrain): number {
  * Advance the drivetrain by `dt` seconds: pedals, gearbox, engine, turbo, traction, drag, brakes.
  * Mutates `st` (speed in game m/s) and returns what happened.
  */
-export function driveStep(pt: Powertrain, st: DriveState, inp: DriveInput, dt: number, out: DriveOut = { accel: 0, wheelspin: 0, abs: false, locked: false, shifted: 0, limiting: false }): DriveOut {
+export function driveStep(pt: Powertrain, st: DriveState, inp: DriveInput, dt: number, out: DriveOut = { accel: 0, wheelspin: 0, abs: false, locked: false, shifted: 0, limiting: false, nitro: false }): DriveOut {
   const v0 = st.speed * SPEED_SCALE;
   let v = v0;
   out.shifted = 0;
@@ -535,15 +540,21 @@ export function driveStep(pt: Powertrain, st: DriveState, inp: DriveInput, dt: n
     st.boost = approach(st.boost, want, dt * (want > st.boost ? t.spool : 6));
   }
 
+  // Nitrous: while a shot lasts the engine makes more torque and runs past its speed limiter.
+  const nos = (st.nitro ?? 0) > 0;
+  if (nos) st.nitro = Math.max(0, st.nitro! - dt);
+  out.nitro = nos;
+
   const forward = st.gear >= 1;
   const overRev = engRpm >= pt.redline;
-  const overSpeed = forward ? v >= pt.limiter : -v >= REVERSE_LIMIT;
+  const overSpeed = forward ? v >= pt.limiter * (nos ? 1 + ECONOMY.nitro.limiter : 1) : -v >= REVERSE_LIMIT;
   out.limiting = st.thr > 0.05 && (overRev || overSpeed);
   let drive = 0;
   // Drive is interrupted while an upshift is in progress.
   if (st.thr > 0 && !out.limiting && st.shift === 0) {
     let tq = torqueAt(pt, Math.max(st.rpm, pt.idle)) * st.thr;
     if (t) tq *= 1 - t.share * Math.max(0, spoolAt(t, st.rpm) - st.boost);
+    if (nos) tq *= 1 + ECONOMY.nitro.torque;
     drive = (tq * ratio * pt.eff) / pt.wheelR;
   }
 

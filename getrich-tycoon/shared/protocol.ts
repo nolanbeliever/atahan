@@ -7,6 +7,7 @@ import type { MissionView } from './missions';
 import type { BustedEvent, WantedState } from './police';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
+import type { MegaChoice, RewardsView } from './rewards';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -100,6 +101,10 @@ export interface RpcMethods {
   'pawn.sell': { params: { part?: StripPart }; result: { amount: number; count: number } };
   /** Today's missions (and start a timed one). */
   'missions.list': { params: Empty; result: { missions: MissionView[] } };
+  /** Daily login streak and playtime milestones. */
+  'rewards.info': { params: Empty; result: RewardsView };
+  'rewards.daily': { params: Empty; result: { day: number; reward: string; view: RewardsView } };
+  'rewards.playtime': { params: { minutes: number; choice?: MegaChoice }; result: { minutes: number; reward: string; view: RewardsView } };
   'missions.start': { params: { id: string }; result: { missions: MissionView[] } };
 
   'bank.deposit': { params: { amount: number }; result: { money: number; bank: number } };
@@ -171,6 +176,7 @@ export interface ServerToClientEvents {
   /** Passive income while driving (every 10 s, by the car's value). */
   'drive.bonus': (d: { amount: number; value: number }) => void;
   'missions.update': (d: { missions: MissionView[] }) => void;
+  'rewards.update': (d: RewardsView) => void;
   /** A mission was completed (the reward is already paid). */
   'missions.complete': (d: { id: string; title: string; reward: string }) => void;
   'police.wanted': (d: WantedState) => void;

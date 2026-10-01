@@ -3,6 +3,7 @@
 import { ECONOMY } from '../../../shared/economy.config';
 import { CHAT_MAX } from '../../../shared/protocol';
 import { levelProgress } from '../../../shared/progression';
+import { PLAYTIME_MILESTONES, type RewardsView } from '../../../shared/rewards';
 import type { ChatMessage, CustomerOffer, Notification } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
 import { modelDisplayName } from '../../../shared/vehicles';
@@ -13,6 +14,8 @@ import { ICONS } from './icons';
 import { DragHud, NearMissHud } from './HighwayHud';
 import { GaugeHud } from './Gauge';
 import { MissionsHud } from './MissionsHud';
+import { RewardsHud } from './RewardsHud';
+import { claimPlaytime } from './panels/rewards';
 import { WantedHud } from './WantedHud';
 import { Minimap } from './Minimap';
 import type { Panel, PanelArg } from './Panel';
@@ -132,6 +135,7 @@ export class UI {
   readonly cluster = new GaugeHud();
   readonly wanted = new WantedHud();
   readonly missions = new MissionsHud();
+  readonly rewardsHud = new RewardsHud();
   private overlay: HTMLElement | null = null;
   private panel: Panel | null = null;
   private lastPromptKey = '';
@@ -147,6 +151,8 @@ export class UI {
     this.touch = new TouchControls(this);
     this.root.insertBefore(this.touch.el, this.hud.offers);
     game.store.on('offers', () => this.renderOffers());
+    game.store.on('rewards', (v) => this.onRewards(v));
+    this.rewardsHud.onClick = () => void this.giftClicked();
     game.store.on('dealerships', () => this.updateHud());
     // A dot on the Marketplace button while the Rare Dealer has an unsold legendary.
     game.store.on('rare', (r) => this.hud.marketBtn.classList.toggle('alert', r.offers.some((o) => o.tier === 'legendary' && !o.soldTo)));
@@ -214,7 +220,7 @@ export class UI {
     const right = h(
       'div',
       { class: 'hud-top-right' },
-      h('div', { class: 'wallet' }, cash, bank),
+      h('div', { class: 'wallet-row' }, this.rewardsHud.el, h('div', { class: 'wallet' }, cash, bank)),
       h('div', { class: 'minimap' }, this.minimap.canvas, zone),
     );
     const hint = h(
@@ -320,6 +326,36 @@ export class UI {
     if (secondary) el.append(h('div', { class: 'alt' }, h('span', { class: 'kbd', style: { background: '#ffc53d' } }, 'G'), h('div', null, secondary.label)));
     el.classList.add('show');
     this.touch.setActions(i, secondary);
+  }
+
+  // ------------------------------------------------------------ rewards
+
+  private rewardsGreeted = false;
+
+  private onRewards(v: RewardsView): void {
+    this.rewardsHud.set(v);
+    if (this.rewardsGreeted) return;
+    this.rewardsGreeted = true;
+    // First visit of the day: show the streak so today's box gets opened (automated tests turn it off).
+    let auto = true;
+    try {
+      auto = localStorage.getItem('getrich.autoRewards') !== '0';
+    } catch {
+      // Storage blocked: keep the default.
+    }
+    if (!auto || !v.daily.claimable) return;
+    setTimeout(() => {
+      if (!this.anyOpen() && !this.game.driving) this.open('rewards');
+    }, 1200);
+  }
+
+  /** The gift box: collect a ready playtime reward on the spot, otherwise open the rewards panel
+   *  (the daily streak, the 3-hour reward's choice). */
+  private giftClicked(): void {
+    const ready = this.rewardsHud.ready();
+    const m = ready.milestone !== null ? PLAYTIME_MILESTONES.find((x) => x.minutes === ready.milestone) : undefined;
+    if (m && !m.choice) void claimPlaytime(this, m.minutes, null, this.rewardsHud.el);
+    else this.open('rewards');
   }
 
   /** Dot on the missions button while some are still open. */

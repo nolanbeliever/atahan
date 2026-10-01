@@ -2,7 +2,8 @@
 // chassis), paint finishes with a colour picker, body parts, wheels & stance and a dyno. Every
 // change previews live (3D, stats, dyno); the server re-prices and validates on Apply.
 
-import { MOD_CATALOG, MOD_SLOT_LABELS, findOption, optionLevel } from '../../../../shared/customization';
+import { MOD_CATALOG, MOD_SLOT_LABELS, SPECIAL_NEON, findOption, optionLevel } from '../../../../shared/customization';
+import { NEON_SPECIAL_ITEM } from '../../../../shared/rewards';
 import {
   BODY_SLOTS,
   HEX_COLOR,
@@ -561,14 +562,23 @@ export class TuningGaragePanel extends Panel {
               const current = v.mods[slot] ?? 'ug_none';
               const need = optionLevel(o.id);
               const locked = need > (this.ui.game.store.me?.level ?? 1);
+              // Plazma Neon is the 2-hour playtime reward: open once the player has earned it.
+              const reward = o.id === SPECIAL_NEON && (this.ui.game.store.me?.inventory[NEON_SPECIAL_ITEM] ?? 0) < 1 && current !== o.id;
               return this.optionButton({
                 active: (this.legacy[slot] ?? current) === o.id,
                 installed: current === o.id,
-                disabled: locked ? `🔒 Unlocks at level ${need}` : null,
+                disabled: locked ? `🔒 Unlocks at level ${need}` : reward ? '🎁 2 saatlik oynama ödülü' : null,
                 title: o.label,
                 price: o.price,
                 testid: `mod-${slot}-${o.id}`,
-                swatch: slot === 'headlights' || (slot === 'underglow' && o.value.startsWith('#')) ? o.value : slot === 'underglow' && o.value === 'rainbow' ? 'linear-gradient(90deg,#ff2a2a,#ffd23f,#39ff88,#2b7bff,#ff2bd6)' : undefined,
+                swatch:
+                  slot === 'headlights' || (slot === 'underglow' && o.value.startsWith('#'))
+                    ? o.value
+                    : slot === 'underglow' && o.value === 'rainbow'
+                      ? 'linear-gradient(90deg,#ff2a2a,#ffd23f,#39ff88,#2b7bff,#ff2bd6)'
+                      : slot === 'underglow' && o.value === 'plasma'
+                        ? 'linear-gradient(90deg,#7a3cff,#22e1ff,#7a3cff)'
+                        : undefined,
                 onclick: () => {
                   if (o.id === current) delete this.legacy[slot];
                   else this.legacy[slot] = o.id;

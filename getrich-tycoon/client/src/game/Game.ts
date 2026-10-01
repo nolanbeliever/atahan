@@ -141,6 +141,9 @@ export class Game {
   private pending: InputCmd[] = [];
   private outbox: InputCmd[] = [];
   private seq = 0;
+  /** Last time the player did something (playtime rewards count active time only). */
+  private activeAt = 0;
+  private lastYaw = 0;
   private acc = 0;
   private last = performance.now();
   private dynamic: DynamicBox[] = [];
@@ -219,6 +222,12 @@ export class Game {
 
   private bindNetwork(): void {
     const net = this.net;
+    const mark = (): void => {
+      this.activeAt = performance.now();
+    };
+    window.addEventListener('pointerdown', mark, true);
+    window.addEventListener('keydown', mark, true);
+    window.addEventListener('wheel', mark, { capture: true, passive: true });
     net.on('welcome', (w) => {
       this.hasWelcome = true;
       this.entities.clear();
@@ -251,7 +260,12 @@ export class Game {
         .rpc('blackmarket.info', {})
         .then((r) => this.store.setBlackMarket(r))
         .catch(() => undefined);
+      void this.net
+        .rpc('rewards.info', {})
+        .then((r) => this.store.setRewards(r))
+        .catch(() => undefined);
     });
+    net.on('rewards.update', (v) => this.store.setRewards(v));
     net.on('self', (s) => this.store.applySelf(s));
     net.on('snapshot', (s) => this.onSnapshot(s));
     net.on('player.upsert', (p) => this.store.upsertPlayer(p));
@@ -551,6 +565,8 @@ export class Game {
     // Hands off while getting in / out, and during the arrest.
     if (this.busted || this.entities.boardingBusy(this.store.playerId)) keys = 0;
     const cmd: InputCmd = { seq: ++this.seq, dt: SIM_DT, keys, yaw: this.cam.yaw };
+    if (keys !== 0 || Math.abs(cmd.yaw - this.lastYaw) > 1e-3) this.activeAt = performance.now();
+    this.lastYaw = cmd.yaw;
     this.prev = { ...this.curr };
     if (this.driving && this.dyn) {
       const v = this.store.myVehicle(this.driving);
@@ -725,6 +741,9 @@ export class Game {
       this.missionTimer = 1;
       this.ui?.missions.tick(this.store.serverNow());
     }
+    // The gift box's playtime clock runs on while the player is active (the server counts the same way).
+    const active = now - this.activeAt < ECONOMY.rewards.activeTimeoutSec * 1000 || Math.abs(carried?.lastSpeed ?? 0) > 1;
+    this.ui?.rewardsHud.update(Math.min(1, raw), active);
     this.effects.update(dt);
     this.city.update(dt);
     // Car theft: street cars and alarms, the work on lifted cars, the lifts' arms.

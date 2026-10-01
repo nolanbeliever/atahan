@@ -266,6 +266,7 @@ export type TransactionKind =
   | 'police_fine'
   | 'black_market'
   | 'pawn_sale'
+  | 'reward'
   | 'police_escape';
 
 export interface Transaction {

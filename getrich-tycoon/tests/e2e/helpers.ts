@@ -36,7 +36,17 @@ export function collectErrors(page: Page): string[] {
   return errors;
 }
 
-export async function registerAndEnter(page: Page, name = uniqueName('e2e')): Promise<string> {
+export async function registerAndEnter(page: Page, name = uniqueName('e2e'), opts: { autoRewards?: boolean } = {}): Promise<string> {
+  // The rewards panel opens by itself on a player's first visit of the day; most tests keep it shut.
+  if (!opts.autoRewards) {
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('getrich.autoRewards', '0');
+      } catch {
+        // ignore
+      }
+    });
+  }
   await page.goto(GAME_URL);
   await expect(page.getByTestId('auth-name')).toBeVisible();
   await page.getByTestId('auth-name').fill(name);

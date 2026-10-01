@@ -71,7 +71,8 @@ export type Sfx =
   | 'unlock'
   | 'ratchet'
   | 'clunk'
-  | 'lift';
+  | 'lift'
+  | 'reward';
 
 export class AudioSystem {
   private ctx: AudioContext | null = null;
@@ -537,6 +538,10 @@ export class AudioSystem {
           this.burst(this.ctx.currentTime + 0.02, 0.1, 'bandpass', 1800, 0.12);
         }
         return this.tone([110, 82], 0.2, 'triangle', 0.1, undefined, 0.08);
+      case 'reward':
+        // A cash register, coins and a fanfare.
+        if (this.ctx && this.noiseBuf) for (let i = 0; i < 8; i++) this.burst(this.ctx.currentTime + i * 0.06, 0.05, 'bandpass', 4200 + (i % 3) * 700, 0.1);
+        return this.tone([784, 988, 1175, 1568, 1976], 0.28, 'triangle', 0.13, undefined, 0.07);
       case 'lift': {
         if (!this.ctx) return;
         const ctx = this.ctx;

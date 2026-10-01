@@ -46,6 +46,7 @@ import {
   type StripPart,
 } from '../../../shared/theft';
 import type { LockpickResult, StripResult } from '../../../shared/protocol';
+import { PAWN_BONUS_ITEM } from '../../../shared/rewards';
 import type { Vehicle } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
@@ -467,9 +468,17 @@ export class TheftService {
       if (count === 0) throw new GameError('bad_request', 'You have no parts to sell.');
       let exact = 0;
       for (const g of groups.values()) exact += pawnCarPrice(g.tier, this.ctx.rng()) * g.share;
+      // A Pawn Shop bonus coupon (3-hour playtime reward) adds 50% to this sale.
+      const bonus = (player.inventory[PAWN_BONUS_ITEM] ?? 0) > 0;
+      if (bonus) {
+        exact *= 1 + ECONOMY.rewards.pawnBonus;
+        const left = (player.inventory[PAWN_BONUS_ITEM] ?? 0) - 1;
+        if (left > 0) player.inventory[PAWN_BONUS_ITEM] = left;
+        else delete player.inventory[PAWN_BONUS_ITEM];
+      }
       const amount = Math.max(1, Math.round(exact));
       uow.credit(player, amount, 'pawn_sale', `Pawn Shop: ${count} part${count === 1 ? '' : 's'}`);
-      uow.notify(playerId, { kind: 'money', title: `Parçalar Pawn Shop'a satıldı: +${formatMoney(amount)}`, text: `${count} parça (${count} part${count === 1 ? '' : 's'})` });
+      uow.notify(playerId, { kind: 'money', title: `Parçalar Pawn Shop'a satıldı: +${formatMoney(amount)}`, text: `${count} parça (${count} part${count === 1 ? '' : 's'})${bonus ? ` · +%${Math.round(ECONOMY.rewards.pawnBonus * 100)} bonus kuponu kullanıldı` : ''}` });
       await uow.commit();
       return { amount, count };
     });

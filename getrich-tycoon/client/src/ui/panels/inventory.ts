@@ -10,6 +10,17 @@ import { Panel } from '../Panel';
 import { moneyInput, statusPill, vehicleCard, vehicleTitle } from '../widgets';
 import { LOCKPICK_ITEM, stripPart } from '../../../../shared/theft';
 import { moneyRange, strippedParts } from './theft';
+import { ECU_COUPON_ITEM, NEON_SPECIAL_ITEM, NITRO_ITEM, PAWN_BONUS_ITEM, REWARD_ITEM_LABELS, RIM_COUPON, VIP_COIN } from '../../../../shared/rewards';
+
+/** What each reward item does (inventory). */
+const REWARD_USES: Record<string, string> = {
+  [NITRO_ITEM]: 'Araçtayken N: 5 saniyelik nitro.',
+  [VIP_COIN]: 'Ammu-Nation premium silahları.',
+  [PAWN_BONUS_ITEM]: 'Pawn Shop\'taki bir sonraki satışın +%50 öder.',
+  [NEON_SPECIAL_ITEM]: 'Chroma Customs\'ta Plazma Neon açık (tüm arabaların).',
+  [RIM_COUPON]: 'Bir sonraki jant + boya işi bedava (Chroma Customs).',
+  [ECU_COUPON_ITEM]: 'Stage 1 ECU yazılımı bedava (Chroma Customs).',
+};
 
 export class InventoryPanel extends Panel {
   readonly name = 'inventory';
@@ -65,7 +76,24 @@ export class InventoryPanel extends Panel {
         ),
       ),
       stolen.length ? h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => this.ui.open('map') }, 'Find the Pawn Shop ($ on the map)')) : null,
+      this.renderRewardItems(inv),
     );
+  }
+
+  /** Items won from the daily streak and playtime rewards. */
+  private renderRewardItems(inv: Record<string, number>): Child {
+    const ids = Object.keys(REWARD_USES).filter((id) => (inv[id] ?? 0) > 0);
+    return [
+      h('div', { class: 'row between', style: { marginTop: '10px' } }, h('div', { class: 'section-title' }, 'Ödüller · Rewards'), h('button', { class: 'btn small', onclick: () => this.ui.open('rewards') }, '🎁 Günlük ödüller')),
+      ids.length
+        ? h(
+            'table',
+            { class: 'table', 'data-testid': 'inv-rewards' },
+            h('thead', null, h('tr', null, h('th', null, 'Item'), h('th', null, 'Use'), h('th', null, 'Owned'))),
+            h('tbody', null, ids.map((id) => h('tr', { 'data-item': id }, h('td', null, REWARD_ITEM_LABELS[id] ?? id), h('td', { class: 'muted' }, REWARD_USES[id]), h('td', { class: 'mono' }, String(inv[id]))))),
+          )
+        : h('div', { class: 'muted small' }, 'Günlük giriş ve oynama süresi ödülleri burada birikir.'),
+    ];
   }
 
   private renderVehicles(): Child {
