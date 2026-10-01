@@ -226,7 +226,13 @@ test('vehicles are drivable: spawn from garage, enter with E, drive, exit', asyn
   const start = (await state(page)).position;
   await hold(page, 'KeyW', 6000);
   await page.waitForTimeout(1000);
-  const end = (await state(page)).position;
+  let end = (await state(page)).position;
+  // The car may have been parked nose-up to a bench or kerb: then it has to back out.
+  if (Math.hypot(end.x - start.x, end.z - start.z) <= 1) {
+    await hold(page, 'KeyS', 6000);
+    await page.waitForTimeout(1000);
+    end = (await state(page)).position;
+  }
   expect(Math.hypot(end.x - start.x, end.z - start.z)).toBeGreaterThan(1);
   // Exit
   await page.keyboard.press('KeyE');
