@@ -724,3 +724,25 @@ body.touch .lp-turn { display: inline-flex; }
 .sell-row, .papers-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); }
 .sell-price { width: 130px; }
 .subtabs .sell-tab { color: var(--money); }
+
+/* Stolen car police tracking (CCTV). */
+.pursuit-hud { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); width: min(480px, 92vw); padding: 10px 18px 10px; border-radius: 14px; background: rgba(12,14,24,0.88); border: 1px solid rgba(255,59,71,0.55); box-shadow: 0 0 28px rgba(255,40,60,0.25), var(--shadow); text-align: center; display: none; pointer-events: none; }
+.pursuit-hud.show { display: block; }
+.pursuit-hud .ph-title { font-size: 16px; font-weight: 900; letter-spacing: 0.05em; color: #ff4655; text-shadow: 0 2px 12px rgba(255,40,60,0.45); font-variant-numeric: tabular-nums; }
+.pursuit-hud .ph-sub { margin-top: 5px; font-size: 11px; font-weight: 700; color: var(--text-dim); }
+.pursuit-hud .ph-bar { height: 5px; border-radius: 99px; background: rgba(255,255,255,0.08); margin-top: 7px; overflow: hidden; }
+.pursuit-hud .ph-bar div { height: 100%; background: linear-gradient(90deg, #ff3b47, #ffd35a, #2ee59d); transition: width 0.25s linear; }
+.pursuit-hud .ph-alert { margin-top: 6px; font-size: 13px; font-weight: 900; color: #fff; }
+.pursuit-hud .ph-lights { position: absolute; top: -5px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; }
+.pursuit-hud .ph-lights span { width: 26px; height: 6px; border-radius: 4px; animation: ph-red 0.8s steps(1) infinite; }
+.pursuit-hud .ph-lights .red { background: #ff2a3a; }
+.pursuit-hud .ph-lights .blue { background: #2a7bff; animation-name: ph-blue; }
+@keyframes ph-red { 0% { opacity: 1; } 50% { opacity: 0.15; } }
+@keyframes ph-blue { 0% { opacity: 0.15; } 50% { opacity: 1; } }
+.pursuit-hud.seen { animation: ph-flash 0.35s ease-in-out 6; border-color: #ff2a3a; }
+@keyframes ph-flash { 50% { background: rgba(140,10,24,0.92); } }
+.pursuit-hud.paused .ph-title { color: #ffb547; }
+.big-banner.stolen-ok { background: radial-gradient(ellipse at center, rgba(10,90,50,0.18), rgba(0,0,0,0.5)); }
+.big-banner.stolen-ok .bb-title { color: #2ee59d; font-size: 58px; }
+body.touch .pursuit-hud { top: calc(64px + env(safe-area-inset-top)); }
+body.touch .pursuit-hud .ph-title { font-size: 14px; }

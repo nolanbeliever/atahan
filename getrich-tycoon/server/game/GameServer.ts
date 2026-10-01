@@ -38,6 +38,7 @@ import { DragService } from './services/drag';
 import { DrivingService } from './services/driving';
 import { MissionService } from './services/missions';
 import { RewardService } from './services/rewards';
+import { PursuitService } from './services/pursuit';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
 import { HighwayService } from './services/highway';
@@ -88,6 +89,7 @@ export class GameServer implements Hub {
   readonly driving: DrivingService;
   readonly missions: MissionService;
   readonly rewards: RewardService;
+  readonly pursuit: PursuitService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -129,6 +131,8 @@ export class GameServer implements Hub {
     this.rewards = new RewardService(this.ctx);
     this.police = new PoliceService(this.ctx, this.vehicles);
     this.theft = new TheftService(this.ctx, this.police, this.vehicles);
+    this.pursuit = new PursuitService(this.ctx, this.police);
+    this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
       this.police.onNearMiss(pid, e.kmh);
@@ -381,6 +385,7 @@ export class GameServer implements Hub {
     this.driving.forget(playerId);
     this.police.forget(playerId);
     this.theft.forget(playerId);
+    this.pursuit.forget(playerId);
     await this.missions.forget(playerId);
     await this.rewards.forget(playerId);
     const c = this.sim.chars.get(playerId);
@@ -593,6 +598,7 @@ export class GameServer implements Hub {
     this.highway.tick(now);
     this.drag.tick(dt);
     this.police.tick(dt, now);
+    this.pursuit.tick(dt, now);
     this.missions.tickFast(dt);
   }
 

@@ -1,5 +1,6 @@
 // Minimap & full map rendering on a 2D canvas.
 
+import { CCTV_CAMERAS, cameraYaw } from '../../../shared/cctv';
 import { CARRIAGEWAY_EDGE, DRAG_STRIP, JUNCTIONS, JUNCTION_APRON, LOOP_LEN, pathPoint } from '../../../shared/highway';
 import { SANAYI } from '../../../shared/sanayiLayout';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, WORLD_BOUNDS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
@@ -131,6 +132,20 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
     g.fillStyle = INTERACT_COLORS[i.kind] ?? '#fff';
     g.beginPath();
     g.arc(tx(i.x), tz(i.z), Math.max(3, 3.2 * s), 0, Math.PI * 2);
+    g.fill();
+  }
+  // CCTV cameras and the cones they watch.
+  const now = game.store.serverNow();
+  g.fillStyle = 'rgba(255,50,60,0.38)';
+  for (const c of CCTV_CAMERAS) {
+    const yaw = cameraYaw(c, now);
+    g.beginPath();
+    g.moveTo(tx(c.x), tz(c.z));
+    for (let k = -2; k <= 2; k++) {
+      const a = yaw + (c.fov * k) / 2;
+      g.lineTo(tx(c.x + Math.sin(a) * c.range), tz(c.z + Math.cos(a) * c.range));
+    }
+    g.closePath();
     g.fill();
   }
   // Parked cars that can be broken into (flashing red while the alarm sounds).

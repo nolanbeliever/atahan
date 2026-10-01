@@ -106,7 +106,7 @@ export class TheftService {
   private lastUsed = new Map<string, number>();
   private readonly bootAt = Date.now();
   /** Missions and others hear about thefts and pawn sales. */
-  readonly theftListeners: ((playerId: string) => void)[] = [];
+  readonly theftListeners: ((playerId: string, vehicleId: string) => void)[] = [];
 
   constructor(
     private readonly ctx: Ctx,
@@ -348,7 +348,7 @@ export class TheftService {
     this.ctx.hub.broadcast('vehicle.upsert', this.ctx.state.toPublicVehicle(live));
     this.ctx.sim.rebuildDynamic();
     this.lastUsed.set(vehicle.id, now);
-    for (const l of this.theftListeners) l(playerId);
+    for (const l of this.theftListeners) l(playerId, vehicle.id);
     log.info('car stolen', { playerId, modelId: car.modelId });
     return vehicle.id;
   }

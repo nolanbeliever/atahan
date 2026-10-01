@@ -69,6 +69,11 @@ export class WantedHud {
     this.show('mission', [h('div', { class: 'bb-kicker' }, 'MISSION COMPLETE · GÖREV TAMAMLANDI'), h('div', { class: 'bb-title' }, title), h('div', { class: 'bb-text' }, reward)], 3200);
   }
 
+  /** The stolen car is the player's for good. */
+  stolenOk(model: string): void {
+    this.show('stolen-ok', [h('div', { class: 'bb-kicker' }, model.toUpperCase()), h('div', { class: 'bb-title' }, 'CAR STOLEN SUCCESSFULLY!'), h('div', { class: 'bb-text' }, '(Araç Tamamen Senindir)'), h('div', { class: 'bb-sub' }, 'Keep it, store it or sell it on the Marketplace.')], 4200);
+  }
+
   private show(kind: string, children: HTMLElement[], ms: number): void {
     clear(this.banner);
     this.banner.append(h('div', { class: 'bb-card' }, ...children));

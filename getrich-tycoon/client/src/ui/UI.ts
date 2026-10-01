@@ -18,6 +18,7 @@ import { MissionsHud } from './MissionsHud';
 import { RewardsHud } from './RewardsHud';
 import { claimPlaytime } from './panels/rewards';
 import { WantedHud } from './WantedHud';
+import { PursuitHud } from './PursuitHud';
 import { Minimap } from './Minimap';
 import type { Panel, PanelArg } from './Panel';
 import { createPanel, type PanelName } from './panels';
@@ -136,6 +137,7 @@ export class UI {
   readonly dragHud = new DragHud();
   readonly cluster = new GaugeHud();
   readonly wanted = new WantedHud();
+  readonly pursuit = new PursuitHud();
   readonly missions = new MissionsHud();
   readonly rewardsHud = new RewardsHud();
   private overlay: HTMLElement | null = null;
@@ -245,7 +247,7 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Enter'), 'Chat'),
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
-    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.wanted.banner, reconnect);
+    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.wanted.banner, reconnect);
     this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 

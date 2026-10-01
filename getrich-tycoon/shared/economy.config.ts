@@ -607,6 +607,20 @@ export const ECONOMY = {
   /** Custom number plate at Chroma Customs. */
   plates: { price: 2_500 },
 
+  /** Police tracking of a freshly stolen car (shared/cctv.ts, server/game/services/pursuit.ts). */
+  pursuit: {
+    /** Stay unseen (no CCTV camera, no police car close) for this long in the car and it is yours (s). */
+    seconds: 180,
+    /** Wanted heat when the tracking starts or a camera sees the car (150 = 2 stars). */
+    heat: 150,
+    /** A police car this close sees you (m). */
+    policeSight: 70,
+    cameraRange: 34,
+    /** Half the camera's field of view (rad). */
+    cameraFov: 0.36,
+    xp: 60,
+  },
+
   /** Missions: daily set (resets at 00:00 UTC) with automatic rewards. */
   missions: {
     dailyCount: 5,

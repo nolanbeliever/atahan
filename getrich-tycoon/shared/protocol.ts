@@ -8,6 +8,7 @@ import type { BustedEvent, WantedState } from './police';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { MegaChoice, RewardsView } from './rewards';
+import type { PursuitOutcome, PursuitView } from './cctv';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -185,6 +186,9 @@ export interface ServerToClientEvents {
   'drive.bonus': (d: { amount: number; value: number }) => void;
   'missions.update': (d: { missions: MissionView[] }) => void;
   'rewards.update': (d: RewardsView) => void;
+  /** Police tracking of a stolen car (null: none). */
+  'pursuit.update': (d: PursuitView | null) => void;
+  'pursuit.result': (d: { outcome: PursuitOutcome; vehicleId: string; modelId: string }) => void;
   /** A mission was completed (the reward is already paid). */
   'missions.complete': (d: { id: string; title: string; reward: string }) => void;
   'police.wanted': (d: WantedState) => void;

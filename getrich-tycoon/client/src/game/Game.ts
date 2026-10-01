@@ -29,6 +29,8 @@ import type { PrivateState } from '../../../shared/protocol';
 import { SANAYI, isLifted, partLabelTr, type StreetCar } from '../../../shared/theft';
 import { AIR_LEVELS, hasAirRide } from '../../../shared/modificationsData';
 import { NITRO_ITEM } from '../../../shared/rewards';
+import { cameraSeeing } from '../../../shared/cctv';
+import { confetti } from '../ui/confetti';
 import { Anim, VF, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
@@ -55,6 +57,7 @@ import { createVehicleView, type AnyVehicleView, type VehicleView } from '../ren
 import { CockpitRig } from '../render/Cockpit';
 import { Rain, setRoadWetness } from '../render/Weather';
 import { SanayiView } from '../render/Sanayi';
+import { CctvView } from '../render/Cctv';
 import { Store } from '../state/Store';
 import type { UI } from '../ui/UI';
 import { CameraController } from './CameraController';
@@ -87,6 +90,7 @@ export class Game {
   readonly traffic = new TrafficClient();
   readonly trafficView = new TrafficView();
   readonly sanayi = new SanayiView();
+  readonly cctv = new CctvView();
   /** Street cars, alarms, the lifts and stripping. */
   readonly theft: TheftClient;
   /** Hands busy (lockpicking, working on a car): the character plays its work animation. */
@@ -180,7 +184,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group, this.sanayi.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group, this.sanayi.group, this.cctv.group);
     this.effects = new Effects(this.renderer.scene);
     this.entities = new EntityViews(this.renderer.scene, () => this.store.playerId);
     this.police = new PoliceClient(this.renderer.scene);
@@ -246,6 +250,7 @@ export class Game {
       void this.refreshAuctions();
       this.endBusted();
       this.police.clear();
+      this.ui?.pursuit.set(null);
       void this.net
         .rpc('missions.list', {})
         .then((r) => this.onMissions(r.missions))
@@ -269,6 +274,14 @@ export class Game {
         .catch(() => undefined);
     });
     net.on('rewards.update', (v) => this.store.setRewards(v));
+    net.on('pursuit.update', (p) => this.ui?.pursuit.set(p));
+    net.on('pursuit.result', (r) => {
+      if (r.outcome === 'success') {
+        this.ui?.wanted.stolenOk(modelDisplayName(r.modelId));
+        confetti(window.innerWidth / 2, window.innerHeight * 0.4, 120);
+        this.audio.play('reward');
+      } else if (r.outcome === 'seized') this.audio.play('error');
+    });
     net.on('self', (s) => this.store.applySelf(s));
     net.on('snapshot', (s) => this.onSnapshot(s));
     net.on('player.upsert', (p) => this.store.upsertPlayer(p));
@@ -760,6 +773,11 @@ export class Game {
     for (const e of this.entities.vehicles.values()) if (e.data.mods.strip) lifts[e.data.mods.strip.bay] = e.lift;
     lifts.forEach((y, bay) => this.sanayi.setLift(bay, y));
     this.sanayi.update(dt, rx, rz, this.night);
+    // CCTV: the cameras turn; the one that has you in a stolen car flares up.
+    const myCar = this.driving ? this.store.myVehicle(this.driving) : undefined;
+    const watched = myCar?.status === 'stolen' ? cameraSeeing(rx, rz, this.store.serverNow())?.id ?? null : null;
+    this.cctv.update(dt, this.store.serverNow(), watched, this.night);
+    this.ui?.pursuit.update(dt);
     // Horn + headlight flash (traffic ahead moves over).
     const horn = !!this.driving && (keys & KEY.HORN) !== 0 && this.input.enabled;
     if (horn !== this.hornOn) {

@@ -77,6 +77,8 @@ export class PoliceService {
   private time = 0;
   /** Missions and others hear about escapes. */
   readonly escapeListeners: ((playerId: string) => void)[] = [];
+  /** A stolen car taken off an arrested thief. */
+  readonly seizeListeners: ((playerId: string, vehicleId: string) => void)[] = [];
 
   constructor(
     private readonly ctx: Ctx,
@@ -115,6 +117,14 @@ export class PoliceService {
   /** A near miss at speed (from the highway service). */
   onNearMiss(playerId: string, kmh: number): void {
     if (kmh >= ECONOMY.police.fastNearMissKmh) this.addHeat(playerId, ECONOMY.police.heatNearMissFast);
+  }
+
+  /** Distance from a point to the player's nearest pursuing police car (Infinity: none). */
+  nearestUnit(playerId: string, x: number, z: number): number {
+    const w = this.wanted.get(playerId);
+    let best = Infinity;
+    for (const u of w?.units ?? []) best = Math.min(best, Math.hypot(u.dyn.x - x, u.dyn.z - z));
+    return best;
   }
 
   wantedOf(playerId: string): Readonly<Wanted> | undefined {
@@ -474,8 +484,9 @@ export class PoliceService {
             // A stolen car goes back to its real owner.
             const uow = this.ctx.state.begin();
             uow.deleteVehicle(vehicleId);
-            uow.notify(playerId, { kind: 'info', title: 'Stolen car seized', text: `The ${modelDisplayName(v.modelId)} went back to its owner.` }, false, (id) => this.ctx.hub.isOnline(id));
+            uow.notify(playerId, { kind: 'warning', title: 'Araç bağlandı', text: `Stolen ${modelDisplayName(v.modelId)} seized: towed to the police station and returned to its owner.` }, false, (id) => this.ctx.hub.isOnline(id));
             await uow.commit();
+            for (const l of this.seizeListeners) l(playerId, vehicleId);
             return;
           }
           if (v.status !== 'world') return;
