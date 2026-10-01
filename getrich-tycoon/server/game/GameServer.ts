@@ -38,6 +38,7 @@ import { DragService } from './services/drag';
 import { DrivingService } from './services/driving';
 import { MissionService } from './services/missions';
 import { PoliceService } from './services/police';
+import { TheftService } from './services/theft';
 import { HighwayService } from './services/highway';
 import { GarageService } from './services/garage';
 import { MarketService } from './services/market';
@@ -86,6 +87,7 @@ export class GameServer implements Hub {
   readonly driving: DrivingService;
   readonly missions: MissionService;
   readonly police: PoliceService;
+  readonly theft: TheftService;
   private tickCount = 0;
   private sessions = new Map<string, Session>();
   private timers: NodeJS.Timeout[] = [];
@@ -123,6 +125,7 @@ export class GameServer implements Hub {
     this.driving = new DrivingService(this.ctx);
     this.missions = new MissionService(this.ctx);
     this.police = new PoliceService(this.ctx, this.vehicles);
+    this.theft = new TheftService(this.ctx, this.police, this.vehicles);
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
       this.police.onNearMiss(pid, e.kmh);
@@ -162,6 +165,15 @@ export class GameServer implements Hub {
       'drag.info': () => this.drag.info(),
       'drag.join': (pid, p) => this.drag.join(pid, p),
       'drag.leave': (pid) => this.drag.leave(pid),
+      'blackmarket.info': (pid) => this.theft.info(pid),
+      'blackmarket.buy': (pid) => this.theft.buy(pid),
+      'street.list': () => this.theft.list(),
+      'lockpick.start': (pid, p) => this.theft.start(pid, p),
+      'lockpick.try': (pid, p) => this.theft.tryPick(pid, p),
+      'lockpick.cancel': (pid, p) => this.theft.cancel(pid, p),
+      'sanayi.lift': (pid, p) => this.theft.lift(pid, p),
+      'sanayi.strip': (pid, p) => this.theft.strip(pid, p),
+      'pawn.sell': (pid, p) => this.theft.sell(pid, p),
       'missions.list': (pid) => this.missions.list(pid),
       'missions.start': (pid, p) => this.missions.start(pid, p),
       'bank.deposit': (pid, p) => this.bank.deposit(pid, p),
@@ -247,6 +259,7 @@ export class GameServer implements Hub {
     });
 
     await this.rare.init();
+    await this.theft.init();
     if (this.cfg.simulation) {
       await this.market.refresh().catch((err) => log.error('initial market refresh failed', { error: (err as Error).message }));
     }
@@ -355,6 +368,7 @@ export class GameServer implements Hub {
     this.drag.forget(playerId);
     this.driving.forget(playerId);
     this.police.forget(playerId);
+    this.theft.forget(playerId);
     await this.missions.forget(playerId);
     const c = this.sim.chars.get(playerId);
     if (c?.drivingId) {
@@ -571,6 +585,7 @@ export class GameServer implements Hub {
     await this.highway.flush();
     await this.driving.tick();
     await this.missions.tick();
+    await this.theft.tick();
     if (this.cfg.simulation) {
       await this.customers.tick();
       await this.auctions.tick();

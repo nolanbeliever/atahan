@@ -3,6 +3,7 @@
 import { registerRoad } from './Weather';
 import * as THREE from 'three';
 import { BELT_TREES, JUNCTIONS } from '../../../shared/highway';
+import { SANAYI } from '../../../shared/sanayiLayout';
 import { mulberry32 } from '../../../shared/util';
 import {
   BLOCK_CENTERS,
@@ -185,7 +186,8 @@ export class City {
   private buildBlocks(): void {
     const concrete = Tex.concrete();
     const sidewalkMat = new THREE.MeshStandardMaterial({ map: repeated(concrete, 12, 12), roughness: 0.9, color: '#d9d6cf' });
-    const surfaces: Record<ZoneId, THREE.Material> = {
+    // The Sanayi is outside the city blocks (render/Sanayi.ts).
+    const surfaces: Record<Exclude<ZoneId, 'sanayi'>, THREE.Material> = {
       dealers_west: new THREE.MeshStandardMaterial({ map: repeated(Tex.concrete(), 10, 10), color: '#cfcac0', roughness: 0.9 }),
       dealers_east: new THREE.MeshStandardMaterial({ map: repeated(Tex.concrete(), 10, 10), color: '#cfcac0', roughness: 0.9 }),
       market: new THREE.MeshStandardMaterial({ map: repeated(Tex.lot(), 10, 10), roughness: 0.95 }),
@@ -202,20 +204,23 @@ export class City {
         const size = 100 - ROAD_WIDTH;
         const sw = boxMesh([curbMat, curbMat, sidewalkMat, curbMat, curbMat, curbMat], size, SIDEWALK_HEIGHT, size, cx, SIDEWALK_HEIGHT / 2, cz, false);
         this.group.add(sw);
-        const zone = ZONES.find((z) => z.cx === cx && z.cz === cz)!;
-        this.group.add(plane(BLOCK_HALF * 2, BLOCK_HALF * 2, surfaces[zone.id], cx, SIDEWALK_HEIGHT + 0.005, cz));
+        const zone = ZONES.find((z) => z.cx === cx && z.cz === cz && z.id !== 'sanayi')!;
+        this.group.add(plane(BLOCK_HALF * 2, BLOCK_HALF * 2, surfaces[zone.id as Exclude<ZoneId, 'sanayi'>], cx, SIDEWALK_HEIGHT + 0.005, cz));
       }
-    // Outer sidewalk ring around the perimeter road, open where the highway connectors leave.
+    // Outer sidewalk ring around the perimeter road, open where the highway connectors leave and at
+    // the Sanayi's driveway.
     const outer = 162;
-    const gaps = (side: 'n' | 's' | 'e' | 'w'): number[] =>
-      JUNCTIONS.filter((j) => (side === 'n' ? j.cityZ < -150 : side === 's' ? j.cityZ > 150 : side === 'e' ? j.cityX > 150 : j.cityX < -150)).map((j) => (side === 'n' || side === 's' ? j.cityX : j.cityZ));
+    const gaps = (side: 'n' | 's' | 'e' | 'w'): [number, number][] => [
+      ...JUNCTIONS.filter((j) => (side === 'n' ? j.cityZ < -150 : side === 's' ? j.cityZ > 150 : side === 'e' ? j.cityX > 150 : j.cityX < -150)).map((j): [number, number] => [side === 'n' || side === 's' ? j.cityX : j.cityZ, 6.5]),
+      ...(side === 's' ? [[SANAYI.entry.x, SANAYI.entry.width / 2] as [number, number]] : []),
+    ];
     for (const side of ['n', 's', 'e', 'w'] as const) {
-      const cuts = gaps(side).sort((a, b) => a - b);
+      const cuts = gaps(side).sort((a, b) => a[0] - b[0]);
       let from = -outer;
       const pieces: [number, number][] = [];
-      for (const c of cuts) {
-        pieces.push([from, c - 6.5]);
-        from = c + 6.5;
+      for (const [c, half] of cuts) {
+        pieces.push([from, c - half]);
+        from = c + half;
       }
       pieces.push([from, outer]);
       for (const [a, b] of pieces) {
@@ -484,7 +489,8 @@ export class City {
         positions.push([l - 7.5, s, 1]);
         positions.push([l + 7.5, s + 12, -1]);
         positions.push([s, l - 7.5, 2]);
-        positions.push([s + 12, l + 7.5, -2]);
+        // (none in the Sanayi's driveway)
+        if (l !== 150 || Math.abs(s + 12 - SANAYI.entry.x) > SANAYI.entry.width / 2 + 1.5) positions.push([s + 12, l + 7.5, -2]);
       }
     }
     const poleGeo = new THREE.CylinderGeometry(0.1, 0.14, 6, 6);

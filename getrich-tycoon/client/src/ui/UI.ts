@@ -231,7 +231,7 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Enter'), 'Chat'),
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
-    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.chat.el, hint, offers, this.toasts, this.wanted.banner, reconnect);
+    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.wanted.banner, reconnect);
     this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 
@@ -458,7 +458,7 @@ export class UI {
     this.panel = panel;
     this.overlay = h('div', { class: 'overlay', 'data-testid': `panel-${name}` });
     this.overlay.addEventListener('mousedown', (e) => {
-      if (e.target === this.overlay) this.closeAll();
+      if (e.target === this.overlay && panel.closeOnBackdrop) this.closeAll();
     });
     this.overlay.appendChild(panel.mount());
     this.root.appendChild(this.overlay);

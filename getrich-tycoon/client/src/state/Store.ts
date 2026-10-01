@@ -2,6 +2,7 @@
 
 import type { PrivateState } from '../../../shared/protocol';
 import type { RareMarketState } from '../../../shared/rareMarket';
+import { LOCKPICK_ITEM, type BlackMarketInfo, type StreetCar } from '../../../shared/theft';
 import type {
   CategoryTrends,
   CustomerOffer,
@@ -27,6 +28,8 @@ export interface StoreEvents extends Record<string, unknown> {
   listingsChanged: void;
   offers: void;
   rare: RareMarketState;
+  street: StreetCar[];
+  blackMarket: BlackMarketInfo;
 }
 
 export class Store extends Emitter<StoreEvents> {
@@ -40,6 +43,10 @@ export class Store extends Emitter<StoreEvents> {
   offers = new Map<string, CustomerOffer>();
   /** Rare Dealer stock (null until fetched). */
   rare: RareMarketState | null = null;
+  /** Cars parked on the street / highway shoulder that can be broken into. */
+  street = new Map<string, StreetCar>();
+  /** Black Market lockpick stock (null until fetched). */
+  blackMarket: BlackMarketInfo | null = null;
   /** Server clock minus local clock (ms), learned from the welcome and Rare Dealer updates. */
   clockOffset = 0;
 
@@ -104,6 +111,22 @@ export class Store extends Emitter<StoreEvents> {
     this.clockOffset = s.serverTime - Date.now();
     this.rare = s;
     this.emit('rare', s);
+  }
+
+  setStreet(cars: StreetCar[]): void {
+    this.street = new Map(cars.map((c) => [c.id, c]));
+    this.emit('street', cars);
+  }
+
+  /** Black Market stock (the owned count comes from our own inventory). */
+  setBlackMarket(info: Omit<BlackMarketInfo, 'owned'> & { owned?: number }): void {
+    this.blackMarket = { ...info, owned: info.owned ?? this.lockpicks() };
+    this.emit('blackMarket', this.blackMarket);
+  }
+
+  /** Lockpick & saw sets in the inventory. */
+  lockpicks(): number {
+    return this.self?.player.inventory[LOCKPICK_ITEM] ?? 0;
   }
 
   /** Best estimate of the server clock (ms). */

@@ -157,7 +157,8 @@ export class VehicleService {
       const veh = requireVehicle(this.ctx, vehicleId);
       const player = this.ctx.state.players.get(playerId)!;
       requireOwned(veh, player);
-      requireIdle(this.ctx, veh, { allowedStatus: ['world'] });
+      requireIdle(this.ctx, veh, { allowedStatus: ['world', 'stolen'] });
+      if (veh.mods.strip) throw new GameError('conflict', 'That car is up on the lift.');
       const c = this.ctx.sim.chars.get(playerId);
       if (!c) throw new GameError('conflict', 'You are not in the world.');
       if (c.drivingId) throw new GameError('conflict', 'You are already driving.');

@@ -18,6 +18,8 @@ const PLACE_LABEL: Record<InteractKind, string> = {
   custom: 'the Customization Garage',
   plot: 'your dealership',
   drag: 'the Drag Strip',
+  pawn: 'the Pawn Shop',
+  sanayi: 'the Sanayi garage',
 };
 
 export function requireNear(ctx: Ctx, playerId: string, kind: InteractKind): void {
@@ -50,6 +52,7 @@ export function requireIdle(ctx: Ctx, v: Vehicle, opts: { allowDriving?: boolean
       world: 'Store that vehicle first.',
       stored: 'That vehicle is in storage.',
       market: 'That vehicle is not yours.',
+      stolen: "That car is stolen: it can't be sold or stored. Strip it at the Sanayi.",
     };
     throw new GameError('conflict', why[v.status] ?? 'That vehicle is busy.');
   }

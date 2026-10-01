@@ -5,6 +5,7 @@
 
 import { dealershipLevel } from './economy.config';
 import { DRAG_BOXES, DRAG_STRIP, highwayCircles } from './highway';
+import { SANAYI, SANAYI_BOXES, SANAYI_CIRCLES } from './theft';
 
 export interface AABB {
   minX: number;
@@ -39,7 +40,8 @@ export type ZoneId =
   | 'auction'
   | 'custom'
   | 'wash_fuel'
-  | 'repair_parts';
+  | 'repair_parts'
+  | 'sanayi';
 
 export interface Zone {
   id: ZoneId;
@@ -59,9 +61,10 @@ export const ZONES: Zone[] = [
   { id: 'custom', name: 'Chroma Custom Garage', cx: -100, cz: 100, color: '#f15bb5' },
   { id: 'wash_fuel', name: 'Car Wash & Fuel', cx: 0, cz: 100, color: '#00bbf9' },
   { id: 'repair_parts', name: 'Wrench Bros Repair & Parts', cx: 100, cz: 100, color: '#e76f51' },
+  { id: 'sanayi', name: 'Sanayi Industrial Estate', cx: (SANAYI.yard.minX + SANAYI.yard.maxX) / 2, cz: (SANAYI.yard.minZ + SANAYI.yard.maxZ) / 2, color: '#8d6e63' },
 ];
 
-export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag';
+export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag' | 'pawn' | 'sanayi';
 
 export interface Interactable {
   id: string;
@@ -122,6 +125,8 @@ export const STATIC_CIRCLES: Circle[] = [
   { x: 34, z: 96, r: 1.2 },
   // Highway: barrier ends, bridge piers and embankments, belt trees, the drag strip's tree.
   ...highwayCircles(),
+  // Sanayi lift posts.
+  ...SANAYI_CIRCLES,
 ];
 
 export const INTERACTABLES: Interactable[] = [
@@ -134,6 +139,8 @@ export const INTERACTABLES: Interactable[] = [
   { id: 'repair', kind: 'repair', x: 87, z: 91, radius: 8, label: 'Enter Wrench Bros Repair' },
   { id: 'parts', kind: 'parts', x: 127, z: 85, radius: 6, label: 'Enter Parts Depot' },
   { id: 'drag', kind: 'drag', x: DRAG_STRIP.stage.x, z: DRAG_STRIP.stage.z, radius: DRAG_STRIP.stage.radius, label: 'Drag Strip - race for $500' },
+  { id: 'pawn', kind: 'pawn', x: SANAYI.pawn.minX - 2.5, z: (SANAYI.pawn.minZ + SANAYI.pawn.maxZ) / 2, radius: 5, label: 'Enter the Pawn Shop' },
+  { id: 'sanayi', kind: 'sanayi', x: SANAYI.hall.minX + 4, z: SANAYI.hall.minZ + 4, radius: 4, label: 'Sanayi garage office' },
 ];
 
 export const SERVICE_INTERACT_SLACK = 6;
@@ -325,7 +332,7 @@ export function isOnRoad(x: number, z: number): boolean {
 }
 
 /** All static colliders (buildings) - dealership buildings are added dynamically. */
-export const STATIC_BOXES: AABB[] = [...BUILDINGS.map((b) => b.box), ...DRAG_BOXES];
+export const STATIC_BOXES: AABB[] = [...BUILDINGS.map((b) => b.box), ...DRAG_BOXES, ...SANAYI_BOXES];
 
 export function findInteractable(id: string): Interactable | undefined {
   return INTERACTABLES.find((i) => i.id === id);

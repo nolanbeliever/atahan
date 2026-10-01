@@ -43,6 +43,8 @@
   - `obb.ts`: oriented-box geometry (SAT overlap with contact normal and depth, box-circle, box-box distance)
   - `physics.ts`: deterministic character and vehicle stepping (drivetrain + smoothed steering, yaw lag, slip angle), OBB
     collisions with impulse response, analytic highway barriers
+  - `theft.ts` (+ `sanayiLayout.ts`): car theft: Black Market stock windows, the lock (`lockTurn`, tolerances), strip parts
+    and where to stand for each, Pawn Shop prices, the Sanayi lifts (`bayAt`) and colliders, street parking spots
   - `missions.ts`, `reputation.ts`, `police.ts`: daily missions, level unlocks (garage slots, cars out, market discount,
     underglow) and the wanted-level types
   - `collision.ts`: builds the same collision world on both sides
@@ -56,7 +58,9 @@
     `highway.ts`: near-miss detection, combos, batched payouts and traffic yielding, `drag.ts`: drag strip queue, bot matching,
     lights, false starts, timing and the pool, `driving.ts`: the driving bonus every 10 s, `missions.ts`: daily mission
     progress and rewards, `police.ts`: heat and stars, police interceptors (physics cars routed over the city road grid and the
-    highway lanes), escapes and arrests).
+    highway lanes), escapes and arrests, `theft.ts`: the Black Market stock, street-parked cars (solid for the simulation),
+    lockpick sessions with the sweet spot kept on the server, the alarm and police heat, the Sanayi lifts and timed
+    stripping, the Pawn Shop and clean-up of abandoned stolen cars).
   - `game/traffic.ts` is the traffic driver model (IDM car following + MOBIL-style lane changes with indicators, keep-right,
     yielding; players, walkers and parked cars are obstacles).
   - `db/` holds the PostgreSQL and SQLite adapters behind one small `Database` interface, plus the repository (row mapping, parameterized SQL).
@@ -75,6 +79,12 @@
     wheel, gear lever, pedals and a gear screen; it is drawn in a second pass (`Renderer.overlay`, layer 1) so the outer body
     never hides it. `game/EntityViews.ts` animates getting in and out (walk to the door, door, sit) and seats the drivers;
     `game/Busted.ts` plays the arrest cutscene; `game/Police.ts` renders police cars with wig-wag light bars.
+  - Car theft: `game/Theft.ts` (street cars with hazard / alarm lights, the alarm sound, lockpick and lift prompts, work
+    markers and the timed strip job), `render/Sanayi.ts` (yard, hall with a roof that fades while you are inside, two-post
+    lifts whose arms rise with the car, Pawn Shop with its neon), `render/StripRig.ts` (engine bay, exhaust, seats and
+    steering wheel of a car on a lift; parts vanish as they are stripped, mirrors and doors are model nodes hidden in
+    `VehicleMesh.ts`), `ui/panels/lockpick.ts` (the canvas mini-game), `ui/panels/engineBay.ts` (clickable engine bay) and
+    `ui/panels/theft.ts` (Black Market tab, Pawn Shop, Sanayi office).
   - Weather: `render/Weather.ts` (rain streaks around the camera, wet-road materials); `Renderer#setTime(hour, rain)` runs the
     sky (orange at sunset, grey in the rain), sun / moon, image-based light and fog.
   - HUD: `ui/Gauge.ts` (canvas rev counter, speed, gear, boost, stage, ABS / TCS, driving bonus pop-up), `ui/WantedHud.ts`

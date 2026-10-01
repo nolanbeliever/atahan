@@ -54,6 +54,16 @@ export interface VehicleMods {
   underglow?: string;
   /** Performance parts, body parts, custom paint, wheels and stance (see modificationsData.ts). */
   tuning?: VehicleTuning;
+  /** A stolen car up on a Sanayi lift and the parts taken off it (see shared/theft.ts). */
+  strip?: StripState;
+}
+
+export interface StripState {
+  /** Lift bay index (shared/theft.ts LIFT_BAYS). */
+  bay: number;
+  /** When it went up (epoch ms). */
+  liftedAt: number;
+  removed: string[];
 }
 
 /**
@@ -63,8 +73,9 @@ export interface VehicleMods {
  * listed    - listed on the online classifieds
  * auction   - consigned to an active auction
  * market    - owned by an NPC seller at the used vehicle market
+ * stolen    - broken into by the player: drivable, can only be stripped at the Sanayi (never sold whole)
  */
-export type VehicleStatus = 'stored' | 'world' | 'displayed' | 'listed' | 'auction' | 'market';
+export type VehicleStatus = 'stored' | 'world' | 'displayed' | 'listed' | 'auction' | 'market' | 'stolen';
 
 export interface Vehicle {
   id: string;
@@ -253,6 +264,8 @@ export type TransactionKind =
   | 'drive_bonus'
   | 'mission'
   | 'police_fine'
+  | 'black_market'
+  | 'pawn_sale'
   | 'police_escape';
 
 export interface Transaction {

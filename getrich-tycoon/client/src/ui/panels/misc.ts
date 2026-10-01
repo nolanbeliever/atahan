@@ -37,6 +37,7 @@ export class MenuPanel extends Panel {
       item('Profile', ICONS.user, 'profile', 'O'),
       item('Bank', ICONS.bank, 'bank', ''),
       item('Repair', ICONS.wrench, 'repair', ''),
+      h('button', { onclick: () => this.ui.open('market', { tab: 'black' }), 'data-testid': 'menu-blackmarket' }, icon(ICONS.mask), 'Black Market', h('span', { class: 'hk' }, '')),
       item('Settings', ICONS.gear, 'settings', ''),
     );
   }
@@ -86,7 +87,7 @@ export class MapPanel extends Panel {
     super.dispose();
   }
   renderBody(): Child {
-    const labels: Record<string, string> = { market: 'Used Market', auction: 'Auctions', repair: 'Repair', parts: 'Parts', wash: 'Car Wash', fuel: 'Fuel', bank: 'Bank', custom: 'Customs' };
+    const labels: Record<string, string> = { market: 'Used Market', auction: 'Auctions', repair: 'Repair', parts: 'Parts', wash: 'Car Wash', fuel: 'Fuel', bank: 'Bank', custom: 'Customs', drag: 'Drag Strip', pawn: 'Pawn Shop ($)', sanayi: 'Sanayi garage (🔧 lifts)' };
     return h(
       'div',
       { class: 'map-wrap' },
@@ -103,6 +104,7 @@ export class MapPanel extends Panel {
         h('div', null, h('i', { style: { background: '#4f8cff', borderRadius: '50%' } }), 'Other players'),
         h('div', null, h('i', { style: { background: '#ffc53d' } }), 'Your vehicles / dealership'),
         h('div', null, h('i', { style: { background: '#ffd166' } }), 'Customers'),
+        h('div', null, h('i', { style: { background: 'rgba(190,150,255,0.85)' } }), 'Parked cars (lockpick)'),
       ),
     );
   }

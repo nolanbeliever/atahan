@@ -7,12 +7,14 @@ import { SPEED_SCALE } from '../../../shared/drivetrain';
 import { Anim, VF, type Appearance, type MarketListing, type PublicVehicle, type Vehicle } from '../../../shared/types';
 import { angleDiff, clamp, formatMoney, lerpAngle } from '../../../shared/util';
 import { modelDisplayName } from '../../../shared/vehicles';
+import { LIFT_HEIGHT } from '../../../shared/theft';
 import { groundHeight } from '../render/City';
 import { CharacterView, NPC_PALETTE, type Pose } from '../render/Character';
 import { Label } from '../render/Labels';
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
 import { getModel } from '../../../shared/vehicles';
 import { HeadlightRig } from '../render/Headlights';
+import { StripRig } from '../render/StripRig';
 import { BikeView, createVehicleView, type AnyVehicleView } from '../render/VehicleMesh';
 import { INTERP_DELAY_MS, InterpBuffer } from './Interpolation';
 
@@ -84,6 +86,16 @@ const ease = (t: number) => {
   return u * u * (3 - 2 * u);
 };
 
+/** Seconds the Sanayi lift takes to raise a car, after the driver has got out. */
+export const LIFT_SECONDS = 3.2;
+export const LIFT_DELAY = 1.3;
+
+/** How high a car on a Sanayi lift is right now (m; 0 when it is not on one). */
+export function liftY(v: Pick<Vehicle, 'mods'>, serverNow: number): number {
+  const s = v.mods.strip;
+  return s ? LIFT_HEIGHT * ease((serverNow - s.liftedAt - LIFT_DELAY * 1000) / (LIFT_SECONDS * 1000)) : 0;
+}
+
 export interface VehEntity {
   view: AnyVehicleView;
   /** Previous frame speed, to spot throttle lifts on other players' cars (backfires). */
@@ -105,6 +117,10 @@ export interface VehEntity {
   pitch: number;
   aLong: number;
   prevRot: number;
+  /** Engine bay, exhaust and interior shown while it is up on a Sanayi lift. */
+  strip: StripRig | null;
+  /** Current lift height (m). */
+  lift: number;
 }
 
 export class EntityViews {
@@ -125,6 +141,8 @@ export class EntityViews {
   /** Players whose next exit should not be animated (e.g. towed away after an arrest). */
   readonly skipExit = new Set<string>();
   private tmp = new THREE.Vector3();
+  /** Best estimate of the server clock (lift animations). */
+  serverNow: () => number = () => Date.now();
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -196,7 +214,7 @@ export class EntityViews {
     if (!e) {
       const view = createVehicleView(v);
       this.scene.add(view.root);
-      e = { view, lastSpeed: 0, accel: 0, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation, lights: null, roll: 0, pitch: 0, aLong: 0, prevRot: v.rotation };
+      e = { view, lastSpeed: 0, accel: 0, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation, lights: null, roll: 0, pitch: 0, aLong: 0, prevRot: v.rotation, strip: null, lift: 0 };
       this.vehicles.set(v.id, e);
     } else {
       e.view.update(v);
@@ -251,6 +269,7 @@ export class EntityViews {
     }
     e.view.dispose();
     e.lights?.dispose();
+    e.strip?.dispose();
     this.vehicles.delete(id);
   }
 
@@ -312,7 +331,17 @@ export class EntityViews {
         e.z = e.data.z;
         e.rot = e.data.rotation;
       }
-      const y = groundHeight(e.x, e.z);
+      // Up on a Sanayi lift: raised, with its insides on show.
+      e.lift = liftY(e.data, this.serverNow());
+      const strip = e.data.mods.strip;
+      if (strip && !e.view.isBike) {
+        e.strip ??= new StripRig(e.view, e.data.modelId);
+        e.strip.set(strip.removed);
+      } else if (e.strip) {
+        e.strip.dispose();
+        e.strip = null;
+      }
+      const y = groundHeight(e.x, e.z) + e.lift;
       e.view.root.position.set(e.x, y, e.z);
       e.view.root.rotation.y = e.rot;
       e.view.animate(speed, steer, dt);

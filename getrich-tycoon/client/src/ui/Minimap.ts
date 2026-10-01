@@ -1,6 +1,7 @@
 // Minimap & full map rendering on a 2D canvas.
 
 import { CARRIAGEWAY_EDGE, DRAG_STRIP, JUNCTIONS, JUNCTION_APRON, LOOP_LEN, pathPoint } from '../../../shared/highway';
+import { SANAYI } from '../../../shared/sanayiLayout';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, WORLD_BOUNDS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
 import type { Game } from '../game/Game';
 
@@ -14,7 +15,31 @@ export const INTERACT_COLORS: Record<string, string> = {
   bank: '#2a9d8f',
   custom: '#f15bb5',
   drag: '#ff8c1a',
+  pawn: '#ff4fd8',
+  sanayi: '#ffb020',
 };
+
+/** Places with their own map symbol (drawn upright on a round badge). */
+const BADGES: Record<string, string> = { sanayi: '🔧', pawn: '$' };
+
+function badge(g: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, glyph: string, turn: number): void {
+  g.save();
+  g.translate(x, y);
+  g.rotate(-turn);
+  g.fillStyle = '#10141c';
+  g.strokeStyle = color;
+  g.lineWidth = Math.max(1.5, r * 0.22);
+  g.beginPath();
+  g.arc(0, 0, r, 0, Math.PI * 2);
+  g.fill();
+  g.stroke();
+  g.fillStyle = color;
+  g.font = `900 ${Math.round(r * 1.15)}px system-ui, sans-serif`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(glyph, 0, r * 0.06);
+  g.restore();
+}
 
 /** Centreline of the ring highway (computed once). */
 const RING: { x: number; z: number }[] = Array.from({ length: 181 }, (_, i) => pathPoint((i / 180) * LOOP_LEN));
@@ -42,7 +67,11 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   g.fillRect(tx(-CITY_HALF), tz(-CITY_HALF), CITY_HALF * 2 * s, CITY_HALF * 2 * s);
   for (const z of ZONES) {
     g.fillStyle = z.color + '38';
-    g.fillRect(tx(z.cx - 44), tz(z.cz - 44), 88 * s, 88 * s);
+    if (z.id === 'sanayi') {
+      const y = SANAYI.yard;
+      g.fillStyle = '#5a4a3c';
+      g.fillRect(tx(y.minX), tz(y.minZ), (y.maxX - y.minX) * s, (y.maxZ - y.minZ) * s);
+    } else g.fillRect(tx(z.cx - 44), tz(z.cz - 44), 88 * s, 88 * s);
   }
   // Highway ring, junction roads and the drag strip.
   g.strokeStyle = '#4a4f5c';
@@ -69,6 +98,22 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   for (const r of ROADS) g.fillRect(tx(r.minX), tz(r.minZ), (r.maxX - r.minX) * s, (r.maxZ - r.minZ) * s);
   g.fillStyle = '#8d93a3';
   for (const b of BUILDINGS) g.fillRect(tx(b.box.minX), tz(b.box.minZ), (b.box.maxX - b.box.minX) * s, (b.box.maxZ - b.box.minZ) * s);
+  // Sanayi: driveway, the hall (open to the north) and the Pawn Shop.
+  g.fillStyle = '#4a4f5c';
+  g.fillRect(tx(SANAYI.entry.x - SANAYI.entry.width / 2), tz(156), SANAYI.entry.width * s, (SANAYI.yard.minZ + 8 - 156) * s);
+  const hall = SANAYI.hall;
+  g.fillStyle = '#6b6258';
+  g.fillRect(tx(hall.minX), tz(hall.minZ), (hall.maxX - hall.minX) * s, (hall.maxZ - hall.minZ) * s);
+  g.strokeStyle = '#8d93a3';
+  g.lineWidth = Math.max(1.5, s);
+  g.beginPath();
+  g.moveTo(tx(hall.minX), tz(hall.minZ));
+  g.lineTo(tx(hall.minX), tz(hall.maxZ));
+  g.lineTo(tx(hall.maxX), tz(hall.maxZ));
+  g.lineTo(tx(hall.maxX), tz(hall.minZ));
+  g.stroke();
+  g.fillStyle = '#8d93a3';
+  g.fillRect(tx(SANAYI.pawn.minX), tz(SANAYI.pawn.minZ), (SANAYI.pawn.maxX - SANAYI.pawn.minX) * s, (SANAYI.pawn.maxZ - SANAYI.pawn.minZ) * s);
   const me = game.store.playerId;
   for (const p of PLOTS) {
     const d = game.store.dealerships.get(p.id);
@@ -76,11 +121,25 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
     g.lineWidth = d?.ownerId === me ? 3 : 1.5;
     g.strokeRect(tx(p.cx - PLOT_HALF), tz(p.cz - PLOT_HALF), PLOT_HALF * 2 * s, PLOT_HALF * 2 * s);
   }
+  const turn = yaw !== null ? yaw + Math.PI : 0;
   for (const i of INTERACTABLES) {
+    const glyph = BADGES[i.kind];
+    if (glyph) {
+      badge(g, tx(i.x), tz(i.z), Math.max(7, 3.2 * s), INTERACT_COLORS[i.kind] ?? '#fff', glyph, turn);
+      continue;
+    }
     g.fillStyle = INTERACT_COLORS[i.kind] ?? '#fff';
     g.beginPath();
     g.arc(tx(i.x), tz(i.z), Math.max(3, 3.2 * s), 0, Math.PI * 2);
     g.fill();
+  }
+  // Parked cars that can be broken into (flashing red while the alarm sounds).
+  const blink = Math.floor(performance.now() / 250) % 2 === 0;
+  for (const c of game.store.street.values()) {
+    const alarm = game.theft.alarmOn(c.id);
+    if (alarm && !blink) continue;
+    g.fillStyle = alarm ? '#ff3b4e' : 'rgba(190,150,255,0.85)';
+    g.fillRect(tx(c.x) - 2, tz(c.z) - 2, 4, 4);
   }
   // Own vehicles
   for (const e of game.entities.vehicles.values()) {

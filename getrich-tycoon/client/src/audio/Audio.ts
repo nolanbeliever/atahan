@@ -3,7 +3,7 @@
 // vehicle's tuning (see tuningSystem.SoundProfile): exhaust type, induction (turbo whistle, blow-off
 // valve with compressor flutter on Stage 2/3 builds, supercharger whine), open-filter intake roar,
 // cams, and pops & bangs on upshifts and throttle lifts with a valved or straight-through exhaust.
-// Also: tyre screech, police sirens and rain.
+// Also: tyre screech, police sirens, car alarms, rain, and the lockpick / workshop tools.
 
 import type { ExhaustType } from '../../../shared/modificationsData';
 import type { SoundProfile } from '../../../shared/tuningSystem';
@@ -51,7 +51,27 @@ function distortionCurve(k: number): Float32Array<ArrayBuffer> {
   return curve;
 }
 
-export type Sfx = 'click' | 'purchase' | 'notify' | 'error' | 'levelup' | 'coin' | 'door' | 'outbid' | 'nearmiss' | 'crash' | 'treeRed' | 'treeGreen' | 'foul';
+export type Sfx =
+  | 'click'
+  | 'purchase'
+  | 'notify'
+  | 'error'
+  | 'levelup'
+  | 'coin'
+  | 'door'
+  | 'outbid'
+  | 'nearmiss'
+  | 'crash'
+  | 'treeRed'
+  | 'treeGreen'
+  | 'foul'
+  | 'pick'
+  | 'strain'
+  | 'snap'
+  | 'unlock'
+  | 'ratchet'
+  | 'clunk'
+  | 'lift';
 
 export class AudioSystem {
   private ctx: AudioContext | null = null;
@@ -491,6 +511,92 @@ export class AudioSystem {
         return this.tone([1760], 0.3, 'square', 0.07);
       case 'foul':
         return this.tone([330, 262], 0.3, 'sawtooth', 0.07, undefined, 0.15);
+      // Lockpick: a pin tick, the pick straining in the cylinder, a snapped pick, the lock giving.
+      case 'pick':
+        if (this.ctx && this.noiseBuf) this.burst(this.ctx.currentTime, 0.03, 'bandpass', 5200, 0.12);
+        return this.tone([3200], 0.025, 'square', 0.02);
+      case 'strain':
+        if (this.ctx && this.noiseBuf) for (let i = 0; i < 7; i++) this.burst(this.ctx.currentTime + i * 0.085, 0.06, 'bandpass', 2400 + i * 260, 0.05 + i * 0.012);
+        return this.tone([620, 660, 700, 760], 0.12, 'sawtooth', 0.018, undefined, 0.15);
+      case 'snap':
+        if (this.ctx && this.noiseBuf) this.burst(this.ctx.currentTime, 0.09, 'highpass', 3800, 0.4);
+        return this.tone([2637, 1760], 0.07, 'square', 0.05, undefined, 0.03);
+      case 'unlock':
+        if (this.ctx && this.noiseBuf) {
+          this.burst(this.ctx.currentTime, 0.08, 'bandpass', 900, 0.3);
+          this.burst(this.ctx.currentTime + 0.16, 0.12, 'lowpass', 500, 0.35);
+        }
+        return this.tone([1047, 1568], 0.12, 'triangle', 0.06, undefined, 0.16);
+      // Workshop: a ratchet spinning a bolt out, a part coming off, the lift's hydraulics.
+      case 'ratchet':
+        if (this.ctx && this.noiseBuf) for (let i = 0; i < 6; i++) this.burst(this.ctx.currentTime + i * 0.055, 0.025, 'bandpass', 3000 + (i % 2) * 600, 0.14);
+        return;
+      case 'clunk':
+        if (this.ctx && this.noiseBuf) {
+          this.burst(this.ctx.currentTime, 0.18, 'lowpass', 300, 0.45);
+          this.burst(this.ctx.currentTime + 0.02, 0.1, 'bandpass', 1800, 0.12);
+        }
+        return this.tone([110, 82], 0.2, 'triangle', 0.1, undefined, 0.08);
+      case 'lift': {
+        if (!this.ctx) return;
+        const ctx = this.ctx;
+        const t = ctx.currentTime;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(70, t);
+        o.frequency.linearRampToValueAtTime(96, t + 2.6);
+        const f = ctx.createBiquadFilter();
+        f.type = 'lowpass';
+        f.frequency.value = 420;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.07, t + 0.15);
+        g.gain.setValueAtTime(0.07, t + 2.5);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 3);
+        o.connect(f).connect(g).connect(this.sfxBus);
+        o.start(t);
+        o.stop(t + 3.05);
+        return;
+      }
+    }
+  }
+
+  private alarmNodes: { osc: OscillatorNode; lfo: OscillatorNode; gain: GainNode; pulse: GainNode } | null = null;
+
+  /** Car alarm loudness from the distance to the nearest sounding alarm (m; Infinity = none). */
+  alarm(distance: number): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const k = Number.isFinite(distance) ? Math.max(0, 1 - distance / 110) : 0;
+    if (k > 0 && !this.alarmNodes) {
+      // Two tones swapping five times a second, chopped on and off.
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = 1050;
+      const lfo = ctx.createOscillator();
+      lfo.type = 'square';
+      lfo.frequency.value = 2.5;
+      const depth = ctx.createGain();
+      depth.gain.value = 260;
+      lfo.connect(depth).connect(osc.frequency);
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 2600;
+      const pulse = ctx.createGain();
+      pulse.gain.value = 1;
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      osc.connect(f).connect(pulse).connect(gain).connect(this.sfxBus);
+      osc.start();
+      lfo.start();
+      this.alarmNodes = { osc, lfo, gain, pulse };
+    }
+    if (!this.alarmNodes) return;
+    this.alarmNodes.gain.gain.setTargetAtTime(0.045 * k * k, ctx.currentTime, 0.08);
+    if (k === 0 && this.alarmNodes.gain.gain.value < 0.0005) {
+      this.alarmNodes.osc.stop();
+      this.alarmNodes.lfo.stop();
+      this.alarmNodes = null;
     }
   }
 

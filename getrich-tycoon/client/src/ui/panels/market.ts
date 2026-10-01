@@ -11,11 +11,12 @@ import { findOption, MOD_SLOT_LABELS, type ModSlot } from '../../../../shared/cu
 import { marketValue } from '../../../../shared/valuation';
 import { formatKm, formatMoney } from '../../../../shared/util';
 import { CATEGORY_LABELS, getModel } from '../../../../shared/vehicles';
-import { h, type Child } from '../dom';
+import { h, icon, type Child } from '../dom';
 import { ICONS } from '../icons';
 import { Panel } from '../Panel';
 import { conditionRows, dealBadge, field, swatch, vehicleCard, vehicleTitle } from '../widgets';
 import { rareDealerView, rareTimerText } from './rareDealer';
+import { blackMarketTimerText, blackMarketView } from './theft';
 
 const PERSONALITY_COLOR: Record<string, string> = { friendly: 'green', stubborn: 'red', desperate: 'blue', shrewd: 'gold', collector: 'purple' };
 
@@ -29,7 +30,7 @@ type SortKey = 'price_asc' | 'price_desc' | 'value' | 'condition' | 'mileage' | 
 
 export class MarketPanel extends Panel {
   readonly name = 'market';
-  private tab: 'npc' | 'players' | 'rare' = (this.arg.tab as 'npc' | 'players' | 'rare') ?? 'npc';
+  private tab: 'npc' | 'players' | 'rare' | 'black' = (this.arg.tab as 'npc' | 'players' | 'rare' | 'black') ?? 'npc';
   private timerEl: HTMLElement | null = null;
   private timer = 0;
   private category: VehicleCategory | 'all' = 'all';
@@ -42,6 +43,7 @@ export class MarketPanel extends Panel {
     return 'Marketplace';
   }
   override subtitle() {
+    if (this.tab === 'black') return 'Karaborsa: tools for the night shift';
     return this.tab === 'rare' ? 'Special stock that changes every 2 minutes' : 'Browse used vehicles from NPC sellers and other players';
   }
   iconSvg() {
@@ -52,9 +54,20 @@ export class MarketPanel extends Panel {
     void this.load();
     this.listen(this.store.on('market', () => this.refresh()));
     this.listen(this.store.on('rare', () => this.refresh()));
-    // Rare Dealer countdown; if the restock broadcast is late, ask for it.
+    this.listen(this.store.on('blackMarket', () => this.refresh()));
+    // Rare Dealer / Black Market countdowns; if the restock broadcast is late, ask for it.
     let asked = 0;
+    let askedBm = 0;
     this.timer = window.setInterval(() => {
+      const bm = this.store.blackMarket;
+      if (this.tab === 'black') {
+        if (this.timerEl && bm) this.timerEl.textContent = blackMarketTimerText(bm, this.store.serverNow());
+        if ((!bm || this.store.serverNow() > bm.restockAt + 1500) && Date.now() - askedBm > 3000) {
+          askedBm = Date.now();
+          void this.net.rpc('blackmarket.info', {}).then((s) => this.store.setBlackMarket(s)).catch(() => undefined);
+        }
+        return;
+      }
       const rare = this.store.rare;
       if (this.timerEl && rare) this.timerEl.textContent = rareTimerText(rare, this.store.serverNow());
       if (rare && this.store.serverNow() > rare.endsAt + 1500 && Date.now() - asked > 3000) {
@@ -109,7 +122,13 @@ export class MarketPanel extends Panel {
       h('button', { class: this.tab === 'npc' ? 'active' : '', 'data-testid': 'market-tab-npc', onclick: () => ((this.tab = 'npc'), this.refresh()) }, `Used Market (${this.store.marketListings.length})`),
       h('button', { class: this.tab === 'players' ? 'active' : '', 'data-testid': 'market-tab-players', onclick: () => ((this.tab = 'players'), this.refresh()) }, `Player Listings (${this.playerListings.length})`),
       h('button', { class: `${this.tab === 'rare' ? 'active' : ''} rare-tab`, 'data-testid': 'market-tab-rare', onclick: () => ((this.tab = 'rare'), this.refresh()) }, 'Rare Dealer'),
+      h('button', { class: `${this.tab === 'black' ? 'active' : ''} black-tab`, 'data-testid': 'market-tab-black', title: 'Black Market', onclick: () => ((this.tab = 'black'), this.refresh()) }, icon(ICONS.mask), 'Black Market'),
     );
+    if (this.tab === 'black') {
+      const view = blackMarketView({ store: this.store, busy: this.busy }, () => void this.buyLockpick());
+      this.timerEl = view.timer;
+      return [tabs, view.el];
+    }
     if (this.tab === 'rare') {
       const view = rareDealerView({ store: this.store, busy: this.busy }, (offerId, price) => void this.buyRare(offerId, price));
       this.timerEl = view.timer;
@@ -229,6 +248,17 @@ export class MarketPanel extends Panel {
       (r) => {
         this.game.audio.play('purchase');
         this.ui.success('Rare find!', `${vehicleTitle(r.vehicle).name} is now in your garage (press I).`);
+      },
+    );
+  }
+
+  private async buyLockpick(): Promise<void> {
+    await this.act(
+      () => this.net.rpc('blackmarket.buy', {}),
+      (r) => {
+        this.store.setBlackMarket(r);
+        this.game.audio.play('purchase');
+        this.ui.success('Lockpick & Testere Seti', `You now have ${r.owned}. Find a parked car and press E next to it.`);
       },
     );
   }

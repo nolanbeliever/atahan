@@ -16,6 +16,8 @@
 // NAMING CONVENTION (optional, makes more things work with your own models)
 //   wheel_fl / wheel_fr / wheel_rl / wheel_rr   wheels that spin and steer (fl = front left)
 //   door_fl                                       driver's door (opens when you get in and out)
+//   door_fl_cavity / door_fr_cavity               the door openings (shown when a door is open or stripped)
+//   door_fr, mirror_l, mirror_r                   passenger door and side mirrors (stripped at the Sanayi)
 //   seat_driver                                   empty at the driver's eyes (first-person camera)
 //   exhaust_0..3                                  exhaust tips (backfire flames)
 //   headlights / taillights                       lamp meshes (they light up at night / braking)

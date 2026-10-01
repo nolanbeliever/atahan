@@ -60,6 +60,7 @@ Chromium is missing, run `npx playwright install chromium`.
 | + | Driving controls | `F gets in and out...`: **F** enters (the boarding animation finishes), the gauge is visible, **C** turns the first-person cockpit pass on and off, **L** shows the three headline missions, no wanted stars, **F** exits |
 | + | Tuning & Rare Dealer | `tuning.spec.ts`: garage opened remotely, Stage 2 auto-adds its downpipe and raises the hp figure, install disabled away from Chroma Customs, HEX paint input syncs the colour picker, wheels, locked stance on stock suspension, dyno chart and a live dyno pull; Rare Dealer countdown ticking, 6 offers with pictures, buying the cheapest affordable offer marks it sold. |
 | + | Highway & drag strip | `highway.spec.ts`: traffic streams in, night can fall, the near-miss popup ("NEAR MISS · MAKAS +$200") and combo meter, a crash popup, the drag panel asking for a car, the Christmas tree lamps (reds, green, foul) and the horn key. |
+| + | Car theft | `theft.spec.ts`: parked cars are drawn, the Black Market tab shows the stock and countdown and sells a set (in the garage afterwards, also reachable from the Esc menu), the lockpick screen draws and closes when the server refuses a lock, the Pawn Shop with nothing to sell. The whole loop (lockpick success and failure with the alarm and 2 stars, lift, stripping every part, scrapping, selling) runs against a real server in `tests/integration/theft.test.ts`; lock maths, prices, parts per car, the restock clock, lift bays and the layout are unit-tested in `tests/unit/theft.test.ts`. |
 | + | iPad / touch | `touch.spec.ts` (1180×820, touch enabled): the stick walks, a finger drag turns the camera, dock/panel taps, chat via the dock and **Send** button, entering a car with the **E** button, driving with the stick, exiting by tapping the prompt. Real touch events are sent through the Chrome DevTools Protocol. |
 
 The **two-client multiplayer test** (`10-12`) is the critical one:
@@ -77,10 +78,10 @@ from earlier builds (2026-09-28); the suites run unchanged against PostgreSQL wi
 | Suite | SQLite | PostgreSQL |
 | --- | --- | --- |
 | `npm run typecheck` (client, server, tests) | pass | n/a |
-| Unit (Vitest) | 140 / 140 passed | n/a (no database) |
-| Integration (Vitest, real sockets) | 37 / 37 passed | 20 / 20 passed (2026-09-28, before the tuning, Rare Dealer, highway and lifestyle tests) |
-| E2E (Playwright, Chromium, production build) | 9 / 9 passed (about 7 min) | 5 / 5 passed (2026-09-28; before the touch, tuning, highway and driving-controls tests) |
-| `npm run check:secrets` | no secrets in 230 tracked files | n/a |
+| Unit (Vitest) | 158 / 158 passed | n/a (no database) |
+| Integration (Vitest, real sockets) | 42 / 42 passed (three runs in a row) | 20 / 20 passed (2026-09-28, before the tuning, Rare Dealer, highway and lifestyle tests) |
+| E2E (Playwright, Chromium, production build) | 10 / 10 passed (about 10 min) | 5 / 5 passed (2026-09-28; before the touch, tuning, highway and driving-controls tests) |
+| `npm run check:secrets` | no secrets in 250 tracked files | n/a |
 
 Under SwiftShader the game renders at 1-2 FPS, and the client caps a frame at 0.1 s of simulated time, so the game runs
 several times slower than real time there. With real acceleration a worn starter car needs a few seconds of simulated time
@@ -91,6 +92,8 @@ clock.
 Note on flakiness: an early flake in the two-client test came from picking a listing the level-1 test account was
 not allowed to buy (category lock). The test now filters to unlocked categories. The main source of slowness is
 software rendering. The tests use generous polls rather than fixed sleeps wherever possible.
+Two theft-era flakes were fixed: the drag race money check now counts a "Christmas Tree" mission reward when that mission
+happens to be in the player's daily set, and the Sanayi test no longer asks an electric car for its exhaust.
 Two more time/random-dependent cases were made deterministic: the customization charge test now starts from stock mods
 (NPC cars sometimes come with custom paint or wheels), and the Rare Dealer tests wait for a fresh 120-second rotation
 instead of starting in its last seconds.

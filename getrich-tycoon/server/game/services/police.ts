@@ -103,6 +103,15 @@ export class PoliceService {
     w.escapeT = 0;
   }
 
+  /** Raise the heat to at least this much (e.g. a car alarm: straight to 2 stars). */
+  raiseHeat(playerId: string, atLeast: number): void {
+    const w = this.get(playerId);
+    if (w.busted) return;
+    w.heat = Math.min(ECONOMY.police.maxHeat, Math.max(w.heat, atLeast));
+    w.lastOffence = Date.now();
+    w.escapeT = 0;
+  }
+
   /** A near miss at speed (from the highway service). */
   onNearMiss(playerId: string, kmh: number): void {
     if (kmh >= ECONOMY.police.fastNearMissKmh) this.addHeat(playerId, ECONOMY.police.heatNearMissFast);
@@ -460,7 +469,16 @@ export class PoliceService {
       if (vehicleId) {
         await this.ctx.locks.run([K.player(playerId), K.vehicle(vehicleId)], async () => {
           const v = this.ctx.state.vehicles.get(vehicleId);
-          if (!v || v.ownerId !== playerId || v.status !== 'world' || this.ctx.sim.isDriven(vehicleId)) return;
+          if (!v || v.ownerId !== playerId || this.ctx.sim.isDriven(vehicleId)) return;
+          if (v.status === 'stolen') {
+            // A stolen car goes back to its real owner.
+            const uow = this.ctx.state.begin();
+            uow.deleteVehicle(vehicleId);
+            uow.notify(playerId, { kind: 'info', title: 'Stolen car seized', text: `The ${modelDisplayName(v.modelId)} went back to its owner.` }, false, (id) => this.ctx.hub.isOnline(id));
+            await uow.commit();
+            return;
+          }
+          if (v.status !== 'world') return;
           const uow = this.ctx.state.begin();
           uow.vehicle(vehicleId).status = 'stored';
           uow.notify(playerId, { kind: 'info', title: 'Impounded', text: `Your ${modelDisplayName(v.modelId)} was towed to your garage.` }, false, (id) => this.ctx.hub.isOnline(id));

@@ -101,7 +101,7 @@ export function bodyBox(root: THREE.Object3D): THREE.Box3 {
   const box = new THREE.Box3();
   const tmp = new THREE.Box3();
   const skip = (o: THREE.Object3D) => {
-    for (let p: THREE.Object3D | null = o; p && p !== root; p = p.parent) if (p.name === 'kits' || p.name === 'door_fl_cavity' || p.name === 'cockpit') return true;
+    for (let p: THREE.Object3D | null = o; p && p !== root; p = p.parent) if (p.name === 'kits' || p.name === 'door_fl_cavity' || p.name === 'door_fr_cavity' || p.name === 'cockpit') return true;
     return false;
   };
   root.traverse((o) => {

@@ -130,6 +130,15 @@ describe('default car models', () => {
     expect(withDoor.length).toBeGreaterThan(VEHICLE_MODELS.length * 0.7);
   });
 
+  it('cars have separate door mirrors and both front doors (they come off at the Sanayi)', () => {
+    const cars = VEHICLE_MODELS.filter((m) => m.specs.kind === 'car');
+    const names = cars.map((m) => bounds(readGlb(`./assets/models/vehicles/${m.id}.glb`)).names);
+    const withMirrors = names.filter((n) => n.has('mirror_l') && n.has('mirror_r')).length;
+    const withDoors = names.filter((n) => n.has('door_fl') && n.has('door_fr') && n.has('door_fr_cavity')).length;
+    expect(withMirrors).toBeGreaterThan(cars.length * 0.8);
+    expect(withDoors).toBeGreaterThan(cars.length * 0.8);
+  });
+
   it('the police car has siren lamps and the cockpit has animated gauges', () => {
     const p = bounds(readGlb('./assets/models/vehicles/police.glb'));
     expect(p.materials.has('siren_red')).toBe(true);

@@ -593,3 +593,53 @@ body.touch .cam-btn { display: none; }
 /* First-person view: keep the steering wheel and dials clear. */
 body.cockpit-view .drive-side .gauge { display: none; }
 body.cockpit-view .prompt { bottom: auto; top: 96px; }
+
+/* ---------------------------------------------------------------- car theft: Black Market, lockpick, Sanayi, Pawn Shop */
+.subtabs button.black-tab { display: inline-flex; align-items: center; gap: 6px; color: #c9b8ff; background: #0b0b10; border-color: rgba(122,92,255,0.35); }
+.subtabs button.black-tab.active { background: #1a1424; color: #fff; border-color: rgba(122,92,255,0.7); }
+.subtabs button.black-tab .icon svg, .subtabs button.black-tab svg { width: 15px; height: 15px; }
+.black-market { display: flex; flex-direction: column; gap: 14px; }
+.bm-title { font-size: 20px; font-weight: 900; color: #e7defc; letter-spacing: 0.02em; text-shadow: 0 0 18px rgba(122,92,255,0.6); }
+.bm-timer { font-size: 18px; font-weight: 900; padding: 8px 14px; border-radius: 12px; background: rgba(122,92,255,0.12); border: 1px solid rgba(122,92,255,0.45); color: #d6c9ff; }
+.bm-card { display: flex; gap: 16px; padding: 14px; border-radius: var(--radius); background: linear-gradient(160deg, #15121d, var(--panel-2) 60%); border: 1px solid rgba(122,92,255,0.35); box-shadow: 0 0 24px rgba(122,92,255,0.12); flex-wrap: wrap; }
+.bm-card .vname { font-weight: 900; font-size: 17px; }
+.bm-card .price { font-size: 22px; font-weight: 900; color: var(--money); }
+.bm-pic { width: 220px; max-width: 100%; aspect-ratio: 2 / 1.1; border-radius: 10px; overflow: hidden; }
+.bm-pic svg { width: 100%; height: 100%; display: block; }
+.bm-pips { display: inline-flex; gap: 4px; }
+.bm-pips span { width: 16px; height: 8px; border-radius: 3px; background: rgba(255,255,255,0.12); }
+.bm-pips span.on { background: linear-gradient(90deg, #7a5cff, #c77dff); box-shadow: 0 0 6px rgba(122,92,255,0.7); }
+.bm-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-dim); line-height: 1.4; }
+.bm-steps b { color: var(--text); }
+
+.lockpick { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.lp-canvas { width: 100%; max-width: 560px; aspect-ratio: 560 / 380; border-radius: 14px; border: 1px solid var(--line-strong); cursor: crosshair; touch-action: none; background: #222; }
+.lp-help { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; font-size: 12px; color: var(--text-dim); }
+.lp-help > span { display: inline-flex; align-items: center; gap: 4px; }
+.lp-turn { min-width: 200px; display: none; }
+body.touch .lp-turn { display: inline-flex; }
+
+.work-hud { position: absolute; left: 50%; bottom: 186px; transform: translateX(-50%); width: min(340px, 80vw); padding: 10px 14px; border-radius: 14px; background: var(--panel); border: 1px solid rgba(255,197,61,0.45); box-shadow: var(--shadow); display: none; pointer-events: none; }
+.work-hud.show { display: block; animation: pop 0.2s ease-out; }
+.work-label { font-weight: 800; font-size: 13px; margin-bottom: 6px; color: #ffd27a; }
+.work-bar { height: 8px; border-radius: 6px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.work-bar div { height: 100%; width: 0; background: linear-gradient(90deg, #ffb020, #ffd35a); transition: width 0.08s linear; }
+
+.bay-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.bay-card { padding: 12px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.bay-card.free { opacity: 0.8; border-style: dashed; }
+.bay-card.mine { border-color: rgba(255,197,61,0.55); }
+.bay-n { font-size: 11px; font-weight: 900; letter-spacing: 0.1em; color: #ffb020; }
+
+.eb-diagram { position: relative; width: 100%; max-width: 560px; margin: 0 auto; aspect-ratio: 1.35 / 1; border-radius: 14px; overflow: hidden; border: 1px solid var(--line-strong); }
+.eb-bg, .eb-bg svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.eb-spot { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; color: var(--text); cursor: pointer; padding: 0; }
+.eb-spot .eb-dot { position: relative; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 13px; background: rgba(255,176,32,0.25); border: 2px solid #ffb020; box-shadow: 0 0 14px rgba(255,176,32,0.6); animation: ebpulse 1.4s ease-in-out infinite; }
+.eb-spot .eb-ring { position: absolute; top: -4px; width: 34px; height: 34px; border-radius: 50%; --k: 0; background: conic-gradient(#ffd35a calc(var(--k) * 360deg), transparent 0); -webkit-mask: radial-gradient(circle, transparent 14px, #000 15px); mask: radial-gradient(circle, transparent 14px, #000 15px); }
+.eb-spot .eb-name { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 7px; background: rgba(8,10,16,0.82); white-space: nowrap; }
+.eb-spot:hover:not(:disabled) .eb-dot { background: rgba(255,176,32,0.55); }
+.eb-spot:disabled { cursor: default; }
+.eb-spot.done .eb-dot { animation: none; background: rgba(46,229,157,0.25); border-color: var(--money); box-shadow: none; color: var(--money); }
+.eb-spot.done .eb-name { color: var(--text-dim); text-decoration: line-through; }
+.eb-spot.working .eb-dot { animation: none; }
+@keyframes ebpulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.14); } }

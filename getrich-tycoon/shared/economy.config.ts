@@ -528,6 +528,56 @@ export const ECONOMY = {
     cutsceneSec: 6.5,
   },
 
+  /**
+   * Car theft: Black Market lockpick sets, the lockpick mini-game on street-parked cars, stripping
+   * stolen cars on a lift at the Sanayi garage, and selling the parts at the Pawn Shop.
+   */
+  theft: {
+    /** Lockpick & saw set at the Black Market. */
+    lockpickPrice: 2_500,
+    /** Shared stock: at most this many sets, back to full every restockSec (real time). */
+    stockMax: 5,
+    restockSec: 600,
+    /** Picks in a set: each wrong turn snaps one; all gone = the set is lost and the alarm goes off. */
+    picks: 3,
+    /** A set is used up on a successful break-in too (it stays in the ignition). */
+    consumeOnSuccess: true,
+    /** A lockpick session times out after this long (s). */
+    sessionSec: 90,
+    /** Minimum time between two turns of the pick (ms, the cylinder animation). */
+    tryCooldownMs: 600,
+    /** Sweet-spot tolerance (degrees either side) by the car's value: dearer cars, finer locks. */
+    tolerance: [
+      { maxValue: 20_000, deg: 7 },
+      { maxValue: 60_000, deg: 5.5 },
+      { maxValue: 150_000, deg: 4.5 },
+      { maxValue: Number.POSITIVE_INFINITY, deg: 3.5 },
+    ],
+    /** Beyond this many degrees off, the cylinder doesn't move at all. */
+    turnRange: 60,
+    /** How close to the car body you must stand (m). */
+    pickReach: 2.6,
+    /** Failing a lock: car alarm and police heat for 2 stars. */
+    failHeat: 180,
+    alarmSec: 30,
+    /** Street-parked cars (city kerbs) and broken-down cars on the highway shoulder. */
+    streetCars: 12,
+    highwayCars: 4,
+    /** A stolen spot gets a new car after this long (s). */
+    respawnSec: 120,
+    /** A stolen car left alone (not on a lift) is recovered by the police after this long (s). */
+    abandonSec: 600,
+    /** A car on a lift that nobody works on for this long is scrapped (s). */
+    liftIdleSec: 1_800,
+    /** Pawn Shop pays $10,000-$15,000 per stripped part (part type, the car's value and luck). */
+    pawnMin: 10_000,
+    pawnMax: 15_000,
+    /** Stand within this many metres of a strip point to work on it. */
+    stripReach: 1.7,
+    xpPerTheft: 25,
+    xpPerPart: 5,
+  },
+
   /** Missions: daily set (resets at 00:00 UTC) with automatic rewards. */
   missions: {
     dailyCount: 5,

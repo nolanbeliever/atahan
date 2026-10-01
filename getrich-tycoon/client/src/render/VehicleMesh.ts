@@ -249,6 +249,12 @@ abstract class ModelView implements AnyVehicleView {
   protected flames: Flames | null = null;
   protected door: THREE.Object3D | null = null;
   protected cavity: THREE.Object3D | null = null;
+  /** Passenger door and the side mirrors (taken off at the Sanayi). */
+  protected doorR: THREE.Object3D | null = null;
+  protected cavityR: THREE.Object3D | null = null;
+  protected mirrors: THREE.Object3D[] = [];
+  /** Both front doors have been stripped: the openings show. */
+  protected doorsOff = false;
   protected doorOpen = 0;
   protected wheelSpin = 0;
   private frozen: THREE.Group | null = null;
@@ -305,6 +311,10 @@ abstract class ModelView implements AnyVehicleView {
     this.door = model.getObjectByName('door_fl') ?? null;
     this.cavity = model.getObjectByName('door_fl_cavity') ?? null;
     if (this.cavity) this.cavity.visible = false;
+    this.doorR = model.getObjectByName('door_fr') ?? null;
+    this.cavityR = model.getObjectByName('door_fr_cavity') ?? null;
+    if (this.cavityR) this.cavityR.visible = false;
+    this.mirrors = ['mirror_l', 'mirror_r'].map((n) => model.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
     for (const key of ['fl', 'fr', 'rl', 'rr', 'front', 'rear'] as const) {
       const pivot = model.getObjectByName(`wheel_${key}`);
       const spin = model.getObjectByName(`wheel_${key}_spin`);
@@ -393,6 +403,17 @@ abstract class ModelView implements AnyVehicleView {
     this.applyBody();
     this.applyLights();
     this.setUnderglow(findOption(look.mods.underglow)?.value ?? 'none');
+    this.applyStrip(look.mods.strip?.removed ?? []);
+  }
+
+  /** Parts stripped at the Sanayi: mirrors gone, doors gone (the openings show). */
+  private applyStrip(removed: readonly string[]): void {
+    for (const m of this.mirrors) m.visible = !removed.includes('mirrors');
+    this.doorsOff = removed.includes('doors');
+    if (this.door) this.door.visible = !this.doorsOff;
+    if (this.doorR) this.doorR.visible = !this.doorsOff;
+    if (this.cavity) this.cavity.visible = this.doorsOff || this.doorOpen > 0.02;
+    if (this.cavityR) this.cavityR.visible = this.doorsOff;
   }
 
   /** Neon under the car: a soft additive glow on the road (brighter at night). */
@@ -490,7 +511,7 @@ abstract class ModelView implements AnyVehicleView {
     if (t > 0) this.thaw();
     // The driver's door (left side, +x) swings out about its front hinge.
     if (this.door) this.door.rotation.y = -t * 1.15;
-    if (this.cavity) this.cavity.visible = t > 0.02;
+    if (this.cavity) this.cavity.visible = t > 0.02 || this.doorsOff;
   }
 
   pop(strength: number): void {
@@ -664,7 +685,7 @@ export function bakeTemplate(t: VehicleTemplate): { paint: THREE.BufferGeometry;
   const white = new THREE.Color(1, 1, 1);
   const keys = (t.entry.paintMaterials ?? PAINT_MATERIALS).map((k) => k.toLowerCase());
   const skip = (o: THREE.Object3D) => {
-    for (let p: THREE.Object3D | null = o; p && p !== root; p = p.parent) if (p.name === 'kits' || p.name === 'door_fl_cavity') return true;
+    for (let p: THREE.Object3D | null = o; p && p !== root; p = p.parent) if (p.name === 'kits' || p.name === 'door_fl_cavity' || p.name === 'door_fr_cavity') return true;
     return false;
   };
   root.traverse((o) => {

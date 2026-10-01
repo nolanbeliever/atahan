@@ -124,9 +124,10 @@ describe('drag strip', () => {
     expect(me.zeroTo100).toBeGreaterThan(0);
     await sleep(600);
     const won = done.winner === 0;
-    // Driving bonuses (paid every 10 s of driving) may land during the run.
+    // Driving bonuses (paid every 10 s of driving) may land during the run, and the win pays the "Christmas Tree" mission
+    // when it is one of the player's missions today.
     const { transactions } = await client.rpc('transactions', {});
-    const bonus = transactions.filter((t) => t.kind === 'drive_bonus' && t.createdAt >= raceStart).reduce((a, t) => a + t.amount, 0);
+    const bonus = transactions.filter((t) => (t.kind === 'drive_bonus' || t.kind === 'mission') && t.createdAt >= raceStart).reduce((a, t) => a + t.amount, 0);
     expect(cash(client)).toBe(money0 - ECONOMY.drag.entryFee + (won ? ECONOMY.drag.prize : 0) + bonus);
     client.close();
   }, 90_000);

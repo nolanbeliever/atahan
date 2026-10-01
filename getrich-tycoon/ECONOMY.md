@@ -165,6 +165,28 @@ Stage 2 $3,700, Stage 3 $8,000, coilovers $2,900, chameleon paint $5,200. A full
   than the cash) (`police_fine`); the car is towed to the garage (no fee); you respawn at the nearest garage. Values are in
   `ECONOMY.police`.
 
+## Car theft
+
+All values are in `ECONOMY.theft`.
+
+- **Black Market:** Lockpick & Testere Seti, $2,500 (`black_market`). One stock of 5 for the whole city, full again at the start
+  of every 10-minute window of the server clock (the count survives restarts in `world_state`).
+- **Lockpick:** starting on a car uses one set (3 picks). Each turn either opens the lock (pick within the sweet spot's
+  tolerance: 7° on cars under $20k, 5.5° under $60k, 4.5° under $150k, 3.5° above) or snaps a pick and says how far the cylinder
+  turned. Three snapped picks: the alarm sounds for 30 s and the player's heat rises to at least 180 (**2 stars**). 90 s to
+  finish; walking away loses the set. +25 XP per car.
+- **Street cars:** 12 at city kerbs and 4 on the highway shoulder, generated like NPC cars (no motorcycles or exclusives); a
+  new one parks 2 minutes after one is taken.
+- **Stolen cars** (`stolen`): drivable, never stored, sold, listed, displayed or counted in net worth or garage slots. Busted in
+  one: the car is seized. Left alone for 10 minutes: recovered by the police. Left on a lift for 30 minutes: scrapped.
+- **Sanayi:** 2 lifts. Parts and work time: side mirrors 2.5 s, doors 5 s, steering wheel 3 s, seats 4 s, exhaust & catalytic
+  converter 4 s (not on electric cars), and from the engine bay: engine block 8 s, gearbox 6 s, turbo / supercharger 4 s
+  (forced-induction engines only), ECU 2.5 s, radiator 3 s, alternator 3 s (not on electric cars), battery 2 s. +5 XP per part;
+  the server times every job. When the last part is off the shell is scrapped.
+- **Pawn Shop:** each part sells for $10,000-$15,000 (`pawn_sale`): `min + (max - min) × (part weight × 0.5 + car value tier ×
+  0.12 + luck × 0.4)`, rounded to $10. A whole car is 9-12 parts, so a stripped car pays about $90,000-$180,000 for a set,
+  a few minutes' work and the risk of the police; lower `pawnMin` / `pawnMax` to make it less lucrative.
+
 ## Reputation unlocks (by level)
 
 | Unlock | Rule |

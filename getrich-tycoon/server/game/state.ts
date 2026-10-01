@@ -49,7 +49,7 @@ export interface CommitResult {
 }
 
 export function isPublicVehicle(v: Vehicle | null | undefined): boolean {
-  return !!v && (v.status === 'world' || v.status === 'displayed');
+  return !!v && (v.status === 'world' || v.status === 'displayed' || v.status === 'stolen');
 }
 
 export function isPlayerListing(v: Vehicle | null | undefined): boolean {
@@ -142,7 +142,7 @@ export class GameState {
     const p = this.players.get(playerId);
     if (!p) return 0;
     let worth = p.money + p.bank;
-    for (const v of this.vehiclesOf(playerId)) worth += marketValue(v, this.trends);
+    for (const v of this.vehiclesOf(playerId)) if (v.status !== 'stolen') worth += marketValue(v, this.trends);
     const d = this.dealershipOf(playerId);
     if (d) for (let l = 1; l <= d.level; l++) worth += Math.round(dealershipLevel(l).price * 0.6);
     // Money held in auction bids still belongs to the bidder.

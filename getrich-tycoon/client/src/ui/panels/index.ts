@@ -8,6 +8,9 @@ import { InspectPanel, MarketPanel, PlayerListingPanel } from './market';
 import { MapPanel, MenuPanel, ProfilePanel, SettingsPanel } from './misc';
 import { TuningGaragePanel } from './garage';
 import { BankPanel, FuelPanel, PartsPanel, RepairPanel, WashPanel } from './services';
+import { EngineBayPanel } from './engineBay';
+import { LockpickPanel } from './lockpick';
+import { PawnPanel, SanayiPanel } from './theft';
 
 const PANELS = {
   menu: MenuPanel,
@@ -30,6 +33,10 @@ const PANELS = {
   bank: BankPanel,
   market_lot: MarketPanel,
   drag: DragPanel,
+  pawn: PawnPanel,
+  sanayi: SanayiPanel,
+  lockpick: LockpickPanel,
+  engineBay: EngineBayPanel,
 } satisfies Record<string, new (ui: UI, arg: PanelArg) => Panel>;
 
 export type PanelName = keyof typeof PANELS;

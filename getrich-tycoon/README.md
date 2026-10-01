@@ -32,6 +32,7 @@ any vehicle (see [Vehicle models](#vehicle-models)).
 | **Driving** | **F** gets in and out: the character walks to the driver's door (around the car if needed), the door opens, they sit down and the door shuts; drivers are visible in their seats. **C** switches between the chase camera and a **first-person cockpit** with live rev counter and speedometer needles, a steering wheel that turns 540-1080 degrees lock to lock, a gear lever that moves through the gate, pedals that go down and a gear display. A cockpit gauge (bottom right) shows speed, gear, rpm with a shift light, turbo boost (psi), the ECU stage and ABS / TCS lights. Fuel use, mileage, dirt and body damage. |
 | **Driving bonus** | Every 10 seconds of real driving pays a bonus scaled by the car's value ($50 for a $50k car, about $350 for a $300k G 63 or M8), shown as a small "+$150 (Driving Bonus)". |
 | **Missions (Görevler)** | **L** opens the missions panel on the right: a daily set per player, for example 10 near misses without crashing ($2,500), hold 250 km/h for 5 s (a free Stage 1 ECU remap coupon), sell 2 cars within 120 s ($5,000 + 100 XP), plus extra daily goals. Rewards are paid automatically. |
+| **Car theft (Araba çalma)** | A hidden **Black Market** tab in the Marketplace (and the Esc menu) sells the **Lockpick & Testere Seti** for $2,500 from a stock of 5 shared by the whole city that is full again every 10 real minutes (countdown on screen). Cars are parked at city kerbs and broken down (hazard lights on) on the highway shoulder: next to one, **Lockpick Et (E)** opens the lock mini-game: set the pick's angle (mouse, A/D, drag), turn it (W / Space / click); 3 picks (3 HAK); off the sweet spot the cylinder stops short, the pick strains and snaps. Three snapped picks lose the set, the car alarm wails and flashes and the police come at **2 stars**. An opened car is yours to drive (stolen: it can't be stored, sold or listed). Drive it to the **Sanayi / Izgara Garajı** south of the city (🔧 on the map), stop between a lift's posts and press **Aracı Lifte Kaldır (F)**: the car goes up. Walk to the glowing markers and strip the side mirrors, doors, steering wheel, seats and exhaust & catalytic converter; at the front the **engine bay** opens a diagram of the engine block, gearbox, turbo / supercharger, ECU, radiator, alternator and battery to click. Every part disappears from the car and goes into the inventory as a **Sökülmüş Parça**; the bare shell is scrapped. The **Pawn Shop** next door pays a random $10,000-$15,000 per part ("Parçalar Pawn Shop'a satıldı: +$13,400"). |
 | **Police** | Near misses above 180 km/h and hitting traffic raise a **wanted level of 1-5 stars**. From 2 stars police interceptors with flashing light bars and sirens chase you (real physics cars, along the highway lanes and through the city streets). Lose them for 30 s: **ESCAPED! +$1,000 & XP**. Stopped with a police car beside you for 3 s: **BUSTED!** cutscene (the police car pulls up, hands up, handcuffs), a fine of 10% of your cash (at least $1,500), the car is towed to your garage and you walk out of the nearest garage. |
 | **Reputation unlocks** | Levels open more garage slots, more cars on the street at once, market discounts (up to 10%) and underglow neon kits (rainbow at level 15). |
 | **Buying** | Browse, filter, sort and inspect listings; buy or negotiate with data-driven NPC seller personalities. You can also buy from other players. |
@@ -89,8 +90,8 @@ The schema (`database/schema.sql`) is applied automatically on startup. When `DA
 | **Shift** | Sprint |
 | **Space** | Handbrake (driving) |
 | **Mouse** (click to lock) / right-drag | Camera |
-| **E** | Interact (also enters / exits a vehicle) |
-| **F** | Get into the nearest own car / get out (animated) |
+| **E** | Interact (also enters / exits a vehicle); **Lockpick Et** next to a parked car; strip a part / open the engine bay at a car on a Sanayi lift |
+| **F** | Get into the nearest own car / get out (animated); **Aracı Lifte Kaldır** with a stolen car between a Sanayi lift's posts |
 | **G** | Use the fuel station or car wash while driving; open the drag strip at the staging lane |
 | **C** | Chase camera / first-person cockpit |
 | **L** | Missions panel |
@@ -98,6 +99,7 @@ The schema (`database/schema.sql`) is applied automatically on startup. When `DA
 | **Enter** / **T** | Chat |
 | **B** / **I** / **J** / **K** / **M** / **O** | Marketplace / Garage / Dealership / Auctions / Map / Profile |
 | **Esc** | Close panel / game menu |
+| Lockpick screen | Mouse / **A D** (Shift: fine) set the pick's angle; **W** / **Space** / click turns it; **Esc** gives up (the set is lost) |
 
 **Touch screens (iPad, tablets, phones in landscape)** get on-screen controls automatically:
 
@@ -134,7 +136,8 @@ To use a real model of a car (for example a licensed BMW M3 G80 or Mercedes-AMG 
 
 Dropped-in models are fitted automatically: turned to face forward (`rotationOffset` if it comes in backwards or sideways), scaled
 to the car's real length (`scale` fine-tunes), centred, and stood on its tyres so the wheels touch the road. Wheels named like
-`wheel_fl` / `Wheel_FL` / "wheel front left" spin and steer; a `door_fl` node opens when you get in and out; `seat_driver` puts the
+`wheel_fl` / `Wheel_FL` / "wheel front left" spin and steer; a `door_fl` node opens when you get in and out (`door_fr`,
+`mirror_l` and `mirror_r` come off at the Sanayi); `seat_driver` puts the
 cockpit camera at the driver's eyes; materials named "paint" (or listed in `paintMaterials`) take the car's colour. See the comment
 at the top of `highDetailVehicles.ts` for the full naming convention. Distant highway traffic is drawn instanced from the same
 models (the `.lod.glb` copies).

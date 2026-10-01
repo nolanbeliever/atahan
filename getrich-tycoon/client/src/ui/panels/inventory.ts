@@ -8,6 +8,8 @@ import { h, type Child } from '../dom';
 import { ICONS } from '../icons';
 import { Panel } from '../Panel';
 import { moneyInput, statusPill, vehicleCard, vehicleTitle } from '../widgets';
+import { LOCKPICK_ITEM, stripPart } from '../../../../shared/theft';
+import { strippedParts } from './theft';
 
 export class InventoryPanel extends Panel {
   readonly name = 'inventory';
@@ -19,7 +21,7 @@ export class InventoryPanel extends Panel {
     return 'Garage';
   }
   override subtitle() {
-    const n = this.store.myVehicles().length;
+    const n = this.store.myVehicles().filter((v) => v.status !== 'stolen').length;
     return `${n} / ${ECONOMY.player.maxOwnedVehicles} vehicles owned`;
   }
   iconSvg() {
@@ -41,11 +43,28 @@ export class InventoryPanel extends Panel {
     const rows = ECONOMY.parts.map((k) =>
       h('tr', null, h('td', null, k.label), h('td', { class: 'muted' }, k.description), h('td', { class: 'mono' }, String(inv[k.id] ?? 0))),
     );
+    const sets = inv[LOCKPICK_ITEM] ?? 0;
+    const stolen = strippedParts(inv);
     return h(
       'div',
       { class: 'col' },
       h('div', { class: 'muted small' }, 'Parts kits reduce the parts cost of a repair job at the Repair Garage. Buy them at the Parts Depot.'),
       h('table', { class: 'table' }, h('thead', null, h('tr', null, h('th', null, 'Kit'), h('th', null, 'Use'), h('th', null, 'Owned'))), h('tbody', null, rows)),
+      h('div', { class: 'section-title', style: { marginTop: '10px' } }, 'Kaçak · Under the counter'),
+      h(
+        'table',
+        { class: 'table', 'data-testid': 'inv-theft' },
+        h('thead', null, h('tr', null, h('th', null, 'Item'), h('th', null, 'Use'), h('th', null, 'Owned'))),
+        h(
+          'tbody',
+          null,
+          h('tr', null, h('td', null, 'Lockpick & Testere Seti'), h('td', { class: 'muted' }, 'Pick a parked car\u2019s lock (3 picks). Black Market.'), h('td', { class: 'mono', 'data-testid': 'inv-lockpicks' }, String(sets))),
+          stolen.map((r) =>
+            h('tr', { 'data-part': r.part }, h('td', null, `Sökülmüş Parça: ${stripPart(r.part)!.labelTr}`), h('td', { class: 'muted' }, `Pawn Shop pays ${formatMoney(r.min)}-${formatMoney(r.max)}`), h('td', { class: 'mono' }, String(r.count))),
+          ),
+        ),
+      ),
+      stolen.length ? h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => this.ui.open('map') }, 'Find the Pawn Shop ($ on the map)')) : null,
     );
   }
 
@@ -94,6 +113,8 @@ export class InventoryPanel extends Panel {
       out.push(b('Unlist', () => void this.act(() => this.net.rpc('vehicle.unlist', { vehicleId: v.id }), () => this.ui.success('Listing removed')), '', 'inv-unlist'));
     } else if (v.status === 'displayed') {
       out.push(b('Manage display', () => this.ui.open('dealership')));
+    } else if (v.status === 'stolen') {
+      out.push(h('span', { class: 'tiny muted' }, v.mods.strip ? 'On a Sanayi lift: walk to the markers and strip it.' : 'Stolen: drive it to the Sanayi (🔧 on the map) and put it on a lift.'));
     }
     if ((v.status === 'stored' || v.status === 'world' || v.status === 'displayed') && !driving) {
       out.push(b('Quick sell', () => ((this.confirmSell = v.id), (this.listing = null), this.refresh()), 'danger'));

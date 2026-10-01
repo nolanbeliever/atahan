@@ -23,5 +23,9 @@ export const ICONS = {
   tag: svg('<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/>'),
   logout: svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'),
   flag: svg('<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>'),
+  lockpick: svg('<circle cx="7.5" cy="16.5" r="4.5"/><path d="M10.7 13.3L21 3"/><path d="M17 7l2 2"/><path d="M14.5 9.5l1.5 1.5"/>'),
+  mask: svg('<path d="M3 9c3-2 6-2 9 0 3-2 6-2 9 0 0 5-3 8-5 8-1.6 0-2.6-1.4-4-1.4S9.6 17 8 17c-2 0-5-3-5-8z"/><circle cx="8" cy="11.5" r="1.4"/><circle cx="16" cy="11.5" r="1.4"/>'),
+  coins: svg('<ellipse cx="9" cy="7" rx="6" ry="3"/><path d="M3 7v4c0 1.7 2.7 3 6 3s6-1.3 6-3V7"/><path d="M9 14v3c0 1.7 2.7 3 6 3s6-1.3 6-3v-4c0-1.6-2.4-2.9-5.5-3"/>'),
+  lift: svg('<path d="M4 21V5"/><path d="M20 21V5"/><path d="M4 11h16"/><path d="M7 11V8h10v3"/><path d="M2 21h20"/>'),
   handshake: svg('<path d="M11 17l2 2a1.4 1.4 0 0 0 2-2"/><path d="M14 14l2.5 2.5a1.4 1.4 0 0 0 2-2L15 11"/><path d="M21 11l-3.5-3.5L13 9 9 5 3 11l6 6 2-2"/>'),
 };

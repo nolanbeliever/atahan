@@ -9,6 +9,8 @@ export type PanelArg = Record<string, unknown>;
 export abstract class Panel {
   abstract readonly name: string;
   size: 'xl' | 'wide' | 'medium' | 'narrow' = 'wide';
+  /** A click on the dimmed backdrop closes the panel. */
+  closeOnBackdrop = true;
   protected bodyEl!: HTMLElement;
   protected footEl!: HTMLElement;
   protected subEl!: HTMLElement;

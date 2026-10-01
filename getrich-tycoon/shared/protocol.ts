@@ -7,6 +7,7 @@ import type { MissionView } from './missions';
 import type { BustedEvent, WantedState } from './police';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
+import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
   Appearance,
@@ -81,6 +82,20 @@ export interface RpcMethods {
   'drag.info': { params: Empty; result: DragInfo };
   'drag.join': { params: { mode: 'bot' | 'player' }; result: DragInfo };
   'drag.leave': { params: Empty; result: DragInfo };
+  /** Black Market: lockpick sets (shared stock, refilled every 10 minutes). */
+  'blackmarket.info': { params: Empty; result: BlackMarketInfo };
+  'blackmarket.buy': { params: Empty; result: BlackMarketInfo };
+  /** Cars parked on the street / highway shoulder that can be broken into. */
+  'street.list': { params: Empty; result: { cars: StreetCar[] } };
+  /** Lockpick mini-game: start on a street car (uses a set), turn the pick at an angle (0-180). */
+  'lockpick.start': { params: { carId: string }; result: { sessionId: string; picks: number; difficulty: LockDifficulty; modelId: string } };
+  'lockpick.try': { params: { sessionId: string; angle: number }; result: LockpickResult };
+  'lockpick.cancel': { params: { sessionId: string }; result: { ok: true } };
+  /** Sanayi: put the stolen car you are driving up on the lift in this bay; strip a part. */
+  'sanayi.lift': { params: { vehicleId: string }; result: { vehicle: Vehicle } };
+  'sanayi.strip': { params: { vehicleId: string; part: StripPart }; result: StripResult };
+  /** Pawn Shop: sell stripped parts (one kind, or all of them). */
+  'pawn.sell': { params: { part?: StripPart }; result: { amount: number; count: number } };
   /** Today's missions (and start a timed one). */
   'missions.list': { params: Empty; result: { missions: MissionView[] } };
   'missions.start': { params: { id: string }; result: { missions: MissionView[] } };
@@ -159,7 +174,34 @@ export interface ServerToClientEvents {
   'police.wanted': (d: WantedState) => void;
   'police.busted': (d: BustedEvent) => void;
   'police.escaped': (d: { reward: number; xp: number }) => void;
+  /** Street-parked cars changed (one was stolen, a new one parked, an alarm started). */
+  'street.cars': (cars: StreetCar[]) => void;
+  /** A car alarm went off nearby. */
+  'car.alarm': (d: { carId: string; x: number; z: number; until: number }) => void;
+  /** Black Market stock changed. */
+  'blackmarket.update': (d: Omit<BlackMarketInfo, 'owned'>) => void;
   kicked: (reason: string) => void;
+}
+
+export interface LockpickResult {
+  /** How far the cylinder turned (0-1); 1 = open. */
+  turn: number;
+  opened: boolean;
+  /** Picks left in the set. */
+  picksLeft: number;
+  /** All picks snapped: the set is gone, the alarm sounds, police are coming. */
+  failed: boolean;
+  /** The stolen car (now yours to drive) when opened. */
+  vehicleId: string | null;
+}
+
+export interface StripResult {
+  /** False on the first call: work started, call again at readyAt to finish. */
+  done: boolean;
+  readyAt: number;
+  /** The car after the part came off (null when it was the last part and the shell was scrapped). */
+  vehicle: Vehicle | null;
+  scrapped: boolean;
 }
 
 export interface NearMissEvent {

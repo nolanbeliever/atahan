@@ -25,6 +25,7 @@ import type { BustedEvent, WantedState } from '../../../shared/police';
 import type { DragRaceView } from '../../../shared/drag';
 import { DRAG_STRIP, gameHour } from '../../../shared/highway';
 import type { PrivateState } from '../../../shared/protocol';
+import { SANAYI, isLifted, partLabelTr, type StreetCar } from '../../../shared/theft';
 import { Anim, VF, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
@@ -50,13 +51,15 @@ import { Renderer } from '../render/Renderer';
 import { createVehicleView, type AnyVehicleView, type VehicleView } from '../render/VehicleMesh';
 import { CockpitRig } from '../render/Cockpit';
 import { Rain, setRoadWetness } from '../render/Weather';
+import { SanayiView } from '../render/Sanayi';
 import { Store } from '../state/Store';
 import type { UI } from '../ui/UI';
 import { CameraController } from './CameraController';
-import { EntityViews } from './EntityViews';
+import { EntityViews, LIFT_DELAY } from './EntityViews';
 import { Input } from './Input';
 import { BustedCutscene } from './Busted';
 import { PoliceClient } from './Police';
+import { TheftClient } from './Theft';
 import { TrafficClient } from './Traffic';
 
 export interface Interaction {
@@ -80,6 +83,11 @@ export class Game {
   readonly highway = new HighwayView();
   readonly traffic = new TrafficClient();
   readonly trafficView = new TrafficView();
+  readonly sanayi = new SanayiView();
+  /** Street cars, alarms, the lifts and stripping. */
+  readonly theft: TheftClient;
+  /** Hands busy (lockpicking, working on a car): the character plays its work animation. */
+  working = false;
   /** The drag race on the strip (null when it is free). */
   drag: DragRaceView | null = null;
   private dragBots = new Map<number, { view: AnyVehicleView; z: number; speed: number; rz: number }>();
@@ -163,10 +171,13 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group, this.sanayi.group);
     this.effects = new Effects(this.renderer.scene);
     this.entities = new EntityViews(this.renderer.scene, () => this.store.playerId);
     this.police = new PoliceClient(this.renderer.scene);
+    this.entities.serverNow = () => this.store.serverNow();
+    this.theft = new TheftClient(this);
+    this.renderer.scene.add(this.theft.group);
     this.renderer.scene.add(this.rain.mesh);
     // Pops & bangs from our own exhaust flash flames at the tips.
     this.audio.onPop = (strength) => {
@@ -228,6 +239,15 @@ export class Game {
         .rpc('rare.list', {})
         .then((s) => this.store.setRare(s))
         .catch(() => undefined);
+      this.theft.clear();
+      void this.net
+        .rpc('street.list', {})
+        .then((r) => this.store.setStreet(r.cars))
+        .catch(() => undefined);
+      void this.net
+        .rpc('blackmarket.info', {})
+        .then((r) => this.store.setBlackMarket(r))
+        .catch(() => undefined);
     });
     net.on('self', (s) => this.store.applySelf(s));
     net.on('snapshot', (s) => this.onSnapshot(s));
@@ -243,6 +263,9 @@ export class Game {
     net.on('listings.changed', () => this.store.emit('listingsChanged', undefined));
     net.on('trends', (t) => this.store.setTrends(t));
     net.on('rare.update', (s) => this.store.setRare(s));
+    net.on('street.cars', (cars) => this.store.setStreet(cars));
+    net.on('car.alarm', (d) => this.theft.onAlarm(d));
+    net.on('blackmarket.update', (d) => this.store.setBlackMarket(d));
     net.on('highway.nearmiss', (e) => {
       this.ui?.nearMiss.nearMiss(e);
       this.audio.play('nearmiss');
@@ -328,6 +351,7 @@ export class Game {
       for (const v of s.vehicles.values()) this.entities.upsertVehicle(v, 'public', undefined, v.ownerName);
     });
     s.on('market', (listings) => this.entities.syncMarket(listings));
+    s.on('street', (cars) => this.theft.sync(cars));
     s.on('dealerships', () => {
       this.refreshDealerships();
       this.rebuildBoxes();
@@ -483,6 +507,7 @@ export class Game {
       if (racer) list.push({ id: `drag-bot-${lane}`, modelId: racer.modelId, x: DRAG_STRIP.laneX[lane as 0 | 1], z: bot.rz, rot: DRAG_STRIP.yaw });
     }
     this.dynamic.length = 0;
+    this.theft.obstacles(list);
     vehicleObstacles(list, this.dynamic);
     this.traffic.boxesNear(this.curr.x, this.curr.z, 70, this.dynamic);
     this.police.boxesNear(this.curr.x, this.curr.z, 70, this.dynamic);
@@ -569,7 +594,8 @@ export class Game {
 
     const keys = this.input.keys();
     const moving = (keys & (KEY.FORWARD | KEY.BACK | KEY.LEFT | KEY.RIGHT)) !== 0;
-    const anim = moving ? (keys & KEY.SPRINT ? Anim.Run : Anim.Walk) : Anim.Idle;
+    const busyHands = (this.working || !!this.theft.job) && !this.driving;
+    const anim = moving ? (keys & KEY.SPRINT ? Anim.Run : Anim.Walk) : busyHands ? Anim.Interact : Anim.Idle;
     let flags = 0;
     if (this.dyn && this.driving) {
       if (this.dyn.brk > 0.05) flags |= VF.BRAKE;
@@ -661,6 +687,12 @@ export class Game {
     }
     this.effects.update(dt);
     this.city.update(dt);
+    // Car theft: street cars and alarms, the work on lifted cars, the lifts' arms.
+    this.theft.update(dt, { x: rx, z: rz });
+    const lifts = [0, 0];
+    for (const e of this.entities.vehicles.values()) if (e.data.mods.strip) lifts[e.data.mods.strip.bay] = e.lift;
+    lifts.forEach((y, bay) => this.sanayi.setLift(bay, y));
+    this.sanayi.update(dt, rx, rz, this.night);
     // Horn + headlight flash (traffic ahead moves over).
     const horn = !!this.driving && (keys & KEY.HORN) !== 0 && this.input.enabled;
     if (horn !== this.hornOn) {
@@ -845,6 +877,19 @@ export class Game {
           secondary = { id: i.id, label: 'Drag race: $250 entry, win $500', action: () => this.ui.open('drag') };
         }
       }
+      // A stolen car lined up between a Sanayi lift's posts: F puts it up (exit moves to G).
+      if (v?.status === 'stolen' && !isLifted(v.mods) && this.dyn) {
+        const bay = this.theft.bayFor(this.dyn.x, this.dyn.z, this.dyn.rot);
+        const id = v.id;
+        if (bay >= 0) {
+          const exit = best;
+          best = { id: `lift-${bay}`, label: 'Aracı Lifte Kaldır', sub: `Lift ${bay + 1}`, action: () => void this.liftCar(id), vehicle: true };
+          vehicleAction = best;
+          secondary = { ...exit, label: 'Exit', vehicle: false };
+        } else if (this.inHall(x, z)) {
+          secondary = { id: 'lift-hint', label: 'Stop between the lift posts', action: () => this.ui.toast({ kind: 'info', title: 'Sanayi lift', text: 'Drive in straight between the two yellow posts of a free lift, stop, then press F.' }) };
+        }
+      }
     } else {
       for (const i of INTERACTABLES) {
         const d = Math.hypot(i.x - x, i.z - z);
@@ -869,8 +914,23 @@ export class Game {
           consider(d + 2, { id: plot.id, label: `${dealer.name}`, sub: `Owned by ${dealer.ownerName}`, action: () => this.ui.open('market', { tab: 'players' }) });
         }
       }
+      // Lockpicking a parked car.
+      const street = this.theft.nearestCar(x, z);
+      if (street) consider(street.d, this.lockpickInteraction(street.car));
+      // Working on my car on a Sanayi lift: the part at this spot, or the engine bay.
+      const spot = this.theft.nearestTarget(x, z);
+      if (spot) {
+        const job = this.theft.job;
+        const it: Interaction = job
+          ? { id: 'strip-busy', label: `Sökülüyor: ${partLabelTr(job.part)}`, sub: 'Stay here until it comes off', action: () => undefined }
+          : spot.part === 'bay'
+            ? { id: `bay-${spot.vehicleId}`, label: 'Motor Bölmesini Aç', sub: 'Engine block, gearbox, turbo, ECU, radiator...', action: () => this.ui.open('engineBay', { vehicleId: spot.vehicleId }) }
+            : { id: `strip-${spot.part}`, label: `Sök: ${spot.label}`, sub: `${spot.seconds}s · Sökülmüş Parça for the Pawn Shop`, action: () => void this.theft.startStrip(spot.vehicleId, spot.part as Exclude<typeof spot.part, 'bay'>) };
+        consider(Math.max(0, Math.hypot(spot.x - x, spot.z - z) - 1), it);
+      }
       for (const e of this.entities.vehicles.values()) {
-        const ownParked = e.data.ownerId === me && e.data.status === 'world';
+        const stolen = e.data.ownerId === me && e.data.status === 'stolen';
+        const ownParked = e.data.ownerId === me && (e.data.status === 'world' || (stolen && !isLifted(e.data.mods)));
         // Own parked vehicles can be entered from a little further away (server allows 5m + half length).
         const reach = e.view.length / 2 + (ownParked ? 3.4 : 1.4);
         const d = Math.hypot(e.x - x, e.z - z);
@@ -879,8 +939,8 @@ export class Game {
         if (e.kind === 'market' && e.listing) {
           const l = e.listing;
           consider(d, { id: v.id, label: `Inspect ${modelDisplayName(v.modelId)}`, sub: `Asking ${formatMoney(l.askingPrice)} - seller: ${l.sellerName}`, action: () => this.ui.open('inspect', { listingId: l.id }) });
-        } else if (v.ownerId === me && v.status === 'world') {
-          const it: Interaction = { id: v.id, label: `Drive ${modelDisplayName(v.modelId)}`, sub: `Fuel ${Math.round(v.fuel)}%`, action: () => void this.enterVehicle(v.id), vehicle: true };
+        } else if (ownParked) {
+          const it: Interaction = { id: v.id, label: `Drive ${modelDisplayName(v.modelId)}`, sub: stolen ? 'Stolen - take it to the Sanayi (🔧 on the map)' : `Fuel ${Math.round(v.fuel)}%`, action: () => void this.enterVehicle(v.id), vehicle: true };
           consider(d, it);
           if (d < vehicleD) {
             vehicleD = d;
@@ -938,6 +998,41 @@ export class Game {
     else if (code === 'KeyG') this.interactSecondary();
     else if (code === 'KeyC') this.toggleCockpit();
     else if (code === 'KeyL') this.ui.missions.toggle();
+  }
+
+  private inHall(x: number, z: number): boolean {
+    const h = SANAYI.hall;
+    return x > h.minX && x < h.maxX && z > h.minZ - 4 && z < h.maxZ;
+  }
+
+  /** The prompt next to a parked car: pick its lock (with a set), or where to get a set. */
+  private lockpickInteraction(car: StreetCar): Interaction {
+    const name = modelDisplayName(car.modelId);
+    if (this.theft.alarmOn(car.id)) return { id: `lp-${car.id}`, label: 'Alarm çalıyor!', sub: `${name} - come back when it stops`, action: () => this.audio.play('error') };
+    const sets = this.store.lockpicks();
+    if (sets <= 0) return { id: `lp-${car.id}`, label: 'Lockpick Et', sub: `${name} - you need a Lockpick & Testere Seti (Black Market)`, action: () => this.ui.open('market', { tab: 'black' }) };
+    return { id: `lp-${car.id}`, label: 'Lockpick Et', sub: `${name} · ${sets} set${sets === 1 ? '' : 's'}${car.highway ? ' · broken down' : ''}`, action: () => void this.startLockpick(car.id) };
+  }
+
+  /** Start picking a parked car's lock (uses a set) and open the mini-game. */
+  async startLockpick(carId: string): Promise<void> {
+    try {
+      const r = await this.net.rpc('lockpick.start', { carId });
+      this.ui.open('lockpick', { ...r, carId });
+    } catch (err) {
+      this.ui.error(err);
+    }
+  }
+
+  /** Put the stolen car being driven up on the lift it is lined up in. */
+  async liftCar(vehicleId: string): Promise<void> {
+    try {
+      const { vehicle } = await this.net.rpc('sanayi.lift', { vehicleId });
+      setTimeout(() => this.audio.play('lift'), LIFT_DELAY * 1000);
+      this.ui.toast({ kind: 'success', title: 'Araç lifte kaldırıldı', text: `${modelDisplayName(vehicle.modelId)} is going up. Walk to the glowing markers and press E to strip it.` });
+    } catch (err) {
+      this.ui.error(err);
+    }
   }
 
   /** F: get into the nearest own car, or out of the one being driven. */
@@ -1078,7 +1173,12 @@ export class Game {
       money: this.store.me?.money ?? null,
       bank: this.store.me?.bank ?? null,
       level: this.store.me?.level ?? null,
-      vehicles: this.store.myVehicles().map((v) => ({ id: v.id, modelId: v.modelId, status: v.status, salePrice: v.salePrice })),
+      vehicles: this.store.myVehicles().map((v) => ({ id: v.id, modelId: v.modelId, status: v.status, salePrice: v.salePrice, strip: v.mods.strip ?? null })),
+      streetCars: [...this.store.street.values()].map((c) => ({ id: c.id, modelId: c.modelId, x: c.x, z: c.z, rot: c.rot, highway: c.highway })),
+      lockpicks: this.store.lockpicks(),
+      inventory: { ...(this.store.me?.inventory ?? {}) },
+      stripJob: this.theft.job ? { part: this.theft.job.part, vehicleId: this.theft.job.vehicleId } : null,
+      prompt: this.interaction ? { label: this.interaction.label, sub: this.interaction.sub ?? null, vehicle: !!this.interaction.vehicle } : null,
       otherPlayers: [...this.entities.players.keys()].filter((id) => id !== this.store.playerId),
       visiblePlayers: [...this.entities.players.entries()].filter(([id, e]) => id !== this.store.playerId && e.buffer.latest).map(([id]) => id),
       marketListings: this.store.marketListings.map((l) => ({ id: l.id, price: l.askingPrice, modelId: l.vehicle.modelId, vehicleId: l.vehicle.id })),

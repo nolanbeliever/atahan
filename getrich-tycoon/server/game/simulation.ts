@@ -117,7 +117,7 @@ export class Simulation {
     const list: ObstacleVehicle[] = [];
     for (const v of this.state.vehicles.values()) {
       if (this.drives.has(v.id)) continue;
-      if (v.status === 'world' || v.status === 'displayed') list.push({ id: v.id, modelId: v.modelId, x: v.x, z: v.z, rot: v.rotation });
+      if (v.status === 'world' || v.status === 'displayed' || v.status === 'stolen') list.push({ id: v.id, modelId: v.modelId, x: v.x, z: v.z, rot: v.rotation });
     }
     for (const l of this.state.listings.values()) {
       const v = this.state.vehicles.get(l.vehicleId);
