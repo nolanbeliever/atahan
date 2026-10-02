@@ -50,6 +50,16 @@ export interface PrivateState {
   driving: string | null;
 }
 
+/** A pass under a bridge speed radar. */
+export interface RadarFlash {
+  radar: string;
+  bridge: string;
+  kmh: number;
+  best: number;
+  newBest: boolean;
+  record: { name: string; kmh: number } | null;
+}
+
 export interface RpcMethods {
   'market.list': { params: Empty; result: { listings: MarketListing[]; playerListings: PlayerListing[]; trends: CategoryTrends } };
   'market.buy': { params: { listingId: string; expectedPrice: number }; result: { vehicle: Vehicle; price: number } };
@@ -212,6 +222,8 @@ export interface ServerToClientEvents {
   'hitman.done': (d: { title: string; reward: number; xp: number }) => void;
   /** Tyres burst on a spike strip. */
   'police.spiked': (d: { vehicleId: string; x: number; z: number }) => void;
+  /** Under a bridge speed radar: the speed, your best, whether it is a new best, the server record. */
+  'radar.flash': (d: RadarFlash) => void;
   'combat.carHp': (d: { id: string; hp: number }) => void;
   'combat.health': (d: HealthView) => void;
   'combat.wasted': (d: { lost: string[]; respawnInMs: number }) => void;

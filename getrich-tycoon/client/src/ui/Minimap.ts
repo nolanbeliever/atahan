@@ -4,6 +4,7 @@ import { CCTV_CAMERAS, cameraYaw } from '../../../shared/cctv';
 import { CARRIAGEWAY_EDGE, DRAG_STRIP, JUNCTIONS, JUNCTION_APRON, LOOP_LEN, pathPoint } from '../../../shared/highway';
 import { SANAYI } from '../../../shared/sanayiLayout';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
+import { BOULEVARD, CONTAINER_STACKS, DOCKS, DOCKS_GATE, DOCKS_ROAD, HILL, TOUGE_HALF, TOUGE_PATH } from '../../../shared/farShore';
 import { BRIDGES, BRIDGE_HALF, FAR_ROADS, WATER, WORLD_BOX } from '../../../shared/strait';
 import type { Game } from '../game/Game';
 
@@ -70,9 +71,29 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   // The strait (it runs off the map north and south).
   g.fillStyle = '#1d4f7a';
   g.fillRect(tx(WATER.west), tz(W.minZ - 400), (WATER.east - WATER.west) * s, (W.maxZ - W.minZ + 800) * s);
-  // Far shore roads.
+  g.fillRect(tx(WATER.east), tz(W.maxZ), 1400 * s, 600 * s);
+  // The far shore: the hill (shaded), the docks yard, the roads, the touge.
+  const hill = g.createRadialGradient(tx(HILL.x), tz(HILL.z), 0, tx(HILL.x), tz(HILL.z), HILL.rx * s);
+  hill.addColorStop(0, '#5d6b45');
+  hill.addColorStop(1, 'rgba(93,107,69,0)');
+  g.fillStyle = hill;
+  g.beginPath();
+  g.ellipse(tx(HILL.x), tz(HILL.z), HILL.rx * s, HILL.rz * s, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = '#5c5e63';
+  g.fillRect(tx(DOCKS.minX), tz(DOCKS.minZ), (DOCKS.maxX - DOCKS.minX) * s, (DOCKS.maxZ - DOCKS.minZ) * s);
   g.fillStyle = '#4a4f5c';
-  for (const r of FAR_ROADS) g.fillRect(tx(r.minX), tz(r.minZ), (r.maxX - r.minX) * s, (r.maxZ - r.minZ) * s);
+  for (const r of [...FAR_ROADS, BOULEVARD, DOCKS_ROAD, DOCKS_GATE]) g.fillRect(tx(r.minX), tz(r.minZ), (r.maxX - r.minX) * s, (r.maxZ - r.minZ) * s);
+  g.fillStyle = '#b5532f';
+  for (const c of CONTAINER_STACKS) g.fillRect(tx(c.minX), tz(c.minZ), (c.maxX - c.minX) * s, (c.maxZ - c.minZ) * s);
+  g.save();
+  g.strokeStyle = '#4a4f5c';
+  g.lineWidth = Math.max(2, TOUGE_HALF * 2 * s);
+  g.lineJoin = 'round';
+  g.beginPath();
+  TOUGE_PATH.forEach((p, i) => (i === 0 ? g.moveTo(tx(p.x), tz(p.z)) : g.lineTo(tx(p.x), tz(p.z))));
+  g.stroke();
+  g.restore();
   g.fillStyle = '#26402b';
   g.fillRect(tx(-CITY_HALF), tz(-CITY_HALF), CITY_HALF * 2 * s, CITY_HALF * 2 * s);
   for (const z of ZONES) {

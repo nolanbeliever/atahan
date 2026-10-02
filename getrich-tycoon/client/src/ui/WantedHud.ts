@@ -1,6 +1,7 @@
 // Wanted level HUD: 1-5 stars (flashing red / blue while police are chasing), the escape countdown,
 // the arrest meter, and the full-screen BUSTED / ESCAPED banners.
 
+import type { RadarFlash } from '../../../shared/protocol';
 import type { BustedEvent, WantedState } from '../../../shared/police';
 import { formatMoney } from '../../../shared/util';
 import { clear, h } from './dom';
@@ -73,6 +74,12 @@ export class WantedHud {
   /** A mission completed: a short banner. */
   mission(title: string, reward: string): void {
     this.show('mission', [h('div', { class: 'bb-kicker' }, 'MISSION COMPLETE · GÖREV TAMAMLANDI'), h('div', { class: 'bb-title' }, title), h('div', { class: 'bb-text' }, reward)], 3200);
+  }
+
+  /** A bridge speed radar caught you: the speed, your best, the server record. */
+  radar(f: RadarFlash): void {
+    const rec = f.record ? `Rekor: ${f.record.kmh} km/s · ${f.record.name}` : '';
+    this.show('radar', [h('div', { class: 'bb-kicker' }, `📸 KÖPRÜ RADARI · ${f.bridge.split(' · ')[0]!.toUpperCase()}`), h('div', { class: 'bb-title', 'data-testid': 'radar-kmh' }, `${f.kmh} km/s`), h('div', { class: 'bb-text' }, f.newBest ? '🏆 Kişisel rekor!' : `En iyin: ${f.best} km/s`), h('div', { class: 'bb-sub' }, rec)], 2600);
   }
 
   /** A hitman contract paid out. */

@@ -17,7 +17,9 @@ import { PF, type BustedEvent, type PoliceSnap, type WantedState } from '../../.
 import { angleDiff } from '../../../shared/util';
 import { isCovered, onSpikes, spikePlacement, tyrePoints, type HeliSnap, type SpikeSnap, type SpikeStrip } from '../../../shared/policeGear';
 import { POLICE_MODEL, modelDisplayName } from '../../../shared/vehicles';
-import { NAV_EDGES, NAV_NODES, bridgeByN, bridgeEnds, crossesWater, navRoadPoints } from '../../../shared/strait';
+import { crossesWall } from '../../../shared/farShore';
+import { NAV_EDGES, NAV_NODES, navRoadPoints } from '../../../shared/roadGraph';
+import { bridgeByN, bridgeEnds, crossesWater } from '../../../shared/strait';
 import { INTERACTABLES, type AABB } from '../../../shared/world';
 import { createLogger } from '../../logger';
 import { K, type Ctx } from '../context';
@@ -649,7 +651,7 @@ export class PoliceService {
 
   /** Is the straight line between two points free of buildings and open water? */
   private clear(ax: number, az: number, bx: number, bz: number): boolean {
-    if (crossesWater(ax, az, bx, bz)) return false;
+    if (crossesWater(ax, az, bx, bz) || crossesWall(ax, az, bx, bz)) return false;
     for (const b of this.ctx.sim.collisionWorld.boxes) if (segmentHitsBox(ax, az, bx, bz, b, 1.4)) return false;
     return true;
   }

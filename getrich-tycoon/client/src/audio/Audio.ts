@@ -84,7 +84,8 @@ export type Sfx =
   | 'air'
   | 'empty'
   | 'hit'
-  | 'wasted';
+  | 'wasted'
+  | 'shutter';
 
 export class AudioSystem {
   private ctx: AudioContext | null = null;
@@ -539,6 +540,13 @@ export class AudioSystem {
         return this.tone([180, 140], 0.12, 'triangle', 0.1, undefined, 0.08);
       case 'outbid':
         return this.tone([660, 440], 0.2, 'square', 0.05, undefined, 0.12);
+      // A speed camera going off: the shutter's double click and the flash charging.
+      case 'shutter':
+        if (this.ctx && this.noiseBuf) {
+          this.burst(this.ctx.currentTime, 0.03, 'highpass', 4200, 0.16);
+          this.burst(this.ctx.currentTime + 0.07, 0.04, 'highpass', 3000, 0.12);
+        }
+        return this.tone([2400, 3200], 0.18, 'sine', 0.03, undefined, 0.09);
       case 'nearmiss':
         if (this.ctx && this.noiseBuf) this.burst(this.ctx.currentTime, 0.28, 'bandpass', 1400, 0.22);
         return this.tone([1568, 2093], 0.14, 'triangle', 0.09, undefined, 0.06);

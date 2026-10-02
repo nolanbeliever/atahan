@@ -10,7 +10,7 @@ import { Anim, VF, type Appearance, type MarketListing, type PublicVehicle, type
 import { angleDiff, clamp, formatMoney, lerpAngle } from '../../../shared/util';
 import { modelDisplayName } from '../../../shared/vehicles';
 import { LIFT_HEIGHT } from '../../../shared/theft';
-import { groundHeight, surfaceSlope, surfaceY } from '../render/City';
+import { groundHeight, surfaceTilt, surfaceY } from '../render/City';
 import { CharacterView, HITMAN_CONTACT, NPC_PALETTE, POLICE_OFFICER, type Pose } from '../render/Character';
 import { Label } from '../render/Labels';
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
@@ -380,8 +380,10 @@ export class EntityViews {
       const y = surfaceY(e.x, e.z, e.deck) + e.lift;
       e.view.root.position.set(e.x, y, e.z);
       e.view.root.rotation.y = e.rot;
-      // Nose up / down the bridge ramps.
-      e.view.root.rotation.x = -Math.atan(surfaceSlope(e.x, e.rot, e.deck));
+      // Nose up / down the bridge ramps and the hill, leaning across its slopes.
+      const tilt = surfaceTilt(e.x, e.z, e.rot, e.deck);
+      e.view.root.rotation.x = -tilt.pitch;
+      e.view.root.rotation.z = tilt.roll;
       e.view.animate(speed, steer, dt);
       // Body roll (outwards in corners) and pitch (nose dives under braking, squats when
       // accelerating), from real-scale accelerations, lagging a little like a sprung body.

@@ -193,6 +193,8 @@ export interface PlayerStats {
   negotiationsWon: number;
   distanceDriven: number;
   bestFlipProfit: number;
+  /** Fastest pass under a bridge speed radar (km/h). */
+  radarBest?: number;
 }
 
 export type GraphicsQuality = 'low' | 'medium' | 'high';

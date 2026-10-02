@@ -142,11 +142,20 @@ export class UI {
   readonly wanted = new WantedHud();
   readonly pursuit = new PursuitHud();
   readonly hitman = new HitmanHud();
+  /** A white flash over everything (speed cameras). */
+  readonly flashEl = h('div', { class: 'screen-flash' });
   readonly race = new RaceHud();
   readonly combat = new CombatHud();
   readonly missions = new MissionsHud();
   readonly rewardsHud = new RewardsHud();
   private overlay: HTMLElement | null = null;
+
+  /** A camera flash over the screen. */
+  flash(): void {
+    this.flashEl.classList.remove('on');
+    void this.flashEl.offsetWidth;
+    this.flashEl.classList.add('on');
+  }
   private panel: Panel | null = null;
   private lastPromptKey = '';
   private offerTimer: number | null = null;
@@ -261,7 +270,7 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Enter'), 'Chat'),
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
-    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, reconnect);
+    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.flashEl, reconnect);
     this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 

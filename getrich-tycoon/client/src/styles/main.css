@@ -851,3 +851,13 @@ body.is-wasted #game-root canvas { filter: grayscale(1) contrast(1.1) brightness
 .big-banner.contract .bb-kicker { color: #ff6b77; }
 .big-banner.contract .bb-title { font-size: 32px; color: #fff; text-shadow: none; margin-top: 4px; }
 .big-banner.contract .bb-text { font-size: 18px; color: var(--money); text-shadow: none; }
+
+/* Bridge speed radar: the camera's flash over the screen and the readout */
+.screen-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none !important; z-index: 40; }
+.screen-flash.on { animation: screen-flash 0.45s ease-out; }
+@keyframes screen-flash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+.big-banner.radar { place-items: start center; padding-top: 12vh; }
+.big-banner.radar .bb-card { background: rgba(8,10,16,0.9); border: 1px solid rgba(120,200,255,0.55); box-shadow: 0 0 30px rgba(80,170,255,0.3); }
+.big-banner.radar .bb-kicker { color: #7cc8ff; }
+.big-banner.radar .bb-title { font-size: 44px; color: #fff; text-shadow: 0 0 18px rgba(120,200,255,0.6); font-variant-numeric: tabular-nums; }
+.big-banner.radar .bb-text { font-size: 17px; color: #ffd35a; text-shadow: none; }

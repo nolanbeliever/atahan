@@ -14,7 +14,8 @@
 //  - Health comes back slowly out of a fight; at zero you are WASTED: you wake up at the hospital
 //    without your lockpick sets, stripped parts or stolen cars, and the police forget you.
 
-import { bridgeByN, deckHeight, inFootprint, surfaceHeight } from '../../../shared/strait';
+import { rayHitsHill, standHeight } from '../../../shared/farShore';
+import { bridgeByN, deckHeight, inFootprint } from '../../../shared/strait';
 import { CHAR_RADIUS } from '../../../shared/physics';
 import { HOSPITAL } from '../../../shared/compounds';
 import { LOCKPICK_ITEM, parsePartItem } from '../../../shared/theft';
@@ -224,7 +225,7 @@ export class CombatService {
     const at = ride ? ride.dyn : c;
     const slack = ride ? 2.5 + Math.abs(ride.dyn.speed) * 0.5 : 1.6;
     // Heights from what they stand on (a bridge deck is several metres up).
-    const base = surfaceHeight(at.deck ?? 0, at.x);
+    const base = standHeight(at.deck ?? 0, at.x, at.z);
     if (Math.hypot((x as number) - at.x, (z as number) - at.z) > slack || (y as number) - base < 0.6 || (y as number) - base > 2.4) return false;
     if (this.ammoLeft(playerId, w.ammo) < 1) return false;
     this.lastShot.set(playerId, now);
@@ -269,6 +270,13 @@ export class CombatService {
         n = [0, 1, 0];
       }
     }
+    // The hill on the far shore (whichever way the shot goes).
+    const hill = rayHitsHill(r.x, r.y, r.z, r.dx, r.dz, r.slope, best);
+    if (hill !== null && hill < best) {
+      best = hill;
+      kind = 'ground';
+      n = [0, 1, 0];
+    }
     // Buildings and walls.
     let building: string | null = null;
     for (const b of BUILDINGS) {
@@ -297,7 +305,7 @@ export class CombatService {
       if (v.id === own) continue;
       const hit = rayObb(r, v.x, v.z, v.rot, v.hl, v.hw);
       if (!hit || hit.t >= best) continue;
-      const y = rayY(r, hit.t) - surfaceHeight(v.deck ?? 0, v.x);
+      const y = rayY(r, hit.t) - standHeight(v.deck ?? 0, v.x, v.z);
       if (y < 0 || y > this.carHeight(v.id)) continue;
       // A driver can't shoot their own car from inside; nor from right next to it by accident.
       if (hit.t < 0.05) continue;
@@ -319,7 +327,7 @@ export class CombatService {
     const person = (id: string, x: number, z: number, who: Who, onDeck = 0) => {
       const t = rayCircle(r, x, z, PERSON_R);
       if (t === null || t >= best || t < 0.3) return;
-      const y = rayY(r, t) - surfaceHeight(onDeck, x);
+      const y = rayY(r, t) - standHeight(onDeck, x, z);
       if (y < 0 || y > PERSON_H) return;
       best = t;
       kind = 'person';

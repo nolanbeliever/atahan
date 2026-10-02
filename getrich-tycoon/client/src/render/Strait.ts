@@ -15,6 +15,7 @@ import {
   CABLE_Z,
   CLEARANCE,
   FAR_ROADS,
+  RADARS,
   TOWER_TOP,
   VIP_HALF,
   VIP_X,
@@ -158,6 +159,18 @@ export function cableY(b: Bridge, x: number): number {
   return low + (TOWER_TOP - low) * u * u;
 }
 
+let water: THREE.MeshStandardMaterial | null = null;
+
+/** The water surface (the strait and the sea share it; its waves move in StraitView.update). */
+export function waterMaterial(): THREE.MeshStandardMaterial {
+  if (!water) {
+    const normalMap = waterNormals();
+    normalMap.repeat.set(18, 160);
+    water = new THREE.MeshStandardMaterial({ color: '#1b4d72', roughness: 0.12, metalness: 0.05, normalMap, normalScale: new THREE.Vector2(0.6, 0.6), envMapIntensity: 1.3 });
+  }
+  return water;
+}
+
 export class StraitView {
   readonly group = new THREE.Group();
   private waterMat!: THREE.MeshStandardMaterial;
@@ -169,6 +182,8 @@ export class StraitView {
   private beaconMat = new THREE.MeshStandardMaterial({ color: '#ff2a2a', emissive: '#ff1a1a', emissiveIntensity: 0 });
   private night = 0;
   private time = 0;
+  private flashes = new Map<string, THREE.Sprite>();
+  private flashT = new Map<string, number>();
 
   constructor() {
     this.group.name = 'strait';
@@ -196,6 +211,14 @@ export class StraitView {
     } else this.ledMat.emissiveIntensity = 0;
     // Aviation lights on the towers blink.
     this.beaconMat.emissiveIntensity = Math.sin(this.time * Math.PI * 1.2) > 0.2 ? 2.5 : 0.1;
+    // Radar flashes fade out.
+    for (const [id, t] of this.flashT) {
+      const left = t - dt;
+      const g = this.flashes.get(id)!;
+      (g.material as THREE.SpriteMaterial).opacity = Math.max(0, left / 0.25);
+      if (left <= 0) this.flashT.delete(id);
+      else this.flashT.set(id, left);
+    }
   }
 
   /** 0 by day - 1 at night: street lamps on, lit cables. */
@@ -217,19 +240,18 @@ export class StraitView {
   // ------------------------------------------------------------ land and water
 
   private buildGround(): void {
-    // The far shore: a slightly drier, warmer grass than the city's.
+    // The far shore: a slightly drier, warmer grass than the city's (to the sea at its south edge).
     const w = 1500 - WATER.east;
-    const grass = new THREE.MeshStandardMaterial({ map: rep(Tex.grass(), w / 8.6, 1600 / 8.6), roughness: 1, color: '#d9d2b4' });
-    const g = new THREE.Mesh(new THREE.PlaneGeometry(w, 1600).rotateX(-Math.PI / 2), grass);
-    g.position.set(WATER.east + w / 2, -0.02, 0);
+    const d = WORLD_BOX.maxZ + 800;
+    const grass = new THREE.MeshStandardMaterial({ map: rep(Tex.grass(), w / 8.6, d / 8.6), roughness: 1, color: '#d9d2b4' });
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), grass);
+    g.position.set(WATER.east + w / 2, -0.02, WORLD_BOX.maxZ - d / 2);
     g.receiveShadow = true;
     this.group.add(g);
   }
 
   private buildWater(): void {
-    const normalMap = waterNormals();
-    normalMap.repeat.set(18, 160);
-    this.waterMat = new THREE.MeshStandardMaterial({ color: '#1b4d72', roughness: 0.12, metalness: 0.05, normalMap, normalScale: new THREE.Vector2(0.6, 0.6), envMapIntensity: 1.3 });
+    this.waterMat = waterMaterial();
     const w = WATER.east - WATER.west + 4;
     const water = new THREE.Mesh(new THREE.PlaneGeometry(w, 2400).rotateX(-Math.PI / 2), this.waterMat);
     water.position.set((WATER.west + WATER.east) / 2, WATER_Y, 0);
@@ -344,7 +366,10 @@ export class StraitView {
         x = WATER.east + 40 + rng() * (WORLD_BOX.maxX - WATER.east + 200);
         z = (rng() < 0.5 ? -1 : 1) * (WORLD_BOX.maxZ + 70 + rng() * 140);
       }
-      spots.push([x, z, 10 + rng() * 20, 10 + rng() * 20, 14 + Math.pow(rng(), 2) * 60]);
+      const size = [10 + rng() * 20, 10 + rng() * 20, 14 + Math.pow(rng(), 2) * 60] as const;
+      // Not in the sea south of the far shore.
+      if (z > WORLD_BOX.maxZ - 20) continue;
+      spots.push([x, z, ...size]);
     }
     const win = Tex.windows('farskyline', '#b8a99a', '#3a4258', '#ffe0a0', 8, 12);
     const mat = new THREE.MeshStandardMaterial({ map: rep(win, 2, 4), roughness: 0.7 });
@@ -400,11 +425,56 @@ export class StraitView {
     }
     this.add(merge(yl), yellow);
     this.add(merge(wl), white);
+    this.buildRadars(b);
     this.buildPiers(b, concrete);
     this.buildTowersAndCables(b, concrete);
     this.buildLamps(b);
     // The name over the main span's middle.
     this.buildNameSign(b);
+  }
+
+  /** Speed radar gantries across the deck (shared RADARS), with a flash that goes off at a pass. */
+  private buildRadars(b: Bridge): void {
+    const frame = new THREE.MeshStandardMaterial({ color: '#2d3138', metalness: 0.6, roughness: 0.4 });
+    const box = new THREE.MeshStandardMaterial({ color: '#e9e6df', roughness: 0.5 });
+    const lens = new THREE.MeshStandardMaterial({ color: '#111318', metalness: 0.8, roughness: 0.2 });
+    const tex = Tex.sign('HIZ KONTROLÜ · RADAR', { bg: '#0d2a45', fg: '#ffffff', accent: '#f2c230', w: 1024, h: 160 });
+    const signMat = new THREE.MeshStandardMaterial({ map: tex, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.4, side: THREE.DoubleSide });
+    for (const r of RADARS) {
+      if (r.n !== b.n) continue;
+      const y = deckHeight(b, r.x);
+      const zs = BRIDGE_HALF + 0.9;
+      this.add(merge([new THREE.BoxGeometry(0.5, 8, 0.5).translate(r.x, y + 4, b.z - zs), new THREE.BoxGeometry(0.5, 8, 0.5).translate(r.x, y + 4, b.z + zs), new THREE.BoxGeometry(0.7, 0.8, zs * 2 + 0.5).translate(r.x, y + 7.6, b.z)]), frame, true);
+      const boxes: THREE.BufferGeometry[] = [];
+      const lenses: THREE.BufferGeometry[] = [];
+      for (const side of [-1, 1]) {
+        // One camera over each carriageway, looking at the traffic coming at it.
+        const z = b.z + side * 5.5;
+        boxes.push(new THREE.BoxGeometry(1.2, 0.9, 0.9).translate(r.x, y + 6.8, z));
+        lenses.push(new THREE.CylinderGeometry(0.22, 0.22, 0.2, 12).rotateZ(Math.PI / 2).translate(r.x + side * -0.65, y + 6.8, z));
+      }
+      this.add(merge(boxes), box);
+      this.add(merge(lenses), lens);
+      for (const dx of [-0.4, 0.4]) {
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(8, 1.25), signMat);
+        sign.position.set(r.x + dx, y + 8.7, b.z);
+        sign.rotation.y = Math.PI / 2;
+        this.group.add(sign);
+      }
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: lightGlowTexture(), color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
+      glow.position.set(r.x, y + 6.6, b.z);
+      glow.scale.setScalar(22);
+      this.group.add(glow);
+      this.flashes.set(r.id, glow);
+    }
+  }
+
+  /** A radar went off. */
+  flash(id: string): void {
+    const g = this.flashes.get(id);
+    if (!g) return;
+    (g.material as THREE.SpriteMaterial).opacity = 1;
+    this.flashT.set(id, 0.25);
   }
 
   private buildPiers(b: Bridge, mat: THREE.Material): void {

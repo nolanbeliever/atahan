@@ -153,6 +153,18 @@ export const RAMP_BLOCKS: (AABB & { n: number })[] = BRIDGES.flatMap((b) => {
   return [{ n: b.n, minX: b.x0 + ENTRY, maxX: a, minZ: b.z - half, maxZ: b.z + half }, { n: b.n, minX: c, maxX: b.x1 - ENTRY, minZ: b.z - half, maxZ: b.z + half }, ...anchors];
 });
 
+/** Speed radars: a gantry across each bridge's deck, two on each (either half of the main span). */
+export interface Radar {
+  id: string;
+  /** The bridge (deck number). */
+  n: number;
+  x: number;
+}
+export const RADARS: Radar[] = BRIDGES.flatMap((b) => [
+  { id: `${b.id}-w`, n: b.n, x: 360 },
+  { id: `${b.id}-e`, n: b.n, x: 480 },
+]);
+
 /** Height of the towers' tops and of the main cables between them (m). */
 export const TOWER_TOP = 78;
 
@@ -184,71 +196,8 @@ export const FAR_ROADS: AABB[] = [
   { minX: 566, maxX: 580, minZ: -246, maxZ: 246 },
 ];
 
-// ------------------------------------------------------------------ road graph
-
-/** A junction of the road network (police routes). */
-export interface NavNode {
-  x: number;
-  z: number;
-}
-
-const CITY_LINES = [-150, -50, 50, 150];
-
-/** Road junctions: the city grid, where the bridge roads leave the city, the far shore. */
-export const NAV_NODES: NavNode[] = (() => {
-  const out: NavNode[] = [];
-  for (const x of CITY_LINES) for (const z of CITY_LINES) out.push({ x, z });
-  // The South Bridge leaves the city's east road between two junctions.
-  out.push({ x: 150, z: 130 });
-  // The VIP Otoban: its ends, the bridge landings and the boulevard junction.
-  for (const z of [-240, -50, 40, 130, 240]) out.push({ x: VIP_X, z });
-  return out;
-})();
-
-const nodeIndex = (x: number, z: number) => NAV_NODES.findIndex((n) => n.x === x && n.z === z);
-
-/** Roads between junctions (both ways). `bridge` marks a bridge crossing. */
-export const NAV_EDGES: { a: number; b: number; bridge?: number }[] = (() => {
-  const out: { a: number; b: number; bridge?: number }[] = [];
-  const add = (ax: number, az: number, bx: number, bz: number, bridge?: number) => {
-    const a = nodeIndex(ax, az);
-    const b = nodeIndex(bx, bz);
-    if (a < 0 || b < 0) throw new Error(`nav edge ${ax},${az} - ${bx},${bz}`);
-    out.push(bridge ? { a, b, bridge } : { a, b });
-  };
-  for (const x of CITY_LINES) {
-    for (let i = 0; i < 3; i++) {
-      add(CITY_LINES[i]!, x, CITY_LINES[i + 1]!, x);
-      // The east road (x = 150) has the South Bridge junction between z = 50 and z = 150.
-      if (x === 150 && i === 1) {
-        add(150, 50, 150, 130);
-        add(150, 130, 150, 150);
-      } else add(x, CITY_LINES[i]!, x, CITY_LINES[i + 1]!);
-    }
-  }
-  for (const b of BRIDGES) add(150, b.z, VIP_X, b.z, b.n);
-  const vip = [-240, -50, 40, 130, 240];
-  for (let i = 0; i < vip.length - 1; i++) add(VIP_X, vip[i]!, VIP_X, vip[i + 1]!);
-  return out;
-})();
-
-/** Points along the roads (not the bridges) every `step` metres, with the road's direction: where
- *  police cars can join a chase. */
-export function navRoadPoints(step = 10): { x: number; z: number; rot: number }[] {
-  const out: { x: number; z: number; rot: number }[] = [];
-  for (const e of NAV_EDGES) {
-    if (e.bridge) continue;
-    const a = NAV_NODES[e.a]!;
-    const b = NAV_NODES[e.b]!;
-    const len = Math.hypot(b.x - a.x, b.z - a.z);
-    const rot = Math.atan2(b.x - a.x, b.z - a.z);
-    for (let d = 0; d <= len; d += step) out.push({ x: a.x + ((b.x - a.x) * d) / len, z: a.z + ((b.z - a.z) * d) / len, rot });
-  }
-  return out;
-}
-
 /** The ends of a bridge where you get on and off (just off the deck, on the axis). */
-export function bridgeEnds(b: Bridge): [NavNode, NavNode] {
+export function bridgeEnds(b: Bridge): [{ x: number; z: number }, { x: number; z: number }] {
   return [
     { x: b.x0 - 6, z: b.z },
     { x: b.x1 + 6, z: b.z },

@@ -11,8 +11,6 @@ import {
   BRIDGE_HALF,
   BRIDGE_PIERS,
   DECK_HEIGHT,
-  NAV_EDGES,
-  NAV_NODES,
   RAMP_BLOCKS,
   WATER,
   crossesWater,
@@ -21,6 +19,7 @@ import {
   nextDeck,
   underBridge,
 } from '../../shared/strait';
+import { NAV_EDGES, NAV_NODES } from '../../shared/roadGraph';
 import { getModel } from '../../shared/vehicles';
 
 const empty: CollisionWorld = { boxes: [], circles: [], dynamic: [], vehicles: [] };

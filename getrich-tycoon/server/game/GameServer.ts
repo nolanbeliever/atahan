@@ -42,6 +42,7 @@ import { PursuitService } from './services/pursuit';
 import { StreetRaceService } from './services/streetRace';
 import { MotoService } from './services/moto';
 import { HitmanService } from './services/hitman';
+import { RadarService } from './services/radar';
 import { CombatService } from './services/combat';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
@@ -98,6 +99,7 @@ export class GameServer implements Hub {
   readonly combat: CombatService;
   readonly moto: MotoService;
   readonly hitman: HitmanService;
+  readonly radar: RadarService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -144,6 +146,7 @@ export class GameServer implements Hub {
     this.combat = new CombatService(this.ctx, this.police, this.theft, this.customers, this.vehicles);
     this.moto = new MotoService(this.ctx, this.combat, this.vehicles);
     this.hitman = new HitmanService(this.ctx, this.combat, this.police);
+    this.radar = new RadarService(this.ctx);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -646,6 +649,7 @@ export class GameServer implements Hub {
     this.streetRace.tick(dt, now);
     this.combat.tick(dt, now);
     this.hitman.tick(now);
+    this.radar.tick();
     this.missions.tickFast(dt);
   }
 

@@ -1,5 +1,6 @@
 // Smooth third-person orbit camera with simple building occlusion handling.
 
+import { terrainHeight } from '../../../shared/farShore';
 import * as THREE from 'three';
 import type { AABB } from '../../../shared/world';
 import { angleDiff, clamp } from '../../../shared/util';
@@ -47,7 +48,8 @@ export class CameraController {
     }
     const desired = new THREE.Vector3(
       focus.x - fx * dist * Math.cos(this.pitch),
-      Math.max(0.6, focus.y + Math.sin(this.pitch) * dist),
+      // Never below the ground there (the far shore's hill) or the target's own level.
+      Math.max(0.6, focus.y - 1.2, terrainHeight(focus.x - fx * dist * Math.cos(this.pitch), focus.z - fz * dist * Math.cos(this.pitch)) + 1.2, focus.y + Math.sin(this.pitch) * dist),
       focus.z - fz * dist * Math.cos(this.pitch),
     );
     if (!this.initialized) {

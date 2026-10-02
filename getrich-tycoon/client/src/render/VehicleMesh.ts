@@ -428,7 +428,10 @@ abstract class ModelView implements AnyVehicleView {
     this.info = t.info;
     this.height = t.info.height;
     // Character origin is at its feet with the eyes 1.76 m up; seated, the eyes meet the seat's eye.
-    this.driverMount.position.set(t.info.seat.x, t.info.seat.y - 1.72, t.info.seat.z - 0.05);
+    // In a low supercar the head (about 0.24 m above the eyes) would come through the roof: the
+    // occupants slouch down until it fits (the cockpit camera keeps the seat's eye).
+    const headroom = t.info.height - 0.05 - (t.info.seat.y + 0.24);
+    this.driverMount.position.set(t.info.seat.x, t.info.seat.y - 1.72 + Math.min(0, headroom), t.info.seat.z - 0.05);
     this.paintKeys = (t.entry.paintMaterials ?? PAINT_MATERIALS).map((k) => k.toLowerCase());
     this.body.add(model);
     this.found(model);

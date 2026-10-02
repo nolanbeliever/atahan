@@ -165,7 +165,11 @@ export class Renderer {
    * Time of day (0-24 h) and rain (0-1): sun or moon, sky (orange at sunset, grey in the rain), fog
    * and ambient light. Returns the night factor (0 day, 1 night) for street lights and headlights.
    */
-  setTime(hour: number, rain = 0): number {
+  /**
+   * `zone` 0-1: how far into the far shore you are. Its air is different: a warm golden haze by day,
+   * a violet glow at night.
+   */
+  setTime(hour: number, rain = 0, zone = 0): number {
     const night = nightFactor(hour);
     this.night = night;
     const dusk = sunsetFactor(hour) * (1 - rain * 0.7);
@@ -179,7 +183,13 @@ export class Renderer {
     const overcast = rain * 0.75 * (1 - night * 0.6);
     const top = mixC(DAY.top, NIGHT.top, DUSK.top).lerp(RAIN.top.clone().multiplyScalar(1 - night * 0.85), overcast);
     const horizon = mixC(DAY.horizon, NIGHT.horizon, DUSK.horizon).lerp(RAIN.horizon.clone().multiplyScalar(1 - night * 0.85), overcast);
+    if (zone > 0.001) {
+      const k = zone * (1 - overcast * 0.6);
+      top.lerp(new THREE.Color('#4a6fc0').lerp(new THREE.Color('#1a0f33'), night), k * 0.35);
+      horizon.lerp(new THREE.Color('#f2cf9c').lerp(new THREE.Color('#4a2a6e'), night), k * 0.5);
+    }
     this.sun.color.copy(mixC(DAY.sun, NIGHT.sun, DUSK.sun));
+    if (zone > 0.001) this.sun.color.lerp(new THREE.Color('#ffd7a0'), zone * 0.35 * (1 - night));
     this.sun.intensity = (night > 0.5 ? 0.3 + (1 - night) * 0.6 : 2.3 * (0.3 + 0.7 * Math.max(0, elev)) * (1 - night) + 0.3 * night) * (1 - 0.6 * rain);
     this.hemi.color.copy(DAY.hemiSky).lerp(NIGHT.hemiSky, night);
     this.hemi.groundColor.copy(DAY.hemiGround).lerp(NIGHT.hemiGround, night);

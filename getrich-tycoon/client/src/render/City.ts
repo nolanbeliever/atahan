@@ -4,6 +4,7 @@ import { registerRoad } from './Weather';
 import * as THREE from 'three';
 import { BELT_TREES, JUNCTIONS } from '../../../shared/highway';
 import { HITMAN_ALLEY } from '../../../shared/hitman';
+import { terrainGradient, terrainHeight } from '../../../shared/farShore';
 import { WATER, bridgeByN, deckHeight } from '../../../shared/strait';
 import { SANAYI } from '../../../shared/sanayiLayout';
 import { mulberry32 } from '../../../shared/util';
@@ -29,6 +30,7 @@ export const SIDEWALK_HEIGHT = 0.12;
 
 /** Visual ground height at a point (roads are lower than sidewalks/lots). */
 export function groundHeight(x: number, z: number): number {
+  if (x > WATER.east) return terrainHeight(x, z);
   if (Math.abs(x) > 156 || Math.abs(z) > 156) return 0;
   return isOnRoad(x, z) ? 0 : SIDEWALK_HEIGHT;
 }
@@ -39,11 +41,19 @@ export function surfaceY(x: number, z: number, deck = 0): number {
   return b ? deckHeight(b, x) : groundHeight(x, z);
 }
 
-/** Rise per metre of that surface along a heading (cars tilt up and down the bridge ramps). */
-export function surfaceSlope(x: number, rot: number, deck = 0): number {
+/** How a car sits on the surface at a heading: pitch (nose up > 0) and roll (left side up > 0),
+ *  from the bridge ramps or the hill on the far shore. */
+export function surfaceTilt(x: number, z: number, rot: number, deck = 0): { pitch: number; roll: number } {
   const b = deck ? bridgeByN(deck) : undefined;
-  if (!b) return 0;
-  return (deckHeight(b, x + 0.5) - deckHeight(b, x - 0.5)) * Math.sin(rot);
+  let gx = 0;
+  let gz = 0;
+  if (b) gx = deckHeight(b, x + 0.5) - deckHeight(b, x - 0.5);
+  else if (x > WATER.east) ({ gx, gz } = terrainGradient(x, z));
+  if (gx === 0 && gz === 0) return { pitch: 0, roll: 0 };
+  // Forward (sin, cos) and the car's left (cos, -sin).
+  const fwd = gx * Math.sin(rot) + gz * Math.cos(rot);
+  const left = gx * Math.cos(rot) - gz * Math.sin(rot);
+  return { pitch: Math.atan(fwd), roll: Math.atan(left) };
 }
 
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
@@ -607,7 +617,7 @@ export class City {
       const [x, z] = side === 0 ? [t, -d] : side === 1 ? [t, d] : side === 2 ? [-d, t] : [d, t];
       spots.push([x, z, 0.9 + rng() * 0.9]);
     }
-    const filtered = spots.filter(([x, z]) => Math.abs(x) > 158 || Math.abs(z) > 158 || (Math.abs(x) < 38 && Math.abs(z) < 38 && Math.hypot(x, z) > 21));
+    const filtered = spots.filter(([x, z]) => (Math.abs(x) > 158 || Math.abs(z) > 158 || (Math.abs(x) < 38 && Math.abs(z) < 38 && Math.hypot(x, z) > 21)) && x < 262);
     const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 2.4, 6);
     const crownGeo = new THREE.IcosahedronGeometry(1.8, 0);
     const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: '#6d4c35', roughness: 1 }), filtered.length);

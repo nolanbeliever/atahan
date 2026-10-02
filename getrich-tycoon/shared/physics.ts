@@ -8,6 +8,7 @@ import { circleVsObb, obbCorners, obbNear, obbVsCircle, obbVsObb, type Contact, 
 import type { VehicleCondition, VehicleMods } from './types';
 import { angleDiff, clamp } from './util';
 import type { VehicleModel } from './vehicles';
+import { wallsNear, type Wall } from './farShore';
 import { BRIDGE_HALF, BRIDGE_PIERS, RAMP_BLOCKS, WATER, WORLD_BOX, bridgeByN, nextDeck } from './strait';
 import type { AABB, Circle } from './world';
 
@@ -205,6 +206,16 @@ export function resolveCircle(x: number, z: number, r: number, world: CollisionW
         hit = true;
       }
     }
+    // Far shore guardrails (the touge).
+    for (const w of wallsNear(px, pz, r + 1, wallTmp)) {
+      const c = circleVsObb(px, pz, r, w);
+      if (!c) continue;
+      hit = true;
+      px += c.nx * c.depth;
+      pz += c.nz * c.depth;
+      nx += c.nx;
+      nz += c.nz;
+    }
     // The strait: the banks stop anything on the ground (back to the side it came from).
     if (px > WATER.west - r && px < WATER.east + r) {
       const west = (from?.x ?? x) < (WATER.west + WATER.east) / 2;
@@ -241,6 +252,7 @@ function boxSets(world: CollisionWorld): readonly AABB[] {
   return cachedBoxes.all;
 }
 const cachedBoxes: { src: readonly AABB[] | null; all: readonly AABB[] } = { src: null, all: [] };
+const wallTmp: Wall[] = [];
 
 /** A circle on a bridge deck: the rails and others on the same deck only. */
 function resolveOnDeck(x: number, z: number, r: number, world: CollisionWorld, ignoreId: string | undefined, deck: number): Push {
@@ -725,6 +737,7 @@ function resolveVehicle(v: VehicleDyn, p: VehicleParams, world: CollisionWorld, 
     if (!deck) {
       take(barrierContact(v, ox, oz));
       take(waterContact(ox));
+      for (const w of wallsNear(v.x, v.z, reach + 1, wallTmp)) if (obbNear(box, w)) take(obbVsObb(box, w));
     }
     take(boundsContact());
     if (!best) break;

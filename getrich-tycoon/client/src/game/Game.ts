@@ -50,6 +50,7 @@ import {
 import { AudioSystem } from '../audio/Audio';
 import { Network, RpcError } from '../net/Network';
 import { City, groundHeight, surfaceY } from '../render/City';
+import { FarShoreView } from '../render/FarShore';
 import { StraitView } from '../render/Strait';
 import { DealershipsView } from '../render/Dealerships';
 import { HighwayView } from '../render/Highway';
@@ -98,6 +99,10 @@ export class Game {
   readonly dealerships = new DealershipsView();
   readonly highway = new HighwayView();
   readonly strait = new StraitView();
+  readonly farShore = new FarShoreView();
+  /** 0 in the city - 1 on the far shore (sky and fog tint). */
+  private zone = 0;
+  private zoneAt = performance.now();
   readonly traffic = new TrafficClient();
   readonly trafficView = new TrafficView();
   readonly sanayi = new SanayiView();
@@ -202,7 +207,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.combat = new CombatClient(this);
     this.gunView = new GunView(this.renderer.scene);
@@ -313,6 +318,13 @@ export class Game {
       this.entities.contractMark = c?.markId ?? null;
     });
     net.on('hitman.update', (c) => this.store.setContract(c));
+    net.on('radar.flash', (f) => {
+      this.ui?.flash();
+      this.ui?.wanted.radar(f);
+      this.strait.flash(f.radar);
+      this.audio.play('shutter');
+      if (f.newBest) this.audio.play('levelup');
+    });
     net.on('hitman.done', (d) => {
       this.ui?.wanted.contract(d.title, `+${formatMoney(d.reward)} & ${d.xp} XP`);
       confetti(window.innerWidth / 2, window.innerHeight * 0.4, 90);
@@ -889,6 +901,7 @@ export class Game {
     this.effects.update(dt);
     this.city.update(dt);
     this.strait.update(dt);
+    this.farShore.update(dt);
     // Car theft: street cars and alarms, the work on lifted cars, the lifts' arms.
     this.theft.update(dt, { x: rx, z: rz });
     const lifts = [0, 0];
@@ -955,11 +968,17 @@ export class Game {
     const hour = this.forcedHour ?? gameHour(now);
     this.weather = this.forcedRain !== null ? { rain: this.forcedRain, wet: this.forcedRain } : { rain: rainAt(now), wet: wetnessAt(now) };
     setRoadWetness(this.weather.wet);
-    const night = this.renderer.setTime(hour, this.weather.rain);
+    // Crossing to the far shore the air changes (over the second half of the bridge).
+    const zoneT = Math.max(0, Math.min(1, (this.localPosition().x - 420) / 200));
+    const t = performance.now();
+    this.zone += (zoneT - this.zone) * Math.min(1, ((t - this.zoneAt) / 1000) * 0.8);
+    this.zoneAt = t;
+    const night = this.renderer.setTime(hour, this.weather.rain, this.zone);
     this.night = night;
     this.city.setNight(night);
     this.highway.setNight(night);
     this.strait.setNight(night);
+    this.farShore.setNight(night);
     this.trafficView.setNight(night);
     this.entities.night = night;
   }
