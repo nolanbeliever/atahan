@@ -9,6 +9,7 @@
 import { ECONOMY } from './economy.config';
 import { CARRIAGEWAY_EDGE, LANES, LANE_WIDTH, MEDIAN_HALF, OVERPASSES, OVERPASS_DECK, OVERPASS_WIDTH, deltaS, pathPoint, projectToHighway } from './highway';
 import { SANAYI } from './sanayiLayout';
+import { BRIDGE_HALF, RAMP_LEN, bridgeByN, underBridge } from './strait';
 import { angleDiff } from './util';
 import { CITY_HALF, ROAD_LINES, ROAD_WIDTH, type AABB } from './world';
 
@@ -18,10 +19,12 @@ export interface SpikeStrip {
   z: number;
   rot: number;
   half: number;
+  /** Across a bridge deck (strait.ts), 0 / absent on the ground. */
+  deck?: number;
 }
 
-/** A spike strip in a snapshot: [id, x, z, rot, half length]. */
-export type SpikeSnap = [number, number, number, number, number];
+/** A spike strip in a snapshot: [id, x, z, rot, half length, bridge deck?]. */
+export type SpikeSnap = [number, number, number, number, number, number?];
 
 /** A police helicopter in a snapshot: [id, x, y, z, yaw, searchlight x, z (9999: off), health 0-1]. */
 export type HeliSnap = [number, number, number, number, number, number, number, number];
@@ -55,7 +58,16 @@ export function tyrePoints(x: number, z: number, rot: number, hl: number, hw: nu
  * Where to throw a strip ahead of a car at (x, z) heading `rot`: `ahead` metres down the road it is
  * on, across the carriageway (highway) or the street (city). Null off the roads.
  */
-export function spikePlacement(x: number, z: number, rot: number, ahead = ECONOMY.police.spikes.ahead): SpikeStrip | null {
+export function spikePlacement(x: number, z: number, rot: number, ahead = ECONOMY.police.spikes.ahead, deck = 0): SpikeStrip | null {
+  // On a bridge: across the deck, further along it.
+  if (deck) {
+    const b = bridgeByN(deck);
+    if (!b) return null;
+    const dir = Math.sin(rot) >= 0 ? 1 : -1;
+    const tx = x + dir * ahead;
+    if (tx < b.x0 + RAMP_LEN || tx > b.x1 - RAMP_LEN) return null;
+    return { x: tx, z: b.z, rot: 0, half: BRIDGE_HALF - 0.3, deck };
+  }
   // Highway: across the carriageway the car is on, further along in its direction of travel.
   const h = projectToHighway(x, z);
   const off = Math.abs(h.offset);
@@ -95,9 +107,12 @@ export const COVERED_BOXES: AABB[] = [
   { ...SANAYI.hall },
 ];
 
-/** Under cover from the helicopter: under an overpass deck, in the car wash or the Sanayi hall. */
-export function isCovered(x: number, z: number): boolean {
+/** Under cover from the helicopter: under an overpass or a bridge deck, in the car wash or the
+ *  Sanayi hall (not up on a bridge deck yourself). */
+export function isCovered(x: number, z: number, deck = 0): boolean {
+  if (deck) return false;
   if (COVERED_BOXES.some((b) => x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ)) return true;
+  if (underBridge(x, z)) return true;
   const h = projectToHighway(x, z);
   if (Math.abs(h.offset) > OVERPASS_DECK) return false;
   return OVERPASSES.some((o) => Math.abs(deltaS(o.s, h.s)) < OVERPASS_WIDTH / 2 + 0.5);

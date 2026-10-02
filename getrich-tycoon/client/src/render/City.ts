@@ -4,6 +4,7 @@ import { registerRoad } from './Weather';
 import * as THREE from 'three';
 import { BELT_TREES, JUNCTIONS } from '../../../shared/highway';
 import { HITMAN_ALLEY } from '../../../shared/hitman';
+import { WATER, bridgeByN, deckHeight } from '../../../shared/strait';
 import { SANAYI } from '../../../shared/sanayiLayout';
 import { mulberry32 } from '../../../shared/util';
 import {
@@ -30,6 +31,19 @@ export const SIDEWALK_HEIGHT = 0.12;
 export function groundHeight(x: number, z: number): number {
   if (Math.abs(x) > 156 || Math.abs(z) > 156) return 0;
   return isOnRoad(x, z) ? 0 : SIDEWALK_HEIGHT;
+}
+
+/** Height of what something stands on: a bridge deck (`deck`, shared/strait.ts) or the ground. */
+export function surfaceY(x: number, z: number, deck = 0): number {
+  const b = deck ? bridgeByN(deck) : undefined;
+  return b ? deckHeight(b, x) : groundHeight(x, z);
+}
+
+/** Rise per metre of that surface along a heading (cars tilt up and down the bridge ramps). */
+export function surfaceSlope(x: number, rot: number, deck = 0): number {
+  const b = deck ? bridgeByN(deck) : undefined;
+  if (!b) return 0;
+  return (deckHeight(b, x + 0.5) - deckHeight(b, x - 0.5)) * Math.sin(rot);
 }
 
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
@@ -113,8 +127,10 @@ export class City {
   }
 
   private buildGround(): void {
-    const grass = new THREE.MeshStandardMaterial({ map: repeated(Tex.grass(), 186, 186), roughness: 1 });
-    const g = plane(1600, 1600, grass, 0, -0.02, 0);
+    // Up to the strait's west bank (the far shore has its own ground: render/Strait.ts).
+    const w = WATER.west + 800;
+    const grass = new THREE.MeshStandardMaterial({ map: repeated(Tex.grass(), (186 * w) / 1600, 186), roughness: 1 });
+    const g = plane(w, 1600, grass, WATER.west - w / 2, -0.02, 0);
     this.group.add(g);
   }
 
@@ -617,7 +633,10 @@ export class City {
       const t = (rng() - 0.5) * 760;
       const d = 330 + rng() * 110;
       const [x, z] = side === 0 ? [t, -d] : side === 1 ? [t, d] : side === 2 ? [-d, t] : [d, t];
-      spots.push([x, z, 12 + rng() * 22, 12 + rng() * 22, 18 + Math.pow(rng(), 2) * 80]);
+      const size = [12 + rng() * 22, 12 + rng() * 22, 18 + Math.pow(rng(), 2) * 80] as const;
+      // Nothing in the strait (to the east there is water, then the far shore).
+      if (x > WATER.west - 30) continue;
+      spots.push([x, z, ...size]);
     }
     const win = Tex.windows('skyline', '#8d99ae', '#34435e', '#ffe7a8', 8, 12);
     const map = repeated(win, 2, 4);

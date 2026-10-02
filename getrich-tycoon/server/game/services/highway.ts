@@ -95,7 +95,8 @@ export class HighwayService {
   private detect(d: DriveState, now: number): void {
     const hp = projectToHighway(d.dyn.x, d.dyn.z);
     const passes = this.passes.get(d.playerId);
-    if (Math.abs(hp.offset) > CARRIAGEWAY_EDGE + 1) {
+    // Off the highway, or up on a bridge over it.
+    if (Math.abs(hp.offset) > CARRIAGEWAY_EDGE + 1 || d.dyn.deck) {
       if (passes) passes.clear();
       return;
     }

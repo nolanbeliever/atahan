@@ -1,5 +1,6 @@
 // Main menu, map, settings and profile.
 
+import { WATER } from '../../../../shared/strait';
 import { ACHIEVEMENTS, levelProgress } from '../../../../shared/progression';
 import type { Appearance, LeaderboardEntry, PlayerSettings, Transaction } from '../../../../shared/types';
 import { formatMoney } from '../../../../shared/util';
@@ -62,15 +63,24 @@ export class MenuPanel extends Panel {
   }
 }
 
+/** What the full map shows: the city, the far shore across the strait, or everything. */
+const MAP_VIEWS = {
+  city: { label: 'Şehir · City', cx: 0, cz: 0, range: 268 },
+  far: { label: 'Karşı Kıyı · Far shore', cx: 804, cz: 0, range: 268 },
+  all: { label: 'Tüm Harita · All', cx: 399, cz: 0, range: 668 },
+} as const;
+
 export class MapPanel extends Panel {
   readonly name = 'map';
   private canvas = document.createElement('canvas');
   private timer: number | null = null;
+  /** Starts on the side of the strait the player is on. */
+  private view: keyof typeof MAP_VIEWS = this.game.position().x > WATER.east ? 'far' : 'city';
   title() {
     return 'City Map';
   }
   override subtitle() {
-    return 'GetRich City';
+    return 'GetRich City · the strait and the far shore';
   }
   iconSvg() {
     return ICONS.map;
@@ -78,7 +88,10 @@ export class MapPanel extends Panel {
   override init(): void {
     this.canvas.width = 720;
     this.canvas.height = 720;
-    const draw = () => drawMap(this.canvas.getContext('2d')!, 720, this.game, 0, 0, 268, null);
+    const draw = () => {
+      const v = MAP_VIEWS[this.view];
+      drawMap(this.canvas.getContext('2d')!, 720, this.game, v.cx, v.cz, v.range, null);
+    };
     draw();
     this.timer = window.setInterval(draw, 250);
   }
@@ -88,10 +101,17 @@ export class MapPanel extends Panel {
   }
   renderBody(): Child {
     const labels: Record<string, string> = { market: 'Used Market', auction: 'Auctions', repair: 'Repair', parts: 'Parts', wash: 'Car Wash', fuel: 'Fuel', bank: 'Bank', custom: 'Customs', drag: 'Drag Strip', pawn: 'Pawn Shop ($)', sanayi: 'Sanayi garage (🔧 lifts)' };
+    const tabs = h(
+      'div',
+      { class: 'tabs map-tabs' },
+      (Object.keys(MAP_VIEWS) as (keyof typeof MAP_VIEWS)[]).map((k) =>
+        h('button', { class: `tab${this.view === k ? ' active' : ''}`, 'data-testid': `map-view-${k}`, onclick: () => ((this.view = k), this.refresh()) }, MAP_VIEWS[k].label),
+      ),
+    );
     return h(
       'div',
       { class: 'map-wrap' },
-      this.canvas,
+      h('div', { class: 'col' }, tabs, this.canvas),
       h(
         'div',
         { class: 'legend' },

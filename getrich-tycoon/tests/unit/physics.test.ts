@@ -4,7 +4,7 @@ import { surfaceGrip } from '../../shared/environment';
 import { obbDistance, obbVsObb } from '../../shared/obb';
 import { KEY, RUN_SPEED, WALK_SPEED, dynFromTuple, dynToTuple, newVehicleDyn, stepCharacter, stepVehicle, vehicleBox, vehicleParams, type CollisionWorld, type VehicleDyn } from '../../shared/physics';
 import { CATALOG_MODELS, VEHICLE_MODELS, getModel } from '../../shared/vehicles';
-import { WORLD_BOUNDS } from '../../shared/world';
+import { WATER, WORLD_BOX } from '../../shared/strait';
 
 const empty: CollisionWorld = { boxes: [], circles: [], dynamic: [], vehicles: [] };
 const wall: CollisionWorld = { boxes: [{ minX: -10, maxX: 10, minZ: 5, maxZ: 6 }], circles: [], dynamic: [], vehicles: [] };
@@ -24,9 +24,13 @@ describe('character physics', () => {
     const s = { x: 0, z: 0, rot: 0, gait: 0 };
     for (let i = 0; i < 120; i++) stepCharacter(s, { keys: KEY.FORWARD, yaw: 0, dt: 1 / 30 }, wall);
     expect(s.z).toBeLessThan(5);
-    const t = { x: WORLD_BOUNDS - 1, z: 0, rot: 0, gait: 0 };
+    // East: the strait's bank stops you; west: the edge of the world.
+    const t = { x: WATER.west - 3, z: 0, rot: 0, gait: 0 };
     for (let i = 0; i < 120; i++) stepCharacter(t, { keys: KEY.FORWARD, yaw: Math.PI / 2, dt: 1 / 30 }, empty);
-    expect(t.x).toBeLessThanOrEqual(WORLD_BOUNDS);
+    expect(t.x).toBeLessThanOrEqual(WATER.west);
+    const u = { x: WORLD_BOX.minX + 1, z: 0, rot: 0, gait: 0 };
+    for (let i = 0; i < 120; i++) stepCharacter(u, { keys: KEY.FORWARD, yaw: -Math.PI / 2, dt: 1 / 30 }, empty);
+    expect(u.x).toBeGreaterThanOrEqual(WORLD_BOX.minX);
   });
 
   it('is deterministic (client prediction == server simulation)', () => {

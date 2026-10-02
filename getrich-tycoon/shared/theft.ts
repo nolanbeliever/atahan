@@ -4,6 +4,7 @@
 // shared by the server (authoritative) and the client (3D, prompts, panels).
 
 import { ECONOMY } from './economy.config';
+import { BRIDGES, BRIDGE_HALF } from './strait';
 import { CARRIAGEWAY_EDGE, LANES, LANE_WIDTH, MEDIAN_HALF, OVERPASSES, JUNCTIONS, CROSSOVERS, RAMP_SPAN, deltaS, pathPoint, pathYaw, straightS, type Carriageway } from './highway';
 import type { VehicleCondition, VehicleMods } from './types';
 import { SANAYI } from './sanayiLayout';
@@ -302,6 +303,8 @@ export const STREET_SPOTS: StreetSpot[] = (() => {
     for (const u of [45, 115, 255]) {
       const s = straightS(k, u);
       if (OVERPASSES.some((o) => Math.abs(deltaS(o.s, s)) < 18)) continue;
+      const q = pathPoint(s, 0);
+      if (BRIDGES.some((b) => Math.abs(q.z - b.z) < BRIDGE_HALF + 14 && q.x > b.x0)) continue;
       if (JUNCTIONS.some((jn) => deltaS(jn.s, s) > -RAMP_SPAN[0] - 12 && deltaS(jn.s, s) < RAMP_SPAN[1] + 12)) continue;
       if (CROSSOVERS.some((c) => Math.abs(deltaS(c, s)) < 14)) continue;
       const cw: Carriageway = (k + (u > 100 ? 1 : 0)) % 2 === 0 ? 0 : 1;

@@ -27,6 +27,7 @@ import { round2 } from '../../shared/util';
 import { getModel } from '../../shared/vehicles';
 import { exitSide } from '../../shared/passengers';
 import { nearHighway } from '../../shared/highway';
+import { deckAt } from '../../shared/strait';
 import type { GameState } from './state';
 import { TrafficSystem, type HighwayBody } from './traffic';
 
@@ -36,6 +37,8 @@ export interface CharacterEntity {
   z: number;
   rot: number;
   gait: number;
+  /** On a bridge deck (shared/strait.ts), 0 on the ground. */
+  deck?: number;
   drivingId: string | null;
   /** Riding as a passenger in someone else's car (and which seat, see shared/passengers.ts). */
   ridingId: string | null;
@@ -134,7 +137,7 @@ export class Simulation {
     const list: ObstacleVehicle[] = [];
     for (const v of this.state.vehicles.values()) {
       if (this.drives.has(v.id)) continue;
-      if (v.status === 'world' || v.status === 'displayed' || v.status === 'stolen') list.push({ id: v.id, modelId: v.modelId, x: v.x, z: v.z, rot: v.rotation });
+      if (v.status === 'world' || v.status === 'displayed' || v.status === 'stolen') list.push({ id: v.id, modelId: v.modelId, x: v.x, z: v.z, rot: v.rotation, deck: this.parkedDeck(v.id, v.x, v.z) });
     }
     for (const l of this.state.listings.values()) {
       const v = this.state.vehicles.get(l.vehicleId);
@@ -144,7 +147,7 @@ export class Simulation {
     for (const d of this.drives.values()) {
       const v = this.state.vehicles.get(d.vehicleId);
       const h = d.dyn.speed >= 0 ? d.dyn.rot + d.dyn.slip : d.dyn.rot;
-      if (v) list.push({ id: v.id, modelId: v.modelId, x: d.dyn.x, z: d.dyn.z, rot: d.dyn.rot, vx: Math.sin(h) * d.dyn.speed, vz: Math.cos(h) * d.dyn.speed });
+      if (v) list.push({ id: v.id, modelId: v.modelId, x: d.dyn.x, z: d.dyn.z, rot: d.dyn.rot, vx: Math.sin(h) * d.dyn.speed, vz: Math.cos(h) * d.dyn.speed, deck: d.dyn.deck ?? 0 });
     }
     for (const extra of this.obstacleSources.values()) list.push(...extra);
     this.dynamic.length = 0;
@@ -157,16 +160,36 @@ export class Simulation {
     // What traffic has to brake for.
     const bodies: HighwayBody[] = [];
     for (const o of list) {
-      if (!nearHighway(o.x, o.z, 4)) continue;
+      // Up on a bridge over the highway: not in the traffic's way.
+      if (o.deck || !nearHighway(o.x, o.z, 4)) continue;
       const m = getModel(o.modelId);
       const d = this.drives.get(o.id);
       const speed = d ? d.dyn.speed : o.vx !== undefined ? Math.sin(o.rot) * o.vx + Math.cos(o.rot) * (o.vz ?? 0) : 0;
       bodies.push({ id: o.id, x: o.x, z: o.z, rot: o.rot, speed, halfLength: m.shape.length / 2, halfWidth: m.shape.width / 2 });
     }
     for (const c of this.chars.values()) {
-      if (!c.drivingId && !c.ridingId && nearHighway(c.x, c.z, 4)) bodies.push({ id: c.id, x: c.x, z: c.z, rot: c.rot, speed: 0, halfLength: CHAR_RADIUS, halfWidth: CHAR_RADIUS });
+      if (!c.drivingId && !c.ridingId && !c.deck && nearHighway(c.x, c.z, 4)) bodies.push({ id: c.id, x: c.x, z: c.z, rot: c.rot, speed: 0, halfLength: CHAR_RADIUS, halfWidth: CHAR_RADIUS });
     }
     this.highwayBodies = bodies;
+  }
+
+  /** Cars left standing on a bridge deck (not saved: after a restart the position decides). */
+  private readonly deckParked = new Map<string, number>();
+
+  private parkedDeck(vehicleId: string, x: number, z: number): number {
+    return this.deckParked.get(vehicleId) ?? deckAt(x, z);
+  }
+
+  /** Which deck a parked vehicle stands on (0: the ground). */
+  deckOfParked(vehicleId: string, x: number, z: number): number {
+    const d = this.drives.get(vehicleId);
+    return d ? d.dyn.deck ?? 0 : this.parkedDeck(vehicleId, x, z);
+  }
+
+  /** A vehicle was parked by a service at a known level. */
+  setParkedDeck(vehicleId: string, deck: number): void {
+    if (deck) this.deckParked.set(vehicleId, deck);
+    else this.deckParked.delete(vehicleId);
   }
 
   /** Vehicles a service owns (drag bots, police): colliders and traffic obstacles. */
@@ -223,6 +246,7 @@ export class Simulation {
     c.x = d.dyn.x;
     c.z = d.dyn.z;
     c.rot = d.dyn.rot;
+    c.deck = d.dyn.deck ?? 0;
     c.gait = 0;
   }
 
@@ -246,17 +270,19 @@ export class Simulation {
       { x: d.dyn.x - Math.sin(d.dyn.rot) * (d.params.halfLength + 1), z: d.dyn.z - Math.cos(d.dyn.rot) * (d.params.halfLength + 1) },
     ];
     this.rebuildDynamic();
+    const deck = d.dyn.deck ?? 0;
     let chosen = candidates[0]!;
     for (const p of candidates) {
-      const res = resolveCircle(p.x, p.z, CHAR_RADIUS, this.world);
+      const res = resolveCircle(p.x, p.z, CHAR_RADIUS, this.world, undefined, undefined, deck);
       if (!res.hit) {
         chosen = p;
         break;
       }
     }
-    const settled = resolveCircle(chosen.x, chosen.z, CHAR_RADIUS, this.world);
+    const settled = resolveCircle(chosen.x, chosen.z, CHAR_RADIUS, this.world, undefined, undefined, deck);
     c.x = settled.x;
     c.z = settled.z;
+    c.deck = deck;
     c.gait = 0;
   }
 
@@ -351,6 +377,7 @@ export class Simulation {
       c.x = d.dyn.x;
       c.z = d.dyn.z;
       c.rot = d.dyn.rot;
+      c.deck = d.dyn.deck ?? 0;
       c.gait = 0;
       return;
     }
@@ -365,7 +392,7 @@ export class Simulation {
     const d: DriveState = {
       vehicleId: v.id,
       playerId,
-      dyn: newVehicleDyn(v.x, v.z, v.rotation),
+      dyn: { ...newVehicleDyn(v.x, v.z, v.rotation), deck: this.parkedDeck(v.id, v.x, v.z) },
       params: vehicleParams(model, v.condition, v.fuel, v.mods),
       pendingDistance: 0,
       pendingDamage: 0,
@@ -377,9 +404,11 @@ export class Simulation {
       lastHitAt: 0,
     };
     this.drives.set(v.id, d);
+    this.deckParked.delete(v.id);
     c.drivingId = v.id;
     c.x = v.x;
     c.z = v.z;
+    c.deck = d.dyn.deck;
   }
 
   /** Refresh physics parameters after the vehicle record changed (fuel, repairs). */
@@ -414,6 +443,8 @@ export class Simulation {
       this.placeBeside(r, d, exitSide(r.seat));
     }
     this.drives.delete(c.drivingId);
+    if (d.dyn.deck) this.deckParked.set(d.vehicleId, d.dyn.deck);
+    else this.deckParked.delete(d.vehicleId);
     c.drivingId = null;
     // Step out on the driver's (left) side, falling back to the other side / behind.
     this.placeBeside(c, d, 1);
@@ -427,20 +458,22 @@ export class Simulation {
       c.ridingId = null;
       return;
     }
+    c.deck = d.dyn.deck ?? 0;
     c.x = d.dyn.x;
     c.z = d.dyn.z;
     c.rot = d.dyn.rot;
     c.gait = 0;
   }
 
-  /** Move a driven vehicle (and its driver) to a spot, stopped (drag strip staging). */
-  placeDrive(vehicleId: string, x: number, z: number, rot: number): void {
+  /** Move a driven vehicle (and its driver) to a spot, stopped (drag strip staging). `deck`: on a
+   *  bridge deck (otherwise guessed from the place: over the highway that is the road below). */
+  placeDrive(vehicleId: string, x: number, z: number, rot: number, deck = deckAt(x, z)): void {
     const d = this.drives.get(vehicleId);
     if (!d) return;
-    Object.assign(d.dyn, newVehicleDyn(x, z, rot));
+    Object.assign(d.dyn, newVehicleDyn(x, z, rot), { deck });
     const c = this.chars.get(d.playerId);
-    if (c) Object.assign(c, { x, z, rot });
-    for (const r of this.ridersOf(vehicleId)) Object.assign(r, { x, z, rot });
+    if (c) Object.assign(c, { x, z, rot, deck });
+    for (const r of this.ridersOf(vehicleId)) Object.assign(r, { x, z, rot, deck });
   }
 
   /** Teleport a character (e.g. respawn). */
@@ -449,6 +482,7 @@ export class Simulation {
     if (c) {
       c.x = x;
       c.z = z;
+      c.deck = deckAt(x, z);
     }
   }
 
@@ -472,14 +506,17 @@ export class Simulation {
                   ? Anim.Aim
                   : Anim.Idle;
       if (c.ridingId) p.push([c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId, c.ridingId, c.seat]);
+      else if (c.deck && !c.drivingId) p.push([c.id, round2(c.x), round2(c.z), round2(c.rot), anim, null, null, 0, c.weapon, c.deck]);
       else if (c.weapon > 0) p.push([c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId, null, 0, c.weapon]);
       else p.push([c.id, round2(c.x), round2(c.z), round2(c.rot), anim, c.drivingId]);
     }
     const v: VehicleSnap[] = [];
     for (const d of this.drives.values()) {
-      const snap: VehicleSnap = [d.vehicleId, round2(d.dyn.x), round2(d.dyn.z), Math.round(d.dyn.rot * 1000) / 1000, round2(d.dyn.speed), Math.round(d.dyn.steer * 1000) / 1000, Math.round(d.dyn.rpm), d.dyn.gear, d.flags];
+      const snap: VehicleSnap = [d.vehicleId, round2(d.dyn.x), round2(d.dyn.z), Math.round(d.dyn.rot * 1000) / 1000, round2(d.dyn.speed), Math.round(d.dyn.steer * 1000) / 1000, Math.round(d.dyn.rpm), d.dyn.gear, d.flags | (d.dyn.deck ? VF.DECK : 0)];
+      // On a bridge: which one (the deck height comes from it).
+      if (d.dyn.deck) snap.push((d.dyn.wheelie ?? 0) > 0.005 ? round2(d.dyn.wheelie!) : 0, d.dyn.deck);
       // A wheelie: everyone sees the front up.
-      if ((d.dyn.wheelie ?? 0) > 0.005) snap.push(round2(d.dyn.wheelie!));
+      else if ((d.dyn.wheelie ?? 0) > 0.005) snap.push(round2(d.dyn.wheelie!));
       v.push(snap);
     }
     const n: NpcSnap[] = [];

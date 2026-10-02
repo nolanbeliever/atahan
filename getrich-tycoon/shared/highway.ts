@@ -11,6 +11,7 @@
 // anti-clockwise. In both, lane 0 is the fast lane next to the median and lane 3 the slow lane.
 
 import { inSanayi } from './sanayiLayout';
+import { BRIDGES, BRIDGE_HALF } from './strait';
 import { inCompound } from './compounds';
 
 export const HW_HALF = 240;
@@ -270,7 +271,7 @@ export function barrierEndCaps(): { x: number; z: number; r: number }[] {
  */
 export const OVERPASSES: { s: number; label: string }[] = [
   { s: straightS(0, 270), label: 'GETRICH EXPRESSWAY' },
-  { s: straightS(1, 120), label: 'GETRICH EXPRESSWAY' },
+  // (East: the North Bridge's flyover crosses the highway where the east overpass stood.)
   { s: straightS(2, 120), label: 'GETRICH EXPRESSWAY' },
 ];
 export const OVERPASS_DECK = 30;
@@ -388,6 +389,7 @@ export const BELT_TREES: { x: number; z: number; s: number }[] = (() => {
     if (inCompound(x, z, 10)) continue; // the hospital and Ammu-Nation
     const hp = projectToHighway(x, z);
     if (OVERPASSES.some((o) => Math.abs(deltaS(o.s, hp.s)) < 12)) continue; // bridge embankments
+    if (BRIDGES.some((b) => x > b.x0 - 14 && Math.abs(z - b.z) < BRIDGE_HALF + 6)) continue; // the strait bridges' approaches
     out.push({ x, z, s: 0.9 + rng() * 0.8 });
   }
   return out;

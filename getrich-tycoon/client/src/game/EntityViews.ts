@@ -5,11 +5,12 @@
 import * as THREE from 'three';
 import { SPEED_SCALE } from '../../../shared/drivetrain';
 import { MARKS } from '../../../shared/hitman';
+import { deckAt } from '../../../shared/strait';
 import { Anim, VF, type Appearance, type MarketListing, type PublicVehicle, type Vehicle } from '../../../shared/types';
 import { angleDiff, clamp, formatMoney, lerpAngle } from '../../../shared/util';
 import { modelDisplayName } from '../../../shared/vehicles';
 import { LIFT_HEIGHT } from '../../../shared/theft';
-import { groundHeight } from '../render/City';
+import { groundHeight, surfaceSlope, surfaceY } from '../render/City';
 import { CharacterView, HITMAN_CONTACT, NPC_PALETTE, POLICE_OFFICER, type Pose } from '../render/Character';
 import { Label } from '../render/Labels';
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
@@ -33,6 +34,8 @@ export interface CharEntity {
   board: Boarding | null;
   /** Riding as a passenger (vehicle and seat). */
   riding: { vehicleId: string; seat: number } | null;
+  /** On foot up on a bridge deck (shared/strait.ts), 0 on the ground. */
+  deck: number;
 }
 
 /** Getting into / out of a car. */
@@ -126,6 +129,8 @@ export interface VehEntity {
   lift: number;
   /** Motorcycle wheelie (rad): from our own physics or the last snapshot. */
   wheelie: number;
+  /** Up on a bridge deck (from snapshots while driven; parked: where it was left, or a guess). */
+  deck: number;
 }
 
 export class EntityViews {
@@ -168,7 +173,7 @@ export class EntityViews {
       const isMe = id === this.myId();
       const label = isMe ? null : new Label(name, { badge: String(level), badgeColor: '#7a5cff' });
       if (label) this.scene.add(label.sprite);
-      e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: performance.now(), foot: { x: 0, z: 0, rot: 0 }, board: null, riding: null };
+      e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: performance.now(), foot: { x: 0, z: 0, rot: 0 }, board: null, riding: null, deck: 0 };
       this.players.set(id, e);
     } else {
       e.view.setAppearance(appearance);
@@ -211,7 +216,7 @@ export class EntityViews {
             ? new Label(`🎯 ${MARKS[style % MARKS.length]!.name}`, { color: '#ff4655', height: 0.32 })
             : new Label(cop ? 'POLICE' : 'Customer', { color: cop ? '#7aa7ff' : '#ffd166', height: 0.3 });
       if (label) this.scene.add(label.sprite);
-      e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null };
+      e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null, deck: 0 };
       this.npcs.set(id, e);
     }
     e.buffer.push({ t, x, z, r, a, b: 0 });
@@ -237,8 +242,10 @@ export class EntityViews {
     let e = this.vehicles.get(v.id);
     if (!e) {
       const view = createVehicleView(v);
+      // Yaw, then the pitch along the car (up and down ramps).
+      view.root.rotation.order = 'YXZ';
       this.scene.add(view.root);
-      e = { view, lastSpeed: 0, accel: 0, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation, lights: null, roll: 0, pitch: 0, aLong: 0, prevRot: v.rotation, strip: null, lift: 0, wheelie: 0 };
+      e = { view, lastSpeed: 0, accel: 0, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation, lights: null, roll: 0, pitch: 0, aLong: 0, prevRot: v.rotation, strip: null, lift: 0, wheelie: 0, deck: deckAt(v.x, v.z) };
       this.vehicles.set(v.id, e);
     } else {
       e.view.update(v);
@@ -247,6 +254,8 @@ export class EntityViews {
       e.listing = listing;
     }
     if (!e.driven) {
+      // Moved somewhere new while parked (spawned, towed): guess the level from the place.
+      if (Math.hypot(e.x - v.x, e.z - v.z) > 3) e.deck = deckAt(v.x, v.z);
       e.x = v.x;
       e.z = v.z;
       e.rot = v.rotation;
@@ -323,7 +332,7 @@ export class EntityViews {
   update(
     dt: number,
     now: number,
-    local: { id: string; x: number; z: number; rot: number; anim: number; driving: string | null; riding: { vehicleId: string; seat: number } | null; speed: number; steer: number; flags: number; wheelie?: number },
+    local: { id: string; x: number; z: number; rot: number; anim: number; driving: string | null; riding: { vehicleId: string; seat: number } | null; speed: number; steer: number; flags: number; wheelie?: number; deck?: number; charDeck?: number },
   ): void {
     const renderT = now - INTERP_DELAY_MS;
     // Vehicles
@@ -367,9 +376,12 @@ export class EntityViews {
         e.strip.dispose();
         e.strip = null;
       }
-      const y = groundHeight(e.x, e.z) + e.lift;
+      if (local.driving === id) e.deck = local.deck ?? 0;
+      const y = surfaceY(e.x, e.z, e.deck) + e.lift;
       e.view.root.position.set(e.x, y, e.z);
       e.view.root.rotation.y = e.rot;
+      // Nose up / down the bridge ramps.
+      e.view.root.rotation.x = -Math.atan(surfaceSlope(e.x, e.rot, e.deck));
       e.view.animate(speed, steer, dt);
       // Body roll (outwards in corners) and pitch (nose dives under braking, squats when
       // accelerating), from real-scale accelerations, lagging a little like a sprung body.
@@ -445,7 +457,9 @@ export class EntityViews {
         driving = e.driving;
       }
       if (!riding) this.trackBoarding(id, e, driving, now);
-      const y = groundHeight(x, z);
+      const onVeh = driving ?? riding?.vehicleId;
+      const deck = onVeh ? this.vehicles.get(onVeh)?.deck ?? 0 : id === local.id ? local.charDeck ?? 0 : e.deck;
+      const y = surfaceY(x, z, deck);
       const puppet = this.puppets.get(id);
       const ride = driving ? this.vehicles.get(driving)?.view : undefined;
       const carried = riding ? this.vehicles.get(riding.vehicleId)?.view : undefined;
@@ -464,7 +478,7 @@ export class EntityViews {
         const veh = this.vehicles.get(riding!.vehicleId)!;
         if (e.label) {
           e.label.sprite.visible = this.showNames;
-          e.label.sprite.position.set(veh.x, groundHeight(veh.x, veh.z) + veh.lift + carried.height + 1.3, veh.z);
+          e.label.sprite.position.set(veh.x, surfaceY(veh.x, veh.z, veh.deck) + veh.lift + carried.height + 1.3, veh.z);
         }
         continue;
       }
@@ -481,7 +495,7 @@ export class EntityViews {
         const veh = this.vehicles.get(riding!.vehicleId)!;
         if (e.label) {
           e.label.sprite.visible = this.showNames;
-          e.label.sprite.position.set(veh.x, groundHeight(veh.x, veh.z) + veh.lift + carried.height + 1.3, veh.z);
+          e.label.sprite.position.set(veh.x, surfaceY(veh.x, veh.z, veh.deck) + veh.lift + carried.height + 1.3, veh.z);
         }
         continue;
       }

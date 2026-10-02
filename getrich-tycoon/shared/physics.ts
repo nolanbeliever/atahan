@@ -8,7 +8,8 @@ import { circleVsObb, obbCorners, obbNear, obbVsCircle, obbVsObb, type Contact, 
 import type { VehicleCondition, VehicleMods } from './types';
 import { angleDiff, clamp } from './util';
 import type { VehicleModel } from './vehicles';
-import { WORLD_BOUNDS, type AABB, type Circle } from './world';
+import { BRIDGE_HALF, BRIDGE_PIERS, RAMP_BLOCKS, WATER, WORLD_BOX, bridgeByN, nextDeck } from './strait';
+import type { AABB, Circle } from './world';
 
 export const KEY = {
   FORWARD: 1,
@@ -40,6 +41,8 @@ export const MAX_CMD_DT = 0.1;
 export interface DynamicCircle extends Circle {
   /** Owner entity id (so an entity does not collide with itself). */
   id: string;
+  /** On a bridge deck (strait.ts): only things on the same deck touch it. */
+  deck?: number;
 }
 
 /** A vehicle body (parked or driven car, highway traffic, police, drag bot) as a tight box. */
@@ -49,6 +52,8 @@ export interface DynamicBox extends OBB {
   /** Velocity (game m/s) for impact speeds; 0 for parked vehicles. */
   vx: number;
   vz: number;
+  /** On a bridge deck (strait.ts): only things on the same deck touch it. */
+  deck?: number;
 }
 
 export interface CollisionWorld {
@@ -71,6 +76,8 @@ export interface CharacterState {
   rot: number;
   /** 0 idle, 1 walk, 2 run */
   gait: number;
+  /** On a bridge deck (strait.ts), 0 on the ground. */
+  deck?: number;
 }
 
 interface Push {
@@ -87,7 +94,8 @@ interface Push {
  * Push a circle out of all colliders. `from` is where the circle came from this step: thin
  * barriers push it back to that side (so fast movers can't slip through).
  */
-export function resolveCircle(x: number, z: number, r: number, world: CollisionWorld, ignoreId?: string, from?: { x: number; z: number }): Push {
+export function resolveCircle(x: number, z: number, r: number, world: CollisionWorld, ignoreId?: string, from?: { x: number; z: number }, deck = 0): Push {
+  if (deck) return resolveOnDeck(x, z, r, world, ignoreId, deck);
   let px = x;
   let pz = z;
   let hit = false;
@@ -96,7 +104,7 @@ export function resolveCircle(x: number, z: number, r: number, world: CollisionW
   let hitId: string | undefined;
   const fromOffset = from && nearHighway(from.x, from.z, r + 2) ? projectToHighway(from.x, from.z).offset : null;
   for (let pass = 0; pass < 2; pass++) {
-    for (const b of world.boxes) {
+    for (const b of boxSets(world)) {
       if (px + r < b.minX || px - r > b.maxX || pz + r < b.minZ || pz - r > b.maxZ) continue;
       const cx = clamp(px, b.minX, b.maxX);
       const cz = clamp(pz, b.minZ, b.maxZ);
@@ -144,6 +152,7 @@ export function resolveCircle(x: number, z: number, r: number, world: CollisionW
     }
     for (const b of world.vehicles) {
       if (ignoreId !== undefined && b.id === ignoreId) continue;
+      if (b.deck) continue;
       const dx = px - b.x;
       const dz = pz - b.z;
       const reach = b.hl + b.hw + r;
@@ -157,10 +166,11 @@ export function resolveCircle(x: number, z: number, r: number, world: CollisionW
       nx += c.nx;
       nz += c.nz;
     }
-    const circleSets: (readonly Circle[])[] = [world.circles, world.dynamic];
+    const circleSets: (readonly Circle[])[] = [world.circles, world.dynamic, BRIDGE_PIERS];
     for (const set of circleSets) {
       for (const c of set) {
         if (ignoreId !== undefined && (c as DynamicCircle).id === ignoreId) continue;
+        if ((c as DynamicCircle).deck) continue;
         const rr = r + c.r;
         const dx = px - c.x;
         const dz = pz - c.z;
@@ -195,20 +205,88 @@ export function resolveCircle(x: number, z: number, r: number, world: CollisionW
         hit = true;
       }
     }
+    // The strait: the banks stop anything on the ground (back to the side it came from).
+    if (px > WATER.west - r && px < WATER.east + r) {
+      const west = (from?.x ?? x) < (WATER.west + WATER.east) / 2;
+      px = west ? WATER.west - r : WATER.east + r;
+      nx += west ? -1 : 1;
+      hit = true;
+    }
     if (!hit) break;
   }
-  const nl = Math.hypot(nx, nz) || 1;
-  const lim = WORLD_BOUNDS - r;
-  if (px < -lim || px > lim || pz < -lim || pz > lim) {
+  return clampToWorld(px, pz, r, hit, nx, nz, hitId);
+}
+
+function clampToWorld(px: number, pz: number, r: number, hit: boolean, nx: number, nz: number, hitId: string | undefined): Push {
+  const w = WORLD_BOX;
+  if (px < w.minX + r || px > w.maxX - r || pz < w.minZ + r || pz > w.maxZ - r) {
     hit = true;
-    if (px < -lim) nx += 1;
-    if (px > lim) nx -= 1;
-    if (pz < -lim) nz += 1;
-    if (pz > lim) nz -= 1;
-    px = clamp(px, -lim, lim);
-    pz = clamp(pz, -lim, lim);
+    if (px < w.minX + r) nx += 1;
+    if (px > w.maxX - r) nx -= 1;
+    if (pz < w.minZ + r) nz += 1;
+    if (pz > w.maxZ - r) nz -= 1;
+    px = clamp(px, w.minX + r, w.maxX - r);
+    pz = clamp(pz, w.minZ + r, w.maxZ - r);
   }
+  const nl = Math.hypot(nx, nz) || 1;
   return { x: px, z: pz, hit, nx: nx / nl, nz: nz / nl, hitId };
+}
+
+/** Static boxes on the ground: the world's, plus the bridges' ramp embankments. */
+function boxSets(world: CollisionWorld): readonly AABB[] {
+  if (cachedBoxes.src !== world.boxes) {
+    cachedBoxes.src = world.boxes;
+    cachedBoxes.all = [...world.boxes, ...RAMP_BLOCKS];
+  }
+  return cachedBoxes.all;
+}
+const cachedBoxes: { src: readonly AABB[] | null; all: readonly AABB[] } = { src: null, all: [] };
+
+/** A circle on a bridge deck: the rails and others on the same deck only. */
+function resolveOnDeck(x: number, z: number, r: number, world: CollisionWorld, ignoreId: string | undefined, deck: number): Push {
+  const b = bridgeByN(deck)!;
+  let px = x;
+  let pz = z;
+  let hit = false;
+  let nx = 0;
+  let nz = 0;
+  let hitId: string | undefined;
+  for (let pass = 0; pass < 2; pass++) {
+    for (const o of world.vehicles) {
+      if ((ignoreId !== undefined && o.id === ignoreId) || o.deck !== deck) continue;
+      const c = circleVsObb(px, pz, r, o);
+      if (!c) continue;
+      hit = true;
+      hitId = o.id;
+      px += c.nx * c.depth;
+      pz += c.nz * c.depth;
+      nx += c.nx;
+      nz += c.nz;
+    }
+    for (const c of world.dynamic) {
+      if ((ignoreId !== undefined && c.id === ignoreId) || c.deck !== deck) continue;
+      const rr = r + c.r;
+      const dx = px - c.x;
+      const dz = pz - c.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= rr * rr) continue;
+      const d = Math.sqrt(d2) || 1e-4;
+      px = c.x + (dx / d) * rr;
+      pz = c.z + (dz / d) * rr;
+      nx += dx / d;
+      nz += dz / d;
+      hit = true;
+      hitId = c.id;
+    }
+    const lim = BRIDGE_HALF - 0.3 - r;
+    if (Math.abs(pz - b.z) > lim) {
+      const side = pz > b.z ? 1 : -1;
+      pz = b.z + side * lim;
+      nz -= side;
+      hit = true;
+    }
+  }
+  return clampToWorld(px, pz, r, hit, nx, nz, hitId);
 }
 
 /** Walking direction for a key mask relative to the camera yaw, or null if no movement. */
@@ -239,7 +317,10 @@ export function stepCharacter(s: CharacterState, cmd: Pick<InputCmd, 'keys' | 'y
   const speed = running ? RUN_SPEED : WALK_SPEED;
   s.gait = running ? 2 : 1;
   if (!aiming) s.rot += angleDiff(s.rot, Math.atan2(dir.x, dir.z)) * Math.min(1, CHAR_TURN_RATE * dt);
-  const res = resolveCircle(s.x + dir.x * speed * dt, s.z + dir.z * speed * dt, CHAR_RADIUS, world, selfId, s);
+  const tx = s.x + dir.x * speed * dt;
+  const tz = s.z + dir.z * speed * dt;
+  s.deck = nextDeck(s.deck ?? 0, tx, tz);
+  const res = resolveCircle(tx, tz, CHAR_RADIUS, world, selfId, s, s.deck);
   s.x = res.x;
   s.z = res.z;
 }
@@ -272,23 +353,25 @@ export interface VehicleDyn extends DriveState {
   /** Motorcycle wheelie: front wheel up (rad) and how fast it is rising (rad/s). */
   wheelie?: number;
   wheelieV?: number;
+  /** On a bridge deck (strait.ts), 0 on the ground. */
+  deck?: number;
 }
 
 export function newVehicleDyn(x: number, z: number, rot: number): VehicleDyn {
-  return { x, z, rot, steer: 0, input: 0, yaw: 0, slip: 0, speed: 0, rpm: 0, gear: 1, shift: 0, boost: 0, thr: 0, brk: 0, nitro: 0, wheelie: 0, wheelieV: 0 };
+  return { x, z, rot, steer: 0, input: 0, yaw: 0, slip: 0, speed: 0, rpm: 0, gear: 1, shift: 0, boost: 0, thr: 0, brk: 0, nitro: 0, wheelie: 0, wheelieV: 0, deck: 0 };
 }
 
 /** Compact wire format of the authoritative vehicle state (see SelfSnap). */
-export type DynTuple = [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
+export type DynTuple = [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 
 export function dynToTuple(d: VehicleDyn): DynTuple {
   const r = (v: number, k = 1000) => Math.round(v * k) / k;
-  return [r(d.x), r(d.z), r(d.rot, 10000), r(d.speed), r(d.steer, 10000), r(d.input, 10000), r(d.yaw, 10000), r(d.slip, 10000), Math.round(d.rpm), d.gear, r(d.shift), r(d.boost), r(d.thr), r(d.brk), r(d.nitro ?? 0), r(d.wheelie ?? 0, 10000), r(d.wheelieV ?? 0, 10000)];
+  return [r(d.x), r(d.z), r(d.rot, 10000), r(d.speed), r(d.steer, 10000), r(d.input, 10000), r(d.yaw, 10000), r(d.slip, 10000), Math.round(d.rpm), d.gear, r(d.shift), r(d.boost), r(d.thr), r(d.brk), r(d.nitro ?? 0), r(d.wheelie ?? 0, 10000), r(d.wheelieV ?? 0, 10000), d.deck ?? 0];
 }
 
 export function dynFromTuple(t: readonly number[]): VehicleDyn {
-  const [x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk, nitro, wheelie, wheelieV] = t as DynTuple;
-  return { x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk, nitro: nitro ?? 0, wheelie: wheelie ?? 0, wheelieV: wheelieV ?? 0 };
+  const [x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk, nitro, wheelie, wheelieV, deck] = t as DynTuple;
+  return { x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk, nitro: nitro ?? 0, wheelie: wheelie ?? 0, wheelieV: wheelieV ?? 0, deck: deck ?? 0 };
 }
 
 export interface VehicleParams {
@@ -359,8 +442,8 @@ export function vehicleParams(model: VehicleModel, condition: VehicleCondition, 
 }
 
 /** A vehicle's collision box. */
-export function vehicleBox(id: string, x: number, z: number, rot: number, halfLength: number, halfWidth: number, vx = 0, vz = 0): DynamicBox {
-  return { id, x, z, rot, hl: halfLength, hw: halfWidth, vx, vz };
+export function vehicleBox(id: string, x: number, z: number, rot: number, halfLength: number, halfWidth: number, vx = 0, vz = 0, deck = 0): DynamicBox {
+  return deck ? { id, x, z, rot, hl: halfLength, hw: halfWidth, vx, vz, deck } : { id, x, z, rot, hl: halfLength, hw: halfWidth, vx, vz };
 }
 
 export interface VehicleStepResult {
@@ -478,6 +561,7 @@ function stepVehicleOnce(v: VehicleDyn, keys: number, dt: number, p: VehiclePara
   const oz = v.z;
   v.x += Math.sin(phi) * v.speed * dt;
   v.z += Math.cos(phi) * v.speed * dt;
+  v.deck = nextDeck(v.deck ?? 0, v.x, v.z);
 
   // --- collisions: push the body box out, then bounce and scrub the velocity.
   const c = resolveVehicle(v, p, world, selfId, ox, oz);
@@ -601,12 +685,31 @@ function resolveVehicle(v: VehicleDyn, p: VehicleParams, world: CollisionWorld, 
         bestId = id;
       }
     };
-    for (const b of world.boxes) {
+    const deck = v.deck ?? 0;
+    if (deck) {
+      // On a bridge: the rails and whatever else is on the same deck.
+      for (const ci of world.dynamic) {
+        if (ci.deck !== deck) continue;
+        const rr = reach + ci.r;
+        const dx = v.x - ci.x;
+        const dz = v.z - ci.z;
+        if (dx > rr || dx < -rr || dz > rr || dz < -rr) continue;
+        take(obbVsCircle(box, ci.x, ci.z, ci.r), 0, 0, ci.id);
+      }
+      for (const o of world.vehicles) {
+        if ((selfId !== undefined && o.id === selfId) || o.deck !== deck) continue;
+        if (!obbNear(box, o)) continue;
+        take(obbVsObb(box, o), o.vx, o.vz, o.id);
+      }
+      take(railContact(deck));
+    }
+    for (const b of deck ? [] : boxSets(world)) {
       if (v.x + reach < b.minX || v.x - reach > b.maxX || v.z + reach < b.minZ || v.z - reach > b.maxZ) continue;
       take(obbVsObb(box, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, rot: 0, hl: (b.maxZ - b.minZ) / 2, hw: (b.maxX - b.minX) / 2 }));
     }
-    for (const set of [world.circles, world.dynamic] as (readonly Circle[])[]) {
+    for (const set of (deck ? [] : [world.circles, world.dynamic, BRIDGE_PIERS]) as (readonly Circle[])[]) {
       for (const ci of set) {
+        if ((ci as DynamicCircle).deck) continue;
         const rr = reach + ci.r;
         const dx = v.x - ci.x;
         const dz = v.z - ci.z;
@@ -614,12 +717,15 @@ function resolveVehicle(v: VehicleDyn, p: VehicleParams, world: CollisionWorld, 
         take(obbVsCircle(box, ci.x, ci.z, ci.r), 0, 0, set === world.dynamic ? (ci as DynamicCircle).id : undefined);
       }
     }
-    for (const o of world.vehicles) {
-      if (selfId !== undefined && o.id === selfId) continue;
+    for (const o of deck ? [] : world.vehicles) {
+      if ((selfId !== undefined && o.id === selfId) || o.deck) continue;
       if (!obbNear(box, o)) continue;
       take(obbVsObb(box, o), o.vx, o.vz, o.id);
     }
-    take(barrierContact(v, ox, oz));
+    if (!deck) {
+      take(barrierContact(v, ox, oz));
+      take(waterContact(ox));
+    }
     take(boundsContact());
     if (!best) break;
     const c: Contact = best;
@@ -665,18 +771,47 @@ function barrierContact(v: VehicleDyn, ox: number, oz: number): Contact | null {
   return best;
 }
 
+/** The banks of the strait (a car on the ground stays on its side of the water). */
+function waterContact(ox: number): Contact | null {
+  if (box.x + box.hl + box.hw < WATER.west || box.x - box.hl - box.hw > WATER.east) return null;
+  obbCorners(box, corners);
+  const west = ox < (WATER.west + WATER.east) / 2;
+  let best: Contact | null = null;
+  for (let i = 0; i < 8; i += 2) {
+    const x = corners[i]!;
+    const pen = west ? x - WATER.west : WATER.east - x;
+    if (pen > 0 && (!best || pen > best.depth)) best = { nx: west ? -1 : 1, nz: 0, depth: pen, px: x, pz: corners[i + 1]! };
+  }
+  return best;
+}
+
+/** A bridge deck's rails. */
+function railContact(deck: number): Contact | null {
+  const b = bridgeByN(deck);
+  if (!b) return null;
+  obbCorners(box, corners);
+  const lim = BRIDGE_HALF - 0.3;
+  let best: Contact | null = null;
+  for (let i = 0; i < 8; i += 2) {
+    const dz = corners[i + 1]! - b.z;
+    const pen = Math.abs(dz) - lim;
+    if (pen > 0 && (!best || pen > best.depth)) best = { nx: 0, nz: dz > 0 ? -1 : 1, depth: pen, px: corners[i]!, pz: corners[i + 1]! };
+  }
+  return best;
+}
+
 function boundsContact(): Contact | null {
   obbCorners(box, corners);
-  const lim = WORLD_BOUNDS;
+  const w = WORLD_BOX;
   let best: Contact | null = null;
   for (let i = 0; i < 8; i += 2) {
     const x = corners[i]!;
     const z = corners[i + 1]!;
     const checks: [number, number, number][] = [
-      [x - lim, -1, 0],
-      [-lim - x, 1, 0],
-      [z - lim, 0, -1],
-      [-lim - z, 0, 1],
+      [x - w.maxX, -1, 0],
+      [w.minX - x, 1, 0],
+      [z - w.maxZ, 0, -1],
+      [w.minZ - z, 0, 1],
     ];
     for (const [pen, nx, nz] of checks) if (pen > 0 && (!best || pen > best.depth)) best = { nx, nz, depth: pen, px: x, pz: z };
   }

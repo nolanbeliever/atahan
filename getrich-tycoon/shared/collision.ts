@@ -25,6 +25,8 @@ export interface ObstacleVehicle {
   /** Velocity (game m/s) of a moving vehicle. */
   vx?: number;
   vz?: number;
+  /** On a bridge deck. */
+  deck?: number;
 }
 
 /** Tight collision box of a catalogue vehicle (same extents as physics.vehicleParams). */
@@ -38,7 +40,7 @@ export function vehicleObstacles(vehicles: Iterable<ObstacleVehicle>, out: Dynam
   for (const v of vehicles) {
     const e = modelBoxHalfExtents(v.modelId);
     if (!e) continue;
-    out.push(vehicleBox(v.id, v.x, v.z, v.rot, e.hl, e.hw, v.vx ?? 0, v.vz ?? 0));
+    out.push(vehicleBox(v.id, v.x, v.z, v.rot, e.hl, e.hw, v.vx ?? 0, v.vz ?? 0, v.deck ?? 0));
   }
   return out;
 }

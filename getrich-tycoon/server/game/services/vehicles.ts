@@ -1,5 +1,7 @@
 // Owned vehicle management: classifieds, quick sale, spawning, driving.
 
+import { BRIDGE_HALF, RAMP_BLOCKS, WATER, WORLD_BOX, bridgeByN } from '../../../shared/strait';
+import type { AABB } from '../../../shared/world';
 import { ECONOMY } from '../../../shared/economy.config';
 import { CHAR_RADIUS, vehicleBox } from '../../../shared/physics';
 import { spawnSlots } from '../../../shared/reputation';
@@ -101,36 +103,44 @@ export class VehicleService {
       const spawned = this.ctx.state.vehiclesOf(playerId).filter((x) => x.status === 'world' && x.id !== vehicleId);
       const maxOut = spawnSlots(player.level);
       if (spawned.length >= maxOut) throw new GameError('conflict', `You can have at most ${maxOut} vehicles out at level ${player.level}. Store one first.`);
-      const spot = this.findSpawnSpot(pos.x, pos.z, pos.rot, veh.modelId, vehicleId);
+      const deck = me?.deck ?? 0;
+      const spot = this.findSpawnSpot(pos.x, pos.z, pos.rot, veh.modelId, vehicleId, deck);
       veh.status = 'world';
       veh.x = spot.x;
       veh.z = spot.z;
       veh.rotation = spot.rot;
+      this.ctx.sim.setParkedDeck(vehicleId, deck);
       await uow.commit();
       this.ctx.sim.rebuildDynamic();
       return { vehicle: this.ctx.state.vehicles.get(vehicleId)! };
     });
   }
 
-  private findSpawnSpot(x: number, z: number, rot: number, modelId: string, selfId: string) {
+  private findSpawnSpot(x: number, z: number, rot: number, modelId: string, selfId: string, deck = 0) {
     const model = getModel(modelId);
     const world = this.ctx.sim.collisionWorld;
     // A little margin around the body so the car isn't parked touching anything.
     const hl = model.shape.length / 2 + 0.25;
     const hw = model.shape.width / 2 + 0.25;
-    const lim = 262 - hl;
+    const bridge = deck ? bridgeByN(deck) : undefined;
+    const W = WORLD_BOX;
+    const asBox = (w: AABB) => ({ x: (w.minX + w.maxX) / 2, z: (w.minZ + w.maxZ) / 2, rot: 0, hl: (w.maxZ - w.minZ) / 2, hw: (w.maxX - w.minX) / 2 });
     for (const dist of [4, 6.5, 9]) {
       for (let i = 0; i < 8; i++) {
         const a = rot + Math.PI / 2 + (i * Math.PI) / 4;
         const cx = x + Math.sin(a) * dist;
         const cz = z + Math.cos(a) * dist;
         const b = vehicleBox(selfId, cx, cz, rot, hl, hw);
-        const blocked =
-          Math.abs(cx) > lim ||
-          Math.abs(cz) > lim ||
-          world.boxes.some((w) => obbVsObb(b, { x: (w.minX + w.maxX) / 2, z: (w.minZ + w.maxZ) / 2, rot: 0, hl: (w.maxZ - w.minZ) / 2, hw: (w.maxX - w.minX) / 2 })) ||
-          world.circles.some((c) => Math.abs(c.x - cx) < 8 && Math.abs(c.z - cz) < 8 && obbVsCircle(b, c.x, c.z, c.r)) ||
-          world.vehicles.some((o) => o.id !== selfId && obbVsObb(b, o));
+        const r = hl + hw;
+        const blocked = bridge
+          ? // Up on a bridge: between the rails, clear of the cars up there.
+            Math.abs(cz - bridge.z) > BRIDGE_HALF - r || cx < bridge.x0 + r || cx > bridge.x1 - r || world.vehicles.some((o) => o.id !== selfId && o.deck === deck && obbVsObb(b, o))
+          : cx < W.minX + hl || cx > W.maxX - hl || cz < W.minZ + hl || cz > W.maxZ - hl ||
+            (cx + r > WATER.west && cx - r < WATER.east) ||
+            world.boxes.some((w) => obbVsObb(b, asBox(w))) ||
+            RAMP_BLOCKS.some((w) => obbVsObb(b, asBox(w))) ||
+            world.circles.some((c) => Math.abs(c.x - cx) < 8 && Math.abs(c.z - cz) < 8 && obbVsCircle(b, c.x, c.z, c.r)) ||
+            world.vehicles.some((o) => o.id !== selfId && !o.deck && obbVsObb(b, o));
         // Leave room for the player to stand.
         const tooClose = Math.hypot(cx - x, cz - z) < hl + CHAR_RADIUS;
         if (!blocked && !tooClose) return { x: cx, z: cz, rot };
@@ -168,7 +178,7 @@ export class VehicleService {
       if (!c) throw new GameError('conflict', 'You are not in the world.');
       if (c.drivingId) throw new GameError('conflict', 'You are already driving.');
       if (c.ridingId) throw new GameError('conflict', 'Get out of the car you are riding in first.');
-      if (Math.hypot(c.x - veh.x, c.z - veh.z) > ENTER_RADIUS + getModel(veh.modelId).shape.length / 2) {
+      if (Math.hypot(c.x - veh.x, c.z - veh.z) > ENTER_RADIUS + getModel(veh.modelId).shape.length / 2 || (c.deck ?? 0) !== this.ctx.sim.deckOfParked(veh.id, veh.x, veh.z)) {
         throw new GameError('too_far', 'Get closer to the vehicle.');
       }
       this.ctx.sim.startDriving(playerId, veh);

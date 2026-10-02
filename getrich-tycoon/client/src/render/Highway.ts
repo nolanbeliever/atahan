@@ -3,6 +3,7 @@
 // that come on at night - plus the drag strip in the west belt. Geometry comes from
 // shared/highway.ts, so it lines up with the collisions and the traffic.
 
+import { BRIDGES, BRIDGE_HALF } from '../../../shared/strait';
 import { registerRoad } from './Weather';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -430,7 +431,11 @@ export class HighwayView implements NightLights {
 
   private buildLights(): void {
     const poleMat = new THREE.MeshStandardMaterial({ color: '#7c848d', metalness: 0.6, roughness: 0.4 });
-    const spots = STREET_LIGHTS.filter((s) => !HIGHWAY_BARRIERS[1]!.gaps.some(([a, b]) => deltaS(a, s) > -3 && deltaS(b, s) < 3) && !OVERPASSES.some((o) => Math.abs(deltaS(o.s, s)) < 9));
+    const underBridge = (s: number) => {
+      const p = pathPoint(s, 0);
+      return BRIDGES.some((b) => p.x > b.x0 && Math.abs(p.z - b.z) < BRIDGE_HALF + 8);
+    };
+    const spots = STREET_LIGHTS.filter((s) => !HIGHWAY_BARRIERS[1]!.gaps.some(([a, b]) => deltaS(a, s) > -3 && deltaS(b, s) < 3) && !OVERPASSES.some((o) => Math.abs(deltaS(o.s, s)) < 9) && !underBridge(s));
     const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.18, 10, 8), poleMat, spots.length);
     const arms = new THREE.InstancedMesh(new THREE.BoxGeometry(6.4, 0.12, 0.14), poleMat, spots.length);
     const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 0.2, 0.5), this.lampMat, spots.length * 2);

@@ -628,7 +628,7 @@ export class GameServer implements Hub {
         p: lists.p,
         v: lists.v,
         n: lists.n,
-        self: c.ridingId ? [c.x, c.z, c.rot, null, null, c.ridingId, c.seat] : [c.x, c.z, d ? d.dyn.rot : c.rot, c.drivingId, d ? dynToTuple(d.dyn) : null],
+        self: c.ridingId ? [c.x, c.z, c.rot, null, null, c.ridingId, c.seat] : !d && c.deck ? [c.x, c.z, c.rot, null, null, null, 0, c.deck] : [c.x, c.z, d ? d.dyn.rot : c.rot, c.drivingId, d ? dynToTuple(d.dyn) : null],
         ...(tr.length > 0 ? { tr } : {}),
         ...(nearStrip ? { dr: dr! } : {}),
         ...(nearRace ? { sr: sr! } : {}),

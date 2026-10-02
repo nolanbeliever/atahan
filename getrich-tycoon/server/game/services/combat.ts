@@ -14,6 +14,7 @@
 //  - Health comes back slowly out of a fight; at zero you are WASTED: you wake up at the hospital
 //    without your lockpick sets, stripped parts or stolen cars, and the police forget you.
 
+import { bridgeByN, deckHeight, inFootprint, surfaceHeight } from '../../../shared/strait';
 import { CHAR_RADIUS } from '../../../shared/physics';
 import { HOSPITAL } from '../../../shared/compounds';
 import { LOCKPICK_ITEM, parsePartItem } from '../../../shared/theft';
@@ -222,7 +223,9 @@ export class CombatService {
     // client saw a moment ago).
     const at = ride ? ride.dyn : c;
     const slack = ride ? 2.5 + Math.abs(ride.dyn.speed) * 0.5 : 1.6;
-    if (Math.hypot((x as number) - at.x, (z as number) - at.z) > slack || (y as number) < 0.6 || (y as number) > 2.4) return false;
+    // Heights from what they stand on (a bridge deck is several metres up).
+    const base = surfaceHeight(at.deck ?? 0, at.x);
+    if (Math.hypot((x as number) - at.x, (z as number) - at.z) > slack || (y as number) - base < 0.6 || (y as number) - base > 2.4) return false;
     if (this.ammoLeft(playerId, w.ammo) < 1) return false;
     this.lastShot.set(playerId, now);
     const spent = this.spent.get(playerId) ?? new Map<string, number>();
@@ -230,7 +233,7 @@ export class CombatService {
     this.spent.set(playerId, spent);
     for (let i = 0; i < w.pellets; i++) {
       const aim = spreadAim(yaw as number, pitch as number, w.spread, (n as number) * 13 + i * 7 + 1);
-      this.trace(playerId, w, aimRay(x as number, y as number, z as number, aim.yaw, aim.pitch), now, i === 0, inside);
+      this.trace(playerId, w, aimRay(x as number, y as number, z as number, aim.yaw, aim.pitch), now, i === 0, inside, at.deck ?? 0);
     }
     // Every shot is heard, witnesses or not: the nearest patrol is called to the scene (2 stars).
     const before = this.police.starsOf(playerId);
@@ -243,13 +246,22 @@ export class CombatService {
   }
 
   /** Follow one pellet: the first thing in its way takes the damage. */
-  private trace(shooter: string, w: WeaponDef, r: Ray2, now: number, sound: boolean, own: string | null = null): void {
+  private trace(shooter: string, w: WeaponDef, r: Ray2, now: number, sound: boolean, own: string | null = null, deck = 0): void {
     let best = w.range;
     let kind: ShotFx['hit'] = 'air';
     let n: [number, number, number] | undefined;
     let target: Target | null = null;
-    // The ground.
+    // The ground (or, from up on a bridge, the deck where the shot comes down on it).
     if (r.slope < -1e-4) {
+      const b = deck ? bridgeByN(deck) : undefined;
+      if (b) {
+        const t = (r.y - deckHeight(b, r.x)) / -r.slope;
+        if (t > 0 && t < best && inFootprint(b, r.x + r.dx * t, r.z + r.dz * t, 0)) {
+          best = t;
+          kind = 'ground';
+          n = [0, 1, 0];
+        }
+      }
       const t = r.y / -r.slope;
       if (t < best) {
         best = t;
@@ -285,7 +297,7 @@ export class CombatService {
       if (v.id === own) continue;
       const hit = rayObb(r, v.x, v.z, v.rot, v.hl, v.hw);
       if (!hit || hit.t >= best) continue;
-      const y = rayY(r, hit.t);
+      const y = rayY(r, hit.t) - surfaceHeight(v.deck ?? 0, v.x);
       if (y < 0 || y > this.carHeight(v.id)) continue;
       // A driver can't shoot their own car from inside; nor from right next to it by accident.
       if (hit.t < 0.05) continue;
@@ -304,17 +316,17 @@ export class CombatService {
       target = { type: 'heli', id: hz.id };
     }
     // People.
-    const person = (id: string, x: number, z: number, who: Who) => {
+    const person = (id: string, x: number, z: number, who: Who, onDeck = 0) => {
       const t = rayCircle(r, x, z, PERSON_R);
       if (t === null || t >= best || t < 0.3) return;
-      const y = rayY(r, t);
+      const y = rayY(r, t) - surfaceHeight(onDeck, x);
       if (y < 0 || y > PERSON_H) return;
       best = t;
       kind = 'person';
       n = undefined;
       target = { type: 'person', id, who };
     };
-    for (const c of this.ctx.sim.chars.values()) if (c.id !== shooter && !c.drivingId && !c.ridingId && !c.dead) person(c.id, c.x, c.z, 'player');
+    for (const c of this.ctx.sim.chars.values()) if (c.id !== shooter && !c.drivingId && !c.ridingId && !c.dead) person(c.id, c.x, c.z, 'player', c.deck ?? 0);
     for (const p of this.peds.values()) if (!p.deadAt) person(p.npc.id, p.npc.x, p.npc.z, 'ped');
     for (const o of this.officers.values()) if (!o.deadAt) person(o.npc.id, o.npc.x, o.npc.z, 'officer');
     for (const npc of this.ctx.sim.npcs.values()) if (npc.id.startsWith('npc')) person(npc.id, npc.x, npc.z, 'customer');

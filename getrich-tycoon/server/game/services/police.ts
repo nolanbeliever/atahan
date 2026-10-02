@@ -17,12 +17,21 @@ import { PF, type BustedEvent, type PoliceSnap, type WantedState } from '../../.
 import { angleDiff } from '../../../shared/util';
 import { isCovered, onSpikes, spikePlacement, tyrePoints, type HeliSnap, type SpikeSnap, type SpikeStrip } from '../../../shared/policeGear';
 import { POLICE_MODEL, modelDisplayName } from '../../../shared/vehicles';
-import { INTERACTABLES, ROAD_LINES, type AABB } from '../../../shared/world';
+import { NAV_EDGES, NAV_NODES, bridgeByN, bridgeEnds, crossesWater, navRoadPoints } from '../../../shared/strait';
+import { INTERACTABLES, type AABB } from '../../../shared/world';
 import { createLogger } from '../../logger';
 import { K, type Ctx } from '../context';
 import type { VehicleService } from './vehicles';
 
 const log = createLogger('police');
+
+/** Road points police cars can join a chase from (city and far shore), and the road graph. */
+const ROAD_POINTS = navRoadPoints(10);
+const NAV_ADJ: number[][] = NAV_NODES.map(() => []);
+for (const e of NAV_EDGES) {
+  NAV_ADJ[e.a]!.push(e.b);
+  NAV_ADJ[e.b]!.push(e.a);
+}
 
 const PERFECT = { engine: 100, transmission: 100, brakes: 100, tires: 100, body: 100, interior: 100, cleanliness: 100 };
 
@@ -265,13 +274,17 @@ export class PoliceService {
       if (w.units.length > want) w.units.length = want;
       // Drive them.
       let nearest = Infinity;
+      let nearestSame = Infinity;
       let nearestGap = Infinity;
       const myBox = vehicleBox('me', me.x, me.z, me.rot, me.hl, me.hw);
       for (const u of w.units) {
         this.drive(u, me, dt);
         const dist = Math.hypot(u.dyn.x - me.x, u.dyn.z - me.z);
         nearest = Math.min(nearest, dist);
-        if (dist < 12) nearestGap = Math.min(nearestGap, obbDistance(myBox, vehicleBox('u', u.dyn.x, u.dyn.z, u.dyn.rot, this.params.halfLength, this.params.halfWidth)));
+        // Only a car on the same level can stop you (not one on the highway under a bridge).
+        const same = (u.dyn.deck ?? 0) === me.deck;
+        if (same) nearestSame = Math.min(nearestSame, dist);
+        if (same && dist < 12) nearestGap = Math.min(nearestGap, obbDistance(myBox, vehicleBox('u', u.dyn.x, u.dyn.z, u.dyn.rot, this.params.halfLength, this.params.halfWidth)));
         // Lost far behind or hopelessly stuck: come back from behind the player.
         if (dist > 320 || u.stuck > 6) Object.assign(u, this.spawn(me, u.side > 0 ? 0 : 1) ?? u, { id: u.id });
       }
@@ -296,7 +309,7 @@ export class PoliceService {
       }
       // Arrest: a police car right beside you while you're (nearly) stopped.
       const slow = Math.abs(me.speed) * KMH_PER_MS < cfg.bustKmh;
-      const close = me.onFoot ? nearest < 6 : nearestGap < cfg.bustGap;
+      const close = me.onFoot ? nearestSame < 6 : nearestGap < cfg.bustGap;
       w.bustT = slow && close ? w.bustT + dt : Math.max(0, w.bustT - dt * 0.5);
       if (w.bustT >= cfg.bustSec) {
         void this.bust(playerId, w, me);
@@ -311,7 +324,7 @@ export class PoliceService {
 
   // ---------------------------------------------------------------- helicopter
 
-  private flyHeli(playerId: string, stars: number, me: { x: number; z: number }, dt: number, now: number): void {
+  private flyHeli(playerId: string, stars: number, me: { x: number; z: number; deck: number }, dt: number, now: number): void {
     const hc = ECONOMY.police.heli;
     let h = this.helis.get(playerId);
     if (stars < hc.stars) {
@@ -327,7 +340,7 @@ export class PoliceService {
     }
     if (h.downAt) return;
     const dist = Math.hypot(h.x - me.x, h.z - me.z);
-    h.visible = !isCovered(me.x, me.z) && dist < hc.sight;
+    h.visible = !isCovered(me.x, me.z, me.deck) && dist < hc.sight;
     if (h.visible) {
       h.lastX = me.x;
       h.lastZ = me.z;
@@ -417,13 +430,13 @@ export class PoliceService {
 
   // ---------------------------------------------------------------- spike strips
 
-  private throwSpikes(playerId: string, stars: number, me: { x: number; z: number; rot: number; onFoot: boolean }, now: number): void {
+  private throwSpikes(playerId: string, stars: number, me: { x: number; z: number; rot: number; onFoot: boolean; deck: number }, now: number): void {
     const sc = ECONOMY.police.spikes;
     if (stars < sc.stars || me.onFoot) return;
     // The first one a few seconds after the third star, then every `everySec`.
     if (!this.spikeAt.has(playerId)) this.spikeAt.set(playerId, now - (sc.everySec - 6) * 1000);
     if (now - this.spikeAt.get(playerId)! < sc.everySec * 1000) return;
-    const strip = spikePlacement(me.x, me.z, me.rot);
+    const strip = spikePlacement(me.x, me.z, me.rot, sc.ahead, me.deck);
     if (!strip) return;
     const id = this.spikeSeq++;
     this.spikes.set(id, { ...strip, id, until: now + sc.lifeSec * 1000 });
@@ -447,7 +460,7 @@ export class PoliceService {
       if (!v || v.mods.blown || this.bursting.has(d.vehicleId)) continue;
       const tyres = tyrePoints(d.dyn.x, d.dyn.z, d.dyn.rot, d.params.halfLength, d.params.halfWidth);
       for (const s of this.spikes.values()) {
-        if (!tyres.some((t) => onSpikes(s, t.x, t.z))) continue;
+        if ((s.deck ?? 0) !== (d.dyn.deck ?? 0) || !tyres.some((t) => onSpikes(s, t.x, t.z))) continue;
         void this.burst(d.vehicleId, d.playerId, d.dyn.x, d.dyn.z);
         break;
       }
@@ -482,13 +495,15 @@ export class PoliceService {
     const out: SpikeSnap[] = [];
     for (const s of this.spikes.values()) {
       if (Math.hypot(s.x - x, s.z - z) > radius) continue;
-      out.push([s.id, Math.round(s.x * 100) / 100, Math.round(s.z * 100) / 100, Math.round(s.rot * 1000) / 1000, Math.round(s.half * 100) / 100]);
+      const snap: SpikeSnap = [s.id, Math.round(s.x * 100) / 100, Math.round(s.z * 100) / 100, Math.round(s.rot * 1000) / 1000, Math.round(s.half * 100) / 100];
+      if (s.deck) snap.push(s.deck);
+      out.push(snap);
     }
     return out;
   }
 
   /** Where the wanted player is: their car or themselves on foot. */
-  private target(playerId: string): { x: number; z: number; rot: number; speed: number; vx: number; vz: number; hl: number; hw: number; onFoot: boolean; vehicleId: string | null } | null {
+  private target(playerId: string): { x: number; z: number; rot: number; speed: number; vx: number; vz: number; hl: number; hw: number; onFoot: boolean; vehicleId: string | null; deck: number } | null {
     const c = this.ctx.sim.chars.get(playerId);
     if (!c) return null;
     // A passenger is wherever the car is.
@@ -496,21 +511,30 @@ export class PoliceService {
     const d = vid ? this.ctx.sim.drives.get(vid) : undefined;
     if (d) {
       const h = d.dyn.speed >= 0 ? d.dyn.rot + d.dyn.slip : d.dyn.rot;
-      return { x: d.dyn.x, z: d.dyn.z, rot: d.dyn.rot, speed: d.dyn.speed, vx: Math.sin(h) * d.dyn.speed, vz: Math.cos(h) * d.dyn.speed, hl: d.params.halfLength, hw: d.params.halfWidth, onFoot: false, vehicleId: d.vehicleId };
+      return { x: d.dyn.x, z: d.dyn.z, rot: d.dyn.rot, speed: d.dyn.speed, vx: Math.sin(h) * d.dyn.speed, vz: Math.cos(h) * d.dyn.speed, hl: d.params.halfLength, hw: d.params.halfWidth, onFoot: false, vehicleId: d.vehicleId, deck: d.dyn.deck ?? 0 };
     }
-    return { x: c.x, z: c.z, rot: c.rot, speed: 0, vx: 0, vz: 0, hl: 0.4, hw: 0.4, onFoot: true, vehicleId: null };
+    return { x: c.x, z: c.z, rot: c.rot, speed: 0, vx: 0, vz: 0, hl: 0.4, hw: 0.4, onFoot: true, vehicleId: null, deck: c.deck ?? 0 };
   }
 
   // ---------------------------------------------------------------- spawning
 
-  /** A police car ~130 m behind the player, on the same road. */
-  private spawn(me: { x: number; z: number; rot: number }, index: number): Unit | null {
+  /** A police car ~130 m behind the player, on the same road (or the same bridge). */
+  private spawn(me: { x: number; z: number; rot: number; deck: number }, index: number): Unit | null {
     const side = index % 2 === 0 ? 1 : -1;
     const hp = projectToHighway(me.x, me.z);
     let x: number;
     let z: number;
     let rot: number;
-    if (Math.abs(hp.offset) < CARRIAGEWAY_EDGE) {
+    let deck = 0;
+    const bridge = me.deck ? bridgeByN(me.deck) : undefined;
+    if (bridge) {
+      // Up on the bridge behind the player.
+      const dir = Math.sin(me.rot) >= 0 ? 1 : -1;
+      x = Math.max(bridge.x0 + 2, Math.min(bridge.x1 - 2, me.x - dir * (110 + index * 14)));
+      z = bridge.z + (index % 2 ? 4 : -4);
+      rot = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      deck = bridge.n;
+    } else if (Math.abs(hp.offset) < CARRIAGEWAY_EDGE) {
       const cw: Carriageway = hp.offset < 0 ? 0 : 1;
       const lane = Math.max(0, Math.min(3, Math.round(offsetToLane(hp.offset)) + (index % 2 ? 1 : -1)));
       const s = wrapS(hp.s - travelDir(cw) * (125 + index * 14));
@@ -519,23 +543,16 @@ export class PoliceService {
       z = p.z;
       rot = pathYaw(p, cw === 1);
     } else {
-      // City: the road point 100-160 m away, preferably behind the player.
+      // A road point 100-160 m away (city or far shore), preferably behind the player, on their side of the water.
       const fx = Math.sin(me.rot);
       const fz = Math.cos(me.rot);
       let best: { x: number; z: number; score: number } | null = null;
-      for (const l of ROAD_LINES) {
-        for (let t = -150; t <= 150; t += 10) {
-          for (const [px, pz] of [
-            [l, t],
-            [t, l],
-          ] as const) {
-            const d = Math.hypot(px - me.x, pz - me.z);
-            if (d < 90 || d > 170) continue;
-            const behind = -((px - me.x) * fx + (pz - me.z) * fz) / d;
-            const score = Math.abs(d - 125) - behind * 40 + (index * 17 + t) % 7;
-            if (!best || score < best.score) best = { x: px, z: pz, score };
-          }
-        }
+      for (const p of ROAD_POINTS) {
+        const d = Math.hypot(p.x - me.x, p.z - me.z);
+        if (d < 90 || d > 170 || crossesWater(p.x, p.z, me.x, me.z)) continue;
+        const behind = -((p.x - me.x) * fx + (p.z - me.z) * fz) / d;
+        const score = Math.abs(d - 125) - behind * 40 + ((index * 17 + Math.round(p.x + p.z)) % 7 + 7) % 7;
+        if (!best || score < best.score) best = { x: p.x, z: p.z, score };
       }
       if (!best) return null;
       x = best.x;
@@ -543,6 +560,7 @@ export class PoliceService {
       rot = Math.atan2(me.x - x, me.z - z);
     }
     const dyn = newVehicleDyn(x, z, rot);
+    dyn.deck = deck;
     // Arrive at speed.
     dyn.speed = 80 / KMH_PER_MS;
     dyn.gear = 3;
@@ -551,7 +569,7 @@ export class PoliceService {
 
   // ---------------------------------------------------------------- driving
 
-  private drive(u: Unit, me: { x: number; z: number; rot: number; speed: number; vx: number; vz: number; hw: number }, dt: number): void {
+  private drive(u: Unit, me: { x: number; z: number; rot: number; speed: number; vx: number; vz: number; hw: number; deck: number }, dt: number): void {
     if (u.parked) {
       stepVehicle(u.dyn, { keys: KEY.BRAKE, dt }, this.params, this.ctx.sim.collisionWorld, `po:${u.id}`);
       return;
@@ -568,10 +586,29 @@ export class PoliceService {
       tx = me.x + rx * side + Math.sin(me.rot) * 1.5;
       tz = me.z + rz * side + Math.cos(me.rot) * 1.5;
     }
+    // Not on the same level (one up on a bridge, the other below or elsewhere): via the bridge's end.
+    const uDeck = u.dyn.deck ?? 0;
+    const levels = uDeck !== me.deck;
+    if (levels) {
+      const b = bridgeByN(uDeck || me.deck)!;
+      const [w, e] = bridgeEnds(b);
+      if (uDeck) {
+        // Off the bridge at the end nearer the player.
+        const end = Math.hypot(me.x - w.x, me.z - w.z) < Math.hypot(me.x - e.x, me.z - e.z) ? w : e;
+        tx = end.x + (end === w ? -20 : 20);
+        tz = end.z;
+      } else {
+        // Onto the bridge at the end nearer this car.
+        const end = Math.hypot(u.dyn.x - w.x, u.dyn.z - w.z) < Math.hypot(u.dyn.x - e.x, u.dyn.z - e.z) ? w : e;
+        const onto = Math.hypot(u.dyn.x - end.x, u.dyn.z - end.z) < 14;
+        tx = onto ? end.x + (end === w ? 30 : -30) : end.x;
+        tz = end.z;
+      }
+    }
     const hp = projectToHighway(u.dyn.x, u.dyn.z);
-    const onHighway = Math.abs(hp.offset) < CARRIAGEWAY_EDGE;
+    const onHighway = !uDeck && Math.abs(hp.offset) < CARRIAGEWAY_EDGE;
     const meHp = projectToHighway(me.x, me.z);
-    if (onHighway && Math.abs(meHp.offset) < CARRIAGEWAY_EDGE && dist > 22) {
+    if (!levels && onHighway && !me.deck && Math.abs(meHp.offset) < CARRIAGEWAY_EDGE && dist > 22) {
       // Follow the lanes round the ring towards the player.
       const cw: Carriageway = hp.offset < 0 ? 0 : 1;
       const p = pathPoint(wrapS(hp.s + travelDir(cw) * Math.min(28, dist)), (hp.offset + meHp.offset) / 2);
@@ -610,16 +647,16 @@ export class PoliceService {
     stepVehicle(u.dyn, { keys, dt }, this.params, this.ctx.sim.collisionWorld, `po:${u.id}`);
   }
 
-  /** Is the straight line between two points free of buildings? */
+  /** Is the straight line between two points free of buildings and open water? */
   private clear(ax: number, az: number, bx: number, bz: number): boolean {
+    if (crossesWater(ax, az, bx, bz)) return false;
     for (const b of this.ctx.sim.collisionWorld.boxes) if (segmentHitsBox(ax, az, bx, bz, b, 1.4)) return false;
     return true;
   }
 
-  /** Next waypoint on the road grid (intersections) towards a target. */
+  /** Next waypoint on the road network (junctions, bridges) towards a target. */
   private route(ax: number, az: number, tx: number, tz: number): { x: number; z: number } | null {
-    const nodes: { x: number; z: number }[] = [];
-    for (const x of ROAD_LINES) for (const z of ROAD_LINES) nodes.push({ x, z });
+    const nodes = NAV_NODES;
     const n = nodes.length;
     const dist = new Array<number>(n).fill(Infinity);
     const first = new Array<number>(n).fill(-1);
@@ -645,13 +682,10 @@ export class PoliceService {
           best = i;
         }
       }
-      // Neighbours along the road lines.
-      for (let k = 0; k < n; k++) {
+      for (const k of NAV_ADJ[i]!) {
         if (done[k]) continue;
         const b = nodes[k]!;
-        const adjacent = (a.x === b.x && Math.abs(a.z - b.z) === 100) || (a.z === b.z && Math.abs(a.x - b.x) === 100);
-        if (!adjacent) continue;
-        const c = dist[i]! + 100;
+        const c = dist[i]! + Math.hypot(b.x - a.x, b.z - a.z);
         if (c < dist[k]!) {
           dist[k] = c;
           first[k] = first[i]!;
@@ -805,7 +839,7 @@ export class PoliceService {
     for (const w of this.wanted.values()) {
       for (const u of w.units) {
         const h = u.dyn.speed >= 0 ? u.dyn.rot + u.dyn.slip : u.dyn.rot;
-        list.push({ id: `po:${u.id}`, modelId: POLICE_MODEL.id, x: u.dyn.x, z: u.dyn.z, rot: u.dyn.rot, vx: Math.sin(h) * u.dyn.speed, vz: Math.cos(h) * u.dyn.speed });
+        list.push({ id: `po:${u.id}`, modelId: POLICE_MODEL.id, x: u.dyn.x, z: u.dyn.z, rot: u.dyn.rot, vx: Math.sin(h) * u.dyn.speed, vz: Math.cos(h) * u.dyn.speed, deck: u.dyn.deck ?? 0 });
       }
     }
     this.ctx.sim.setExtraObstacles('police', list);
@@ -819,7 +853,9 @@ export class PoliceService {
       for (const u of w.units) {
         const d = u.dyn;
         if ((d.x - x) ** 2 + (d.z - z) ** 2 > r2) continue;
-        out.push([u.id, Math.round(d.x * 100) / 100, Math.round(d.z * 100) / 100, Math.round(d.rot * 1000) / 1000, Math.round(d.speed * 100) / 100, Math.round(d.steer * 1000) / 1000, PF.SIREN | (d.brk > 0.1 ? PF.BRAKE : 0)]);
+        const snap: PoliceSnap = [u.id, Math.round(d.x * 100) / 100, Math.round(d.z * 100) / 100, Math.round(d.rot * 1000) / 1000, Math.round(d.speed * 100) / 100, Math.round(d.steer * 1000) / 1000, PF.SIREN | (d.brk > 0.1 ? PF.BRAKE : 0)];
+        if (d.deck) snap.push(d.deck);
+        out.push(snap);
       }
     }
     return out;

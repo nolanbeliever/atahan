@@ -1,8 +1,8 @@
 // Wanted level and police pursuits: what the client needs to know (the logic lives in
 // server/game/services/police.ts).
 
-/** A police car in a snapshot: [id, x, z, rot, speed, steer, flags (PF)]. */
-export type PoliceSnap = [number, number, number, number, number, number, number];
+/** A police car in a snapshot: [id, x, z, rot, speed, steer, flags (PF), bridge deck?]. */
+export type PoliceSnap = [number, number, number, number, number, number, number, number?];
 
 export const PF = {
   /** Lights and siren on. */

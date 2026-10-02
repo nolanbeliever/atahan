@@ -9,7 +9,7 @@ import { vehicleBox, type DynamicBox } from '../../../shared/physics';
 import { modelBoxHalfExtents } from '../../../shared/collision';
 import { Anim } from '../../../shared/types';
 import { CharacterView, POLICE_OFFICER } from '../render/Character';
-import { groundHeight } from '../render/City';
+import { surfaceSlope, surfaceY } from '../render/City';
 import { lightGlowTexture } from '../render/Highway';
 import { VehicleView } from '../render/VehicleMesh';
 import { INTERP_DELAY_MS, InterpBuffer } from './Interpolation';
@@ -29,6 +29,8 @@ interface Unit {
   z: number;
   rot: number;
   speed: number;
+  /** Up on a bridge deck. */
+  deck: number;
 }
 
 const PERFECT = { engine: 100, transmission: 100, brakes: 100, tires: 100, body: 100, interior: 100, cleanliness: 100 };
@@ -118,7 +120,7 @@ export class PoliceClient {
   }
 
   apply(snaps: PoliceSnap[], now = performance.now()): void {
-    for (const [id, x, z, rot, speed, steer, flags] of snaps) {
+    for (const [id, x, z, rot, speed, steer, flags, deck] of snaps) {
       let u = this.units.get(id);
       if (!u) {
         const view = new VehicleView(LOOK);
@@ -131,7 +133,8 @@ export class PoliceClient {
         const driver = new CharacterView(POLICE_OFFICER);
         driver.pose = 'sit';
         view.driverMount.add(driver.root);
-        const unit: Unit = { id, buffer: new InterpBuffer(), view, driver, red: glow('#ff2a2a'), blue: glow('#2a5bff'), lastSeen: now, flags, x, z, rot, speed: 0, sirens: null };
+        const unit: Unit = { id, buffer: new InterpBuffer(), view, driver, red: glow('#ff2a2a'), blue: glow('#2a5bff'), lastSeen: now, flags, x, z, rot, speed: 0, sirens: null, deck: 0 };
+        view.root.rotation.order = 'YXZ';
         void view.ready.then(() => (unit.sirens = sirenMaterials(view)));
         u = unit;
         this.scene.add(view.root);
@@ -140,6 +143,7 @@ export class PoliceClient {
       u.buffer.push({ t: now, x, z, r: rot, a: speed, b: steer, f: flags });
       u.lastSeen = now;
       u.flags = flags;
+      u.deck = deck ?? 0;
     }
   }
 
@@ -164,8 +168,9 @@ export class PoliceClient {
       u.z = s.z;
       u.rot = s.r;
       u.speed = s.a;
-      u.view.root.position.set(s.x, groundHeight(s.x, s.z), s.z);
+      u.view.root.position.set(s.x, surfaceY(s.x, s.z, u.deck), s.z);
       u.view.root.rotation.y = s.r;
+      u.view.root.rotation.x = -Math.atan(surfaceSlope(s.x, s.r, u.deck));
       u.view.animate(s.a, s.b, dt);
       u.driver.animate(Anim.Idle, dt);
       u.view.setLights({ brake: (u.flags & PF.BRAKE) !== 0, reverse: false, night: Math.max(this.night, 0.3) });
@@ -190,11 +195,11 @@ export class PoliceClient {
 
   /** Spike strips from a snapshot (ones not seen for a while are taken away). */
   applySpikes(list: SpikeSnap[], now = performance.now()): void {
-    for (const [id, x, z, rot, half] of list) {
+    for (const [id, x, z, rot, half, deck] of list) {
       let s = this.spikes.get(id);
       if (!s) {
         const group = spikeStrip(half);
-        group.position.set(x, groundHeight(x, z), z);
+        group.position.set(x, surfaceY(x, z, deck ?? 0), z);
         // The strip runs along `rot` (0 = +z); the model runs along x.
         group.rotation.y = rot - Math.PI / 2;
         this.scene.add(group);
@@ -275,7 +280,7 @@ export class PoliceClient {
     if (!e) return;
     for (const u of this.units.values()) {
       if (u.id === STAGED || (u.x - x) ** 2 + (u.z - z) ** 2 > radius * radius) continue;
-      out.push(vehicleBox(`po:${u.id}`, u.x, u.z, u.rot, e.hl, e.hw, Math.sin(u.rot) * u.speed, Math.cos(u.rot) * u.speed));
+      out.push(vehicleBox(`po:${u.id}`, u.x, u.z, u.rot, e.hl, e.hw, Math.sin(u.rot) * u.speed, Math.cos(u.rot) * u.speed, u.deck));
     }
   }
 

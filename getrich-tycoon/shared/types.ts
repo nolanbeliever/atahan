@@ -327,13 +327,13 @@ export const Anim = {
 } as const;
 export type AnimState = (typeof Anim)[keyof typeof Anim];
 
-/** Compact snapshot tuples (bandwidth): [id, x, z, rot, anim, drivingVehicleId, ridingVehicleId, passenger seat, gun slot] */
-export type PlayerSnap = [string, number, number, number, number, string | null, (string | null)?, number?, number?];
+/** Compact snapshot tuples (bandwidth): [id, x, z, rot, anim, drivingVehicleId, ridingVehicleId, passenger seat, gun slot, bridge deck (on foot)] */
+export type PlayerSnap = [string, number, number, number, number, string | null, (string | null)?, number?, number?, number?];
 /**
  * [id, x, z, rot, speed, steer, rpm, gear, flags (VF), wheelie (rad, motorcycles with the front
- * up)?] - only vehicles that are currently being driven.
+ * up)?, bridge deck?] - only vehicles that are currently being driven.
  */
-export type VehicleSnap = [string, number, number, number, number, number, number, number, number, number?];
+export type VehicleSnap = [string, number, number, number, number, number, number, number, number, number?, number?];
 /** Flags of a driven vehicle in a snapshot. */
 export const VF = {
   BRAKE: 1,
@@ -345,14 +345,16 @@ export const VF = {
   HORN: 16,
   /** A nitrous shot is burning (blue exhaust flames). */
   NITRO: 32,
+  /** Up on a bridge deck (VehicleSnap[10] says which). */
+  DECK: 64,
 } as const;
 /** [id, x, z, rot, anim, appearanceStyle] - NPC customers */
 export type NpcSnap = [string, number, number, number, number, number];
 /**
  * Authoritative state of the receiving client: [x, z, rot, drivingVehicleId, vehicle state, ridingVehicleId,
- * passenger seat]. The vehicle state is physics.DynTuple (see dynToTuple) while driving.
+ * passenger seat, bridge deck on foot]. The vehicle state is physics.DynTuple (see dynToTuple) while driving.
  */
-export type SelfSnap = [number, number, number, string | null, number[] | null, (string | null)?, number?];
+export type SelfSnap = [number, number, number, string | null, number[] | null, (string | null)?, number?, number?];
 
 export interface Snapshot {
   /** Server time (ms). */

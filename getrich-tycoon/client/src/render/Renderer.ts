@@ -20,6 +20,7 @@ export class Renderer {
   readonly hemi: THREE.HemisphereLight;
   private quality: GraphicsQuality = 'high';
   private skyMat!: THREE.ShaderMaterial;
+  private sky!: THREE.Mesh;
   /** Sun (or moon) direction, scaled: shadows are cast from player + this. */
   private sunOffset = new THREE.Vector3(60, 110, 40);
   /** 0 by day, 1 at night. */
@@ -66,7 +67,8 @@ export class Renderer {
     // Sun and sky light also light the overlay (cockpit) pass.
     this.sun.layers.enable(OVERLAY_LAYER);
     this.hemi.layers.enable(OVERLAY_LAYER);
-    this.scene.add(this.buildSky());
+    this.sky = this.buildSky();
+    this.scene.add(this.sky);
 
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -107,7 +109,7 @@ export class Renderer {
         }`,
     });
     this.skyMat = mat;
-    // The dome stays at the origin; the camera's far plane (1300) covers it from anywhere in the world.
+    // The dome moves with the camera (render()), so it surrounds the view anywhere in the world.
     const sky = new THREE.Mesh(geo, mat);
     sky.renderOrder = -1;
     sky.frustumCulled = false;
@@ -201,6 +203,7 @@ export class Renderer {
 
   render(): void {
     const r = this.renderer;
+    this.sky.position.set(this.camera.position.x, 0, this.camera.position.z);
     if (!this.overlay) {
       r.render(this.scene, this.camera);
       return;

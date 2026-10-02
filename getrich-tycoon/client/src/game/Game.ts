@@ -49,7 +49,8 @@ import {
 } from '../../../shared/world';
 import { AudioSystem } from '../audio/Audio';
 import { Network, RpcError } from '../net/Network';
-import { City, groundHeight } from '../render/City';
+import { City, groundHeight, surfaceY } from '../render/City';
+import { StraitView } from '../render/Strait';
 import { DealershipsView } from '../render/Dealerships';
 import { HighwayView } from '../render/Highway';
 import { TrafficView } from '../render/TrafficView';
@@ -96,6 +97,7 @@ export class Game {
   readonly city = new City();
   readonly dealerships = new DealershipsView();
   readonly highway = new HighwayView();
+  readonly strait = new StraitView();
   readonly traffic = new TrafficClient();
   readonly trafficView = new TrafficView();
   readonly sanayi = new SanayiView();
@@ -200,7 +202,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.combat = new CombatClient(this);
     this.gunView = new GunView(this.renderer.scene);
@@ -524,6 +526,7 @@ export class Game {
       e.driving = p[5];
       e.riding = p[6] ? { vehicleId: p[6], seat: p[7] ?? 0 } : null;
       e.view.setWeapon(p[8] ?? 0);
+      e.deck = p[9] ?? 0;
       e.lastSeen = now;
     }
     for (const v of s.v) {
@@ -534,6 +537,7 @@ export class Game {
       e.lastDriven = now;
       e.buffer.push({ t: now, x: v[1], z: v[2], r: v[3], a: v[4], b: v[5], rpm: v[6], gear: v[7], f: v[8] });
       e.wheelie = v[9] ?? 0;
+      e.deck = v[8] & VF.DECK ? v[10] ?? 0 : 0;
     }
     const alive = new Set<string>();
     for (const n of s.n) {
@@ -559,7 +563,7 @@ export class Game {
   }
 
   private reconcile(ack: number, self: NonNullable<Snapshot['self']>): void {
-    const [x, z, rot, drivingId, dynT, ridingId, seat] = self;
+    const [x, z, rot, drivingId, dynT, ridingId, seat, footDeck] = self;
     this.pending = this.pending.filter((c) => c.seq > ack);
     const before = { x: this.curr.x, z: this.curr.z };
     // Riding along: the server places us with the car; no prediction.
@@ -568,7 +572,7 @@ export class Game {
       this.riding = riding;
       this.pending = [];
       this.offset.set(0, 0);
-      this.char = { x, z, rot, gait: 0 };
+      this.char = { x, z, rot, gait: 0, deck: footDeck ?? 0 };
       this.curr = { x, z, rot };
       this.prev = { ...this.curr };
       this.audio.play('door');
@@ -576,7 +580,7 @@ export class Game {
     }
     if (this.riding) {
       this.curr = { x, z, rot };
-      this.char = { x, z, rot, gait: 0 };
+      this.char = { x, z, rot, gait: 0, deck: this.entities.vehicles.get(this.riding.vehicleId)?.deck ?? 0 };
       return;
     }
     if (drivingId !== this.driving) {
@@ -587,7 +591,7 @@ export class Game {
       if (drivingId && dynT) this.dyn = dynFromTuple(dynT);
       else {
         this.dyn = null;
-        this.char = { x, z, rot, gait: 0 };
+        this.char = { x, z, rot, gait: 0, deck: footDeck ?? 0 };
       }
       this.curr = { x, z, rot };
       this.prev = { ...this.curr };
@@ -605,6 +609,7 @@ export class Game {
     } else {
       this.char.x = x;
       this.char.z = z;
+      this.char.deck = footDeck ?? 0;
       for (const c of this.pending) stepCharacter(this.char, c, this.world, this.store.playerId);
       this.curr = { x: this.char.x, z: this.char.z, rot: this.char.rot };
     }
@@ -629,7 +634,7 @@ export class Game {
       if (e.kind === 'market' && e.listing) {
         const slot = MARKET_LOT_SLOTS[e.listing.lotSlot];
         if (slot) list.push({ id: e.data.id, modelId: e.data.modelId, x: slot.x, z: slot.z, rot: slot.rot });
-      } else list.push({ id: e.data.id, modelId: e.data.modelId, x: e.x, z: e.z, rot: e.rot });
+      } else list.push({ id: e.data.id, modelId: e.data.modelId, x: e.x, z: e.z, rot: e.rot, deck: e.deck });
     }
     for (const [lane, bot] of this.dragBots) {
       const racer = this.drag?.racers.find((r) => r.lane === lane);
@@ -776,6 +781,8 @@ export class Game {
       steer: this.dyn?.steer ?? 0,
       flags,
       wheelie: this.dyn?.wheelie ?? 0,
+      deck: this.dyn?.deck ?? 0,
+      charDeck: this.char.deck ?? 0,
     });
 
     const camera = this.renderer.camera;
@@ -797,10 +804,10 @@ export class Game {
     else if (carried) {
       // Riding along: the chase camera follows the car (it has just been placed this frame).
       if (performance.now() - this.input.lastMouseMove > 1500) this.cam.follow(carried.rot, dt);
-      this.cam.update(new THREE.Vector3(carried.x, groundHeight(carried.x, carried.z), carried.z), dt, true, carried.lastSpeed, this.boxes);
+      this.cam.update(new THREE.Vector3(carried.x, surfaceY(carried.x, carried.z, carried.deck), carried.z), dt, true, carried.lastSpeed, this.boxes);
     } else {
       if (this.driving && this.dyn && performance.now() - this.input.lastMouseMove > 1500) this.cam.follow(this.dyn.rot, dt);
-      const target = new THREE.Vector3(rx, groundHeight(rx, rz), rz);
+      const target = new THREE.Vector3(rx, surfaceY(rx, rz, this.localDeck()), rz);
       this.cam.update(target, dt, !!this.driving, this.dyn?.speed ?? 0, this.boxes);
     }
     const me = this.store.me?.appearance;
@@ -881,6 +888,7 @@ export class Game {
     this.ui?.rewardsHud.update(Math.min(1, raw), active);
     this.effects.update(dt);
     this.city.update(dt);
+    this.strait.update(dt);
     // Car theft: street cars and alarms, the work on lifted cars, the lifts' arms.
     this.theft.update(dt, { x: rx, z: rz });
     const lifts = [0, 0];
@@ -951,6 +959,7 @@ export class Game {
     this.night = night;
     this.city.setNight(night);
     this.highway.setNight(night);
+    this.strait.setNight(night);
     this.trafficView.setNight(night);
     this.entities.night = night;
   }
@@ -1457,6 +1466,13 @@ export class Game {
     return v instanceof BikeView && !v.quad;
   }
 
+  /** The bridge deck the local player is on (driving, riding or on foot), 0 on the ground. */
+  localDeck(): number {
+    if (this.driving) return this.dyn?.deck ?? 0;
+    if (this.riding) return this.entities.vehicles.get(this.riding.vehicleId)?.deck ?? 0;
+    return this.char.deck ?? 0;
+  }
+
   /** Riding on the back of a motorcycle or a quad. */
   onPillion(): boolean {
     const e = this.riding ? this.entities.vehicles.get(this.riding.vehicleId) : undefined;
@@ -1486,7 +1502,7 @@ export class Game {
       // Riding with a pistol in one hand: the rider's eyes.
       ridden.root.updateMatrixWorld(true);
       ridden.riderMount.localToWorld(camera.position.set(0, 0.86, 0.1));
-    } else camera.position.set(x + Math.sin(yaw) * 0.12, groundHeight(x, z) + EYE_HEIGHT, z + Math.cos(yaw) * 0.12);
+    } else camera.position.set(x + Math.sin(yaw) * 0.12, surfaceY(x, z, this.localDeck()) + EYE_HEIGHT, z + Math.cos(yaw) * 0.12);
     camera.quaternion.setFromEuler(new THREE.Euler(this.aimPitch + r.pitch, yaw + Math.PI + r.yaw, 0, 'YXZ'));
   }
 

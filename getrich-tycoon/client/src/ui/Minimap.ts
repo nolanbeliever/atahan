@@ -3,7 +3,8 @@
 import { CCTV_CAMERAS, cameraYaw } from '../../../shared/cctv';
 import { CARRIAGEWAY_EDGE, DRAG_STRIP, JUNCTIONS, JUNCTION_APRON, LOOP_LEN, pathPoint } from '../../../shared/highway';
 import { SANAYI } from '../../../shared/sanayiLayout';
-import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, WORLD_BOUNDS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
+import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
+import { BRIDGES, BRIDGE_HALF, FAR_ROADS, WATER, WORLD_BOX } from '../../../shared/strait';
 import type { Game } from '../game/Game';
 
 export const INTERACT_COLORS: Record<string, string> = {
@@ -63,10 +64,15 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
     g.rotate(yaw + Math.PI);
     g.translate(-size / 2, -size / 2);
   }
-  g.fillStyle = '#2e3440';
-  const W = WORLD_BOUNDS;
+  const W = WORLD_BOX;
   g.fillStyle = '#22391f';
-  g.fillRect(tx(-W), tz(-W), W * 2 * s, W * 2 * s);
+  g.fillRect(tx(W.minX), tz(W.minZ), (W.maxX - W.minX) * s, (W.maxZ - W.minZ) * s);
+  // The strait (it runs off the map north and south).
+  g.fillStyle = '#1d4f7a';
+  g.fillRect(tx(WATER.west), tz(W.minZ - 400), (WATER.east - WATER.west) * s, (W.maxZ - W.minZ + 800) * s);
+  // Far shore roads.
+  g.fillStyle = '#4a4f5c';
+  for (const r of FAR_ROADS) g.fillRect(tx(r.minX), tz(r.minZ), (r.maxX - r.minX) * s, (r.maxZ - r.minZ) * s);
   g.fillStyle = '#26402b';
   g.fillRect(tx(-CITY_HALF), tz(-CITY_HALF), CITY_HALF * 2 * s, CITY_HALF * 2 * s);
   for (const z of ZONES) {
@@ -96,6 +102,13 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   g.strokeStyle = 'rgba(242,194,48,0.7)';
   g.lineWidth = Math.max(1, 0.6 * s);
   g.stroke();
+  // The bridges over the highway and the water: decks with their towers.
+  for (const b of BRIDGES) {
+    g.fillStyle = '#5b6170';
+    g.fillRect(tx(b.x0), tz(b.z - BRIDGE_HALF), (b.x1 - b.x0) * s, BRIDGE_HALF * 2 * s);
+    g.fillStyle = '#e8e2d4';
+    for (const x of b.towers) for (const side of [-1, 1]) g.fillRect(tx(x) - 2, tz(b.z + side * (BRIDGE_HALF + 2)) - 2, 4, 4);
+  }
   g.fillStyle = '#4a4f5c';
   g.fillRect(tx(DRAG_STRIP.wallX[0]), tz(DRAG_STRIP.wallZ[0]), (DRAG_STRIP.wallX[1] - DRAG_STRIP.wallX[0]) * s, (DRAG_STRIP.wallZ[1] - DRAG_STRIP.wallZ[0]) * s);
   g.fillStyle = '#4a4f5c';
