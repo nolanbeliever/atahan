@@ -7,6 +7,7 @@ import type { MissionView } from './missions';
 import type { BustedEvent, WantedState } from './police';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
+import type { ShowroomId, ShowroomInfo, TestDriveEnd, TestDriveView } from './showrooms';
 import type { MegaChoice, RewardsView } from './rewards';
 import type { PursuitOutcome, PursuitView } from './cctv';
 import type { StreetRaceView } from './streetRace';
@@ -126,6 +127,10 @@ export interface RpcMethods {
   'hitman.info': { params: Empty; result: { contract: ContractView | null } };
   'hitman.drop': { params: Empty; result: { ok: true } };
   'helmet.buy': { params: { kind: 'helmet' | 'visor'; id: string }; result: { appearance: Appearance } };
+  'showroom.info': { params: { showroomId: ShowroomId }; result: ShowroomInfo };
+  'showroom.buy': { params: { showroomId: ShowroomId; offerId: string; color?: string; expectedPrice: number }; result: { vehicle: Vehicle; price: number } };
+  'showroom.testDrive': { params: { showroomId: ShowroomId; offerId: string; color?: string }; result: TestDriveView };
+  'showroom.endTestDrive': { params: Empty; result: { ok: true } };
   'helmet.wear': { params: { helmet: HelmetId | null; visor?: VisorId; color?: string }; result: { appearance: Appearance } };
   'race.info': { params: Empty; result: { race: StreetRaceView | null } };
   'race.join': { params: Empty; result: { race: StreetRaceView } };
@@ -224,6 +229,12 @@ export interface ServerToClientEvents {
   'police.spiked': (d: { vehicleId: string; x: number; z: number }) => void;
   /** Under a bridge speed radar: the speed, your best, whether it is a new best, the server record. */
   'radar.flash': (d: RadarFlash) => void;
+  /** A test drive started or is in progress (null: none). */
+  'testdrive.update': (d: TestDriveView | null) => void;
+  /** The test drive is over: the car went back to the showroom (and any damage bill). */
+  'testdrive.end': (d: { reason: TestDriveEnd; modelId: string; fee: number }) => void;
+  /** A showroom's stock changed (the Black Market restocked or sold a car). */
+  'showroom.update': (d: ShowroomInfo) => void;
   'combat.carHp': (d: { id: string; hp: number }) => void;
   'combat.health': (d: HealthView) => void;
   'combat.wasted': (d: { lost: string[]; respawnInMs: number }) => void;

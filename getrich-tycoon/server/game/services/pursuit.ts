@@ -110,7 +110,7 @@ export class PursuitService {
       await this.ctx.locks.run([K.player(playerId), K.vehicle(t.vehicleId)], async () => {
         const live = this.ctx.state.vehicles.get(t.vehicleId);
         if (!live || live.status !== 'stolen' || live.ownerId !== playerId) return this.end(playerId, 'ended');
-        const owned = this.ctx.state.vehiclesOf(playerId).filter((v) => v.status !== 'stolen').length;
+        const owned = this.ctx.state.vehiclesOf(playerId).filter((v) => v.status !== 'stolen' && v.status !== 'testdrive').length;
         if (owned >= ECONOMY.player.maxOwnedVehicles) {
           this.ctx.hub.notify(playerId, { kind: 'warning', title: 'Garaj dolu', text: `Polis izini kaybetti ama garajında yer yok: ${modelDisplayName(live.modelId)} çalıntı olarak kaldı. Sanayi'de parçala ya da yer açıp evrak çıkar.` });
           return this.end(playerId, 'garage_full');

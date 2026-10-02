@@ -24,6 +24,7 @@ const PLACE_LABEL: Record<InteractKind, string> = {
   hospital: 'the hospital',
   motogear: 'Moto Gear (the helmet shop beside the hospital)',
   hitman: 'the contact in the alley',
+  showroom: 'the showroom (Galeri Bulvarı, across the bridges)',
 };
 
 export function requireNear(ctx: Ctx, playerId: string, kind: InteractKind): void {
@@ -57,6 +58,7 @@ export function requireIdle(ctx: Ctx, v: Vehicle, opts: { allowDriving?: boolean
       stored: 'That vehicle is in storage.',
       market: 'That vehicle is not yours.',
       stolen: "That car is stolen: it can't be sold or stored. Strip it at the Sanayi.",
+      testdrive: "That's the showroom's test-drive car: it goes back when the drive ends.",
     };
     throw new GameError('conflict', why[v.status] ?? 'That vehicle is busy.');
   }

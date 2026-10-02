@@ -4,6 +4,7 @@ import { WATER } from '../../../../shared/strait';
 import { ACHIEVEMENTS, levelProgress } from '../../../../shared/progression';
 import type { Appearance, LeaderboardEntry, PlayerSettings, Transaction } from '../../../../shared/types';
 import { formatMoney } from '../../../../shared/util';
+import { SHOWROOMS } from '../../../../shared/showrooms';
 import { INTERACTABLES, ZONES } from '../../../../shared/world';
 import { logoutRequest, session } from '../../net/api';
 import { h, icon, type Child } from '../dom';
@@ -118,7 +119,9 @@ export class MapPanel extends Panel {
         h('div', { class: 'section-title' }, 'Districts'),
         ZONES.map((z) => h('div', null, h('i', { style: { background: z.color } }), z.name)),
         h('div', { class: 'section-title' }, 'Services'),
-        INTERACTABLES.map((i) => h('div', null, h('i', { style: { background: INTERACT_COLORS[i.kind] ?? '#fff', borderRadius: '50%' } }), labels[i.kind] ?? i.kind)),
+        INTERACTABLES.filter((i) => i.kind !== 'showroom' && i.kind !== 'hitman').map((i) => h('div', null, h('i', { style: { background: INTERACT_COLORS[i.kind] ?? '#fff', borderRadius: '50%' } }), labels[i.kind] ?? i.kind)),
+        h('div', { class: 'section-title' }, 'Galeri Bulvarı (karşı kıyı)'),
+        SHOWROOMS.map((s) => h('div', { 'data-testid': 'map-showroom' }, h('i', { style: { background: s.theme.accent, borderRadius: '50%' } }), s.name)),
         h('div', { class: 'section-title' }, 'Markers'),
         h('div', null, h('i', { style: { background: '#2ee59d' } }), 'You'),
         h('div', null, h('i', { style: { background: '#4f8cff', borderRadius: '50%' } }), 'Other players'),

@@ -92,6 +92,7 @@ export class StreetRaceService {
       if (Math.hypot(d.dyn.x - start.x, d.dyn.z - start.z) > R.joinRadius) throw new GameError('too_far', 'Drive to the start line (the flag on the map).');
       if (race.racers.filter((r) => !r.bot).length >= R.maxPlayers) throw new GameError('conflict', 'The grid is full.');
       const v = this.ctx.state.vehicles.get(d.vehicleId)!;
+      if (v.status === 'testdrive') throw new GameError('forbidden', 'Not in a test-drive car: race your own.');
       race.racers.push({ vehicleId: d.vehicleId, bot: null, view: { id: playerId, name: this.ctx.state.players.get(playerId)?.name ?? 'Racer', bot: false, modelId: v.modelId, next: 1, place: null, timeMs: null, dnf: false } });
       this.publish();
       return race.view;

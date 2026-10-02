@@ -66,6 +66,8 @@ export interface VehicleMods {
   air?: number;
   /** Tyres burst on a police spike strip: on the rims until repaired at Wrench Bros. */
   blown?: boolean;
+  /** Bought at the Black Market: the car has a theft record (number-plate cameras flag it). */
+  hot?: boolean;
 }
 
 export interface StripState {
@@ -85,7 +87,8 @@ export interface StripState {
  * market    - owned by an NPC seller at the used vehicle market
  * stolen    - broken into by the player: drivable, can only be stripped at the Sanayi (never sold whole)
  */
-export type VehicleStatus = 'stored' | 'world' | 'displayed' | 'listed' | 'auction' | 'market' | 'stolen';
+/** 'testdrive': a showroom car out on a test drive (never owned: it goes back when the drive ends). */
+export type VehicleStatus = 'stored' | 'world' | 'displayed' | 'listed' | 'auction' | 'market' | 'stolen' | 'testdrive';
 
 export interface Vehicle {
   id: string;
@@ -289,7 +292,9 @@ export type TransactionKind =
   | 'hospital'
   | 'police_escape'
   | 'moto_gear'
-  | 'hitman';
+  | 'hitman'
+  | 'showroom'
+  | 'testdrive';
 
 export interface Transaction {
   id: string;

@@ -43,6 +43,7 @@ import { StreetRaceService } from './services/streetRace';
 import { MotoService } from './services/moto';
 import { HitmanService } from './services/hitman';
 import { RadarService } from './services/radar';
+import { ShowroomService } from './services/showrooms';
 import { CombatService } from './services/combat';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
@@ -100,6 +101,7 @@ export class GameServer implements Hub {
   readonly moto: MotoService;
   readonly hitman: HitmanService;
   readonly radar: RadarService;
+  readonly showrooms: ShowroomService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -147,6 +149,7 @@ export class GameServer implements Hub {
     this.moto = new MotoService(this.ctx, this.combat, this.vehicles);
     this.hitman = new HitmanService(this.ctx, this.combat, this.police);
     this.radar = new RadarService(this.ctx);
+    this.showrooms = new ShowroomService(this.ctx, this.vehicles, this.police);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -209,6 +212,10 @@ export class GameServer implements Hub {
       'hitman.drop': (pid) => (this.hitman.drop(pid), { ok: true as const }),
       'helmet.buy': (pid, p) => this.moto.buy(pid, p),
       'helmet.wear': (pid, p) => this.moto.wear(pid, p),
+      'showroom.info': (pid, p) => this.showrooms.info(pid, p),
+      'showroom.buy': (pid, p) => this.showrooms.buy(pid, p),
+      'showroom.testDrive': (pid, p) => this.showrooms.testDrive(pid, p),
+      'showroom.endTestDrive': (pid) => this.showrooms.endTestDrive(pid),
       'race.info': () => ({ race: this.streetRace.view() }),
       'race.join': async (pid) => ({ race: await this.streetRace.join(pid) }),
       'race.leave': (pid) => (this.streetRace.leave(pid), { ok: true as const }),
@@ -302,6 +309,7 @@ export class GameServer implements Hub {
 
     await this.rare.init();
     await this.theft.init();
+    await this.showrooms.init();
     if (this.cfg.simulation) {
       await this.market.refresh().catch((err) => log.error('initial market refresh failed', { error: (err as Error).message }));
     }
@@ -424,6 +432,8 @@ export class GameServer implements Hub {
     this.pursuit.forget(playerId);
     this.streetRace.forget(playerId);
     this.combat.forget(playerId);
+    // A test-drive car goes back before the usual drive flush below.
+    await this.showrooms.forget(playerId);
     await this.missions.forget(playerId);
     await this.rewards.forget(playerId);
     const c = this.sim.chars.get(playerId);
@@ -660,6 +670,7 @@ export class GameServer implements Hub {
     await this.missions.tick();
     await this.rewards.tick();
     await this.theft.tick();
+    await this.showrooms.tick();
     if (this.cfg.simulation) {
       await this.customers.tick();
       await this.auctions.tick();

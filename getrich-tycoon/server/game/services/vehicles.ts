@@ -281,7 +281,7 @@ export class VehicleService {
       const player = uow.player(playerId);
       const veh = uow.vehicle(vehicleId);
       requireOwned(veh, player);
-      if (veh.status === 'stolen' || veh.mods.strip) throw new GameError('conflict', 'Not on a stolen car.');
+      if (veh.status === 'stolen' || veh.status === 'testdrive' || veh.mods.strip) throw new GameError('conflict', veh.status === 'testdrive' ? 'Not on a test-drive car.' : 'Not on a stolen car.');
       if ((veh.mods.plate ?? '') === text) throw new GameError('bad_request', 'The car already has that plate.');
       if (text) {
         uow.debit(player, ECONOMY.plates.price, 'tuning', `Custom plate "${text}": ${modelDisplayName(veh.modelId)}`, veh.id);

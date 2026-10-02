@@ -4,6 +4,7 @@ import type { ContractView } from '../../../shared/hitman';
 import type { PrivateState } from '../../../shared/protocol';
 import type { RareMarketState } from '../../../shared/rareMarket';
 import type { RewardsView } from '../../../shared/rewards';
+import type { ShowroomInfo, TestDriveView } from '../../../shared/showrooms';
 import type { HealthView } from '../../../shared/weapons';
 import { LOCKPICK_ITEM, type BlackMarketInfo, type StreetCar } from '../../../shared/theft';
 import type {
@@ -36,6 +37,8 @@ export interface StoreEvents extends Record<string, unknown> {
   rewards: RewardsView;
   health: HealthView;
   contract: ContractView | null;
+  testDrive: TestDriveView | null;
+  showroom: ShowroomInfo;
 }
 
 export class Store extends Emitter<StoreEvents> {
@@ -57,6 +60,8 @@ export class Store extends Emitter<StoreEvents> {
   health: HealthView | null = null;
   /** The hitman contract the player holds (null: none). */
   contract: ContractView | null = null;
+  /** The showroom test drive in progress (null: none). */
+  testDrive: TestDriveView | null = null;
   rewardsAt = 0;
   /** Black Market lockpick stock (null until fetched). */
   blackMarket: BlackMarketInfo | null = null;
@@ -136,6 +141,15 @@ export class Store extends Emitter<StoreEvents> {
     this.emit('contract', v);
   }
 
+  setTestDrive(v: TestDriveView | null): void {
+    this.testDrive = v;
+    this.emit('testDrive', v);
+  }
+
+  setShowroom(v: ShowroomInfo): void {
+    this.emit('showroom', v);
+  }
+
   setRewards(v: RewardsView): void {
     this.rewards = v;
     this.rewardsAt = Date.now();
@@ -169,8 +183,9 @@ export class Store extends Emitter<StoreEvents> {
     return this.self?.player ?? null;
   }
 
+  /** The player's vehicles (a showroom's test-drive car is not one of them). */
   myVehicles(): Vehicle[] {
-    return this.self?.vehicles ?? [];
+    return (this.self?.vehicles ?? []).filter((v) => v.status !== 'testdrive');
   }
 
   myVehicle(id: string): Vehicle | undefined {

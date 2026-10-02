@@ -92,6 +92,8 @@ export function statusPill(v: Vehicle, serviceNow = Date.now()): HTMLElement {
       return h('span', { class: 'pill purple' }, 'At auction');
     case 'stolen':
       return h('span', { class: 'pill red' }, v.mods.strip ? 'Çalıntı · on the lift' : 'Çalıntı · stolen');
+    case 'testdrive':
+      return h('span', { class: 'pill blue' }, 'Test sürüşü');
     default:
       return h('span', { class: 'pill' }, v.status);
   }

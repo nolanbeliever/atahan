@@ -8,6 +8,7 @@ import { AMMU_NATION, HOSPITAL, MOTO_GEAR } from './compounds';
 import { HITMAN_ALLEY } from './hitman';
 import { dealershipLevel } from './economy.config';
 import { DRAG_BOXES, DRAG_STRIP, JUNCTIONS, highwayCircles } from './highway';
+import { SHOWROOMS, SHOWROOM_BOXES, SHOWROOM_CIRCLES, SHOWROOM_DOOR_RADIUS, type ShowroomId } from './showrooms';
 import { SANAYI, SANAYI_BOXES, SANAYI_CIRCLES } from './theft';
 
 export interface AABB {
@@ -67,7 +68,7 @@ export const ZONES: Zone[] = [
   { id: 'sanayi', name: 'Sanayi Industrial Estate', cx: (SANAYI.yard.minX + SANAYI.yard.maxX) / 2, cz: (SANAYI.yard.minZ + SANAYI.yard.maxZ) / 2, color: '#8d6e63' },
 ];
 
-export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag' | 'pawn' | 'sanayi' | 'ammu' | 'hospital' | 'motogear' | 'hitman';
+export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag' | 'pawn' | 'sanayi' | 'ammu' | 'hospital' | 'motogear' | 'hitman' | 'showroom';
 
 export interface Interactable {
   id: string;
@@ -77,6 +78,8 @@ export interface Interactable {
   radius: number;
   label: string;
   plotId?: string;
+  /** For a showroom door: which showroom. */
+  showroomId?: ShowroomId;
 }
 
 export interface Building {
@@ -139,6 +142,8 @@ export const STATIC_CIRCLES: Circle[] = [
   // Far shore: crane legs, flood-light towers, the trees on the touge's hill.
   ...FAR_CIRCLES,
   ...HILL_TREES.map((t) => ({ x: t.x, z: t.z, r: 0.5 })),
+  // The turntables on the showrooms' forecourts.
+  ...SHOWROOM_CIRCLES,
 ];
 
 export const INTERACTABLES: Interactable[] = [
@@ -157,6 +162,8 @@ export const INTERACTABLES: Interactable[] = [
   { id: 'hospital', kind: 'hospital', x: HOSPITAL.respawn.x, z: HOSPITAL.respawn.z - 3, radius: 4.5, label: 'Hospital · Hastane' },
   { id: 'motogear', kind: 'motogear', x: MOTO_GEAR.door.x, z: MOTO_GEAR.door.z, radius: 4.5, label: 'Moto Gear · Kask Mağazası' },
   { id: 'hitman', kind: 'hitman', x: HITMAN_ALLEY.contact.x, z: HITMAN_ALLEY.contact.z - 1.6, radius: 3.2, label: 'Görev Al' },
+  // The themed showrooms on the far shore's Galeri Bulvarı.
+  ...SHOWROOMS.map((s): Interactable => ({ id: `showroom_${s.id}`, kind: 'showroom', x: s.door.x, z: s.door.z, radius: SHOWROOM_DOOR_RADIUS, label: 'Galeriyi Gez', showroomId: s.id })),
 ];
 
 export const SERVICE_INTERACT_SLACK = 6;
@@ -391,7 +398,7 @@ export const CITY_LAMPS: [number, number, number][] = (() => {
 })();
 
 /** All static colliders (buildings) - dealership buildings are added dynamically. */
-export const STATIC_BOXES: AABB[] = [...BUILDINGS.map((b) => b.box), ...DRAG_BOXES, ...SANAYI_BOXES, ...FAR_BOXES];
+export const STATIC_BOXES: AABB[] = [...BUILDINGS.map((b) => b.box), ...DRAG_BOXES, ...SANAYI_BOXES, ...FAR_BOXES, ...SHOWROOM_BOXES];
 
 export function findInteractable(id: string): Interactable | undefined {
   return INTERACTABLES.find((i) => i.id === id);

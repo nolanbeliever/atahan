@@ -13,7 +13,7 @@ export interface CustomOption {
 }
 
 /** Classic one-click customization slots (the tuning garage lives in modificationsData.ts). */
-export type ModSlot = Exclude<keyof VehicleMods, 'tuning' | 'strip' | 'plate' | 'air' | 'blown'>;
+export type ModSlot = Exclude<keyof VehicleMods, 'tuning' | 'strip' | 'plate' | 'air' | 'blown' | 'hot'>;
 
 export const PAINTS: CustomOption[] = [
   { id: 'paint_midnight', label: 'Midnight Black', price: 900, value: '#0b0b0f' },

@@ -16,8 +16,8 @@ export function assertCanOwnMore(ctx: Ctx, buyer: PlayerRecord): void {
   let leading = 0;
   for (const a of ctx.state.auctions.values()) if (a.status === 'active' && a.currentBidderId === buyer.id) leading++;
   const slots = garageSlots(buyer.level);
-  // A stolen car on its way to the Sanayi doesn't take a garage slot.
-  const owned = ctx.state.vehiclesOf(buyer.id).filter((v) => v.status !== 'stolen').length;
+  // A stolen car on its way to the Sanayi or a test-drive car doesn't take a garage slot.
+  const owned = ctx.state.vehiclesOf(buyer.id).filter((v) => v.status !== 'stolen' && v.status !== 'testdrive').length;
   if (owned + leading >= slots) {
     throw new GameError('conflict', `Your garage is full (max ${slots} vehicles at level ${buyer.level} - level up for more room).`);
   }

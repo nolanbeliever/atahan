@@ -15,6 +15,7 @@ import { ICONS } from './icons';
 import { DragHud, NearMissHud } from './HighwayHud';
 import { GaugeHud } from './Gauge';
 import { HitmanHud } from './HitmanHud';
+import { TestDriveHud } from './TestDriveHud';
 import { MissionsHud } from './MissionsHud';
 import { RewardsHud } from './RewardsHud';
 import { claimPlaytime } from './panels/rewards';
@@ -142,6 +143,7 @@ export class UI {
   readonly wanted = new WantedHud();
   readonly pursuit = new PursuitHud();
   readonly hitman = new HitmanHud();
+  readonly testDrive = new TestDriveHud(() => void this.game.endTestDrive());
   /** A white flash over everything (speed cameras). */
   readonly flashEl = h('div', { class: 'screen-flash' });
   readonly race = new RaceHud();
@@ -249,6 +251,7 @@ export class UI {
       this.wanted.el,
       this.race.el,
       this.hitman.el,
+      this.testDrive.el,
     );
     const right = h(
       'div',

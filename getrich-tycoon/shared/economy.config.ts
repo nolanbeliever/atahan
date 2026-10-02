@@ -417,6 +417,28 @@ export const ECONOMY = {
     xpPerPart: 8,
   },
 
+  /** The eight themed showrooms on the far shore's Galeri Bulvarı (see showrooms.ts). */
+  showrooms: {
+    /** A new car costs its market value times this (the showroom's margin). */
+    markup: 1.1,
+    /** A test drive lasts this long (s); the next one can start after the cooldown (s). */
+    testDriveSec: 120,
+    testDriveCooldownSec: 30,
+    /** Body damage on a test drive is billed per point lost as a share of the car's price (capped). */
+    damagePerPoint: 0.002,
+    damageMax: 0.05,
+    /** Black Market: used cars with a theft record, replaced every rotation. */
+    blackMarket: {
+      slots: 6,
+      rotationSec: 600,
+      /** Price as a share of market value (always above the quick-sell payout). */
+      priceRange: [0.74, 0.86] as [number, number],
+      /** Condition quality and mileage (km) of what the Sanayi pieces together. */
+      quality: [28, 62] as [number, number],
+      mileage: [140_000, 320_000] as [number, number],
+    },
+  },
+
   /** Rare Dealer: a rotating stock of special vehicles (see rareMarket.ts). */
   rareMarket: {
     /** The whole stock is replaced every N seconds (aligned to the server clock). */

@@ -74,7 +74,8 @@ export class DrivingService {
     try {
       await this.ctx.locks.run([K.player(playerId)], async () => {
         const v = this.ctx.state.vehicles.get(vehicleId);
-        if (!v || v.ownerId !== playerId || !this.ctx.state.players.has(playerId)) return;
+        // A showroom's test-drive car is not yours: it earns nothing.
+        if (!v || v.ownerId !== playerId || v.status === 'testdrive' || !this.ctx.state.players.has(playerId)) return;
         const value = marketValue(v, this.ctx.state.trends);
         const amount = driveBonus(value);
         const uow = this.ctx.state.begin();

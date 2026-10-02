@@ -173,6 +173,25 @@ Stage 2 $3,700, Stage 3 $8,000, coilovers $2,900, chameleon paint $5,200. A full
   timer is held. Under cover (overpass or bridge deck, car-wash tunnel, Sanayi hall) for 8 s and it loses you. Shot down: no
   reward, but no helicopter for 60 s; shooting at it is police heat.
 
+## Showrooms (Galeri Bulvarı)
+
+Values are in `ECONOMY.showrooms` (`shared/showrooms.ts` for the stock).
+
+- **New cars:** market value of a brand-new car (condition 100, 8 km) times **1.1** (the showroom's margin), rounded to $100,
+  and never below the value at neutral demand, so buying new and selling straight away always loses money. Any of the
+  model's factory colours. Level locks are the usual category locks (sports from level 4, luxury from 6...). Pays the normal
+  market-buy XP. The 12 showroom-only models (`shared/showroomModels.ts`) never appear on the used market, at auctions, with
+  NPC sellers, in the Rare Dealer's rotation, in traffic or as street cars.
+- **Black Market:** 6 used catalogue cars (no bikes) with **140,000-320,000 km**, condition quality 28-62 and a theft record
+  (`mods.hot`: the number-plate cameras of the next update flag them), priced at **74-86% of market value** but always at
+  least the quick-sell payout + 4% of value (no instant resale profit). The stock is rolled from a server secret and the
+  10-minute epoch (the same for everyone, the same after a restart); each car sells once and stays sold.
+- **Test drives:** free, **120 s**, one at a time, the next one 30 s after the last ends; not while wanted. The car is new
+  (or the Black Market car as it stands) and full of fuel. Body damage is billed at **0.2% of the price per condition point
+  lost, at most 5%**, from the cash you have (never below zero; `testdrive`). A test car earns no driving bonus, can't race
+  (drag strip, street races), can't be stored, sold, listed, tuned or plated, doesn't take a garage slot and isn't in your
+  net worth.
+
 ## Hitman contracts
 
 `ECONOMY.hitman`, `shared/hitman.ts`, `server/game/services/hitman.ts`. The contact in the alley behind Wrench Bros hands

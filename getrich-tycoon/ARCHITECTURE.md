@@ -58,6 +58,20 @@
   - `streetRace.ts`: street race routes on the road grid, checkpoints, grid slots, poses along a route (bots), standings
   - `weapons.ts` (+ `compounds.ts` for the hospital and Ammu-Nation): guns, ammo, damage stages of a car, and the ray maths
     (boxes, rotated boxes, people) used by the server to decide hits and by the client to aim
+  - `strait.ts`: the strait east of the city and the two suspension bridges over it. `WORLD_BOX` replaces the old square
+    world edge; `WATER` is the strait (banks are walls). Each bridge is a raised **deck** (level 1 = north, 2 = south) with
+    ramps at both ends: `nextDeck` is the one rule for getting on (only at an end, from the ramp) and staying on (inside the
+    footprint), `deckHeight` / `surfaceHeight` give the height, `deckAt` guesses the level for a spawn. Piers, anchorages and
+    the ramps' low walls are colliders for ground-level bodies; rails for deck-level ones. Also the speed radars and the
+    far-shore roads (the VIP Otoban north-south, `bridgeEnds` for the police).
+  - `farShore.ts`: the far shore: the hill (`terrainHeight`, `standHeight` for guns, `rayHitsHill`), the touge (a smoothed
+    switchback path, guardrails as thin OBB walls in a grid: `wallsNear`, `crossesWall`), the Galeri Bulvarı, the docks
+    road, gate and container yard (stacks, cranes, flood-light towers, fences).
+  - `roadGraph.ts`: the police road graph (city grid, the bridges, the VIP Otoban stops, the boulevard, the docks and the
+    touge as a chain): `NAV_NODES`, `NAV_EDGES`, Dijkstra in the police service, `navRoadPoints` for spike strips.
+  - `showrooms.ts` (+ `showroomModels.ts`): the eight themed showrooms (building, door, forecourt turntable, two turntables
+    inside, test-drive bay, theme colours, stock), new-car and Black Market prices (`showroomPrice`, `blackMarketPrice`),
+    offer ids and the test-drive view; `showroomModels.ts` holds the 12 showroom-only real cars.
   - `collision.ts`: builds the same collision world on both sides
   - `protocol.ts`: typed RPC map, events and validation helpers
 - **`server/`**:
@@ -89,6 +103,13 @@
     the simulation reports a flipped wheelie or a hard hit through `bikeCrashListeners`, the riders come off and are hurt
     by `helmets.crashDamage`). Shots come in as a `fire` socket event; fired rounds are taken out of the saved inventory
     every 2 s. The wheelie itself is shared physics (`stepWheelie` in physics.ts, part of the predicted `DynTuple`).
+  - Map expansion: `radar.ts` (a car passing under a bridge radar gantry at speed: flash, personal best in the player's
+    stats, the server record) and `showrooms.ts` (the themed showrooms: new cars at the showroom price in a factory
+    colour; the Black Market's rotating one-of-a-kind used cars with a theft record (`mods.hot`), rolled from a server
+    secret and the epoch like the Rare Dealer's, sold cars saved; test drives: a temporary car with status `testdrive`
+    in the showroom's bay, ended when the time is up, the driver gets out, is arrested or logs off; body damage is billed;
+    a test car can't be stored, sold, tuned, raced, earn the driving bonus or count towards the garage; leftovers are
+    removed at startup).
   - `db/` holds the PostgreSQL and SQLite adapters behind one small `Database` interface, plus the repository (row mapping, parameterized SQL).
 - **`client/`**:
   - `game/Game.ts` runs the loop, fixed-step prediction, reconciliation and interactions.
@@ -120,6 +141,14 @@
     steering wheel of a car on a lift; parts vanish as they are stripped, mirrors and doors are model nodes hidden in
     `VehicleMesh.ts`), `ui/panels/lockpick.ts` (the canvas mini-game), `ui/panels/engineBay.ts` (clickable engine bay) and
     `ui/panels/theft.ts` (Black Market tab, Pawn Shop, Sanayi office).
+  - Map expansion: `render/Strait.ts` (the water, quays, the far shore's ground and roads, both bridges: decks, girders,
+    piers, towers, main cables and hangers with LED lights at night, anchorages, lamps, the radar gantries and their
+    flash), `render/FarShore.ts` (the hill mesh, the touge ribbon with markings, guardrails, trees and the start banner, the
+    boulevard and its lamps, the docks with instanced containers, cranes and flood lights), `render/Showrooms.ts` (the
+    eight showroom buildings: glass fronts, signs, neon, themed props, turntables with stock cars loaded near the player),
+    `ui/panels/showroom.ts` (the stock, the turntable preview in `render/Studio.ts`'s turntable mode, colours, test drive,
+    buy) and `ui/TestDriveHud.ts` (the clock and **Teslim Et**). Heights on the far shore come from `City.groundHeight` /
+    `surfaceY` (terrain and decks) and `surfaceTilt` (pitch and roll on slopes and ramps).
   - Weather: `render/Weather.ts` (rain streaks around the camera, wet-road materials); `Renderer#setTime(hour, rain)` runs the
     sky (orange at sunset, grey in the rain), sun / moon, image-based light and fog.
   - HUD: `ui/Gauge.ts` (canvas rev counter, speed, gear, boost, stage, ABS / TCS, driving bonus pop-up), `ui/WantedHud.ts`

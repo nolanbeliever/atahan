@@ -34,6 +34,7 @@ import { RACE, raceRoute, type StreetRaceView } from '../../../shared/streetRace
 import { oneHanded, recoilKick, type WeaponDef } from '../../../shared/weapons';
 import { confetti } from '../ui/confetti';
 import { Anim, VF, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
+import { findShowroom, type TestDriveEnd } from '../../../shared/showrooms';
 import { formatMoney } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
 import {
@@ -51,6 +52,7 @@ import { AudioSystem } from '../audio/Audio';
 import { Network, RpcError } from '../net/Network';
 import { City, groundHeight, surfaceY } from '../render/City';
 import { FarShoreView } from '../render/FarShore';
+import { ShowroomsView } from '../render/Showrooms';
 import { StraitView } from '../render/Strait';
 import { DealershipsView } from '../render/Dealerships';
 import { HighwayView } from '../render/Highway';
@@ -100,6 +102,7 @@ export class Game {
   readonly highway = new HighwayView();
   readonly strait = new StraitView();
   readonly farShore = new FarShoreView();
+  readonly showrooms = new ShowroomsView();
   /** 0 in the city - 1 on the far shore (sky and fog tint). */
   private zone = 0;
   private zoneAt = performance.now();
@@ -207,7 +210,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.combat = new CombatClient(this);
     this.gunView = new GunView(this.renderer.scene);
@@ -312,12 +315,18 @@ export class Game {
         .rpc('hitman.info', {})
         .then((r) => this.store.setContract(r.contract))
         .catch(() => undefined);
+      // A test drive never survives a reconnect (the car went back when the connection dropped).
+      this.store.setTestDrive(null);
     });
     this.store.on('contract', (c) => {
       this.ui?.hitman.set(c);
       this.entities.contractMark = c?.markId ?? null;
     });
     net.on('hitman.update', (c) => this.store.setContract(c));
+    this.store.on('testDrive', (v) => this.ui?.testDrive.set(v));
+    net.on('testdrive.update', (v) => this.store.setTestDrive(v));
+    net.on('testdrive.end', (d) => this.onTestDriveEnd(d.reason, d.modelId, d.fee));
+    net.on('showroom.update', (d) => this.store.setShowroom(d));
     net.on('radar.flash', (f) => {
       this.ui?.flash();
       this.ui?.wanted.radar(f);
@@ -902,6 +911,7 @@ export class Game {
     this.city.update(dt);
     this.strait.update(dt);
     this.farShore.update(dt);
+    this.showrooms.update(dt, rx, rz);
     // Car theft: street cars and alarms, the work on lifted cars, the lifts' arms.
     this.theft.update(dt, { x: rx, z: rz });
     const lifts = [0, 0];
@@ -917,6 +927,7 @@ export class Game {
       const me = this.localPosition();
       this.ui?.hitman.update(this.store.serverNow(), me.x, me.z);
     }
+    if (this.store.testDrive) this.ui?.testDrive.update(this.store.serverNow());
     // Guns: firing, effects, damaged cars.
     this.combat.update(dt);
     this.updateGunHud();
@@ -979,6 +990,7 @@ export class Game {
     this.highway.setNight(night);
     this.strait.setNight(night);
     this.farShore.setNight(night);
+    this.showrooms.setNight(night);
     this.trafficView.setNight(night);
     this.entities.night = night;
   }
@@ -1113,7 +1125,10 @@ export class Game {
       vehicleAction = best;
     } else if (this.driving) {
       const v = this.store.myVehicle(this.driving);
-      best = { id: 'exit', label: `Exit ${v ? modelDisplayName(v.modelId) : 'vehicle'}`, action: () => void this.exitVehicle(), vehicle: true };
+      best =
+        v?.status === 'testdrive'
+          ? { id: 'exit', label: 'Test sürüşünü bitir', sub: 'Araç galeriye döner', action: () => void this.exitVehicle(), vehicle: true }
+          : { id: 'exit', label: `Exit ${v ? modelDisplayName(v.modelId) : 'vehicle'}`, action: () => void this.exitVehicle(), vehicle: true };
       vehicleAction = best;
       for (const i of INTERACTABLES) {
         if ((i.kind === 'fuel' || i.kind === 'wash') && Math.hypot(i.x - x, i.z - z) <= i.radius + 3) {
@@ -1145,7 +1160,11 @@ export class Game {
     } else {
       for (const i of INTERACTABLES) {
         const d = Math.hypot(i.x - x, i.z - z);
-        if (d <= i.radius) consider(d, { id: i.id, label: i.label, action: () => this.ui.open(i.kind) });
+        if (d > i.radius) continue;
+        if (i.showroomId) {
+          const showroomId = i.showroomId;
+          consider(d, { id: i.id, label: i.label, sub: findShowroom(showroomId)?.name, action: () => this.ui.open('showroom', { showroomId }) });
+        } else consider(d, { id: i.id, label: i.label, action: () => this.ui.open(i.kind) });
       }
       for (const plot of PLOTS) {
         const e = plotEntrance(plot);
@@ -1598,6 +1617,28 @@ export class Game {
     } catch (err) {
       this.ui.error(err);
     }
+  }
+
+  /** Hand the test-drive car back early. */
+  async endTestDrive(): Promise<void> {
+    try {
+      await this.net.rpc('showroom.endTestDrive', {});
+    } catch (err) {
+      this.ui?.error(err);
+    }
+  }
+
+  private onTestDriveEnd(reason: TestDriveEnd, modelId: string, fee: number): void {
+    this.store.setTestDrive(null);
+    const why: Record<TestDriveEnd, string> = {
+      time: 'Süre doldu: araç galeriye teslim edildi.',
+      cancel: 'Araç galeriye teslim edildi.',
+      exit: 'Araçtan indin: araç galeriye döndü.',
+      busted: 'Polis yakaladı: test aracı galeriye geri götürüldü.',
+      lost: 'Araç galeriye teslim edildi.',
+    };
+    const m = getModel(modelId);
+    this.ui?.toast({ kind: fee > 0 ? 'warning' : 'info', title: `Test sürüşü bitti · ${m.brand} ${m.name}`, text: `${why[reason]}${fee > 0 ? ` Hasar bedeli: ${formatMoney(fee)}.` : ' Beğendiysen galeriden satın alabilirsin.'}` });
   }
 
   async exitVehicle(): Promise<void> {

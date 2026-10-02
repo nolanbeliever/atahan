@@ -413,7 +413,7 @@ export class TheftService {
       if (live.mods.strip) throw new GameError('conflict', 'A car on the lift is for parts only.');
       if (this.ctx.sim.isDriven(vehicleId)) throw new GameError('conflict', 'Park the car and get out first.');
       if (!inSanayiYard(live.x, live.z)) throw new GameError('too_far', 'Park the car in the Sanayi yard first.');
-      const owned = this.ctx.state.vehiclesOf(playerId).filter((v) => v.status !== 'stolen').length;
+      const owned = this.ctx.state.vehiclesOf(playerId).filter((v) => v.status !== 'stolen' && v.status !== 'testdrive').length;
       if (owned >= ECONOMY.player.maxOwnedVehicles) throw new GameError('conflict', 'Your garage is full.');
       const price = papersPrice(marketValue(live, this.ctx.state.trends));
       const uow = this.ctx.state.begin();

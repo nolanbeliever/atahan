@@ -6,6 +6,7 @@ import { SANAYI } from '../../../shared/sanayiLayout';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
 import { BOULEVARD, CONTAINER_STACKS, DOCKS, DOCKS_GATE, DOCKS_ROAD, HILL, TOUGE_HALF, TOUGE_PATH } from '../../../shared/farShore';
 import { BRIDGES, BRIDGE_HALF, FAR_ROADS, WATER, WORLD_BOX } from '../../../shared/strait';
+import { SHOWROOMS, findShowroom } from '../../../shared/showrooms';
 import type { Game } from '../game/Game';
 
 export const INTERACT_COLORS: Record<string, string> = {
@@ -152,6 +153,14 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   g.stroke();
   g.fillStyle = '#8d93a3';
   g.fillRect(tx(SANAYI.pawn.minX), tz(SANAYI.pawn.minZ), (SANAYI.pawn.maxX - SANAYI.pawn.minX) * s, (SANAYI.pawn.maxZ - SANAYI.pawn.minZ) * s);
+  // The showrooms on the Galeri Bulvarı, in their theme colours.
+  for (const sr of SHOWROOMS) {
+    g.fillStyle = sr.theme.main;
+    g.fillRect(tx(sr.box.minX), tz(sr.box.minZ), (sr.box.maxX - sr.box.minX) * s, (sr.box.maxZ - sr.box.minZ) * s);
+    g.strokeStyle = sr.theme.accent;
+    g.lineWidth = Math.max(1.5, s * 0.8);
+    g.strokeRect(tx(sr.box.minX), tz(sr.box.minZ), (sr.box.maxX - sr.box.minX) * s, (sr.box.maxZ - sr.box.minZ) * s);
+  }
   const me = game.store.playerId;
   for (const p of PLOTS) {
     const d = game.store.dealerships.get(p.id);
@@ -163,6 +172,11 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   for (const i of INTERACTABLES) {
     // The hitman's alley stays off the map.
     if (i.kind === 'hitman') continue;
+    const sr = findShowroom(i.showroomId);
+    if (sr) {
+      badge(g, tx(i.x), tz(i.z), Math.max(7, 3.2 * s), sr.theme.accent, sr.id === 'blackmarket' ? '☠' : '🚗', turn);
+      continue;
+    }
     const glyph = BADGES[i.kind];
     if (glyph) {
       badge(g, tx(i.x), tz(i.z), Math.max(7, 3.2 * s), INTERACT_COLORS[i.kind] ?? '#fff', glyph, turn);

@@ -24,6 +24,11 @@ class StudioScene {
   /** Wheel speed (m/s) while the dyno runs. */
   dynoSpeed = 0;
   autoRotate = true;
+  /** Showroom turntable: the car spins on a lit platform (the camera stays put). */
+  private readonly table = new THREE.Group();
+  private readonly tableRing: THREE.MeshBasicMaterial;
+  private turntable = false;
+  private tableYaw = 0;
 
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -67,6 +72,18 @@ class StudioScene {
     }
     this.rollers.visible = false;
     this.scene.add(this.rollers);
+    // The showroom turntable: a brushed-metal disc with a light ring round its edge.
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(3.1, 3.2, 0.14, 64), new THREE.MeshStandardMaterial({ color: '#30343c', metalness: 0.85, roughness: 0.28 }));
+    disc.position.y = 0.07;
+    disc.receiveShadow = true;
+    this.tableRing = new THREE.MeshBasicMaterial({ color: '#4f8cff' });
+    const edge = new THREE.Mesh(new THREE.TorusGeometry(3.16, 0.035, 8, 96).rotateX(Math.PI / 2), this.tableRing);
+    edge.position.y = 0.13;
+    const lines = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.24, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#8a919c', transparent: true, opacity: 0.35 }));
+    lines.position.y = 0.145;
+    this.table.add(disc, edge, lines);
+    this.table.visible = false;
+    this.scene.add(this.table);
 
     const el = this.renderer.domElement;
     el.style.touchAction = 'none';
@@ -120,6 +137,21 @@ class StudioScene {
     }
   }
 
+  /** Show the showroom turntable (in the showroom's accent colour), or put the studio back. */
+  setTurntable(on: boolean, accent = '#4f8cff'): void {
+    this.turntable = on;
+    this.table.visible = on;
+    this.tableRing.color.set(accent);
+    this.autoRotate = !on;
+    if (on) {
+      this.yaw = 0.62;
+      this.pitch = 0.16;
+    } else if (this.view) {
+      this.view.root.rotation.y = 0;
+      this.view.root.position.y = 0;
+    }
+  }
+
   setDynoRollers(on: boolean, rearZ = 0): void {
     this.rollers.visible = on;
     this.rollers.position.z = rearZ;
@@ -160,6 +192,14 @@ class StudioScene {
       const parent = this.canvas.parentElement;
       if (parent) this.resize(parent.clientWidth, parent.clientHeight);
       if (this.autoRotate) this.yaw += dt * 0.25;
+      if (this.turntable) {
+        this.tableYaw += dt * 0.42;
+        this.table.rotation.y = this.tableYaw;
+        if (this.view) {
+          this.view.root.rotation.y = this.tableYaw;
+          this.view.root.position.y = 0.14;
+        }
+      }
       this.spin -= (this.dynoSpeed / 0.12) * dt;
       for (const r of this.rollers.children) r.rotation.x = this.spin;
       this.view?.animate(this.dynoSpeed, 0, dt);
@@ -181,6 +221,8 @@ class StudioScene {
     if (this.view) this.view.root.visible = false;
     this.scene.add(temp.root);
     this.rollers.visible = false;
+    const tableShown = this.table.visible;
+    this.table.visible = false;
     this.yaw = 0.75;
     this.pitch = 0.2;
     this.dist = Math.max(4.4, temp.length * 1.35);
@@ -200,6 +242,7 @@ class StudioScene {
     this.pitch = prev.pitch;
     this.dist = prev.dist;
     this.rollers.visible = prev.rollers;
+    this.table.visible = tableShown;
     this.renderer.setSize(prev.size.x || 1, prev.size.y || 1, false);
     this.camera.aspect = (prev.size.x || 16) / (prev.size.y || 9);
     this.camera.updateProjectionMatrix();

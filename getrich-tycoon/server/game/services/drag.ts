@@ -111,7 +111,7 @@ export class DragService {
     if (!c?.drivingId) throw new GameError('conflict', 'Drive your car to the drag strip first.');
     if (!this.ctx.sim.isNearInteractable(playerId, 'drag')) throw new GameError('too_far', 'Line up at the drag strip first.');
     const v = this.ctx.state.vehicles.get(c.drivingId);
-    if (!v || v.ownerId !== playerId) throw new GameError('forbidden', 'You can only race your own car.');
+    if (!v || v.ownerId !== playerId || v.status === 'testdrive') throw new GameError('forbidden', 'You can only race your own car.');
     const p = this.ctx.state.players.get(playerId)!;
     if (p.money < ECONOMY.drag.entryFee) throw new GameError('insufficient_funds', `The entry fee is $${ECONOMY.drag.entryFee} (cash).`);
     return v;
