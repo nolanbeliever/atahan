@@ -78,10 +78,10 @@ Recorded on 2026-10-02 (Ubuntu 24.04, Node 22.22, Playwright 1.56 headless Chrom
 | Suite | SQLite | PostgreSQL |
 | --- | --- | --- |
 | `npm run typecheck` (client, server, tests) | pass | n/a |
-| Unit (Vitest) | 206 / 206 passed | n/a (no database) |
-| Integration (Vitest, real sockets) | 71 / 71 passed | 68 / 68 passed (before the motorcycle tests) |
-| E2E (Playwright, Chromium, production build) | 11 / 11 passed (about 9 min) | 5 / 5 passed (2026-09-28; before the touch, tuning, highway, driving-controls, theft and features tests) |
-| `npm run check:secrets` | no secrets in 284 tracked files | n/a |
+| Unit (Vitest) | 212 / 212 passed | n/a (no database) |
+| Integration (Vitest, real sockets) | 76 / 76 passed | 76 / 76 passed |
+| E2E (Playwright, Chromium, production build) | 11 / 11 passed (about 10 min; the tuning and touch specs re-run after making them pick a car, not a motorcycle) | 5 / 5 passed (2026-09-28; before the touch, tuning, highway, driving-controls, theft and features tests) |
+| `npm run check:secrets` | no secrets in 305 tracked files | n/a |
 
 Under SwiftShader the game renders at 1-2 FPS, and the client caps a frame at 0.1 s of simulated time, so the game runs
 several times slower than real time there. With real acceleration a worn starter car needs a few seconds of simulated time

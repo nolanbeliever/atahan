@@ -23,7 +23,8 @@ test('tuning garage previews parts, stats and the dyno; the Rare Dealer sells ro
     ),
   );
   const listing = (await state(page)).marketListings
-    .filter((l) => isCategoryUnlocked(getModel(l.modelId).category, 1) && getModel(l.modelId).specs.aspiration !== 'electric')
+    // A petrol car (motorcycles take bike exhausts, EVs no exhaust or ECU stages).
+    .filter((l) => isCategoryUnlocked(getModel(l.modelId).category, 1) && getModel(l.modelId).specs.aspiration !== 'electric' && getModel(l.modelId).specs.kind !== 'bike')
     .sort((x, y) => Number(stock.has(y.id)) - Number(stock.has(x.id)) || x.price - y.price)[0]!;
   const bought = await page.evaluate(async (l) => {
     const net = (window as unknown as { __getrich: { game: { net: { rpc: Rpc } } } }).__getrich.game.net;

@@ -77,9 +77,9 @@ test('iPad touch controls: stick, camera drag, taps, chat and driving', async ({
   await expect(page.getByTestId('chat-log')).toContainText('hello from an ipad');
   await expect(page.getByTestId('chat-input')).toBeHidden();
 
-  // Get a car, then drive it with the touch controls only.
+  // Get a car (not a motorcycle: its hold button is WHEELIE), then drive it with the touch controls only.
   const listing = (await state(page)).marketListings
-    .filter((l) => isCategoryUnlocked(getModel(l.modelId).category, 1))
+    .filter((l) => isCategoryUnlocked(getModel(l.modelId).category, 1) && getModel(l.modelId).specs.kind !== 'bike')
     .sort((x, y) => x.price - y.price)[0]!;
   await page.evaluate(async (l) => {
     const net = (window as unknown as { __getrich: { game: { net: { rpc: (m: string, p: unknown) => Promise<unknown> } } } }).__getrich.game.net;
