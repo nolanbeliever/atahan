@@ -8,6 +8,7 @@ import type { BustedEvent, WantedState } from './police';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { ShowroomId, ShowroomInfo, TestDriveEnd, TestDriveView } from './showrooms';
+import type { TollEvent } from './tolls';
 import type { MegaChoice, RewardsView } from './rewards';
 import type { PursuitOutcome, PursuitView } from './cctv';
 import type { StreetRaceView } from './streetRace';
@@ -131,6 +132,9 @@ export interface RpcMethods {
   'showroom.buy': { params: { showroomId: ShowroomId; offerId: string; color?: string; expectedPrice: number }; result: { vehicle: Vehicle; price: number } };
   'showroom.testDrive': { params: { showroomId: ShowroomId; offerId: string; color?: string }; result: TestDriveView };
   'showroom.endTestDrive': { params: Empty; result: { ok: true } };
+  'showroom.plateGear': { params: { vehicleId: string; item: 'flipper' | 'fake' }; result: { vehicle: Vehicle } };
+  'vehicle.flipPlate': { params: Empty; result: { flipped: boolean } };
+  'toll.history': { params: Empty; result: { events: TollEvent[] } };
   'helmet.wear': { params: { helmet: HelmetId | null; visor?: VisorId; color?: string }; result: { appearance: Appearance } };
   'race.info': { params: Empty; result: { race: StreetRaceView | null } };
   'race.join': { params: Empty; result: { race: StreetRaceView } };
@@ -233,6 +237,18 @@ export interface ServerToClientEvents {
   'testdrive.update': (d: TestDriveView | null) => void;
   /** The test drive is over: the car went back to the showroom (and any damage bill). */
   'testdrive.end': (d: { reason: TestDriveEnd; modelId: string; fee: number }) => void;
+  /** A line for the toll / fine / camera history (also shown as it happens). */
+  'toll.event': (e: TollEvent) => void;
+  /** A car went through a toll plaza's barrier (the arm lifts, or breaks when evaded). */
+  'toll.pass': (d: { n: number; z: number; evaded: boolean }) => void;
+  /** A number-plate camera flashed on a flagged car. */
+  'anpr.flash': (d: { id: string }) => void;
+  /** A police checkpoint is set up at a bridge's far end for you (until: epoch ms). */
+  'police.checkpoint': (d: { n: number; name: string; x: number; z: number; dir: 1 | -1; until: number }) => void;
+  /** You got through a checkpoint (the reward goes to the driver). */
+  'police.breakthrough': (d: { reward: number; name: string }) => void;
+  /** A checkpoint car was rammed aside. */
+  'police.ram': (d: { x: number; z: number; deck: number }) => void;
   /** A showroom's stock changed (the Black Market restocked or sold a car). */
   'showroom.update': (d: ShowroomInfo) => void;
   'combat.carHp': (d: { id: string; hp: number }) => void;

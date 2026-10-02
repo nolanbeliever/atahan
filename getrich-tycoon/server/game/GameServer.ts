@@ -44,6 +44,7 @@ import { MotoService } from './services/moto';
 import { HitmanService } from './services/hitman';
 import { RadarService } from './services/radar';
 import { ShowroomService } from './services/showrooms';
+import { TollService } from './services/tolls';
 import { CombatService } from './services/combat';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
@@ -102,6 +103,7 @@ export class GameServer implements Hub {
   readonly hitman: HitmanService;
   readonly radar: RadarService;
   readonly showrooms: ShowroomService;
+  readonly tolls: TollService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -150,6 +152,7 @@ export class GameServer implements Hub {
     this.hitman = new HitmanService(this.ctx, this.combat, this.police);
     this.radar = new RadarService(this.ctx);
     this.showrooms = new ShowroomService(this.ctx, this.vehicles, this.police);
+    this.tolls = new TollService(this.ctx, this.police);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -216,6 +219,9 @@ export class GameServer implements Hub {
       'showroom.buy': (pid, p) => this.showrooms.buy(pid, p),
       'showroom.testDrive': (pid, p) => this.showrooms.testDrive(pid, p),
       'showroom.endTestDrive': (pid) => this.showrooms.endTestDrive(pid),
+      'showroom.plateGear': (pid, p) => this.showrooms.plateGear(pid, p),
+      'vehicle.flipPlate': (pid) => this.vehicles.flipPlate(pid),
+      'toll.history': (pid) => this.tolls.list(pid),
       'race.info': () => ({ race: this.streetRace.view() }),
       'race.join': async (pid) => ({ race: await this.streetRace.join(pid) }),
       'race.leave': (pid) => (this.streetRace.leave(pid), { ok: true as const }),
@@ -432,6 +438,7 @@ export class GameServer implements Hub {
     this.pursuit.forget(playerId);
     this.streetRace.forget(playerId);
     this.combat.forget(playerId);
+    this.tolls.forget(playerId);
     // A test-drive car goes back before the usual drive flush below.
     await this.showrooms.forget(playerId);
     await this.missions.forget(playerId);
@@ -660,6 +667,7 @@ export class GameServer implements Hub {
     this.combat.tick(dt, now);
     this.hitman.tick(now);
     this.radar.tick();
+    this.tolls.tick(now);
     this.missions.tickFast(dt);
   }
 

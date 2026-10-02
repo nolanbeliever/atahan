@@ -53,6 +53,7 @@ import { Network, RpcError } from '../net/Network';
 import { City, groundHeight, surfaceY } from '../render/City';
 import { FarShoreView } from '../render/FarShore';
 import { ShowroomsView } from '../render/Showrooms';
+import { TollsView } from '../render/Tolls';
 import { StraitView } from '../render/Strait';
 import { DealershipsView } from '../render/Dealerships';
 import { HighwayView } from '../render/Highway';
@@ -103,6 +104,7 @@ export class Game {
   readonly strait = new StraitView();
   readonly farShore = new FarShoreView();
   readonly showrooms = new ShowroomsView();
+  readonly tolls = new TollsView();
   /** 0 in the city - 1 on the far shore (sky and fog tint). */
   private zone = 0;
   private zoneAt = performance.now();
@@ -210,7 +212,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.combat = new CombatClient(this);
     this.gunView = new GunView(this.renderer.scene);
@@ -327,6 +329,31 @@ export class Game {
     net.on('testdrive.update', (v) => this.store.setTestDrive(v));
     net.on('testdrive.end', (d) => this.onTestDriveEnd(d.reason, d.modelId, d.fee));
     net.on('showroom.update', (d) => this.store.setShowroom(d));
+    // Tolls, number-plate cameras and the police checkpoints at the bridges.
+    net.on('toll.event', (e) => {
+      this.store.addTollEvent(e);
+      this.ui?.tollFeed.push(e, this.store.tollEvents);
+      if (e.kind === 'toll') this.audio.play('toll');
+      else if (e.kind === 'evasion') this.audio.play('tollFine');
+      else if (e.kind === 'anpr' && e.stars > 0) this.audio.play('shutter');
+    });
+    net.on('toll.pass', (d) => this.tolls.pass(d.n, d.z, d.evaded));
+    net.on('anpr.flash', (d) => this.tolls.flash(d.id));
+    net.on('police.checkpoint', (d) => {
+      this.ui?.wanted.checkpoint(d.name);
+      this.audio.play('checkpoint');
+    });
+    net.on('police.breakthrough', (d) => {
+      this.ui?.wanted.breakthrough(d.reward);
+      if (d.reward > 0) {
+        confetti(window.innerWidth / 2, window.innerHeight * 0.4, 90);
+        this.audio.play('reward');
+      }
+    });
+    net.on('police.ram', (d) => {
+      const me = this.localPosition();
+      if (Math.hypot(d.x - me.x, d.z - me.z) < 120) this.audio.play('crash');
+    });
     net.on('radar.flash', (f) => {
       this.ui?.flash();
       this.ui?.wanted.radar(f);
@@ -912,6 +939,7 @@ export class Game {
     this.strait.update(dt);
     this.farShore.update(dt);
     this.showrooms.update(dt, rx, rz);
+    this.tolls.update(dt);
     // Car theft: street cars and alarms, the work on lifted cars, the lifts' arms.
     this.theft.update(dt, { x: rx, z: rz });
     const lifts = [0, 0];
@@ -991,6 +1019,7 @@ export class Game {
     this.strait.setNight(night);
     this.farShore.setNight(night);
     this.showrooms.setNight(night);
+    this.tolls.setNight(night);
     this.trafficView.setNight(night);
     this.entities.night = night;
   }
@@ -1280,6 +1309,11 @@ export class Game {
       void this.airRide();
       return;
     }
+    // P: the Black Market's plate flipper turns the plate away (number-plate cameras can't read it).
+    if (this.driving && code === 'KeyP') {
+      void this.flipPlate();
+      return;
+    }
     if (this.combat.onKey(code)) return;
     const hot: Record<string, Parameters<UI['open']>[0]> = {
       KeyB: 'market',
@@ -1372,6 +1406,23 @@ export class Game {
   }
 
   /** Air ride: normal, low, slammed (K while driving). */
+  async flipPlate(): Promise<void> {
+    const id = this.driving;
+    const v = id ? this.store.myVehicle(id) : undefined;
+    if (!v) return;
+    if (!v.mods.flipper) {
+      this.ui?.toast({ kind: 'info', title: 'Plaka çevirme aparatı yok', text: 'Galeri Bulvarı\'ndaki Black Market\'ta takılır; sonra sürerken P ile plakayı çevirirsin.' });
+      return;
+    }
+    try {
+      const r = await this.net.rpc('vehicle.flipPlate', {});
+      this.audio.play('clunk');
+      this.ui?.toast({ kind: 'info', title: r.flipped ? 'Plaka çevrildi' : 'Plaka geri çevrildi', text: r.flipped ? 'Kameralar plakanı okuyamaz.' : 'Plakan yine görünüyor.' });
+    } catch (err) {
+      this.ui?.error(err);
+    }
+  }
+
   async airRide(): Promise<void> {
     const id = this.driving;
     const v = id ? this.store.myVehicle(id) : undefined;

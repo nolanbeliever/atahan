@@ -15,6 +15,7 @@
 import { randomBytes } from 'node:crypto';
 import { DEFAULT_MODS } from '../../../shared/customization';
 import { ECONOMY } from '../../../shared/economy.config';
+import { defaultPlate } from '../../../shared/plates';
 import { rotationSeed } from '../../../shared/rareMarket';
 import {
   SHOWROOM_DOOR_RADIUS,
@@ -264,6 +265,39 @@ export class ShowroomService {
       log.info('showroom purchase', { playerId, showroom: s.id, model: veh.modelId, price: offer.price });
       if (getModel(veh.modelId).tier === 'legendary') this.ctx.hub.systemChat(`${buyer.name} just drove a brand-new ${modelDisplayName(veh.modelId)} out of the ${s.name}!`);
       return { vehicle: this.ctx.state.vehicles.get(veh.id)!, price: offer.price };
+    });
+  }
+
+  // ---------------------------------------------------------------- Black Market plate gear
+
+  /** Fit a plate flipper, or a fake plate (again: take the fake plate off), at the Black Market. */
+  async plateGear(playerId: string, params: unknown): Promise<{ vehicle: Vehicle }> {
+    const p = val.obj(params);
+    const vehicleId = val.id(p.vehicleId, 'vehicle');
+    const item = val.oneOf(p.item, 'item', ['flipper', 'fake'] as const);
+    const cfg = ECONOMY.tolls;
+    return this.ctx.locks.run([K.player(playerId), K.vehicle(vehicleId)], async () => {
+      this.requireAtDoor(playerId, findShowroom('blackmarket')!);
+      const uow = this.ctx.state.begin();
+      const player = uow.player(playerId);
+      const veh = uow.vehicle(vehicleId);
+      if (veh.ownerId !== playerId) throw new GameError('forbidden', "You don't own that vehicle.");
+      if (veh.status === 'testdrive' || veh.mods.strip || !['stored', 'world', 'stolen'].includes(veh.status)) throw new GameError('conflict', 'Not on that car right now.');
+      if (item === 'flipper') {
+        if (veh.mods.flipper) throw new GameError('conflict', 'That car already has a plate flipper.');
+        uow.debit(player, cfg.flipperPrice, 'black_market', `Plaka çevirme aparatı: ${modelDisplayName(veh.modelId)}`, veh.id);
+        veh.mods = { ...veh.mods, flipper: true, plateFlipped: false };
+      } else if (veh.mods.fakePlate) {
+        const { fakePlate: _f, ...mods } = veh.mods;
+        veh.mods = mods;
+      } else {
+        uow.debit(player, cfg.fakePlatePrice, 'black_market', `Sahte plaka: ${modelDisplayName(veh.modelId)}`, veh.id);
+        veh.mods = { ...veh.mods, fakePlate: defaultPlate(newId('fake')) };
+      }
+      await uow.commit();
+      const live = this.ctx.state.vehicles.get(vehicleId)!;
+      if (live.status === 'world' || live.status === 'stolen') this.ctx.hub.broadcast('vehicle.upsert', this.ctx.state.toPublicVehicle(live));
+      return { vehicle: live };
     });
   }
 

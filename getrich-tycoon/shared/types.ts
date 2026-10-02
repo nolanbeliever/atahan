@@ -68,6 +68,11 @@ export interface VehicleMods {
   blown?: boolean;
   /** Bought at the Black Market: the car has a theft record (number-plate cameras flag it). */
   hot?: boolean;
+  /** Black Market plate gear: a plate flipper fitted (P turns the plate away), whether it is turned
+   *  now, and a fake registration (cameras read it instead of the car's own). */
+  flipper?: boolean;
+  plateFlipped?: boolean;
+  fakePlate?: string;
 }
 
 export interface StripState {
@@ -294,7 +299,10 @@ export type TransactionKind =
   | 'moto_gear'
   | 'hitman'
   | 'showroom'
-  | 'testdrive';
+  | 'testdrive'
+  | 'toll'
+  | 'toll_fine'
+  | 'checkpoint';
 
 export interface Transaction {
   id: string;

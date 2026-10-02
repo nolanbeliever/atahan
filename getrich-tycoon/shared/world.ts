@@ -10,6 +10,7 @@ import { dealershipLevel } from './economy.config';
 import { DRAG_BOXES, DRAG_STRIP, JUNCTIONS, highwayCircles } from './highway';
 import { SHOWROOMS, SHOWROOM_BOXES, SHOWROOM_CIRCLES, SHOWROOM_DOOR_RADIUS, type ShowroomId } from './showrooms';
 import { SANAYI, SANAYI_BOXES, SANAYI_CIRCLES } from './theft';
+import { TOLL_BOXES } from './tolls';
 
 export interface AABB {
   minX: number;
@@ -398,7 +399,7 @@ export const CITY_LAMPS: [number, number, number][] = (() => {
 })();
 
 /** All static colliders (buildings) - dealership buildings are added dynamically. */
-export const STATIC_BOXES: AABB[] = [...BUILDINGS.map((b) => b.box), ...DRAG_BOXES, ...SANAYI_BOXES, ...FAR_BOXES, ...SHOWROOM_BOXES];
+export const STATIC_BOXES: AABB[] = [...BUILDINGS.map((b) => b.box), ...DRAG_BOXES, ...SANAYI_BOXES, ...FAR_BOXES, ...SHOWROOM_BOXES, ...TOLL_BOXES];
 
 export function findInteractable(id: string): Interactable | undefined {
   return INTERACTABLES.find((i) => i.id === id);

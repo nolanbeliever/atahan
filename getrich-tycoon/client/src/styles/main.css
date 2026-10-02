@@ -901,3 +901,36 @@ body.is-wasted #game-root canvas { filter: grayscale(1) contrast(1.1) brightness
   .sr-stage { height: 220px; }
   .sr-specs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* Toll history feed, fine notice and panel */
+.toll-feed { display: none; width: 300px; padding: 8px 10px; border-radius: 12px; background: rgba(8,14,12,0.88); border: 1px solid rgba(43,255,136,0.35); box-shadow: var(--shadow); }
+.toll-feed.show { display: block; }
+.toll-feed .tf-head { display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 900; letter-spacing: 0.08em; color: #7dffb8; margin-bottom: 4px; }
+.toll-feed .tf-more { pointer-events: auto; background: none; border: 0; color: #cfe; font-size: 11px; font-weight: 800; cursor: pointer; }
+.toll-feed .tf-row { display: grid; grid-template-columns: 18px 1fr auto; gap: 6px; align-items: center; font-size: 11px; padding: 3px 0; color: var(--text-dim); }
+.toll-feed .tf-row.new { color: #fff; animation: tf-in 0.35s ease-out; }
+.toll-feed .tf-amt { font-weight: 900; font-variant-numeric: tabular-nums; }
+.toll-feed .tf-amt.neg { color: #ff7b72; }
+.toll-feed .tf-amt.pos { color: #5dffa6; }
+@keyframes tf-in { from { transform: translateX(-12px); opacity: 0; } }
+.fine-notice { position: absolute; left: 50%; top: 20vh; transform: translate(-50%, -12px); width: min(340px, 86vw); padding: 12px 14px; border-radius: 10px; background: #fbfaf5; color: #1a1a1a; border: 2px solid #b3001b; box-shadow: 0 12px 40px rgba(0,0,0,0.45); opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; z-index: 30; }
+.fine-notice.show { opacity: 1; transform: translate(-50%, 0); }
+.fine-notice .fn-head { display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; color: #555; }
+.fine-notice .fn-title { font-size: 17px; font-weight: 900; color: #b3001b; margin: 4px 0 8px; letter-spacing: 0.03em; }
+.fine-notice .fn-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; border-bottom: 1px dashed #d8d4c8; }
+.fine-notice .fn-amt { color: #b3001b; }
+.fine-notice .fn-text { font-size: 11px; margin-top: 8px; color: #333; }
+.fn-plate { display: inline-block; padding: 1px 6px; border: 1.5px solid #222; border-left: 7px solid #1f4fd6; border-radius: 3px; background: #fff; color: #111; font-family: ui-monospace, monospace; font-weight: 800; letter-spacing: 0.04em; }
+.fn-plate.small { font-size: 11px; }
+.toll-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.toll-sum > div { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.05); }
+.toll-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.toll-table th { text-align: left; font-size: 10px; letter-spacing: 0.06em; color: var(--text-dim); padding: 4px 6px; }
+.toll-table td { padding: 6px; border-top: 1px solid rgba(255,255,255,0.06); }
+.toll-table tr.evasion td, .toll-table tr.anpr td { background: rgba(255,59,48,0.06); }
+.mono.red, td.red { color: #ff7b72; }
+.mono.green, td.green { color: #5dffa6; }
+.big-banner.checkpoint .bb-card { background: rgba(10,14,30,0.92); border: 1px solid rgba(80,140,255,0.7); box-shadow: 0 0 30px rgba(255,40,60,0.35), 0 0 30px rgba(60,120,255,0.35); animation: cp-flash 0.5s steps(2) 6; }
+@keyframes cp-flash { 50% { border-color: rgba(255,60,60,0.9); } }
+.cam-btn.plate-btn.up { background: linear-gradient(180deg, #ff9a8a, #e0453a); color: #2a0000; }
+.sr-gear { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: rgba(179,0,27,0.08); border: 1px dashed rgba(255,59,48,0.45); display: grid; gap: 8px; }

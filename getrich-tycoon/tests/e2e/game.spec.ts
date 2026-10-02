@@ -247,8 +247,9 @@ test('vehicles are drivable: spawn from garage, enter with E, drive, exit', asyn
 test('F gets in and out (door animation), C switches to the cockpit, the gauge and missions panel work', async ({ page }) => {
   const errors = collectErrors(page);
   await registerAndEnter(page);
+  // A car (a motorcycle has no cockpit view).
   const listing = (await state(page)).marketListings
-    .filter((l) => isCategoryUnlocked(getModel(l.modelId).category, 1))
+    .filter((l) => isCategoryUnlocked(getModel(l.modelId).category, 1) && getModel(l.modelId).specs.kind !== 'bike')
     .sort((x, y) => x.price - y.price)[0]!;
   await page.evaluate(async (l) => {
     const net = (window as unknown as { __getrich: { game: { net: { rpc: (m: string, p: unknown) => Promise<unknown> } } } }).__getrich.game.net;

@@ -40,6 +40,7 @@ export class MenuPanel extends Panel {
       item('Bank', ICONS.bank, 'bank', ''),
       item('Repair', ICONS.wrench, 'repair', ''),
       h('button', { onclick: () => this.ui.open('market', { tab: 'black' }), 'data-testid': 'menu-blackmarket' }, icon(ICONS.mask), 'Black Market', h('span', { class: 'hk' }, '')),
+      item('Geçiş Geçmişi', ICONS.flag, 'tolls', ''),
       item('Settings', ICONS.gear, 'settings', ''),
     );
   }

@@ -5,6 +5,7 @@ import type { PrivateState } from '../../../shared/protocol';
 import type { RareMarketState } from '../../../shared/rareMarket';
 import type { RewardsView } from '../../../shared/rewards';
 import type { ShowroomInfo, TestDriveView } from '../../../shared/showrooms';
+import type { TollEvent } from '../../../shared/tolls';
 import type { HealthView } from '../../../shared/weapons';
 import { LOCKPICK_ITEM, type BlackMarketInfo, type StreetCar } from '../../../shared/theft';
 import type {
@@ -39,6 +40,7 @@ export interface StoreEvents extends Record<string, unknown> {
   contract: ContractView | null;
   testDrive: TestDriveView | null;
   showroom: ShowroomInfo;
+  tolls: TollEvent[];
 }
 
 export class Store extends Emitter<StoreEvents> {
@@ -62,6 +64,8 @@ export class Store extends Emitter<StoreEvents> {
   contract: ContractView | null = null;
   /** The showroom test drive in progress (null: none). */
   testDrive: TestDriveView | null = null;
+  /** Toll passes, fines, camera reads and checkpoints this session (newest first). */
+  tollEvents: TollEvent[] = [];
   rewardsAt = 0;
   /** Black Market lockpick stock (null until fetched). */
   blackMarket: BlackMarketInfo | null = null;
@@ -144,6 +148,17 @@ export class Store extends Emitter<StoreEvents> {
   setTestDrive(v: TestDriveView | null): void {
     this.testDrive = v;
     this.emit('testDrive', v);
+  }
+
+  setTollEvents(list: TollEvent[]): void {
+    this.tollEvents = list;
+    this.emit('tolls', list);
+  }
+
+  addTollEvent(e: TollEvent): void {
+    if (this.tollEvents.some((x) => x.id === e.id)) return;
+    this.tollEvents = [e, ...this.tollEvents].slice(0, 40);
+    this.emit('tolls', this.tollEvents);
   }
 
   setShowroom(v: ShowroomInfo): void {

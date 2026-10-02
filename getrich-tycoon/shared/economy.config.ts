@@ -417,6 +417,25 @@ export const ECONOMY = {
     xpPerPart: 8,
   },
 
+  /** Bridge tolls, number-plate cameras and police checkpoints (see tolls.ts). */
+  tolls: {
+    /** Heading over to the far shore: the toll, and the fine for crashing through the arm. */
+    fee: 250,
+    evasionFine: 1_500,
+    /** The arm lifts for a car at or under this speed (real km/h); faster is an evasion. */
+    maxKmh: 40,
+    /** A camera that reads a wanted, stolen or hot car adds this much heat (one star). */
+    anprHeat: 100,
+    /** The same camera doesn't read the same car twice within this many seconds. */
+    anprCooldownSec: 20,
+    /** Checkpoints: for drivers with this many stars driving onto a bridge; the reward for ramming
+     *  through; how long it stands; how fast you must hit a car to shove it aside (real km/h). */
+    checkpoint: { stars: 2, reward: 2_000, lifeSec: 75, smashKmh: 40, cooldownSec: 90 },
+    /** Black Market plate gear: a plate flipper (P while driving) and a fake plate. */
+    flipperPrice: 6_000,
+    fakePlatePrice: 3_500,
+  },
+
   /** The eight themed showrooms on the far shore's Galeri Bulvarı (see showrooms.ts). */
   showrooms: {
     /** A new car costs its market value times this (the showroom's margin). */

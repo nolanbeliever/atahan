@@ -29,9 +29,9 @@ export function defaultPlate(vehicleId: string): string {
   return `${city} ${a}${b} ${n}`;
 }
 
-/** Plate text a car shows. */
+/** Plate text a car shows (a fake registration from the Black Market wins). */
 export function plateText(vehicleId: string, mods: VehicleMods): string {
-  return mods.plate ?? defaultPlate(vehicleId);
+  return mods.fakePlate ?? mods.plate ?? defaultPlate(vehicleId);
 }
 
 /** Tidy up typed plate text: capitals (Turkish letters mapped), single spaces. */

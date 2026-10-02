@@ -19,7 +19,8 @@ import { isCovered, onSpikes, spikePlacement, tyrePoints, type HeliSnap, type Sp
 import { POLICE_MODEL, modelDisplayName } from '../../../shared/vehicles';
 import { crossesWall } from '../../../shared/farShore';
 import { NAV_EDGES, NAV_NODES, navRoadPoints } from '../../../shared/roadGraph';
-import { bridgeByN, bridgeEnds, crossesWater } from '../../../shared/strait';
+import { bridgeByN, bridgeEnds, crossesWater, BRIDGE_HALF } from '../../../shared/strait';
+import { checkpointPlan, type CheckpointPlan } from '../../../shared/tolls';
 import { INTERACTABLES, type AABB } from '../../../shared/world';
 import { createLogger } from '../../logger';
 import { K, type Ctx } from '../context';
@@ -51,6 +52,20 @@ interface Unit {
   side: number;
   /** Parked beside the player for the arrest. */
   parked: boolean;
+}
+
+/** A police checkpoint at a bridge's far end, set up for one wanted driver (see shared/tolls.ts). */
+interface Checkpoint {
+  playerId: string;
+  name: string;
+  plan: CheckpointPlan;
+  units: Unit[];
+  spikeId: number;
+  until: number;
+  /** The driver got through it (paid once). */
+  passed: boolean;
+  /** Cars already shoved aside. */
+  rammed: Set<number>;
 }
 
 interface Heli {
@@ -128,6 +143,13 @@ export class PoliceService {
   private helis = new Map<string, Heli>();
   private heliSeq = 1;
   private heliGone = new Map<string, number>();
+  /** Checkpoints by the driver they were set up for, when each driver may get the next one, and
+   *  the deck each wanted driver was on last tick (to see them drive onto a bridge). */
+  private checkpoints = new Map<string, Checkpoint>();
+  private checkpointAt = new Map<string, number>();
+  private lastDeck = new Map<string, number>();
+  /** Checkpoint news: set up for a driver, rammed through (the toll history listens). */
+  readonly checkpointListeners: ((playerId: string, e: { kind: 'checkpoint' | 'breakthrough'; name: string; reward: number }) => void)[] = [];
 
   constructor(
     private readonly ctx: Ctx,
@@ -227,6 +249,9 @@ export class PoliceService {
 
   forget(playerId: string): void {
     this.wanted.delete(playerId);
+    this.closeCheckpoint(playerId);
+    this.lastDeck.delete(playerId);
+    this.checkpointAt.delete(playerId);
     this.publishObstacles();
   }
 
@@ -264,6 +289,7 @@ export class PoliceService {
       }
       const me = this.target(playerId);
       if (!me) continue;
+      this.watchBridges(playerId, stars, me, now);
       // Spawn / retire police cars to match the wanted level.
       const want = stars >= cfg.pursuitStars ? cfg.unitsByStars[stars] ?? 0 : 0;
       while (w.units.length < want) {
@@ -289,6 +315,14 @@ export class PoliceService {
         if (same && dist < 12) nearestGap = Math.min(nearestGap, obbDistance(myBox, vehicleBox('u', u.dyn.x, u.dyn.z, u.dyn.rot, this.params.halfLength, this.params.halfWidth)));
         // Lost far behind or hopelessly stuck: come back from behind the player.
         if (dist > 320 || u.stuck > 6) Object.assign(u, this.spawn(me, u.side > 0 ? 0 : 1) ?? u, { id: u.id });
+      }
+      // The cars at a checkpoint can stop you too.
+      for (const u of this.checkpoints.get(playerId)?.units ?? []) {
+        if ((u.dyn.deck ?? 0) !== me.deck) continue;
+        const dist = Math.hypot(u.dyn.x - me.x, u.dyn.z - me.z);
+        nearest = Math.min(nearest, dist);
+        nearestSame = Math.min(nearestSame, dist);
+        if (dist < 12) nearestGap = Math.min(nearestGap, obbDistance(myBox, vehicleBox('u', u.dyn.x, u.dyn.z, u.dyn.rot, this.params.halfLength, this.params.halfWidth)));
       }
       // From 3 stars a spike strip goes down across the road ahead of a wanted driver, and the
       // helicopter comes.
@@ -319,9 +353,117 @@ export class PoliceService {
       }
       this.send(playerId, w);
     }
+    this.tickCheckpoints(dt, now);
     this.checkSpikes(now);
     this.tickHelis(dt, now);
     this.publishObstacles();
+  }
+
+  // ---------------------------------------------------------------- bridge checkpoints
+
+  /** A wanted driver (2 stars or more) driving onto a bridge finds a checkpoint at its far end. */
+  private watchBridges(playerId: string, stars: number, me: { x: number; rot: number; deck: number; onFoot: boolean }, now: number): void {
+    const prev = this.lastDeck.get(playerId) ?? me.deck;
+    this.lastDeck.set(playerId, me.deck);
+    const cc = ECONOMY.tolls.checkpoint;
+    if (prev !== 0 || me.deck === 0 || me.onFoot || stars < cc.stars || this.checkpoints.has(playerId) || now < (this.checkpointAt.get(playerId) ?? 0)) return;
+    const b = bridgeByN(me.deck);
+    if (!b) return;
+    const dir: 1 | -1 = Math.sin(me.rot) >= 0 ? 1 : -1;
+    const plan = checkpointPlan(b, dir);
+    // Only when the driver is still well short of it.
+    if ((plan.x - me.x) * dir < 60) return;
+    this.openCheckpoint(playerId, plan, b.name.split(' · ')[0]!, now);
+  }
+
+  /** Put the checkpoint up (also used by tests). */
+  openCheckpoint(playerId: string, plan: CheckpointPlan, name: string, now = Date.now()): void {
+    const cc = ECONOMY.tolls.checkpoint;
+    this.closeCheckpoint(playerId);
+    const units: Unit[] = plan.cars.map((c, i) => {
+      const dyn = newVehicleDyn(c.x, c.z, c.rot);
+      dyn.deck = plan.n;
+      return { id: nextUnitId++, dyn, stuck: 0, reverseUntil: 0, waypoint: null, replanAt: 0, side: i % 2 ? 1 : -1, parked: true };
+    });
+    const spikeId = this.addSpikes({ ...plan.spikes, deck: plan.n }, now);
+    const until = now + cc.lifeSec * 1000;
+    this.spikes.get(spikeId)!.until = until;
+    this.checkpoints.set(playerId, { playerId, name, plan, units, spikeId, until, passed: false, rammed: new Set() });
+    this.checkpointAt.set(playerId, now + cc.cooldownSec * 1000);
+    for (const p of this.crew(playerId)) {
+      this.ctx.hub.sendTo(p, 'police.checkpoint', { n: plan.n, name, x: plan.x, z: plan.z, dir: plan.dir, until });
+      this.ctx.hub.notify(p, { kind: 'warning', title: 'POLİS KONTROL NOKTASI', text: `${name} çıkışında barikat var: BARİKATI YAR VEYA KAÇ!` });
+    }
+    for (const l of this.checkpointListeners) l(playerId, { kind: 'checkpoint', name, reward: 0 });
+    log.info('checkpoint', { playerId, bridge: plan.n, dir: plan.dir });
+  }
+
+  private closeCheckpoint(playerId: string): void {
+    const cp = this.checkpoints.get(playerId);
+    if (!cp) return;
+    this.spikes.delete(cp.spikeId);
+    this.checkpoints.delete(playerId);
+  }
+
+  /** Checkpoint cars stand (braked); a car hitting one fast enough shoves it aside; getting past pays. */
+  private tickCheckpoints(dt: number, now: number): void {
+    const cc = ECONOMY.tolls.checkpoint;
+    for (const [playerId, cp] of [...this.checkpoints]) {
+      if (now > cp.until || !this.ctx.sim.chars.has(playerId)) {
+        this.closeCheckpoint(playerId);
+        continue;
+      }
+      const me = this.target(playerId);
+      for (const u of cp.units) {
+        stepVehicle(u.dyn, { keys: KEY.BRAKE, dt }, this.params, this.ctx.sim.collisionWorld, `po:${u.id}`);
+        if (!me || me.onFoot || me.deck !== cp.plan.n || cp.rammed.has(u.id)) continue;
+        const kmh = Math.abs(me.speed) * KMH_PER_MS;
+        if (kmh < cc.smashKmh) continue;
+        const gap = obbDistance(vehicleBox('me', me.x, me.z, me.rot, me.hl + 0.3, me.hw + 0.3), vehicleBox('u', u.dyn.x, u.dyn.z, u.dyn.rot, this.params.halfLength, this.params.halfWidth));
+        if (gap > 0.05) continue;
+        // Rammed: it spins away in the direction the car was going; the car loses some speed.
+        cp.rammed.add(u.id);
+        const heading = me.rot;
+        const side = Math.sign((u.dyn.z - me.z) * Math.sin(heading) - (u.dyn.x - me.x) * Math.cos(heading)) || 1;
+        u.dyn.rot = heading - side * 0.7;
+        u.dyn.speed = Math.abs(me.speed) * 0.55;
+        u.dyn.yaw = side * 2.4;
+        u.dyn.slip = side * 0.5;
+        const d = me.vehicleId ? this.ctx.sim.drives.get(me.vehicleId) : undefined;
+        if (d) d.dyn.speed *= 0.72;
+        this.ctx.hub.broadcast('police.ram', { x: u.dyn.x, z: u.dyn.z, deck: cp.plan.n });
+      }
+      // Past the line, still on the bridge: through.
+      if (me && !cp.passed && !me.onFoot && me.deck === cp.plan.n && (me.x - cp.plan.x) * cp.plan.dir > 6 && Math.abs(me.z - cp.plan.z) < BRIDGE_HALF + 1) {
+        cp.passed = true;
+        cp.until = Math.min(cp.until, now + 8000);
+        void this.payBreakthrough(playerId, cp);
+      }
+    }
+  }
+
+  private async payBreakthrough(playerId: string, cp: Checkpoint): Promise<void> {
+    const reward = ECONOMY.tolls.checkpoint.reward;
+    try {
+      await this.ctx.locks.run([K.player(playerId)], async () => {
+        if (!this.ctx.state.players.has(playerId)) return;
+        const uow = this.ctx.state.begin();
+        const p = uow.player(playerId);
+        uow.credit(p, reward, 'checkpoint', `Barikat yarıldı: ${cp.name}`);
+        uow.grantXp(p, 40);
+        await uow.commit();
+      });
+      for (const p of this.crew(playerId)) this.ctx.hub.sendTo(p, 'police.breakthrough', { reward: p === playerId ? reward : 0, name: cp.name });
+      for (const l of this.checkpointListeners) l(playerId, { kind: 'breakthrough', name: cp.name, reward });
+      log.info('checkpoint broken through', { playerId, bridge: cp.plan.n });
+    } catch (err) {
+      log.error('checkpoint reward failed', { playerId, error: (err as Error).message });
+    }
+  }
+
+  /** The checkpoint set up for a player (tests). */
+  checkpointOf(playerId: string): Readonly<{ plan: CheckpointPlan; units: readonly { id: number; dyn: VehicleDyn }[]; passed: boolean }> | undefined {
+    return this.checkpoints.get(playerId);
   }
 
   // ---------------------------------------------------------------- helicopter
@@ -838,8 +980,9 @@ export class PoliceService {
   /** Police cars are obstacles for everyone (and traffic brakes for them). */
   private publishObstacles(): void {
     const list = [];
-    for (const w of this.wanted.values()) {
-      for (const u of w.units) {
+    const groups = [...[...this.wanted.values()].map((w) => w.units), ...[...this.checkpoints.values()].map((c) => c.units)];
+    for (const units of groups) {
+      for (const u of units) {
         const h = u.dyn.speed >= 0 ? u.dyn.rot + u.dyn.slip : u.dyn.rot;
         list.push({ id: `po:${u.id}`, modelId: POLICE_MODEL.id, x: u.dyn.x, z: u.dyn.z, rot: u.dyn.rot, vx: Math.sin(h) * u.dyn.speed, vz: Math.cos(h) * u.dyn.speed, deck: u.dyn.deck ?? 0 });
       }
@@ -851,8 +994,9 @@ export class PoliceService {
   snapshot(x: number, z: number, radius: number): PoliceSnap[] {
     const out: PoliceSnap[] = [];
     const r2 = radius * radius;
-    for (const w of this.wanted.values()) {
-      for (const u of w.units) {
+    const groups = [...[...this.wanted.values()].map((w) => w.units), ...[...this.checkpoints.values()].map((c) => c.units)];
+    for (const units of groups) {
+      for (const u of units) {
         const d = u.dyn;
         if ((d.x - x) ** 2 + (d.z - z) ** 2 > r2) continue;
         const snap: PoliceSnap = [u.id, Math.round(d.x * 100) / 100, Math.round(d.z * 100) / 100, Math.round(d.rot * 1000) / 1000, Math.round(d.speed * 100) / 100, Math.round(d.steer * 1000) / 1000, PF.SIREN | (d.brk > 0.1 ? PF.BRAKE : 0)];

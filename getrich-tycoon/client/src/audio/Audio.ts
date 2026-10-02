@@ -60,6 +60,9 @@ function distortionCurve(k: number): Float32Array<ArrayBuffer> {
 
 export type Sfx =
   | 'click'
+  | 'toll'
+  | 'tollFine'
+  | 'checkpoint'
   | 'purchase'
   | 'notify'
   | 'error'
@@ -526,6 +529,16 @@ export class AudioSystem {
     switch (s) {
       case 'click':
         return this.tone([880], 0.06, 'sine', 0.08);
+      // The HGS reader's two-tone bleep as the arm lifts.
+      case 'toll':
+        return this.tone([1568, 2093], 0.11, 'square', 0.045, undefined, 0.13);
+      // An evasion: the barrier cracks and the reader buzzes angrily.
+      case 'tollFine':
+        if (this.ctx && this.noiseBuf) this.burst(this.ctx.currentTime, 0.2, 'bandpass', 900, 0.3);
+        return this.tone([330, 330, 330], 0.14, 'sawtooth', 0.06, undefined, 0.17);
+      // A checkpoint ahead: a short police yelp.
+      case 'checkpoint':
+        return this.tone([620, 1240, 620, 1240, 620, 1240], 0.12, 'sawtooth', 0.05, undefined, 0.11);
       case 'coin':
         return this.tone([1318, 1760], 0.12, 'square', 0.05, undefined, 0.07);
       case 'purchase':

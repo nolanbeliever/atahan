@@ -15,7 +15,7 @@ import { h, type Child } from '../dom';
 import { ICONS } from '../icons';
 import { Panel } from '../Panel';
 import { mmss } from '../RewardsHud';
-import { avgCond, conditionRows, dealBadge } from '../widgets';
+import { avgCond, conditionRows, dealBadge, vehicleSelect } from '../widgets';
 
 const DRIVE_LABEL: Record<string, string> = { fwd: 'Önden çekiş', rwd: 'Arkadan itiş', awd: '4x4 / AWD' };
 
@@ -27,6 +27,8 @@ export class ShowroomPanel extends Panel {
   private info: ShowroomInfo | null = null;
   private selected: string | null = null;
   private color: string | null = null;
+  /** Black Market: the car the plate gear goes on. */
+  private gearCar: string | null = null;
   private timer: HTMLElement | null = null;
   private clock = 0;
 
@@ -133,7 +135,50 @@ export class ShowroomPanel extends Panel {
     this.showOnTable(o);
     const stage = h('div', { class: 'sr-stage', style: { boxShadow: `inset 0 -40px 80px ${theme.glow}22` } }, this.studio ? this.studio.canvas : h('div', { class: 'empty' }, '3D önizleme yok'), h('div', { class: 'sr-stage-tag tiny' }, 'Showroom Rotator · sürükleyerek çevir'));
     this.studio?.start();
-    return h('div', { 'data-testid': 'showroom', 'data-showroom': s.id }, banner, h('div', { class: 'sr-layout' }, list, h('div', { class: 'sr-main' }, stage, o ? this.details(o) : h('div', { class: 'empty' }, 'Bir araç seç.'))));
+    return h(
+      'div',
+      { 'data-testid': 'showroom', 'data-showroom': s.id },
+      banner,
+      h('div', { class: 'sr-layout' }, list, h('div', { class: 'sr-main' }, stage, o ? this.details(o) : h('div', { class: 'empty' }, 'Bir araç seç.'))),
+      bm ? this.plateGear() : null,
+    );
+  }
+
+  /** Black Market: a plate flipper or a fake plate for one of your cars. */
+  private plateGear(): HTMLElement {
+    const t = ECONOMY.tolls;
+    const cars = this.store.myVehicles().filter((v) => (v.status === 'stored' || v.status === 'world' || v.status === 'stolen') && !v.mods.strip);
+    if (!this.gearCar || !cars.some((v) => v.id === this.gearCar)) this.gearCar = cars[0]?.id ?? null;
+    const car = cars.find((v) => v.id === this.gearCar);
+    const money = this.store.me?.money ?? 0;
+    const buy = (item: 'flipper' | 'fake') =>
+      void this.act(
+        () => this.net.rpc('showroom.plateGear', { vehicleId: car!.id, item }),
+        (r) => this.ui.toast({ kind: 'success', title: item === 'flipper' ? 'Plaka çevirme aparatı takıldı' : r.vehicle.mods.fakePlate ? `Sahte plaka: ${r.vehicle.mods.fakePlate}` : 'Sahte plaka söküldü', text: item === 'flipper' ? 'Sürerken P ile plakayı çevir: kameralar okuyamaz.' : 'Kameralar artık bu plakayı okur.' }),
+      );
+    return h(
+      'div',
+      { class: 'sr-gear', 'data-testid': 'plate-gear' },
+      h('div', { class: 'sr-title' }, 'Kara Borsa Ekipmanı · Plaka'),
+      h('div', { class: 'tiny muted' }, 'Plaka tanıma (ANPR) kameraları çalıntı kayıtlı, çalıntı veya aranan araçları yakalar. Çevrik plaka okunmaz; sahte plaka temiz okunur.'),
+      cars.length === 0
+        ? h('div', { class: 'empty' }, 'Önce bir aracın olmalı.')
+        : h(
+            'div',
+            { class: 'row wrap', style: { gap: '8px', alignItems: 'center' } },
+            vehicleSelect(cars, this.gearCar, (id) => ((this.gearCar = id), this.refresh()), (v) => `${getModel(v.modelId).brand} ${getModel(v.modelId).name}${v.mods.hot ? ' · çalıntı kaydı' : ''}`),
+            h(
+              'button',
+              { class: 'btn small', 'data-testid': 'gear-flipper', disabled: this.busy || !car || !!car.mods.flipper || money < t.flipperPrice, onclick: () => buy('flipper') },
+              car?.mods.flipper ? 'Plaka çevirici takılı (P)' : `Plaka Çevirme Aparatı · ${formatMoney(t.flipperPrice)}`,
+            ),
+            h(
+              'button',
+              { class: 'btn small', 'data-testid': 'gear-fake', disabled: this.busy || !car || (!car.mods.fakePlate && money < t.fakePlatePrice), onclick: () => buy('fake') },
+              car?.mods.fakePlate ? `Sahte plakayı sök (${car.mods.fakePlate})` : `Sahte Plaka · ${formatMoney(t.fakePlatePrice)}`,
+            ),
+          ),
+    );
   }
 
   private details(o: ShowroomOffer): HTMLElement {

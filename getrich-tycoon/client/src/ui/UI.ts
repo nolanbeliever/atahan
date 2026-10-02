@@ -16,6 +16,7 @@ import { DragHud, NearMissHud } from './HighwayHud';
 import { GaugeHud } from './Gauge';
 import { HitmanHud } from './HitmanHud';
 import { TestDriveHud } from './TestDriveHud';
+import { TollFeed } from './TollFeed';
 import { MissionsHud } from './MissionsHud';
 import { RewardsHud } from './RewardsHud';
 import { claimPlaytime } from './panels/rewards';
@@ -136,7 +137,7 @@ export class UI {
     hint: HTMLElement;
   };
   private toasts: HTMLElement;
-  private driveExtras!: { nosBtn: HTMLElement; nosFill: HTMLElement; nosText: HTMLElement; airBtn: HTMLElement; wheelieTag: HTMLElement };
+  private driveExtras!: { nosBtn: HTMLElement; nosFill: HTMLElement; nosText: HTMLElement; airBtn: HTMLElement; plateBtn: HTMLElement; wheelieTag: HTMLElement };
   readonly nearMiss = new NearMissHud();
   readonly dragHud = new DragHud();
   readonly cluster = new GaugeHud();
@@ -144,6 +145,7 @@ export class UI {
   readonly pursuit = new PursuitHud();
   readonly hitman = new HitmanHud();
   readonly testDrive = new TestDriveHud(() => void this.game.endTestDrive());
+  readonly tollFeed = new TollFeed(() => this.open('tolls'));
   /** A white flash over everything (speed cameras). */
   readonly flashEl = h('div', { class: 'screen-flash' });
   readonly race = new RaceHud();
@@ -204,10 +206,11 @@ export class UI {
     const nosText = h('span', { class: 'nos-text' }, 'NOS');
     const nosBtn = h('button', { class: 'cam-btn nos-btn', 'data-testid': 'nos-btn', title: 'Special Nitro (N)', onclick: () => void this.game.useNitro() }, nosFill, nosText, h('span', { class: 'hk' }, 'N'));
     const airBtn = h('button', { class: 'cam-btn air-btn', 'data-testid': 'air-btn', title: 'Air ride (K)', onclick: () => void this.game.airRide() }, 'AIR', h('span', { class: 'hk' }, 'K'));
+    const plateBtn = h('button', { class: 'cam-btn plate-btn', 'data-testid': 'plate-btn', title: 'Plaka çevir (P)', onclick: () => void this.game.flipPlate() }, 'PLAKA', h('span', { class: 'hk' }, 'P'));
     // Motorcycles: Shift lifts the front (shown as a key hint; the touch screen has its own button).
     const wheelieTag = h('div', { class: 'cam-btn wheelie-tag', 'data-testid': 'wheelie-tag', title: 'Wheelie: hold Shift with the throttle open above 65 km/h' }, 'WHEELIE', h('span', { class: 'hk' }, 'Shift'));
-    const drive = h('div', { class: 'drive-hud' }, h('div', { class: 'drive-side' }, gauge, camBtn, nosBtn, airBtn, wheelieTag), this.cluster.el);
-    this.driveExtras = { nosBtn, nosFill, nosText, airBtn, wheelieTag };
+    const drive = h('div', { class: 'drive-hud' }, h('div', { class: 'drive-side' }, gauge, camBtn, nosBtn, airBtn, plateBtn, wheelieTag), this.cluster.el);
+    this.driveExtras = { nosBtn, nosFill, nosText, airBtn, plateBtn, wheelieTag };
     const reconnect = h('div', { class: 'reconnect' }, 'Connection lost - reconnecting...');
     const offers = h('div', { class: 'passthrough' });
 
@@ -252,6 +255,7 @@ export class UI {
       this.race.el,
       this.hitman.el,
       this.testDrive.el,
+      this.tollFeed.el,
     );
     const right = h(
       'div',
@@ -273,7 +277,7 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Enter'), 'Chat'),
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
-    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.flashEl, reconnect);
+    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.tollFeed.notice, this.flashEl, reconnect);
     this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 
@@ -420,6 +424,9 @@ export class UI {
     const air = hasAirRide(v.mods.tuning);
     x.airBtn.style.display = air ? '' : 'none';
     if (air) x.airBtn.firstChild!.textContent = `AIR: ${AIR_LEVELS[v.mods.air ?? 0]}`;
+    x.plateBtn.style.display = v.mods.flipper ? '' : 'none';
+    if (v.mods.flipper) x.plateBtn.firstChild!.textContent = v.mods.plateFlipped ? 'PLAKA: GİZLİ' : 'PLAKA';
+    x.plateBtn.classList.toggle('up', !!v.mods.plateFlipped);
     clear(this.hud.gauge);
     this.hud.gauge.append(
       h('div', { class: 'name' }, modelDisplayName(v.modelId)),

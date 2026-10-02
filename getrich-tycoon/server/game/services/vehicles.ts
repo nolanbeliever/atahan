@@ -266,6 +266,25 @@ export class VehicleService {
   }
 
   /** A custom number plate, pressed at Chroma Customs. */
+  /** Turn the plate away or back with the Black Market's plate flipper (P while driving). */
+  async flipPlate(playerId: string): Promise<{ flipped: boolean }> {
+    const c = this.ctx.sim.chars.get(playerId);
+    if (!c?.drivingId) throw new GameError('conflict', 'You are not driving.');
+    const vehicleId = c.drivingId;
+    return this.ctx.locks.run([K.player(playerId), K.vehicle(vehicleId)], async () => {
+      const uow = this.ctx.state.begin();
+      const veh = uow.vehicle(vehicleId);
+      if (veh.ownerId !== playerId) throw new GameError('forbidden', "You don't own that vehicle.");
+      if (!veh.mods.flipper) throw new GameError('conflict', 'This car has no plate flipper (Black Market, Galeri Bulvarı).');
+      const flipped = !veh.mods.plateFlipped;
+      veh.mods = { ...veh.mods, plateFlipped: flipped };
+      await uow.commit();
+      const live = this.ctx.state.vehicles.get(vehicleId)!;
+      this.ctx.hub.broadcast('vehicle.upsert', this.ctx.state.toPublicVehicle(live));
+      return { flipped };
+    });
+  }
+
   async plate(playerId: string, params: unknown): Promise<{ plate: string | null }> {
     const p = val.obj(params);
     const vehicleId = val.id(p.vehicleId, 'vehicle');

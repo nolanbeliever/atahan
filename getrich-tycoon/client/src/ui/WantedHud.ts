@@ -82,6 +82,16 @@ export class WantedHud {
     this.show('radar', [h('div', { class: 'bb-kicker' }, `📸 KÖPRÜ RADARI · ${f.bridge.split(' · ')[0]!.toUpperCase()}`), h('div', { class: 'bb-title', 'data-testid': 'radar-kmh' }, `${f.kmh} km/s`), h('div', { class: 'bb-text' }, f.newBest ? '🏆 Kişisel rekor!' : `En iyin: ${f.best} km/s`), h('div', { class: 'bb-sub' }, rec)], 2600);
   }
 
+  /** A police checkpoint is waiting at the bridge's far end. */
+  checkpoint(name: string): void {
+    this.show('checkpoint', [h('div', { class: 'bb-kicker' }, `🚨 ${name.toUpperCase()}`), h('div', { class: 'bb-title', 'data-testid': 'checkpoint-banner' }, 'POLİS KONTROL NOKTASI'), h('div', { class: 'bb-text' }, 'BARİKATI YAR VEYA KAÇ!'), h('div', { class: 'bb-sub' }, 'Ortadaki şeritte çivili şerit var: kenardaki araçlara çarparak geç.')], 4200);
+  }
+
+  /** Through a checkpoint. */
+  breakthrough(reward: number): void {
+    this.show('escaped', [h('div', { class: 'bb-kicker' }, 'KONTROL NOKTASI'), h('div', { class: 'bb-title' }, 'BARİKAT YARILDI!'), h('div', { class: 'bb-text' }, reward > 0 ? `+${formatMoney(reward)}` : 'Geçtiniz!')], 3200);
+  }
+
   /** A hitman contract paid out. */
   contract(title: string, reward: string): void {
     this.show('contract', [h('div', { class: 'bb-kicker' }, 'İŞ TAMAM · CONTRACT COMPLETE'), h('div', { class: 'bb-title' }, title), h('div', { class: 'bb-text' }, reward)], 3600);

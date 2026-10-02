@@ -7,6 +7,7 @@ import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } f
 import { BOULEVARD, CONTAINER_STACKS, DOCKS, DOCKS_GATE, DOCKS_ROAD, HILL, TOUGE_HALF, TOUGE_PATH } from '../../../shared/farShore';
 import { BRIDGES, BRIDGE_HALF, FAR_ROADS, WATER, WORLD_BOX } from '../../../shared/strait';
 import { SHOWROOMS, findShowroom } from '../../../shared/showrooms';
+import { ANPR_CAMERAS, TOLL_PLAZAS } from '../../../shared/tolls';
 import type { Game } from '../game/Game';
 
 export const INTERACT_COLORS: Record<string, string> = {
@@ -153,6 +154,17 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   g.stroke();
   g.fillStyle = '#8d93a3';
   g.fillRect(tx(SANAYI.pawn.minX), tz(SANAYI.pawn.minZ), (SANAYI.pawn.maxX - SANAYI.pawn.minX) * s, (SANAYI.pawn.maxZ - SANAYI.pawn.minZ) * s);
+  // Toll plazas (a green bar across the road) and the number-plate cameras (red dots).
+  for (const p of TOLL_PLAZAS) {
+    g.fillStyle = '#2bff88';
+    g.fillRect(tx(p.x - 1.5), tz(p.z - 13), 3 * s, 26 * s);
+  }
+  g.fillStyle = '#ff3b30';
+  for (const c of ANPR_CAMERAS) {
+    g.beginPath();
+    g.arc(tx(c.x), tz(c.z), Math.max(2, 1.6 * s), 0, Math.PI * 2);
+    g.fill();
+  }
   // The showrooms on the Galeri Bulvarı, in their theme colours.
   for (const sr of SHOWROOMS) {
     g.fillStyle = sr.theme.main;

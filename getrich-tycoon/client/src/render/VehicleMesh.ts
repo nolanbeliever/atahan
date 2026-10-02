@@ -73,8 +73,8 @@ function underglowTexture(): THREE.CanvasTexture {
 const FREEZE_DELAY = 3;
 
 export function lookSignature(v: VehicleLook): string {
-  // Air ride height and plate text change in place (no rebuild).
-  const { air: _air, plate: _plate, ...mods } = v.mods;
+  // Air ride height and the plate (text, a fake one, flipped away) change in place (no rebuild).
+  const { air: _air, plate: _plate, fakePlate: _fake, plateFlipped: _flip, flipper: _flipper, hot: _hot, ...mods } = v.mods;
   return [v.modelId, v.color, JSON.stringify(mods), Math.round(v.condition.cleanliness / 8), Math.round(v.condition.body / 15)].join('|');
 }
 
@@ -210,11 +210,25 @@ const PLATE_W = 0.52;
 const PLATE_H = 0.12;
 
 /** Plate art: white with the blue TR band, black lettering (like a Turkish plate). */
+/** Shown on a plate turned away by a plate flipper: its bare metal back. */
+const FLIPPED = '\u0000flipped';
+
 function plateTexture(text: string): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 60;
   const g = c.getContext('2d')!;
+  if (text === FLIPPED) {
+    g.fillStyle = '#3a3d42';
+    g.fillRect(0, 0, 256, 60);
+    g.fillStyle = '#2a2c30';
+    for (let x = 8; x < 256; x += 16) g.fillRect(x, 0, 6, 60);
+    g.fillStyle = '#8a8f96';
+    for (const [x, y] of [[12, 12], [244, 12], [12, 48], [244, 48]] as const) g.fillRect(x - 3, y - 3, 6, 6);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
   g.fillStyle = '#f2f3ee';
   g.fillRect(0, 0, 256, 60);
   g.fillStyle = '#1f47b8';
@@ -577,7 +591,7 @@ abstract class ModelView implements AnyVehicleView {
 
   /** Number plates front and back (motorcycles: back only), with the car's registration or custom text. */
   private setPlate(look: VehicleLook): void {
-    const text = look.id ? plateText(look.id, look.mods) : (look.mods.plate ?? 'GETRICH');
+    const text = look.mods.plateFlipped ? FLIPPED : look.id ? plateText(look.id, look.mods) : (look.mods.plate ?? 'GETRICH');
     if (!this.template || text === this.plateShown) return;
     this.plateShown = text;
     if (!this.plate) {
