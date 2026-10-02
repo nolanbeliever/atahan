@@ -191,6 +191,60 @@ All values are in `ECONOMY.theft`.
   set, a car is worth $22,500 for a few minutes' work and the risk of the police. To make the price vary with the car's
   value and luck, set `pawnMin` below `pawnMax` (`min + (max - min) × (car value tier × 0.15 + luck × 0.55)`).
 
+- **Forged papers** (`papers`): a complete stolen car parked in the Sanayi yard, papered at the Sanayi office for 15% of its
+  market value (at least $3,000), becomes an ordinary owned car (it needs a free garage slot).
+
+## Stolen-car tracking (CCTV)
+
+`ECONOMY.pursuit`. Picking a lock, or driving a stolen car into the cone of one of the ten CCTV cameras (34 m, ±20°), starts a
+3-minute countdown and raises the heat to 150 (2 stars). A camera or a police car within 70 m seeing the car starts the
+countdown over; it waits while the thief is out of the car. When it runs out the car becomes the thief's own (+60 XP; a
+full garage leaves it stolen). An arrest seizes it.
+
+## Daily login and playtime rewards
+
+`shared/rewards.ts`, `ECONOMY.rewards`; one row per player in `player_rewards`, paid in the same transaction as the claim.
+
+| Day | Reward |
+| --- | --- |
+| 1 | $5,000 |
+| 2 | Lockpick & Testere Seti |
+| 3 | $15,000 |
+| 4 | Stage 1 ECU coupon |
+| 5 | $30,000 |
+| 6 | 3 sets + 3 Special Nitro |
+| 7 | A legendary car (Rare Dealer pool, condition 92-100, in the garage) + $50,000 + 10 VIP Coins |
+
+A box can be claimed once per day (UTC, like the missions); claiming it the day after the last one continues the streak,
+otherwise it starts over at day 1, and after day 7 it starts over too. Playtime counts only while the player is active (a
+key, the camera or a menu in the last 2 minutes, or riding in a moving car), at most 3 hours a day:
+
+| Active time | Reward |
+| --- | --- |
+| 15 min | $2,500 |
+| 30 min | Lockpick & Testere Seti |
+| 1 h | $15,000 + 200 XP |
+| 2 h | $35,000 + Plazma Neon (underglow unlock) |
+| 3 h | $100,000 + 5 VIP Coins + Pawn Shop +50% coupon **or** rims & paint coupon |
+
+Over a full week of maximum play a player earns about $1.5M from rewards; a 7-day streak alone is $100,000 and a car.
+
+## Street races
+
+`ECONOMY.streetRace`: one every 7 minutes (75 s to join, 4 s countdown, 4 minutes to finish), up to 6 players plus bots to
+make 4 cars. The winner gets $20,000 (`race`) and 150 XP, other finishers 60 XP. Every racer still out there 8 s after the
+green light gets 150 heat (2 stars).
+
+## Guns and fights
+
+`shared/weapons.ts`, `ECONOMY.combat`. Prices: Pistol $5,000, Pump Shotgun $18,000, AK-47 / M4 $45,000 (`weapon`), each with
+24 rounds; Golden Desert Eagle 20, Laser-Guided RPG 35, Minigun 45 VIP Coins. Ammo boxes $400-$2,500. Heat: shots near
+witnesses 100, hitting a person 300 (3 stars), a police officer or car 400. From 3 stars up to two officers per nearby
+stopped police car get out and shoot (5-9 damage, less accurate at range and at a moving car). Players have 100 HP, regain
+3 HP/s after 8 s without a hit, and the hospital patches them up for $500 (`hospital`). WASTED: lockpick sets, stripped
+parts and stolen cars are lost, the wanted level is cleared, no fine. Cars have 100 body HP; at zero the engine blows (an
+owned car's engine and body drop to 0 until repaired).
+
 ## Reputation unlocks (by level)
 
 | Unlock | Rule |

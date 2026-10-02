@@ -23,7 +23,7 @@ export class CombatHud {
     this.gunName = h('div', { class: 'gun-hud-name' });
     this.gunAmmo = h('div', { class: 'gun-hud-ammo mono', 'data-testid': 'gun-ammo' });
     this.gun = h('div', { class: 'gun-hud', 'data-testid': 'gun-hud' }, this.gunName, this.gunAmmo, h('div', { class: 'gun-hud-keys' }, '1-6 gun · Q away · click fire'));
-    this.crosshair = h('div', { class: 'crosshair', 'data-testid': 'crosshair' }, h('i'), h('i'), h('i'), h('i'));
+    this.crosshair = h('div', { class: 'gun-crosshair', 'data-testid': 'crosshair' }, h('i'), h('i'), h('i'), h('i'));
     this.arrow = h('div', { class: 'hurt-arrow' });
     this.overlay = h('div', { class: 'hurt-overlay' }, this.arrow);
     this.setHealth({ hp: COMBAT.playerHp, max: COMBAT.playerHp, hitAt: 0 });

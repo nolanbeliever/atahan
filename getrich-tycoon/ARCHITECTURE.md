@@ -49,6 +49,15 @@
     and where to stand for each, Pawn Shop prices, the Sanayi lifts (`bayAt`) and colliders, street parking spots
   - `missions.ts`, `reputation.ts`, `police.ts`: daily missions, level unlocks (garage slots, cars out, market discount,
     underglow) and the wanted-level types
+  - `rewards.ts`: the 7-day login streak and playtime milestones (pure rules: next box, streak reset, views, countdowns)
+  - `plates.ts`: number plates (registration from the car id, custom text rules); air ride heights live in
+    `modificationsData.ts` (`AIR_PART`, `airDropCm`); the nitrous timer is part of the drivetrain state (`DriveState.nitro`,
+    the 15th number of `DynTuple`)
+  - `cctv.ts`: CCTV cameras whose sweep is a pure function of the server clock (`cameraYaw`, `cameraSees`), so server and
+    clients agree without messages; the stolen-car tracking view
+  - `streetRace.ts`: street race routes on the road grid, checkpoints, grid slots, poses along a route (bots), standings
+  - `weapons.ts` (+ `compounds.ts` for the hospital and Ammu-Nation): guns, ammo, damage stages of a car, and the ray maths
+    (boxes, rotated boxes, people) used by the server to decide hits and by the client to aim
   - `collision.ts`: builds the same collision world on both sides
   - `protocol.ts`: typed RPC map, events and validation helpers
 - **`server/`**:
@@ -65,6 +74,11 @@
     stripping, the Pawn Shop and clean-up of abandoned stolen cars).
   - `game/traffic.ts` is the traffic driver model (IDM car following + MOBIL-style lane changes with indicators, keep-right,
     yielding; players, walkers and parked cars are obstacles).
+  - Newer services: `rewards.ts` (streak and playtime, state in `player_rewards`, claims paid in one transaction),
+    `pursuit.ts` (CCTV sightings, the 3-minute stolen-car countdown, the car becoming the thief's), `streetRace.ts` (the race
+    schedule, grid, checkpoints, bots, payouts and police), `combat.ts` (Ammu-Nation, shots traced on the server against
+    buildings, cars and people, car body HP and blow-outs, pedestrians, police officers on foot, health, WASTED and the
+    hospital). Shots come in as a `fire` socket event; fired rounds are taken out of the saved inventory every 2 s.
   - `db/` holds the PostgreSQL and SQLite adapters behind one small `Database` interface, plus the repository (row mapping, parameterized SQL).
 - **`client/`**:
   - `game/Game.ts` runs the loop, fixed-step prediction, reconciliation and interactions.
@@ -187,8 +201,8 @@ access through one queue, so async transactions stay isolated.
 
 | Loop | Rate | Work |
 | --- | --- | --- |
-| tick | 20 Hz (`TICK_RATE`) | NPC customer movement, dynamic colliders, highway traffic, near-miss detection, drag races, snapshots |
-| slow tick | 1 Hz | customer spawns and decisions, auction NPC bids and settlement, near-miss payouts, driving flush |
+| tick | 20 Hz (`TICK_RATE`) | NPC customer movement, dynamic colliders, highway traffic, near-miss detection, drag races, police, stolen-car tracking, street races, fights (pedestrians, officers, health), snapshots |
+| slow tick | 1 Hz | customer spawns and decisions, auction NPC bids and settlement, near-miss payouts, driving flush, playtime counting (saved every 30 s) |
 | market refresh | 10 s | expire and replenish NPC listings (keeps 16 cars in the lot) |
 | demand trends | 90 s | category demand random walk with mean reversion |
 | bank interest | 60 s | pay accrued interest to online players (offline players catch up on login) |
