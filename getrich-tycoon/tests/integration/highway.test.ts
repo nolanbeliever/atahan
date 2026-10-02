@@ -25,7 +25,8 @@ afterAll(async () => {
 /** Buy the cheapest car, park it next to the player and get in. */
 async function driveNewCar(client: TestClient): Promise<string> {
   const { listings } = await client.rpc('market.list', {});
-  const l = listings.filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, 1)).sort((a, b) => a.askingPrice - b.askingPrice)[0]!;
+  // A car (a motorcycle that rams traffic throws its rider off instead).
+  const l = listings.filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, 1) && getModel(x.vehicle.modelId).specs.kind !== 'bike').sort((a, b) => a.askingPrice - b.askingPrice)[0]!;
   const { vehicle } = await client.rpc('market.buy', { listingId: l.id, expectedPrice: l.askingPrice });
   // Market cars can be wrecks: put it in perfect shape so it can reach highway speeds.
   const uow = server.game.state.begin();

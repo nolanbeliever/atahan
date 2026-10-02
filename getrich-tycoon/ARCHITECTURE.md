@@ -69,7 +69,10 @@
     `highway.ts`: near-miss detection, combos, batched payouts and traffic yielding, `drag.ts`: drag strip queue, bot matching,
     lights, false starts, timing and the pool, `driving.ts`: the driving bonus every 10 s, `missions.ts`: daily mission
     progress and rewards, `police.ts`: heat and stars, police interceptors (physics cars routed over the city road grid and the
-    highway lanes), escapes and arrests, `theft.ts`: the Black Market stock, street-parked cars (solid for the simulation),
+    highway lanes), escapes and arrests, spike strips thrown ahead of 3-star drivers (`spikePlacement` in
+    shared/policeGear.ts; a car over one gets the `blown` mod: tyres at 0, grip down in `vehicleParams`) and the police
+    helicopter (orbits the last place it saw you, searchlight, holds the escape clock while it sees you, loses you under
+    cover: `isCovered`), `theft.ts`: the Black Market stock, street-parked cars (solid for the simulation),
     lockpick sessions with the sweet spot kept on the server, the alarm and police heat, the Sanayi lifts and timed
     stripping, the Pawn Shop and clean-up of abandoned stolen cars).
   - `game/traffic.ts` is the traffic driver model (IDM car following + MOBIL-style lane changes with indicators, keep-right,
@@ -78,7 +81,11 @@
     `pursuit.ts` (CCTV sightings, the 3-minute stolen-car countdown, the car becoming the thief's), `streetRace.ts` (the race
     schedule, grid, checkpoints, bots, payouts and police), `combat.ts` (Ammu-Nation, shots traced on the server against
     buildings, cars and people, car body HP and blow-outs, pedestrians, police officers on foot, health, WASTED and the
-    hospital; passengers on a motorcycle or quad may shoot), `moto.ts` (Moto Gear helmets and visors, and bike crashes:
+    hospital; any passenger may shoot from a vehicle, a bike rider only with a one-handed gun; the trace skips the
+    shooter's own vehicle; kill and wall-hit listeners feed the hitman contracts; the helicopter is a cylinder target),
+    `hitman.ts` (the alley contact NPC, one contract per player: drive-by hits counted from wall hits by a crew member in a
+    moving vehicle, or a mark NPC spawned in a search area; payout in one transaction, expiry, the crew is everyone in
+    the vehicle), `moto.ts` (Moto Gear helmets and visors, and bike crashes:
     the simulation reports a flipped wheelie or a hard hit through `bikeCrashListeners`, the riders come off and are hurt
     by `helmets.crashDamage`). Shots come in as a `fire` socket event; fired rounds are taken out of the saved inventory
     every 2 s. The wheelie itself is shared physics (`stepWheelie` in physics.ts, part of the predicted `DynTuple`).
@@ -102,7 +109,11 @@
     `ui/TouchControls.ts` adds the touch look area (right half of the screen, behind the HUD), the gun button and
     **ATEŞ ET**. `game/EntityViews.ts` animates getting in and out (walk to the door, door, sit) and seats the drivers;
     `game/Busted.ts` plays the arrest cutscene; `BikeView` (render/VehicleMesh.ts) also draws the quad (four wheels, no
-    lean), the pillion seat and the wheelie pose (pivoting on the rear tyre); characters wear their helmet on bikes; `game/Police.ts` renders police cars with wig-wag light bars.
+    lean), the pillion seat and the wheelie pose (pivoting on the rear tyre); characters wear their helmet on bikes; `game/Police.ts` renders police cars with wig-wag light bars, spike strips
+    (instanced spikes, blinking lamps) and helicopters (`render/Helicopter.ts`: rotors, beacons, searchlight cone and pool,
+    HP bar); `VehicleMesh.flat` drops a car with burst tyres onto its rims. Hitman: `ui/panels/hitman.ts` (the contact),
+    `ui/HitmanHud.ts` (the contract card), the minimap search circle, mark labels only for the contract holder, and the
+    alley props in `render/City.ts`. In a vehicle the sights camera sits at the passenger's seat, the pillion or the rider.
   - Car theft: `game/Theft.ts` (street cars with hazard / alarm lights, the alarm sound, lockpick and lift prompts, work
     markers and the timed strip job), `render/Sanayi.ts` (yard, hall with a roof that fades while you are inside, two-post
     lifts whose arms rise with the car, Pawn Shop with its neon), `render/StripRig.ts` (engine bay, exhaust, seats and
@@ -209,7 +220,7 @@ access through one queue, so async transactions stay isolated.
 
 | Loop | Rate | Work |
 | --- | --- | --- |
-| tick | 20 Hz (`TICK_RATE`) | NPC customer movement, dynamic colliders, highway traffic, near-miss detection, drag races, police, stolen-car tracking, street races, fights (pedestrians, officers, health), snapshots |
+| tick | 20 Hz (`TICK_RATE`) | NPC customer movement, dynamic colliders, highway traffic, near-miss detection, drag races, police (cars, spike strips, helicopters), stolen-car tracking, street races, fights (pedestrians, officers, health), hitman contract expiry, snapshots |
 | slow tick | 1 Hz | customer spawns and decisions, auction NPC bids and settlement, near-miss payouts, driving flush, playtime counting (saved every 30 s) |
 | market refresh | 10 s | expire and replenish NPC listings (keeps 16 cars in the lot) |
 | demand trends | 90 s | category demand random walk with mean reversion |

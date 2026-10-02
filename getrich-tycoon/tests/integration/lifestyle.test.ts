@@ -31,7 +31,8 @@ async function buyCheapest(client: TestClient): Promise<string> {
   const level = server.game.state.players.get(client.playerId)!.level;
   const pick = async () => {
     const { listings } = await client.rpc('market.list', {});
-    return listings.filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, level)).sort((a, b) => a.askingPrice - b.askingPrice)[0];
+    // A car: these tests drive it like one (crashes, arrests); motorcycles are covered in moto.test.ts.
+    return listings.filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, level) && getModel(x.vehicle.modelId).specs.kind !== 'bike').sort((a, b) => a.askingPrice - b.askingPrice)[0];
   };
   let l = await pick();
   // Earlier tests may have bought the lot empty: restock it now instead of waiting for the refill timer.
@@ -218,9 +219,12 @@ describe('police', () => {
     const wanted = await client.waitFor<WantedState>('police.wanted', (w) => w.stars === 3 && w.units === 2, 5000);
     expect(wanted.stars).toBe(3);
     await client.waitSnapshot((s) => (s.po?.length ?? 0) === 2, 5000);
-    // Lose them: the police cars end up far away and the player keeps clear for the escape time.
+    // 3 stars bring the helicopter too; it holds the escape clock while it sees you.
+    await client.waitFor<WantedState>('police.wanted', (x) => x.heli === 'seen', 5000);
+    // Lose them: the police cars and the helicopter end up far away and the player keeps clear for the escape time.
     const w = server.game.police.wantedOf(client.playerId)!;
     for (const u of w.units) Object.assign(u.dyn, { x: -150, z: 150, speed: 0 });
+    Object.assign(server.game.police.heliOf(client.playerId)!, { x: -150, z: 150, lostT: ECONOMY.police.heli.lostSec + 1 });
     (w as { escapeT: number }).escapeT = ECONOMY.police.escapeSec - 0.3;
     const money0 = cash(client);
     // $1,000 for each of the two police cars.

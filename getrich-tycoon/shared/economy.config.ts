@@ -559,7 +559,7 @@ export const ECONOMY = {
      * `everySec`, gone after `lifeSec`. Burst tyres: lateral grip -90%, traction -70%, until the
      * tyres are repaired.
      */
-    spikes: { stars: 3, everySec: 22, ahead: 110, lifeSec: 40, latGrip: 0.1, traction: 0.3 },
+    spikes: { stars: 3, everySec: 22, ahead: 110, lifeSec: 40, latGrip: 0.1, traction: 0.6 },
     /**
      * The helicopter from 3 stars: health, height, speed (m/s), how far it sees, how long you must
      * stay under cover for it to lose you, and how long until another one comes after it was

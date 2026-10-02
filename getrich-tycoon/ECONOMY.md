@@ -166,6 +166,23 @@ Stage 2 $3,700, Stage 3 $8,000, coilovers $2,900, chameleon paint $5,200. A full
 - Stopped (under 15 km/h) with a police car within 2.5 m for 3 s: **arrest**. Fine: always **$3,000** (`ECONOMY.police.fine`),
   from the cash first, then the bank (never below zero) (`police_fine`); "POLİSE YAKALANDIN! - $3,000 Ceza Ödendi"; the car is
   towed to the garage (no fee); you respawn at the nearest garage. Values are in `ECONOMY.police`.
+- **Spike strips** (`ECONOMY.police.spikes`): from 3 stars, every 22 s, 110 m ahead of a wanted driver on the highway or a
+  city street; a strip lasts 40 s. Bursting the tyres sets the `blown` mod and the tyres part to 0: side grip x0.1 (-90%),
+  drive/brake traction x0.6. Replacing the tyres at Wrench Bros (the normal tyres repair) clears it.
+- **Helicopter** (`ECONOMY.police.heli`): from 3 stars, 300 HP, flies at 38 m, sees 220 m. While it sees you the escape
+  timer is held. Under cover (overpass or bridge deck, car-wash tunnel, Sanayi hall) for 8 s and it loses you. Shot down: no
+  reward, but no helicopter for 60 s; shooting at it is police heat.
+
+## Hitman contracts
+
+`ECONOMY.hitman`, `shared/hitman.ts`, `server/game/services/hitman.ts`. The contact in the alley behind Wrench Bros hands
+out one contract at a time; **$1,000 + 60 XP** each (`hitman`), then a 15 s break before the next.
+
+- **Drive-by** (4 min): 6 hits on a named venue's walls (Fuel & Snacks, Hammerfall Auctions, Chroma Customs, the Used
+  Vehicle Market office) from a vehicle moving at 15 km/h or more.
+- **Hit** (5 min): a mark (2 VIPs, 2 rival gang members; 30 HP) walks round a city block; the search circle (45 m) is
+  near them, not centred on them. Killing them pays; if someone outside your vehicle kills them, the job fails.
+- Everyone in the holder's vehicle counts as the crew. Jobs run out with no penalty other than the lost reward.
 
 ## Car theft
 
@@ -268,6 +285,8 @@ stopped police car get out and shoot (5-9 damage, less accurate at range and at 
 3 HP/s after 8 s without a hit, and the hospital patches them up for $500 (`hospital`). WASTED: lockpick sets, stripped
 parts and stolen cars are lost, the wanted level is cleared, no fine. Cars have 100 body HP; at zero the engine blows (an
 owned car's engine and body drop to 0 until repaired).
+From vehicles: any passenger can shoot (out of a window or off the back of a bike); a motorcycle or quad rider only with a
+one-handed gun (Pistol, Golden Desert Eagle); a car driver can't.
 
 ## Reputation unlocks (by level)
 
