@@ -78,7 +78,10 @@
     `pursuit.ts` (CCTV sightings, the 3-minute stolen-car countdown, the car becoming the thief's), `streetRace.ts` (the race
     schedule, grid, checkpoints, bots, payouts and police), `combat.ts` (Ammu-Nation, shots traced on the server against
     buildings, cars and people, car body HP and blow-outs, pedestrians, police officers on foot, health, WASTED and the
-    hospital). Shots come in as a `fire` socket event; fired rounds are taken out of the saved inventory every 2 s.
+    hospital; passengers on a motorcycle or quad may shoot), `moto.ts` (Moto Gear helmets and visors, and bike crashes:
+    the simulation reports a flipped wheelie or a hard hit through `bikeCrashListeners`, the riders come off and are hurt
+    by `helmets.crashDamage`). Shots come in as a `fire` socket event; fired rounds are taken out of the saved inventory
+    every 2 s. The wheelie itself is shared physics (`stepWheelie` in physics.ts, part of the predicted `DynTuple`).
   - `db/` holds the PostgreSQL and SQLite adapters behind one small `Database` interface, plus the repository (row mapping, parameterized SQL).
 - **`client/`**:
   - `game/Game.ts` runs the loop, fixed-step prediction, reconciliation and interactions.
@@ -98,7 +101,8 @@
     and muzzle flash; `Game.recoilKick` moves the view by `recoilKick()` (shared/weapons.ts) and lets it settle.
     `ui/TouchControls.ts` adds the touch look area (right half of the screen, behind the HUD), the gun button and
     **ATEŞ ET**. `game/EntityViews.ts` animates getting in and out (walk to the door, door, sit) and seats the drivers;
-    `game/Busted.ts` plays the arrest cutscene; `game/Police.ts` renders police cars with wig-wag light bars.
+    `game/Busted.ts` plays the arrest cutscene; `BikeView` (render/VehicleMesh.ts) also draws the quad (four wheels, no
+    lean), the pillion seat and the wheelie pose (pivoting on the rear tyre); characters wear their helmet on bikes; `game/Police.ts` renders police cars with wig-wag light bars.
   - Car theft: `game/Theft.ts` (street cars with hazard / alarm lights, the alarm sound, lockpick and lift prompts, work
     markers and the timed strip job), `render/Sanayi.ts` (yard, hall with a roof that fades while you are inside, two-post
     lifts whose arms rise with the car, Pawn Shop with its neon), `render/StripRig.ts` (engine bay, exhaust, seats and

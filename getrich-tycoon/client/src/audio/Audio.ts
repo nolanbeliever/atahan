@@ -39,7 +39,14 @@ const EXHAUST_SOUND: Record<ExhaustType, { gain: number; cutoff: number; rpmCut:
   varex: { gain: 0.14, cutoff: 900, rpmCut: 0.14, drive: 3.5, rasp: 0.28 },
   downpipe: { gain: 0.13, cutoff: 800, rpmCut: 0.15, drive: 4, rasp: 0.32 },
   straight: { gain: 0.17, cutoff: 1300, rpmCut: 0.22, drive: 8, rasp: 0.5 },
+  // Motorcycle systems: a high, sharp race tone; a deep, loose V-twin style bark; a deep bass boom.
+  akrapovic: { gain: 0.16, cutoff: 1800, rpmCut: 0.26, drive: 6, rasp: 0.42 },
+  vance: { gain: 0.17, cutoff: 700, rpmCut: 0.12, drive: 7, rasp: 0.55 },
+  scproject: { gain: 0.18, cutoff: 520, rpmCut: 0.1, drive: 9, rasp: 0.35 },
 };
+
+/** Aftermarket motorcycle systems pop on every downshift and throttle lift. */
+const BIKE_PIPES = new Set<ExhaustType>(['akrapovic', 'vance', 'scproject']);
 
 function distortionCurve(k: number): Float32Array<ArrayBuffer> {
   const n = 512;
@@ -394,16 +401,18 @@ export class AudioSystem {
     this.lastThrottle = throttle;
     const gear = e.gear ?? 0;
     const upshift = (e.shifted ?? 0) > 0 || (e.gear !== undefined && this.lastGear > 0 && gear > this.lastGear);
+    const downshift = e.gear !== undefined && gear > 0 && this.lastGear > gear;
     this.lastGear = gear;
     const big = (e.stage ?? 0) >= 2 || (turbo && ind !== 'factory_turbo');
     if (active && (lifted || upshift) && turbo && prevBoost > 0.35) {
       if (big) this.flutter(prevBoost);
       else this.blowOff(prevBoost);
     }
-    const loudPipe = exhaust === 'varex' || exhaust === 'straight' || exhaust === 'downpipe';
-    const popChance = profile ? (loudPipe ? Math.max(profile.pops, upshift ? 0.8 : 0.6) : profile.pops) : 0;
-    if (active && !electric && profile && (lifted || (upshift && loudPipe)) && rpm > redline * 0.45 && Math.random() < popChance) {
-      const strength = Math.min(1, popChance * (exhaust === 'straight' ? 1.2 : 1));
+    const bikePipe = BIKE_PIPES.has(exhaust);
+    const loudPipe = exhaust === 'varex' || exhaust === 'straight' || exhaust === 'downpipe' || bikePipe;
+    const popChance = profile ? (bikePipe ? 0.85 : loudPipe ? Math.max(profile.pops, upshift ? 0.8 : 0.6) : profile.pops) : 0;
+    if (active && !electric && profile && (lifted || (upshift && loudPipe) || (downshift && bikePipe)) && rpm > redline * 0.4 && Math.random() < popChance) {
+      const strength = Math.min(1, popChance * (exhaust === 'straight' || exhaust === 'scproject' ? 1.2 : 1));
       this.backfire(strength);
       this.onPop?.(strength);
     }

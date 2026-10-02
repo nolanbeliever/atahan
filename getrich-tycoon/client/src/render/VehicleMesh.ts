@@ -154,6 +154,9 @@ function kitNodes(mods: VehicleMods): Set<string> {
   return on;
 }
 
+/** Motorcycle race exhausts (blue and orange pops). */
+const BIKE_EXHAUSTS = new Set(['exh_akrapovic', 'exh_vance', 'exh_scproject']);
+
 /** Short-lived backfire flames at the exhaust tips. */
 class Flames {
   private sprites: THREE.Sprite[] = [];
@@ -166,10 +169,13 @@ class Flames {
       this.sprites.push(s);
     }
   }
+  /** Motorcycle race systems: the pops flash blue as well as orange. */
+  mixBlue = false;
   pop(strength: number): void {
     this.t = 0.06 + 0.08 * strength;
     for (const s of this.sprites) {
       s.visible = true;
+      if (!this.nos) s.material = this.mixBlue && Math.random() < 0.45 ? nitroMat : flameMat;
       const k = 0.18 + Math.random() * 0.2 * (0.5 + strength);
       s.scale.set(k, k * 0.8, 1);
     }
@@ -377,8 +383,8 @@ abstract class ModelView implements AnyVehicleView {
   private still = 0;
   private disposed = false;
   private lights: VehicleLights = { brake: false, reverse: false, night: 0 };
-  private roll = 0;
-  private pitch = 0;
+  protected roll = 0;
+  protected pitch = 0;
   protected drop = 0;
   /** Body drop the air ride is heading for (m); the body moves there gradually. */
   private dropTarget = 0;
@@ -529,6 +535,7 @@ abstract class ModelView implements AnyVehicleView {
     this.applyBody();
     this.applyLights();
     this.setUnderglow(findOption(look.mods.underglow)?.value ?? 'none');
+    if (this.flames) this.flames.mixBlue = BIKE_EXHAUSTS.has(look.mods.tuning?.perf.exhaust ?? '');
     this.applyStrip(look.mods.strip?.removed ?? []);
     this.setPlate(look);
     if (this.shot) {
@@ -901,15 +908,24 @@ export class VehicleView extends ModelView {
 /** A motorcycle: leans into corners (and onto the side stand when parked), a rider mount on the seat. */
 export class BikeView extends ModelView {
   readonly isBike = true;
+  /** A quad (ATV): four wheels, the front pair steers, no leaning. */
+  readonly quad: boolean;
   /** The rider's character is parented here while riding (hips at the seat). */
   readonly riderMount = new THREE.Group();
+  /** The pillion passenger sits here, behind the rider. */
+  readonly pillionMount = new THREE.Group();
   ridden = false;
   private fork: THREE.Object3D | null = null;
   private leanAngle = 0.14;
+  /** Front wheel up (rad), pivoting on the rear tyre's contact patch. */
+  private wheelie = 0;
+  private rearZ: number;
 
   constructor(look: VehicleLook) {
     super(look);
-    this.body.add(this.riderMount);
+    this.quad = getModel(look.modelId).shape.style === 'atv';
+    this.rearZ = -this.length * 0.33;
+    this.body.add(this.riderMount, this.pillionMount);
     void this.ready.then(() => {
       const model = this.model;
       const seat = model?.getObjectByName('seat_rider');
@@ -917,7 +933,11 @@ export class BikeView extends ModelView {
         model.updateMatrixWorld(true);
         model.worldToLocal(seat.getWorldPosition(this.riderMount.position));
       }
+      this.pillionMount.position.copy(this.riderMount.position).add(new THREE.Vector3(0, 0.07, this.quad ? -0.42 : -0.38));
+      const rear = model?.getObjectByName('wheel_rear');
+      if (model && rear) this.rearZ = model.worldToLocal(rear.getWorldPosition(new THREE.Vector3())).z;
     });
+    this.pillionMount.position.set(0, 1.0, -0.6);
   }
 
   protected override found(model: THREE.Group): void {
@@ -925,8 +945,36 @@ export class BikeView extends ModelView {
     this.fork = model.getObjectByName('fork') ?? null;
   }
 
+  override passengerMount(): THREE.Group {
+    return this.pillionMount;
+  }
+
+  /** Wheelie angle from the physics (or a snapshot). */
+  setWheelie(angle: number): void {
+    if (Math.abs(angle - this.wheelie) < 1e-4) return;
+    this.wheelie = angle;
+    this.applyBody();
+  }
+
+  protected override applyBody(): void {
+    super.applyBody();
+    this.body.position.z = 0;
+    if (this.wheelie <= 0) return;
+    // Nose up, turning about the rear tyre's contact patch (which stays on the road).
+    const r = this.pitch - this.wheelie;
+    this.body.rotation.x = r;
+    this.body.position.y += this.rearZ * Math.sin(r);
+    this.body.position.z = this.rearZ * (1 - Math.cos(r));
+  }
+
   override animate(speed: number, steer: number, dt: number): void {
-    this.keepLive = this.ridden;
+    this.keepLive = this.ridden || this.wheelie > 0;
+    if (this.quad) {
+      // The front wheels steer like a car's; the bars turn with them.
+      super.animate(speed, steer, dt);
+      if (this.fork) this.fork.rotation.y = steer * 0.8;
+      return;
+    }
     super.animate(speed, 0, dt);
     if (this.fork) this.fork.rotation.y = steer * 0.9;
     // Lean into corners when moving; on the side stand when parked; nearly upright (foot down) when ridden.

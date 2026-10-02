@@ -24,7 +24,7 @@ afterAll(async () => {
 async function driveCar(client: TestClient): Promise<string> {
   const { listings } = await client.rpc('market.list', {});
   const l = listings
-    .filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, 1) && passengerSeats(getModel(x.vehicle.modelId)) > 0)
+    .filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, 1) && passengerSeats(getModel(x.vehicle.modelId)) > 0 && getModel(x.vehicle.modelId).specs.kind !== 'bike')
     .sort((a, b) => a.askingPrice - b.askingPrice)[0]!;
   const { vehicle } = await client.rpc('market.buy', { listingId: l.id, expectedPrice: l.askingPrice });
   const uow = server.game.state.begin();

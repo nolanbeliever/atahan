@@ -200,14 +200,20 @@ export class CombatService {
     const w = typeof wid === 'string' ? weapon(wid) : undefined;
     if (!w || ![x, y, z, yaw, pitch, n].every((v) => typeof v === 'number' && Number.isFinite(v))) return false;
     const c = this.ctx.sim.chars.get(playerId);
-    if (!c || c.drivingId || c.ridingId || c.dead) return false;
+    if (!c || c.drivingId || c.dead) return false;
+    // Passengers can shoot from the back of a motorcycle or a quad (not from inside a car).
+    const ride = c.ridingId ? this.ctx.sim.drives.get(c.ridingId) : undefined;
+    if (c.ridingId && !ride?.params.bike) return false;
     if (this.equipped.get(playerId) !== w.id) return false;
     if (this.police.wantedOf(playerId)?.busted) return false;
     // Fire rate (a little slack for network jitter).
     const last = this.lastShot.get(playerId) ?? 0;
     if (now - last < (1000 / w.rate) * 0.75) return false;
-    // From where the player stands.
-    if (Math.hypot((x as number) - c.x, (z as number) - c.z) > 1.6 || (y as number) < 0.6 || (y as number) > 2.2) return false;
+    // From where the player stands (on a moving bike: where the bike is, give or take what the
+    // client saw a moment ago).
+    const at = ride ? ride.dyn : c;
+    const slack = ride ? 2.5 + Math.abs(ride.dyn.speed) * 0.5 : 1.6;
+    if (Math.hypot((x as number) - at.x, (z as number) - at.z) > slack || (y as number) < 0.6 || (y as number) > 2.4) return false;
     if (this.ammoLeft(playerId, w.ammo) < 1) return false;
     this.lastShot.set(playerId, now);
     const spent = this.spent.get(playerId) ?? new Map<string, number>();
@@ -215,7 +221,7 @@ export class CombatService {
     this.spent.set(playerId, spent);
     for (let i = 0; i < w.pellets; i++) {
       const aim = spreadAim(yaw as number, pitch as number, w.spread, (n as number) * 13 + i * 7 + 1);
-      this.trace(playerId, w, aimRay(x as number, y as number, z as number, aim.yaw, aim.pitch), now, i === 0);
+      this.trace(playerId, w, aimRay(x as number, y as number, z as number, aim.yaw, aim.pitch), now, i === 0, c.ridingId);
     }
     // Every shot is heard, witnesses or not: the nearest patrol is called to the scene (2 stars).
     const before = this.police.starsOf(playerId);
@@ -228,7 +234,7 @@ export class CombatService {
   }
 
   /** Follow one pellet: the first thing in its way takes the damage. */
-  private trace(shooter: string, w: WeaponDef, r: Ray2, now: number, sound: boolean): void {
+  private trace(shooter: string, w: WeaponDef, r: Ray2, now: number, sound: boolean, own: string | null = null): void {
     let best = w.range;
     let kind: ShotFx['hit'] = 'air';
     let n: [number, number, number] | undefined;
@@ -263,6 +269,8 @@ export class CombatService {
     }
     // Cars (parked and driven, street cars, police, highway traffic near players).
     for (const v of this.ctx.sim.collisionWorld.vehicles) {
+      // Not the bike you are sitting on.
+      if (v.id === own) continue;
       const hit = rayObb(r, v.x, v.z, v.rot, v.hl, v.hw);
       if (!hit || hit.t >= best) continue;
       const y = rayY(r, hit.t);

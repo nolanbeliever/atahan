@@ -1,10 +1,11 @@
-// Vehicle catalog. The regular catalogue uses fictional brands that are original to GetRich Tycoon.
-// The exclusive models sold only by the Rare Dealer (see specialVehicles.ts) are real cars.
+// Vehicle catalog. The regular catalogue uses fictional brands that are original to GetRich Tycoon,
+// except the motorcycles (real bikes, by name only: stand-in 3D bodies, no logos). The exclusive
+// models sold only by the Rare Dealer (see specialVehicles.ts) are real cars.
 
 import { SPECIAL_MODELS } from './specialVehicles';
 import type { VehicleCategory } from './types';
 
-export type BodyStyle = 'hatch' | 'sedan' | 'suv' | 'coupe' | 'pickup' | 'van' | 'classic' | 'wagon' | 'bike';
+export type BodyStyle = 'hatch' | 'sedan' | 'suv' | 'coupe' | 'pickup' | 'van' | 'classic' | 'wagon' | 'bike' | 'atv';
 
 /** Rarity tiers used by the Rare Dealer rotation (see rareMarket.ts). */
 export type RarityTier = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
@@ -325,6 +326,83 @@ export const VEHICLE_MODELS: VehicleModel[] = [
     colors: ['#c1121f', '#003049', '#fdf0d5', '#283618', '#e9c46a'],
     description: 'Rare two-seat roadster. Collectors fight over clean examples.',
   },
+  // ---------------------------------------------------------------- motorcycles & quad
+  // Two-wheelers and the quad use the motorcycle physics (kind 'bike'): one rider plus a pillion.
+  {
+    id: 'yamaha_mt09',
+    brand: 'Yamaha',
+    name: 'MT-09',
+    category: 'moto',
+    year: 2024,
+    basePrice: 11_500,
+    rarity: 1.15,
+    tier: 'uncommon',
+    shape: { style: 'bike', length: 2.09, width: 0.82, bodyHeight: 0.9, cabinHeight: 0.4, cabinLength: 0.45, cabinOffset: -0.04, cabinTaper: 0.14, rideHeight: 0.3, wheelRadius: 0.31, wheelWidth: 0.18 },
+    perf: { topSpeed: 29.8, accel: 12, brake: 12.5, handling: 1.15 },
+    specs: { kind: 'bike', hp: 119, torque: 93, weight: 193, topSpeed: 230, accel: 3.2, redline: 11000, aspiration: 'na', drive: 'rwd', cylinders: 3 },
+    colors: ['#2a3a8c', '#4c4f55', '#16171a', '#b8bcc2'],
+    description: 'Three-cylinder streetfighter: a howling triple, a short tail and wheelies on demand.',
+  },
+  {
+    id: 'yamaha_tracer7',
+    brand: 'Yamaha',
+    name: 'Tracer 7',
+    category: 'moto',
+    year: 2024,
+    basePrice: 10_500,
+    rarity: 1.05,
+    tier: 'common',
+    shape: { style: 'bike', length: 2.14, width: 0.84, bodyHeight: 0.9, cabinHeight: 0.4, cabinLength: 0.45, cabinOffset: -0.04, cabinTaper: 0.14, rideHeight: 0.3, wheelRadius: 0.31, wheelWidth: 0.17 },
+    perf: { topSpeed: 26.9, accel: 10.6, brake: 12, handling: 1.08 },
+    specs: { kind: 'bike', hp: 73, torque: 67, weight: 196, topSpeed: 210, accel: 3.9, redline: 10000, aspiration: 'na', drive: 'rwd', cylinders: 2 },
+    colors: ['#3b3e44', '#1f4fa0', '#c7c9cc', '#16171a'],
+    description: 'Sport tourer with a half fairing, a tall screen and panniers: fast and comfy all day.',
+  },
+  {
+    id: 'ktm_duke390',
+    brand: 'KTM',
+    name: '390 Duke',
+    category: 'moto',
+    year: 2024,
+    basePrice: 6_200,
+    rarity: 1,
+    tier: 'common',
+    shape: { style: 'bike', length: 2.0, width: 0.8, bodyHeight: 0.9, cabinHeight: 0.4, cabinLength: 0.45, cabinOffset: -0.04, cabinTaper: 0.14, rideHeight: 0.3, wheelRadius: 0.3, wheelWidth: 0.16 },
+    perf: { topSpeed: 21.1, accel: 9.4, brake: 12, handling: 1.2 },
+    specs: { kind: 'bike', hp: 44, torque: 39, weight: 165, topSpeed: 170, accel: 4.7, redline: 11000, aspiration: 'na', drive: 'rwd', cylinders: 1 },
+    colors: ['#f05a14', '#e9e9e4', '#16171a'],
+    description: 'Light single-cylinder naked bike with an orange trellis frame. Nimble in town.',
+  },
+  {
+    id: 'yamaha_yz250',
+    brand: 'Yamaha',
+    name: 'YZ250 (motocross)',
+    category: 'moto',
+    year: 2024,
+    basePrice: 8_400,
+    rarity: 1.1,
+    tier: 'uncommon',
+    shape: { style: 'bike', length: 2.17, width: 0.83, bodyHeight: 0.95, cabinHeight: 0.4, cabinLength: 0.45, cabinOffset: -0.04, cabinTaper: 0.14, rideHeight: 0.36, wheelRadius: 0.36, wheelWidth: 0.12 },
+    perf: { topSpeed: 14.5, accel: 11.3, brake: 11, handling: 1.2 },
+    specs: { kind: 'bike', hp: 40, torque: 36, weight: 103, topSpeed: 125, accel: 3.5, redline: 9500, aspiration: 'na', drive: 'rwd', cylinders: 1 },
+    colors: ['#1f4fa0', '#e9e9e4'],
+    description: 'Two-stroke motocross bike: featherweight, screaming and always ready to lift the front.',
+  },
+  {
+    id: 'granforge_mudhog',
+    brand: 'Granforge',
+    name: 'Mudhog 700 4x4 ATV',
+    category: 'moto',
+    year: 2023,
+    basePrice: 9_800,
+    rarity: 1.05,
+    tier: 'common',
+    shape: { style: 'atv', length: 2.07, width: 1.2, bodyHeight: 0.9, cabinHeight: 0.4, cabinLength: 0.45, cabinOffset: -0.04, cabinTaper: 0.14, rideHeight: 0.3, wheelRadius: 0.3, wheelWidth: 0.24 },
+    perf: { topSpeed: 11.6, accel: 7.3, brake: 10, handling: 0.95 },
+    specs: { kind: 'bike', hp: 46, torque: 54, weight: 300, topSpeed: 105, accel: 7, redline: 7500, aspiration: 'na', drive: 'awd', cylinders: 1 },
+    colors: ['#3d5a2a', '#c1121f', '#1d1f22', '#e2a12b'],
+    description: 'Four-wheel-drive quad with racks front and back. Room for a passenger behind you.',
+  },
 ];
 
 /** Models that appear on the used market, at auctions and with NPC sellers. */
@@ -379,4 +457,5 @@ export const CATEGORY_LABELS: Record<VehicleCategory, string> = {
   truck: 'Truck',
   classic: 'Classic',
   utility: 'Utility',
+  moto: 'Moto & ATV',
 };

@@ -104,6 +104,12 @@ export const highDetailVehicles: HighDetailVehicle[] = [
   car('solenne_monarch', 'Solenne Monarch'),
   car('harlan_bellwether', "Harlan & Finch Bellwether '62"),
   car('harlan_duchess', "Harlan & Finch Duchess '58"),
+  // Motorcycles and the quad (stand-in bodies in the spirit of each bike; no logos).
+  car('yamaha_mt09', 'Yamaha MT-09'),
+  car('yamaha_tracer7', 'Yamaha Tracer 7'),
+  car('ktm_duke390', 'KTM 390 Duke'),
+  car('yamaha_yz250', 'Yamaha YZ250'),
+  car('granforge_mudhog', 'Granforge Mudhog 700 4x4'),
   // Rare Dealer (real cars): replace these with licensed models of the real vehicles.
   car('bmw_i7_g70', 'BMW i7 (G70)'),
   car('bmw_m3_g80', 'BMW M3 Competition (G80)'),

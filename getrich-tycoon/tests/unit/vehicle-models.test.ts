@@ -113,7 +113,9 @@ describe('default car models', () => {
       expect(b.min.y).toBeGreaterThanOrEqual(-0.02);
       expect(size.y).toBeGreaterThan(m.specs.kind === 'bike' ? 0.8 : 1);
       if (m.specs.kind === 'bike') {
-        for (const n of ['fork', 'wheel_front', 'wheel_rear', 'seat_rider']) expect(b.names.has(n), `${m.id} ${n}`).toBe(true);
+        // Two wheels (or the quad's four), the steering, the rider's seat and an exhaust tip.
+        const wheels = m.shape.style === 'atv' ? ['wheel_fl', 'wheel_fr', 'wheel_rl', 'wheel_rr'] : ['wheel_front', 'wheel_rear'];
+        for (const n of ['fork', 'seat_rider', 'exhaust_0', ...wheels]) expect(b.names.has(n), `${m.id} ${n}`).toBe(true);
       } else {
         for (const n of ['wheel_fl', 'wheel_fr', 'wheel_rl', 'wheel_rr', 'seat_driver', 'headlights', 'taillights', 'kits', 'kit_wing_gt']) expect(b.names.has(n), `${m.id} ${n}`).toBe(true);
         // Combustion cars have exhaust tips (for backfire flames); electric cars don't.

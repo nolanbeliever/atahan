@@ -55,7 +55,7 @@ import { HighwayView } from '../render/Highway';
 import { TrafficView } from '../render/TrafficView';
 import { Effects } from '../render/Effects';
 import { Renderer } from '../render/Renderer';
-import { createVehicleView, type AnyVehicleView, type VehicleView } from '../render/VehicleMesh';
+import { BikeView, createVehicleView, type AnyVehicleView, type VehicleView } from '../render/VehicleMesh';
 import { CockpitRig } from '../render/Cockpit';
 import { GunView } from '../render/GunView';
 import { Rain, setRoadWetness } from '../render/Weather';
@@ -356,6 +356,19 @@ export class Game {
       this.ui?.wanted.set(w);
     });
     net.on('police.busted', (e) => this.startBusted(e));
+    net.on('moto.crash', (e) => {
+      // Sparks off the tarmac (a shower of them from a helmet scraping along), a thud.
+      const me = this.localPosition();
+      const d = Math.hypot(me.x - e.x, me.z - e.z);
+      if (d > 160) return;
+      const helmet = e.riders.some((r) => r.helmet);
+      this.combat.fx.sparks(new THREE.Vector3(e.x, 0.3, e.z), helmet ? 46 : 26);
+      this.audio.boom(Math.max(0.05, 0.45 * (1 - d / 160)));
+      if (e.riders.some((r) => r.id === this.store.playerId)) {
+        this.combat.fx.shake = Math.max(this.combat.fx.shake, 0.5);
+        this.ui?.toast({ kind: 'warning', title: e.flipped ? 'Motor devrildi!' : 'KAZA!', text: `${e.kmh} km/s` });
+      }
+    });
     net.on('police.escaped', (d) => {
       this.ui?.wanted.escaped(d.reward, d.xp, d.cars);
       this.audio.play('levelup');
@@ -498,6 +511,7 @@ export class Game {
       e.driven = true;
       e.lastDriven = now;
       e.buffer.push({ t: now, x: v[1], z: v[2], r: v[3], a: v[4], b: v[5], rpm: v[6], gear: v[7], f: v[8] });
+      e.wheelie = v[9] ?? 0;
     }
     const alive = new Set<string>();
     for (const n of s.n) {
@@ -737,6 +751,7 @@ export class Game {
       speed: this.dyn?.speed ?? 0,
       steer: this.dyn?.steer ?? 0,
       flags,
+      wheelie: this.dyn?.wheelie ?? 0,
     });
 
     const camera = this.renderer.camera;
@@ -1378,12 +1393,29 @@ export class Game {
     camera.quaternion.copy(body).multiply(look);
   }
 
-  /** A gun drawn on foot: first person, looking down the sights. */
+  /** A gun drawn on foot or on the back of a bike: first person, looking down the sights. */
   private sightsActive(): boolean {
-    return !!this.combat.equipped && !this.driving && !this.riding && !this.combat.dead && !this.busted;
+    return !!this.combat.equipped && !this.driving && (!this.riding || this.onPillion()) && !this.combat.dead && !this.busted;
   }
 
-  /** First person on foot: the camera at the eyes, the recoil kicking it up and settling slowly. */
+  /** The front wheel's height on our wheelie (rad), if riding. */
+  wheelieAngle(): number | null {
+    return this.driving && this.dyn ? this.dyn.wheelie ?? 0 : null;
+  }
+
+  /** Riding a two-wheeler (it can wheelie), not a quad. */
+  onTwoWheeler(): boolean {
+    const v = this.driving ? this.entities.vehicles.get(this.driving)?.view : undefined;
+    return v instanceof BikeView && !v.quad;
+  }
+
+  /** Riding on the back of a motorcycle or a quad. */
+  onPillion(): boolean {
+    const e = this.riding ? this.entities.vehicles.get(this.riding.vehicleId) : undefined;
+    return !!e?.view.isBike;
+  }
+
+  /** First person on foot (or on the pillion): the camera at the eyes, the recoil kicking it up and settling slowly. */
   private updateSightsCamera(x: number, z: number, dt: number): void {
     const r = this.recoil;
     const settle = Math.exp(-dt * r.recover);
@@ -1392,7 +1424,12 @@ export class Game {
     if (performance.now() - r.at > 350) r.burst = 0;
     const camera = this.renderer.camera;
     const yaw = this.cam.yaw;
-    camera.position.set(x + Math.sin(yaw) * 0.12, groundHeight(x, z) + EYE_HEIGHT, z + Math.cos(yaw) * 0.12);
+    const bike = this.riding ? this.entities.vehicles.get(this.riding.vehicleId)?.view : undefined;
+    if (bike instanceof BikeView) {
+      // Seated behind the rider, looking over their shoulder; free to look all round.
+      bike.root.updateMatrixWorld(true);
+      bike.passengerMount().localToWorld(camera.position.set(-0.2, 0.9, 0.05));
+    } else camera.position.set(x + Math.sin(yaw) * 0.12, groundHeight(x, z) + EYE_HEIGHT, z + Math.cos(yaw) * 0.12);
     camera.quaternion.setFromEuler(new THREE.Euler(this.aimPitch + r.pitch, yaw + Math.PI + r.yaw, 0, 'YXZ'));
   }
 

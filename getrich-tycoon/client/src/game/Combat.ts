@@ -41,7 +41,7 @@ export class CombatClient {
       return !!this.equipped;
     }
     const m = /^Digit([1-6])$/.exec(code);
-    if (!m || this.game.driving || this.game.riding) return false;
+    if (!m || this.game.driving || (this.game.riding && !this.game.onPillion())) return false;
     const slot = Number(m[1]);
     const inv = this.game.store.me?.inventory ?? {};
     const w = ownedWeapons(inv).find((x) => x.slot === slot);
@@ -61,7 +61,7 @@ export class CombatClient {
 
   /** The touch gun button: draw the first gun, then the next one, then put it away. */
   cycleWeapon(): void {
-    if (this.game.driving || this.game.riding || this.dead) return;
+    if (this.game.driving || (this.game.riding && !this.game.onPillion()) || this.dead) return;
     const guns = this.owned();
     if (!guns.length) {
       this.game.ui?.toast({ kind: 'info', title: 'Silahın yok', text: 'Ammu-Nation (east of the city, past the outer road) sells guns and ammo.' });
@@ -122,7 +122,9 @@ export class CombatClient {
       if (hit && hit.t < best && rayY(r, hit.t) <= b.height) best = hit.t;
     }
     const me = this.game.store.playerId;
+    const own = this.game.riding?.vehicleId;
     for (const box of this.carBoxes()) {
+      if (box.id === own) continue;
       const hit = rayObb(r, box.x, box.z, box.rot, box.hl, box.hw);
       if (hit && hit.t < best && hit.t > 0.5) {
         const y = rayY(r, hit.t);
@@ -152,6 +154,14 @@ export class CombatClient {
 
   /** The muzzle of the drawn gun (world). */
   private muzzle(): THREE.Vector3 {
+    // On the back of a bike: just in front of the eyes, where the camera is.
+    if (this.game.onPillion()) {
+      const cam = this.game.renderer.camera;
+      const d = cam.getWorldDirection(new THREE.Vector3());
+      d.y = 0;
+      d.normalize();
+      return cam.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, -0.3, 0)).addScaledVector(d, 0.45);
+    }
     const p = this.game.localPosition();
     const rot = p.rot;
     const fwd = new THREE.Vector3(Math.sin(rot), 0, Math.cos(rot));
@@ -167,7 +177,8 @@ export class CombatClient {
     this.cooldown -= dt;
     const w = this.equipped;
     const input = this.game.input;
-    const canFire = !!w && !this.dead && !this.game.driving && !this.game.riding && !this.game.inCutscene && input.enabled && !this.game.ui?.anyOpen();
+    // On foot, or on the back of a motorcycle / quad (shooting backwards and sideways while moving).
+    const canFire = !!w && !this.dead && !this.game.driving && (!this.game.riding || this.game.onPillion()) && !this.game.inCutscene && input.enabled && !this.game.ui?.anyOpen();
     const clicks = input.consumeFire();
     // The RPG shows where it will land.
     if (canFire && w!.blast) this.fx.setLaser(this.muzzle(), this.aimPoint());

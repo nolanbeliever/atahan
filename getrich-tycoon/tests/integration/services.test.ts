@@ -28,7 +28,7 @@ function goTo(client: TestClient, kind: string) {
 
 async function buyCheapest(client: TestClient) {
   const { listings } = await client.rpc('market.list', {});
-  const l = listings.filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, 1)).sort((a, b) => a.askingPrice - b.askingPrice)[0]!;
+  const l = listings.filter((x) => isCategoryUnlocked(getModel(x.vehicle.modelId).category, 1) && getModel(x.vehicle.modelId).specs.kind !== 'bike').sort((a, b) => a.askingPrice - b.askingPrice)[0]!;
   return (await client.rpc('market.buy', { listingId: l.id, expectedPrice: l.askingPrice })).vehicle;
 }
 

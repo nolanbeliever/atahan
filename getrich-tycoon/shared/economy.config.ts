@@ -89,6 +89,7 @@ export const ECONOMY = {
     classic: 3,
     sports: 4,
     luxury: 6,
+    moto: 1,
   } satisfies Record<VehicleCategory, number>,
 
   xp: {
@@ -177,6 +178,7 @@ export const ECONOMY = {
       classic: 6,
       sports: 8,
       luxury: 5,
+      moto: 7,
     } satisfies Record<VehicleCategory, number>,
     /** Negotiation session lifetime (seconds). */
     negotiationTtlSec: 300,
@@ -498,6 +500,33 @@ export const ECONOMY = {
   },
 
   /** Wanted level and police pursuits. */
+  /**
+   * Motorcycles and quads: wheelies (Shift / the WHEELIE button) and coming off. The wheelie lifts
+   * the front from wheelieMinKmh with the throttle open; past the balance point the bike flips.
+   * Crashes hurt the rider and the pillion (see helmets.crashDamage).
+   */
+  bikes: {
+    wheelieMinKmh: 65,
+    /** Below this the front drops whatever you do. */
+    wheelieHoldKmh: 25,
+    /** Lift (rad/s^2) with the key and throttle, gravity at level, damping (1/s), front brake. */
+    wheelieLift: 7.2,
+    wheelieGravity: 5,
+    wheelieDamp: 2.2,
+    wheelieBrake: 7,
+    /** Balance point and the angle where it flips over backwards (rad). */
+    wheelieBalance: 0.95,
+    wheelieFlip: 1.22,
+    /** Crash damage: none under safeKmh, fatal without a helmet from fatalKmh. */
+    safeKmh: 25,
+    fatalKmh: 60,
+    crashBase: 15,
+    crashPerKmh: 0.9,
+    helmetCut: 0.6,
+    /** An impact this hard (game m/s along the normal) throws the rider off. */
+    crashImpact: 5,
+  },
+
   police: {
     /** Heat per offence; stars = ceil(heat / 100), up to 5. */
     heatNearMissFast: 40,

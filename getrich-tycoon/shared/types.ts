@@ -15,7 +15,8 @@ export type VehicleCategory =
   | 'luxury'
   | 'truck'
   | 'classic'
-  | 'utility';
+  | 'utility'
+  | 'moto';
 
 export const VEHICLE_CATEGORIES: readonly VehicleCategory[] = [
   'compact',
@@ -26,6 +27,7 @@ export const VEHICLE_CATEGORIES: readonly VehicleCategory[] = [
   'truck',
   'classic',
   'utility',
+  'moto',
 ];
 
 /** Mechanical/cosmetic parts that can be repaired. */
@@ -207,6 +209,10 @@ export interface Appearance {
   shirt: string;
   pants: string;
   hair: string;
+  /** Motorcycle helmet (shared/helmets.ts) worn on bikes and quads, its visor and paint. */
+  helmet?: string | null;
+  visor?: string | null;
+  helmetColor?: string | null;
 }
 
 /** Public information about a player that everyone can see. */
@@ -276,7 +282,8 @@ export type TransactionKind =
   | 'race'
   | 'weapon'
   | 'hospital'
-  | 'police_escape';
+  | 'police_escape'
+  | 'moto_gear';
 
 export interface Transaction {
   id: string;
@@ -319,10 +326,10 @@ export type AnimState = (typeof Anim)[keyof typeof Anim];
 /** Compact snapshot tuples (bandwidth): [id, x, z, rot, anim, drivingVehicleId, ridingVehicleId, passenger seat, gun slot] */
 export type PlayerSnap = [string, number, number, number, number, string | null, (string | null)?, number?, number?];
 /**
- * [id, x, z, rot, speed, steer, rpm, gear, flags (VF)] - only vehicles that are currently being
- * driven.
+ * [id, x, z, rot, speed, steer, rpm, gear, flags (VF), wheelie (rad, motorcycles with the front
+ * up)?] - only vehicles that are currently being driven.
  */
-export type VehicleSnap = [string, number, number, number, number, number, number, number, number];
+export type VehicleSnap = [string, number, number, number, number, number, number, number, number, number?];
 /** Flags of a driven vehicle in a snapshot. */
 export const VF = {
   BRAKE: 1,

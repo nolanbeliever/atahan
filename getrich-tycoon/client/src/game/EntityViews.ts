@@ -123,6 +123,8 @@ export interface VehEntity {
   strip: StripRig | null;
   /** Current lift height (m). */
   lift: number;
+  /** Motorcycle wheelie (rad): from our own physics or the last snapshot. */
+  wheelie: number;
 }
 
 export class EntityViews {
@@ -169,6 +171,7 @@ export class EntityViews {
       e.view.setAppearance(appearance);
       e.label?.set(name, { badge: String(level), badgeColor: '#7a5cff' });
     }
+    e.view.setHelmet(appearance.helmet, appearance.visor, appearance.helmetColor ?? '#e9e9e4');
     return e;
   }
 
@@ -222,7 +225,7 @@ export class EntityViews {
     if (!e) {
       const view = createVehicleView(v);
       this.scene.add(view.root);
-      e = { view, lastSpeed: 0, accel: 0, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation, lights: null, roll: 0, pitch: 0, aLong: 0, prevRot: v.rotation, strip: null, lift: 0 };
+      e = { view, lastSpeed: 0, accel: 0, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation, lights: null, roll: 0, pitch: 0, aLong: 0, prevRot: v.rotation, strip: null, lift: 0, wheelie: 0 };
       this.vehicles.set(v.id, e);
     } else {
       e.view.update(v);
@@ -307,7 +310,7 @@ export class EntityViews {
   update(
     dt: number,
     now: number,
-    local: { id: string; x: number; z: number; rot: number; anim: number; driving: string | null; riding: { vehicleId: string; seat: number } | null; speed: number; steer: number; flags: number },
+    local: { id: string; x: number; z: number; rot: number; anim: number; driving: string | null; riding: { vehicleId: string; seat: number } | null; speed: number; steer: number; flags: number; wheelie?: number },
   ): void {
     const renderT = now - INTERP_DELAY_MS;
     // Vehicles
@@ -322,6 +325,7 @@ export class EntityViews {
         speed = local.speed;
         steer = local.steer;
         flags = local.flags;
+        e.wheelie = local.wheelie ?? 0;
         e.driven = true;
       } else if (e.driven && now - e.lastDriven < 400) {
         const s = e.buffer.sample(renderT);
@@ -335,6 +339,7 @@ export class EntityViews {
         }
       } else if (e.driven && local.driving !== id) {
         e.driven = false;
+        e.wheelie = 0;
         e.x = e.data.x;
         e.z = e.data.z;
         e.rot = e.data.rotation;
@@ -377,7 +382,10 @@ export class EntityViews {
         e.accel = e.accel * 0.8 + a * 0.2;
       }
       e.lastSpeed = speed;
-      if (e.view instanceof BikeView) e.view.ridden = e.driven;
+      if (e.view instanceof BikeView) {
+        e.view.ridden = e.driven;
+        e.view.setWheelie(e.wheelie);
+      }
       // Brake, reverse and tail lights; headlights on while someone drives it at night (or flashes).
       e.view.setLights({ brake: e.driven && (flags & VF.BRAKE) !== 0, reverse: e.driven && (flags & VF.REVERSE) !== 0, night: e.driven ? this.night : 0 });
       e.view.setNitro(e.driven && (flags & VF.NITRO) !== 0);
@@ -429,6 +437,24 @@ export class EntityViews {
       const ride = driving ? this.vehicles.get(driving)?.view : undefined;
       const carried = riding ? this.vehicles.get(riding.vehicleId)?.view : undefined;
       e.view.pose = 'none';
+      // Helmet on for motorcycles and quads (riding or on the back).
+      e.view.wearHelmet(ride instanceof BikeView || carried instanceof BikeView);
+      if (carried instanceof BikeView && !puppet) {
+        // Pillion: astride behind the rider (hidden for ourselves when looking down a gun's sights).
+        const mount = carried.passengerMount();
+        if (e.view.root.parent !== mount) mount.add(e.view.root);
+        e.board = null;
+        e.view.root.visible = !(id === local.id && this.hideLocalBody);
+        e.view.root.position.set(0, -0.86, 0.04);
+        e.view.root.rotation.set(0, 0, 0);
+        e.view.animate(Anim.Drive, dt);
+        const veh = this.vehicles.get(riding!.vehicleId)!;
+        if (e.label) {
+          e.label.sprite.visible = this.showNames;
+          e.label.sprite.position.set(veh.x, groundHeight(veh.x, veh.z) + veh.lift + carried.height + 1.3, veh.z);
+        }
+        continue;
+      }
       if (carried && !carried.isBike && !puppet) {
         // Passengers sit in their seat.
         const mount = carried.passengerMount(riding!.seat);

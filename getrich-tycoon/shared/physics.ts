@@ -1,7 +1,8 @@
 // Deterministic movement & collision shared by server (authoritative) and
 // client (prediction). Keep this file free of DOM/Node APIs.
 
-import { G, SPEED_SCALE, driveStep, powertrainFor, topSpeedOf, tuningKey, type DriveOut, type DriveState, type Powertrain } from './drivetrain';
+import { ECONOMY } from './economy.config';
+import { G, KMH_PER_MS, SPEED_SCALE, driveStep, powertrainFor, topSpeedOf, tuningKey, type DriveOut, type DriveState, type Powertrain } from './drivetrain';
 import { HIGHWAY_BARRIERS, inGap, nearHighway, projectToHighway } from './highway';
 import { circleVsObb, obbCorners, obbNear, obbVsCircle, obbVsObb, type Contact, type OBB } from './obb';
 import type { VehicleCondition, VehicleMods } from './types';
@@ -14,6 +15,7 @@ export const KEY = {
   BACK: 2,
   LEFT: 4,
   RIGHT: 8,
+  /** On foot: run. On a motorcycle: wheelie (with the throttle open). */
   SPRINT: 16,
   BRAKE: 32,
   /** Horn + headlight flash: slower traffic ahead moves over. */
@@ -267,23 +269,26 @@ export interface VehicleDyn extends DriveState {
   yaw: number;
   /** Slip angle: velocity direction minus heading (rad). */
   slip: number;
+  /** Motorcycle wheelie: front wheel up (rad) and how fast it is rising (rad/s). */
+  wheelie?: number;
+  wheelieV?: number;
 }
 
 export function newVehicleDyn(x: number, z: number, rot: number): VehicleDyn {
-  return { x, z, rot, steer: 0, input: 0, yaw: 0, slip: 0, speed: 0, rpm: 0, gear: 1, shift: 0, boost: 0, thr: 0, brk: 0, nitro: 0 };
+  return { x, z, rot, steer: 0, input: 0, yaw: 0, slip: 0, speed: 0, rpm: 0, gear: 1, shift: 0, boost: 0, thr: 0, brk: 0, nitro: 0, wheelie: 0, wheelieV: 0 };
 }
 
 /** Compact wire format of the authoritative vehicle state (see SelfSnap). */
-export type DynTuple = [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
+export type DynTuple = [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 
 export function dynToTuple(d: VehicleDyn): DynTuple {
   const r = (v: number, k = 1000) => Math.round(v * k) / k;
-  return [r(d.x), r(d.z), r(d.rot, 10000), r(d.speed), r(d.steer, 10000), r(d.input, 10000), r(d.yaw, 10000), r(d.slip, 10000), Math.round(d.rpm), d.gear, r(d.shift), r(d.boost), r(d.thr), r(d.brk), r(d.nitro ?? 0)];
+  return [r(d.x), r(d.z), r(d.rot, 10000), r(d.speed), r(d.steer, 10000), r(d.input, 10000), r(d.yaw, 10000), r(d.slip, 10000), Math.round(d.rpm), d.gear, r(d.shift), r(d.boost), r(d.thr), r(d.brk), r(d.nitro ?? 0), r(d.wheelie ?? 0, 10000), r(d.wheelieV ?? 0, 10000)];
 }
 
 export function dynFromTuple(t: readonly number[]): VehicleDyn {
-  const [x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk, nitro] = t as DynTuple;
-  return { x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk, nitro: nitro ?? 0 };
+  const [x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk, nitro, wheelie, wheelieV] = t as DynTuple;
+  return { x, z, rot, speed, steer, input, yaw, slip, rpm, gear, shift, boost, thr, brk, nitro: nitro ?? 0, wheelie: wheelie ?? 0, wheelieV: wheelieV ?? 0 };
 }
 
 export interface VehicleParams {
@@ -300,6 +305,10 @@ export interface VehicleParams {
   inertia: number;
   /** Top speed (game m/s) for the HUD and sounds. */
   topSpeed: number;
+  /** A two-wheeler: can wheelie (Shift). */
+  wheelie: boolean;
+  /** A motorcycle or a quad: the rider sits in the open (crashes throw them off). */
+  bike: boolean;
 }
 
 const paramsCache = new Map<string, VehicleParams>();
@@ -335,6 +344,8 @@ export function vehicleParams(model: VehicleModel, condition: VehicleCondition, 
     lock: bike ? 0.5 : 0.62,
     inertia: Math.sqrt(clamp(pt.mass / 1500, 0.5, 2.4)),
     topSpeed: topSpeedOf(pt) / SPEED_SCALE,
+    wheelie: bike && model.shape.style !== 'atv',
+    bike,
   };
   if (paramsCache.size > 300) paramsCache.clear();
   paramsCache.set(key, p);
@@ -353,6 +364,8 @@ export interface VehicleStepResult {
   distance: number;
   /** A vehicle (other car, traffic) that was touched. */
   hitId?: string;
+  /** A wheelie went past the balance point: the bike flipped over backwards (the rider comes off). */
+  flipped?: boolean;
   /** ABS working, wheels locked, wheelspin, sliding, gear change - for sounds and effects. */
   abs: boolean;
   locked: boolean;
@@ -413,7 +426,9 @@ function stepVehicleOnce(v: VehicleDyn, keys: number, dt: number, p: VehiclePara
   v.input += (sIn - v.input) * (1 - Math.exp(-dt / tauS));
   // The usable steering lock shrinks with speed (a little past the grip limit at full lock).
   const lockGrip = Math.atan((aLat * 1.12 * p.wheelbase) / Math.max(1, av * av));
-  const lock = Math.min(p.lock, Math.max(0.025, lockGrip));
+  // Front wheel in the air: you steer by leaning only, much less.
+  const up = (v.wheelie ?? 0) > 0.12 ? 0.35 : 1;
+  const lock = Math.min(p.lock, Math.max(0.025, lockGrip)) * up;
   v.steer = v.input * lock;
   const slide = handbrake && av > 3;
   let wT = (vg * Math.tan(v.steer)) / p.wheelbase;
@@ -505,6 +520,42 @@ function stepVehicleOnce(v: VehicleDyn, keys: number, dt: number, p: VehiclePara
     if (c.hitId) res.hitId = c.hitId;
   }
   res.distance += Math.hypot(v.x - ox, v.z - oz);
+  if (p.wheelie) stepWheelie(v, keys, throttle > 0 && !reverse, brake > 0 || handbrake, dt, res);
+}
+
+/**
+ * Wheelie: holding the wheelie key with the throttle open above wheelieMinKmh lifts the front.
+ * Gravity pulls it back down below the balance point and over backwards past it, so you keep it
+ * up by feathering the key; the brake brings it down. Past wheelieFlip the bike flips.
+ */
+export function stepWheelie(v: VehicleDyn, keys: number, throttle: boolean, braking: boolean, dt: number, res: { flipped?: boolean }): void {
+  const c = ECONOMY.bikes;
+  const kmh = v.speed * KMH_PER_MS;
+  let a = v.wheelie ?? 0;
+  let w = v.wheelieV ?? 0;
+  const lifting = (keys & KEY.SPRINT) !== 0 && throttle && kmh >= (a > 0.02 ? c.wheelieHoldKmh : c.wheelieMinKmh);
+  if (a <= 0 && !lifting) {
+    v.wheelie = 0;
+    v.wheelieV = 0;
+    return;
+  }
+  let acc = -c.wheelieGravity * Math.sin(c.wheelieBalance - a);
+  if (lifting) acc += c.wheelieLift;
+  if (braking || kmh < c.wheelieHoldKmh) acc -= c.wheelieBrake;
+  w = (w + acc * dt) * Math.exp(-c.wheelieDamp * dt);
+  a += w * dt;
+  if (a <= 0) {
+    a = 0;
+    w = 0;
+  }
+  if (a >= c.wheelieFlip) {
+    res.flipped = true;
+    a = 0;
+    w = 0;
+    v.speed *= 0.2;
+  }
+  v.wheelie = a;
+  v.wheelieV = w;
 }
 
 interface VehicleContact {

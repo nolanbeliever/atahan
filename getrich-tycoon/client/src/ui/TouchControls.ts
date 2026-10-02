@@ -27,6 +27,8 @@ export class TouchControls {
   private readonly horn: HTMLButtonElement;
   private readonly camBtn: HTMLButtonElement;
   private readonly fire: HTMLButtonElement;
+  private readonly wheelie: HTMLButtonElement;
+  private wheeliePointer: number | null = null;
   private readonly gun: HTMLButtonElement;
   /** Right half of the screen, behind the HUD: dragging turns the camera. */
   readonly lookZone: HTMLElement;
@@ -49,7 +51,25 @@ export class TouchControls {
     this.horn = h('button', { class: 'tbtn horn', 'data-testid': 'touch-horn', 'aria-label': 'Horn' }, 'HORN');
     this.fire = h('button', { class: 'tbtn fire', 'data-testid': 'touch-fire', 'aria-label': 'Fire' }, h('span', { class: 'fire-icon' }, '🎯'), h('span', {}, 'ATEŞ ET'));
     this.gun = h('button', { class: 'tbtn gun', 'data-testid': 'touch-gun', 'aria-label': 'Draw or switch gun' }, '🔫');
-    this.el = h('div', { class: 'touch-controls' }, this.stick, h('div', { class: 'touch-actions' }, this.camBtn, this.horn, this.alt, this.hold, this.act), this.gun, this.fire);
+    this.wheelie = h('button', { class: 'tbtn wheelie', 'data-testid': 'touch-wheelie', 'aria-label': 'Wheelie' }, 'WHEELIE');
+    this.wheelie.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.wheeliePointer = e.pointerId;
+      this.wheelie.classList.add('pressed');
+      try {
+        this.wheelie.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture is best-effort */
+      }
+    });
+    const wheelieUp = (e: PointerEvent) => {
+      if (e.pointerId !== this.wheeliePointer) return;
+      this.wheeliePointer = null;
+      this.wheelie.classList.remove('pressed');
+    };
+    this.wheelie.addEventListener('pointerup', wheelieUp);
+    this.wheelie.addEventListener('pointercancel', wheelieUp);
+    this.el = h('div', { class: 'touch-controls' }, this.stick, h('div', { class: 'touch-actions' }, this.camBtn, this.horn, this.alt, this.hold, this.act), this.gun, this.fire, this.wheelie);
     this.lookZone = h('div', { class: 'touch-look', 'data-testid': 'touch-look' });
     this.bindLook();
     this.bindFire();
@@ -108,6 +128,8 @@ export class TouchControls {
     let k = this.stickPointer === null ? 0 : stickKeys(this.nx, this.ny, driving);
     if (this.holdPointer !== null) k |= driving ? KEY.BRAKE : KEY.SPRINT;
     if (this.hornPointer !== null && driving) k |= KEY.HORN;
+    // Hold WHEELIE on a motorcycle (with the stick pushed forward for throttle).
+    if (this.wheeliePointer !== null && driving) k |= KEY.SPRINT;
     return k;
   }
 
@@ -123,6 +145,7 @@ export class TouchControls {
     if (this.hold.textContent !== label) this.hold.textContent = label;
     this.horn.classList.toggle('show', !!g.driving);
     this.camBtn.classList.toggle('show', !!g.driving);
+    this.wheelie.classList.toggle('show', g.onTwoWheeler());
     const onFoot = !g.driving && !g.riding;
     const armed = onFoot && !!g.combat.equipped;
     this.fire.classList.toggle('show', armed);

@@ -167,7 +167,8 @@ export class SettingsPanel extends Panel {
   }
 }
 
-const APPEARANCE: Record<keyof Appearance, string[]> = {
+type Look = 'skin' | 'shirt' | 'pants' | 'hair';
+const APPEARANCE: Record<Look, string[]> = {
   skin: ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#a5694f'],
   shirt: ['#e63946', '#457b9d', '#2a9d8f', '#f4a261', '#8338ec', '#ffbe0b', '#06d6a0', '#ef476f', '#118ab2', '#073b4c'],
   pants: ['#1d3557', '#2b2d42', '#3d405b', '#495057', '#6c584c', '#264653'],
@@ -278,7 +279,7 @@ export class ProfilePanel extends Panel {
       content = h(
         'div',
         { class: 'col' },
-        (Object.keys(APPEARANCE) as (keyof Appearance)[]).map((k) =>
+        (Object.keys(APPEARANCE) as Look[]).map((k) =>
           h(
             'div',
             null,

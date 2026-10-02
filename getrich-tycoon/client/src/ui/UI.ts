@@ -134,7 +134,7 @@ export class UI {
     hint: HTMLElement;
   };
   private toasts: HTMLElement;
-  private driveExtras!: { nosBtn: HTMLElement; nosFill: HTMLElement; nosText: HTMLElement; airBtn: HTMLElement };
+  private driveExtras!: { nosBtn: HTMLElement; nosFill: HTMLElement; nosText: HTMLElement; airBtn: HTMLElement; wheelieTag: HTMLElement };
   readonly nearMiss = new NearMissHud();
   readonly dragHud = new DragHud();
   readonly cluster = new GaugeHud();
@@ -191,8 +191,10 @@ export class UI {
     const nosText = h('span', { class: 'nos-text' }, 'NOS');
     const nosBtn = h('button', { class: 'cam-btn nos-btn', 'data-testid': 'nos-btn', title: 'Special Nitro (N)', onclick: () => void this.game.useNitro() }, nosFill, nosText, h('span', { class: 'hk' }, 'N'));
     const airBtn = h('button', { class: 'cam-btn air-btn', 'data-testid': 'air-btn', title: 'Air ride (K)', onclick: () => void this.game.airRide() }, 'AIR', h('span', { class: 'hk' }, 'K'));
-    const drive = h('div', { class: 'drive-hud' }, h('div', { class: 'drive-side' }, gauge, camBtn, nosBtn, airBtn), this.cluster.el);
-    this.driveExtras = { nosBtn, nosFill, nosText, airBtn };
+    // Motorcycles: Shift lifts the front (shown as a key hint; the touch screen has its own button).
+    const wheelieTag = h('div', { class: 'cam-btn wheelie-tag', 'data-testid': 'wheelie-tag', title: 'Wheelie: hold Shift with the throttle open above 65 km/h' }, 'WHEELIE', h('span', { class: 'hk' }, 'Shift'));
+    const drive = h('div', { class: 'drive-hud' }, h('div', { class: 'drive-side' }, gauge, camBtn, nosBtn, airBtn, wheelieTag), this.cluster.el);
+    this.driveExtras = { nosBtn, nosFill, nosText, airBtn, wheelieTag };
     const reconnect = h('div', { class: 'reconnect' }, 'Connection lost - reconnecting...');
     const offers = h('div', { class: 'passthrough' });
 
@@ -398,6 +400,8 @@ export class UI {
     x.nosBtn.classList.toggle('burning', burn > 0);
     x.nosFill.style.width = `${Math.round(burn * 100)}%`;
     x.nosText.textContent = burn > 0 ? 'NOS!' : `NOS ×${shots}`;
+    x.wheelieTag.style.display = this.game.onTwoWheeler() ? '' : 'none';
+    x.wheelieTag.classList.toggle('up', (this.game.wheelieAngle() ?? 0) > 0.05);
     const air = hasAirRide(v.mods.tuning);
     x.airBtn.style.display = air ? '' : 'none';
     if (air) x.airBtn.firstChild!.textContent = `AIR: ${AIR_LEVELS[v.mods.air ?? 0]}`;

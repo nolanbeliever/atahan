@@ -2,6 +2,7 @@
 // for cutscenes: seated in a car, ducking through a door, hands up, handcuffed.
 
 import * as THREE from 'three';
+import { VISORS, helmet, visor, type VisorDef } from '../../../shared/helmets';
 import { Anim, type Appearance } from '../../../shared/types';
 
 const geo = new THREE.BoxGeometry(1, 1, 1);
@@ -91,6 +92,46 @@ function gunModel(slot: number): THREE.Group {
   return g;
 }
 
+/** A motorcycle helmet over the head (shared/helmets.ts ids), the visor in front of the eyes. */
+function helmetModel(id: string, v: VisorDef, paint: string): THREE.Group {
+  const g = new THREE.Group();
+  const shell = new THREE.MeshStandardMaterial({ color: paint, metalness: 0.3, roughness: 0.28 });
+  const dark = new THREE.MeshStandardMaterial({ color: '#141518', roughness: 0.6 });
+  const visorMat = new THREE.MeshStandardMaterial({ color: v.color, transparent: v.opacity < 1, opacity: v.opacity, metalness: v.metal, roughness: 0.08 });
+  if (v.id === 'iridium') {
+    visorMat.emissive = new THREE.Color('#1a5f7a');
+    visorMat.emissiveIntensity = 0.35;
+  }
+  const add = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number, sx = 1, sy = 1, sz = 1, rx = 0) => {
+    const o = new THREE.Mesh(geo, m);
+    o.position.set(x, y, z);
+    o.scale.set(sx, sy, sz);
+    o.rotation.x = rx;
+    o.castShadow = true;
+    g.add(o);
+    return o;
+  };
+  const ball = new THREE.SphereGeometry(1, 18, 12);
+  const big = id === 'premium' ? 1.06 : 1;
+  add(ball, shell, 0, 1.78, -0.01, 0.205 * big, 0.215 * big, 0.225 * big);
+  if (id === 'cross') {
+    // Long chin bar, a peak and goggles.
+    add(geo, shell, 0, 1.64, 0.16, 0.2, 0.1, 0.12, 0.35);
+    add(geo, shell, 0, 1.97, 0.12, 0.3, 0.025, 0.24, -0.25);
+    add(geo, dark, 0, 1.78, 0.19, 0.27, 0.1, 0.05);
+    add(geo, visorMat, 0, 1.78, 0.215, 0.22, 0.07, 0.01);
+  } else {
+    // Full face: chin bar and the visor across the eye port.
+    add(geo, shell, 0, 1.63, 0.12, 0.3, 0.12, 0.16, 0.2);
+    const bubble = id === 'custom';
+    add(ball, visorMat, 0, 1.77, 0.07, 0.17, bubble ? 0.12 : 0.085, bubble ? 0.17 : 0.16);
+    if (id === 'sport') add(geo, shell, 0, 1.93, -0.17, 0.14, 0.03, 0.12, 0.35);
+    if (id === 'custom') for (const x of [-0.04, 0.04]) add(geo, dark, x, 1.95, -0.02, 0.025, 0.06, 0.4);
+    if (id === 'premium') for (const x of [-0.06, 0.06]) add(geo, dark, x, 1.98, 0.06, 0.03, 0.02, 0.06);
+  }
+  return g;
+}
+
 /** Poses that override the arm / leg animation. */
 export type Pose = 'none' | 'sit' | 'duck' | 'handsUp' | 'cuffed';
 
@@ -110,6 +151,9 @@ export class CharacterView {
   private appearanceKey = '';
   private gun: THREE.Group | null = null;
   private gunSlot = 0;
+  private helmet: THREE.Group | null = null;
+  private helmetKey = '';
+  private helmetOn = false;
 
   constructor(appearance: Appearance) {
     this.root.add(this.rig);
@@ -159,6 +203,27 @@ export class CharacterView {
     this.rig.add(part(hair, 0.32, 0.22, 0.08, 0, 1.8, -0.13));
     this.rig.add(part(eyeMat, 0.05, 0.05, 0.02, 0.07, 1.76, 0.151));
     this.rig.add(part(eyeMat, 0.05, 0.05, 0.02, -0.07, 1.76, 0.151));
+    if (this.helmet) this.rig.add(this.helmet);
+  }
+
+  /** The player's helmet (worn on bikes and quads); null: none. */
+  setHelmet(id: string | null | undefined, visorId: string | null | undefined, paint: string): void {
+    const def = helmet(id);
+    const key = def ? `${def.id}:${visorId}:${paint}` : '';
+    if (key === this.helmetKey) return;
+    this.helmetKey = key;
+    this.helmet?.removeFromParent();
+    this.helmet = def ? helmetModel(def.id, visor(visorId) ?? VISORS[0]!, paint) : null;
+    if (this.helmet) {
+      this.helmet.visible = this.helmetOn;
+      this.rig.add(this.helmet);
+    }
+  }
+
+  /** Helmet on (riding) or off (on foot). */
+  wearHelmet(on: boolean): void {
+    this.helmetOn = on;
+    if (this.helmet) this.helmet.visible = on;
   }
 
   /** The gun in the right hand (shared/weapons.ts slot; 0: none). */

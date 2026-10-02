@@ -237,6 +237,28 @@ Over a full week of maximum play a player earns about $1.5M from rewards; a 7-da
 make 4 cars. The winner gets $20,000 (`race`) and 150 XP, other finishers 60 XP. Every racer still out there 8 s after the
 green light gets 150 heat (2 stars).
 
+## Motorcycles and quads
+
+Values are in `ECONOMY.bikes` and `shared/helmets.ts`.
+
+| Model | Price (new, neutral demand) | Power | Top speed |
+| --- | ---: | ---: | ---: |
+| Yamaha MT-09 | $11,500 | 119 hp | 230 km/h |
+| Yamaha Tracer 7 | $10,500 | 73 hp | 210 km/h |
+| KTM 390 Duke | $6,200 | 44 hp | 170 km/h |
+| Yamaha YZ250 (motocross) | $8,400 | 40 hp | 125 km/h |
+| Granforge Mudhog 700 4x4 ATV | $9,800 | 46 hp | 105 km/h |
+
+- Category **Moto & ATV**: unlocked from level 1, market weight 7. One pillion seat on every bike and the quad.
+- **Wheelie** (two-wheelers): Shift + throttle from 65 km/h lifts the front (7.2 rad/s²) against gravity (5 rad/s² at level),
+  damped; the balance point is 0.95 rad and the bike flips at 1.22 rad. Below 25 km/h or with the brake the front comes down.
+- **Crash** (a flipped wheelie, or an impact over 5 game m/s): riders come off. Damage: none under 25 km/h, then 15 + 0.9
+  per km/h above 25; **without a helmet from 60 km/h it is all your health (WASTED)**; a helmet takes 60% off.
+- **Moto Gear** (`moto_gear`): Full-Face Sport $1,200, Premium Full-Face $3,500, Motocross $1,500, Custom Bubble Visor $2,500;
+  visors Clear (free with any helmet), Dark Tint $150, Iridium $400, Gold Mirror $600. Bought once, worn any time.
+- **Bike exhausts** (tuning garage, motorcycles only): Akrapovič Full System $1,500 (+6% hp, +3% torque), Vance & Hines
+  $900 (+4% hp), SC Project CR-T $1,300 (+5% hp, +4% torque). Akrapovič and SC Project also qualify for Stage 2.
+
 ## Guns and fights
 
 `shared/weapons.ts`, `ECONOMY.combat`. Prices: Pistol $5,000, Pump Shotgun $18,000, AK-47 / M4 $45,000 (`weapon`), each with

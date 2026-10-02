@@ -1,6 +1,6 @@
 // The newer features in the browser: the daily reward panel opening on the first visit and paying
 // day 1, the gift box countdown, the health bar, Ammu-Nation's catalogue (buying needs you there),
-// a gun key without a gun, and the Marketplace sell tab.
+// a gun key without a gun, the Moto Gear helmet shop and the Marketplace sell tab.
 
 import { expect, test } from '@playwright/test';
 import { collectErrors, moneyText, registerAndEnter, state } from './helpers';
@@ -47,6 +47,14 @@ test('daily reward, gift box, health bar, Ammu-Nation catalogue and the sell tab
   await page.locator('[data-gun=pistol] [data-testid=buy-gun]').click();
   await expect(page.getByTestId('toast').last()).toContainText('Ammu-Nation', { timeout: 15_000 });
   expect((await state(page)).money).toBe(before + 5_000);
+  await page.getByTestId('panel-close').click();
+
+  // Moto Gear: four helmets and four visors, no helmet worn yet.
+  await page.evaluate(() => (window as unknown as Win).__getrich.game.ui.open('motogear'));
+  await expect(page.getByTestId('helmet-card')).toHaveCount(4);
+  await expect(page.getByTestId('visor-row')).toHaveCount(4);
+  await expect(page.locator('[data-helmet=premium]')).toContainText('$3,500');
+  await expect(page.getByTestId('helmet-status')).toContainText('Kask yok');
   await page.getByTestId('panel-close').click();
 
   // Marketplace: the sell tab.

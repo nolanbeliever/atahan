@@ -11,6 +11,7 @@ import type { MegaChoice, RewardsView } from './rewards';
 import type { PursuitOutcome, PursuitView } from './cctv';
 import type { StreetRaceView } from './streetRace';
 import type { ExplosionFx, HealthView, ShotFx, WeaponId } from './weapons';
+import type { CrashEvent, HelmetId, VisorId } from './helmets';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -110,6 +111,8 @@ export interface RpcMethods {
   'hospital.heal': { params: Empty; result: HealthView };
   'weapon.equip': { params: { weapon: WeaponId | null }; result: { weapon: WeaponId | null } };
   'combat.health': { params: Empty; result: HealthView };
+  'helmet.buy': { params: { kind: 'helmet' | 'visor'; id: string }; result: { appearance: Appearance } };
+  'helmet.wear': { params: { helmet: HelmetId | null; visor?: VisorId; color?: string }; result: { appearance: Appearance } };
   'race.info': { params: Empty; result: { race: StreetRaceView | null } };
   'race.join': { params: Empty; result: { race: StreetRaceView } };
   'race.leave': { params: Empty; result: { ok: true } };
@@ -198,6 +201,8 @@ export interface ServerToClientEvents {
   /** Shots, blasts, car damage, health and WASTED. */
   'combat.shot': (d: ShotFx) => void;
   'combat.explosion': (d: ExplosionFx) => void;
+  /** A motorcycle or quad went down: sparks, and who came off. */
+  'moto.crash': (d: CrashEvent) => void;
   'combat.carHp': (d: { id: string; hp: number }) => void;
   'combat.health': (d: HealthView) => void;
   'combat.wasted': (d: { lost: string[]; respawnInMs: number }) => void;

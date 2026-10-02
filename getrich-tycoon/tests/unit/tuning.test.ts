@@ -169,7 +169,13 @@ describe('fitment rules', () => {
   it('motorcycles take no body kits, turbo kits or stance', () => {
     const bike = getModel('bmw_gs_moto');
     for (const id of ['wing_gt', 'hood_carbon', 'ind_single', 'ecu_stage3', 'ic_fmic']) expect(partBlocked(bike, findPart(id)!), id).not.toBeNull();
-    expect(partBlocked(bike, findPart('exh_straight')!)).toBeNull();
+    // Bikes take motorcycle systems, cars take car exhausts.
+    expect(partBlocked(bike, findPart('exh_straight')!)).not.toBeNull();
+    for (const id of ['exh_akrapovic', 'exh_vance', 'exh_scproject']) {
+      expect(partBlocked(bike, findPart(id)!), id).toBeNull();
+      expect(partBlocked(getModel('norda_arlo'), findPart(id)!), id).not.toBeNull();
+    }
+    expect(tuningIssues(bike, tune({ ecu: 'ecu_stage2', exhaust: 'exh_akrapovic' }))).toEqual([]);
     expect(tuningIssues(bike, { ...emptyTuning(), camber: 1 })).not.toEqual([]);
   });
 

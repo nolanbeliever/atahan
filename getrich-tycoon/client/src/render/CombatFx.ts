@@ -125,6 +125,12 @@ export class CombatFx {
     if (normal) this.hole(to, normal, carRoot);
   }
 
+  /** Sparks along the road (a bike going down, a helmet scraping). */
+  sparks(at: THREE.Vector3, n: number): void {
+    this.emit(at, '#ffd35a', n, { speed: 6, size: 0.09, life: 0.5, gravity: -9, up: 0.3 });
+    this.emit(at, '#ff8a2a', Math.round(n / 2), { speed: 4, size: 0.12, life: 0.35, gravity: -6 });
+  }
+
   /** A bullet hole on a wall, the ground or a car (kept on the car as it drives). */
   hole(at: THREE.Vector3, normal: THREE.Vector3, carRoot: THREE.Object3D | null): void {
     const m = new THREE.Mesh(this.holeGeo, this.holeMat);

@@ -40,6 +40,7 @@ import { MissionService } from './services/missions';
 import { RewardService } from './services/rewards';
 import { PursuitService } from './services/pursuit';
 import { StreetRaceService } from './services/streetRace';
+import { MotoService } from './services/moto';
 import { CombatService } from './services/combat';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
@@ -94,6 +95,7 @@ export class GameServer implements Hub {
   readonly pursuit: PursuitService;
   readonly streetRace: StreetRaceService;
   readonly combat: CombatService;
+  readonly moto: MotoService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -138,6 +140,7 @@ export class GameServer implements Hub {
     this.pursuit = new PursuitService(this.ctx, this.police);
     this.streetRace = new StreetRaceService(this.ctx, this.police);
     this.combat = new CombatService(this.ctx, this.police, this.theft, this.customers, this.vehicles);
+    this.moto = new MotoService(this.ctx, this.combat, this.vehicles);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -195,6 +198,8 @@ export class GameServer implements Hub {
       'hospital.heal': (pid) => this.combat.heal(pid),
       'weapon.equip': (pid, p) => this.combat.equip(pid, p),
       'combat.health': (pid) => this.combat.healthView(pid),
+      'helmet.buy': (pid, p) => this.moto.buy(pid, p),
+      'helmet.wear': (pid, p) => this.moto.wear(pid, p),
       'race.info': () => ({ race: this.streetRace.view() }),
       'race.join': async (pid) => ({ race: await this.streetRace.join(pid) }),
       'race.leave': (pid) => (this.streetRace.leave(pid), { ok: true as const }),
@@ -495,9 +500,11 @@ export class GameServer implements Hub {
     };
     return this.locks.run([K.player(playerId)], async () => {
       const uow = this.state.begin();
-      uow.player(playerId).appearance = appearance;
+      const player = uow.player(playerId);
+      // The helmet stays as it is (changed at Moto Gear).
+      player.appearance = { ...appearance, helmet: player.appearance.helmet ?? null, visor: player.appearance.visor ?? null, helmetColor: player.appearance.helmetColor ?? null };
       await uow.commit();
-      return { appearance };
+      return { appearance: this.state.players.get(playerId)!.appearance };
     });
   }
 

@@ -15,7 +15,7 @@ export type BodySlot = 'frontBumper' | 'rearBumper' | 'sideSkirts' | 'hood' | 'w
 export type PaintFinish = 'gloss' | 'metallic' | 'matte' | 'chameleon';
 export type RimFinish = 'silver' | 'gunmetal' | 'black' | 'bronze' | 'gold' | 'chrome' | 'white';
 export type InductionKit = 'single' | 'twin' | 'twinscroll' | 'bigturbo' | 'supercharger';
-export type ExhaustType = 'stock' | 'catback' | 'varex' | 'downpipe' | 'straight';
+export type ExhaustType = 'stock' | 'catback' | 'varex' | 'downpipe' | 'straight' | 'akrapovic' | 'vance' | 'scproject';
 
 export const PERF_SLOTS: readonly PerfSlot[] = ['ecu', 'intake', 'induction', 'intercooler', 'internals', 'camshaft', 'fuel', 'exhaust', 'suspension', 'tires', 'brakes'];
 export const BODY_SLOTS: readonly BodySlot[] = ['frontBumper', 'rearBumper', 'sideSkirts', 'hood', 'wing'];
@@ -96,6 +96,7 @@ export const PRICE_PER_VALUE = 1.25;
 const ICE = { powertrain: ['ice' as const] };
 const ICE_CAR = { powertrain: ['ice' as const], kind: ['car' as const] };
 const CAR = { kind: ['car' as const] };
+const ICE_BIKE = { powertrain: ['ice' as const], kind: ['bike' as const] };
 const ALL_KITS = ['ind_single', 'ind_twin', 'ind_twinscroll', 'ind_bigturbo', 'ind_super'];
 
 export const PERFORMANCE_PARTS: TuningPart[] = [
@@ -107,9 +108,9 @@ export const PERFORMANCE_PARTS: TuningPart[] = [
   },
   {
     id: 'ecu_stage2', slot: 'ecu', name: 'Stage 2 - Downpipe + Tune', level: 2,
-    description: 'Aggressive map for a free-flowing exhaust. +30% hp, +20% top speed. Needs a downpipe or straight pipe.',
+    description: 'Aggressive map for a free-flowing exhaust. +30% hp, +20% top speed. Needs a downpipe or straight pipe (motorcycles: an Akrapovič or SC Project system).',
     effects: { hp: 0.3, torque: 0.35, topSpeed: 0.2, stress: 1.3 }, value: 0.14, cost: { base: 900, rate: 0 }, installSec: 10, pops: 0.2,
-    requires: [{ slot: 'exhaust', any: ['exh_downpipe', 'exh_straight'], label: 'Downpipe or Straight Pipe exhaust' }],
+    requires: [{ slot: 'exhaust', any: ['exh_downpipe', 'exh_straight', 'exh_akrapovic', 'exh_scproject'], label: 'Downpipe or Straight Pipe exhaust (bikes: Akrapovič or SC Project)' }],
     only: ICE,
   },
   {
@@ -196,22 +197,38 @@ export const PERFORMANCE_PARTS: TuningPart[] = [
   {
     id: 'exh_catback', slot: 'exhaust', name: 'Cat-Back Exhaust', level: 1, exhaust: 'catback',
     description: 'Freer-flowing rear section: deeper tone, a few crackles.',
-    effects: { hp: 0.03, weight: -6 }, value: 0.02, cost: { base: 900, rate: 0 }, installSec: 6, only: ICE, pops: 0.15,
+    effects: { hp: 0.03, weight: -6 }, value: 0.02, cost: { base: 900, rate: 0 }, installSec: 6, only: ICE_CAR, pops: 0.15,
   },
   {
     id: 'exh_varex', slot: 'exhaust', name: 'Valved Exhaust (Varex-style)', level: 2, exhaust: 'varex',
     description: 'Valves stay shut at low revs and open up above 4000 rpm. Quiet or loud, your call.',
-    effects: { hp: 0.04, weight: -4 }, value: 0.04, cost: { base: 1800, rate: 0 }, installSec: 8, only: ICE, pops: 0.25,
+    effects: { hp: 0.04, weight: -4 }, value: 0.04, cost: { base: 1800, rate: 0 }, installSec: 8, only: ICE_CAR, pops: 0.25,
   },
   {
     id: 'exh_downpipe', slot: 'exhaust', name: 'Downpipe', level: 2, exhaust: 'downpipe',
     description: 'Replaces the restrictive first section: more turbo noise, more power. Enables Stage 2.',
-    effects: { hp: 0.06, torque: 0.05 }, value: 0.03, cost: { base: 850, rate: 0 }, installSec: 8, only: ICE, pops: 0.35,
+    effects: { hp: 0.06, torque: 0.05 }, value: 0.03, cost: { base: 850, rate: 0 }, installSec: 8, only: ICE_CAR, pops: 0.35,
   },
   {
     id: 'exh_straight', slot: 'exhaust', name: 'Straight Pipe', level: 3, exhaust: 'straight',
     description: 'No mufflers, no cats. Maximum noise, maximum pops and bangs. Enables Stage 2.',
-    effects: { hp: 0.08, torque: 0.04, weight: -12 }, value: 0.02, cost: { base: 700, rate: 0.01 }, installSec: 6, only: ICE, pops: 0.6,
+    effects: { hp: 0.08, torque: 0.04, weight: -12 }, value: 0.02, cost: { base: 700, rate: 0.01 }, installSec: 6, only: ICE_CAR, pops: 0.6,
+  },
+  // Motorcycle systems (pops & bangs with blue and orange flames on downshifts and throttle lifts).
+  {
+    id: 'exh_akrapovic', slot: 'exhaust', name: 'Akrapovič Full System (titanium)', level: 3, exhaust: 'akrapovic',
+    description: 'Titanium headers and a carbon-capped silencer: a high, sharp race howl and flames on every lift.',
+    effects: { hp: 0.06, torque: 0.03, weight: -5 }, value: 0.04, cost: { base: 1500, rate: 0 }, installSec: 6, only: ICE_BIKE, pops: 0.85,
+  },
+  {
+    id: 'exh_vance', slot: 'exhaust', name: 'Vance & Hines Slip-On', level: 2, exhaust: 'vance',
+    description: 'Big-bore slip-on with a loose, barking tone. Crackles and pops on the overrun.',
+    effects: { hp: 0.04, weight: -3 }, value: 0.03, cost: { base: 900, rate: 0 }, installSec: 5, only: ICE_BIKE, pops: 0.7,
+  },
+  {
+    id: 'exh_scproject', slot: 'exhaust', name: 'SC Project CR-T', level: 3, exhaust: 'scproject',
+    description: 'Short MotoGP-style can with a deep bass boom and big bangs on downshifts.',
+    effects: { hp: 0.05, torque: 0.04, weight: -4 }, value: 0.04, cost: { base: 1300, rate: 0 }, installSec: 5, only: ICE_BIKE, pops: 0.9,
   },
 
   // ---------------------------------------------------------------- chassis

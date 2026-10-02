@@ -150,6 +150,7 @@ const CD_BASE: Record<BodyStyle, number> = {
   van: 1.05,
   classic: 0.85,
   bike: 0.5,
+  atv: 0.75,
 };
 
 interface GearboxSpec {
@@ -163,6 +164,8 @@ interface GearboxSpec {
 function gearboxFor(m: VehicleModel): GearboxSpec {
   const s = m.specs;
   if (s.aspiration === 'electric') return { n: 1, shift: 0, label: 'Single-speed (electric)', first: 1 };
+  if (m.shape.style === 'atv') return { n: 5, shift: 0.25, label: '5-speed automatic, 4x4', first: 0.3 };
+  if (s.kind === 'bike' && m.id === 'yamaha_yz250') return { n: 5, shift: 0.1, label: '5-speed close-ratio', first: 0.3 };
   if (s.kind === 'bike') return { n: 6, shift: 0.07, label: '6-speed with quickshifter', first: 0.33 };
   if (m.year < 1970) return { n: 4, shift: 0.55, label: '4-speed manual', first: 0.34 };
   if (m.year < 2000) return { n: 5, shift: 0.42, label: '5-speed manual', first: 0.3 };

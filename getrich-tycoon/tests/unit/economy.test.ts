@@ -8,12 +8,13 @@ import { generateNpcVehicle } from '../../server/game/generator';
 import { mulberry32 } from '../../shared/util';
 
 describe('economy configuration', () => {
-  it('has at least 12 regular models across all 8 categories with fictional brands', () => {
+  it('has at least 12 regular models across all 9 categories with fictional brands (real names only on the motorcycles)', () => {
     expect(CATALOG_MODELS.length).toBeGreaterThanOrEqual(12);
     const cats = new Set(CATALOG_MODELS.map((m) => m.category));
-    expect(cats.size).toBe(8);
+    expect(cats.size).toBe(9);
     const brands = new Set<string>(BRANDS.map((b) => b.name));
-    for (const m of CATALOG_MODELS) expect(brands.has(m.brand) || m.brand === 'Harlan & Finch', m.id).toBe(true);
+    for (const m of CATALOG_MODELS) expect(brands.has(m.brand) || m.brand === 'Harlan & Finch' || (m.specs.kind === 'bike' && ['Yamaha', 'KTM'].includes(m.brand)), m.id).toBe(true);
+    expect(CATALOG_MODELS.filter((m) => m.category === 'moto').map((m) => m.id).sort()).toEqual(['granforge_mudhog', 'ktm_duke390', 'yamaha_mt09', 'yamaha_tracer7', 'yamaha_yz250']);
     const ids = new Set(VEHICLE_MODELS.map((m) => m.id));
     expect(ids.size).toBe(VEHICLE_MODELS.length);
   });

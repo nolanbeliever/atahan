@@ -2,9 +2,10 @@
 
 import type { VehicleModel } from './vehicles';
 
-/** Passenger seats besides the driver: none on a motorcycle, one in a coupe, three in anything else. */
+/** Passenger seats besides the driver: the pillion on a motorcycle or quad, one in a coupe, three
+ *  in anything else. */
 export function passengerSeats(model: VehicleModel): number {
-  if (model.specs.kind === 'bike') return 0;
+  if (model.specs.kind === 'bike') return 1;
   return model.shape.style === 'coupe' ? 1 : 3;
 }
 

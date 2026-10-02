@@ -810,3 +810,18 @@ body.is-wasted #game-root canvas { filter: grayscale(1) contrast(1.1) brightness
 .gun-pic svg { height: 40px; width: auto; }
 .gun-stats { display: flex; gap: 8px; color: var(--text-dim); font-weight: 700; }
 @media (max-width: 760px) { .gun-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .wasted-title { font-size: 64px; } }
+
+/* Moto Gear: helmets and visors. */
+.helmet-pic { height: 56px; display: grid; place-items: center; }
+.helmet-pic svg { height: 52px; width: auto; }
+.visor-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); }
+.visor-row .grow { flex: 1; font-weight: 700; font-size: 13px; }
+.visor-sw { width: 34px; height: 14px; border-radius: 7px; border: 1px solid rgba(255,255,255,0.35); }
+.moto-callout { padding: 10px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; }
+.moto-callout.green { background: rgba(46,229,157,0.12); border: 1px solid rgba(46,229,157,0.4); }
+.moto-callout.red { background: rgba(255,59,71,0.12); border: 1px solid rgba(255,59,71,0.45); }
+.tbtn.wheelie { right: calc(214px + env(safe-area-inset-right)); bottom: calc(132px + env(safe-area-inset-bottom)); width: 86px; height: 52px; border-radius: 26px; font-size: 12px; letter-spacing: 0.06em; display: none; background: linear-gradient(180deg, #ffb347, #f07a1a); color: #2a1300; border-color: transparent; }
+.tbtn.wheelie.show { display: grid; }
+.tbtn.wheelie.pressed { background: linear-gradient(180deg, #ffd08a, #ff9a3c); }
+.cam-btn.wheelie-tag { cursor: default; color: #ffb347; }
+.cam-btn.wheelie-tag.up { background: linear-gradient(180deg, #ffb347, #f07a1a); color: #2a1300; }

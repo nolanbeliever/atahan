@@ -1,6 +1,7 @@
 // Server-authoritative movement simulation. Clients send input commands; the
 // server applies them with the shared physics and broadcasts snapshots.
 
+import { KMH_PER_MS } from '../../shared/drivetrain';
 import { ECONOMY } from '../../shared/economy.config';
 import { MARKET_LOT_SLOTS, INTERACTABLES, SERVICE_INTERACT_SLACK, type Interactable } from '../../shared/world';
 import { worldBoxes, vehicleObstacles, STATIC_CIRCLES, type ObstacleVehicle } from '../../shared/collision';
@@ -68,6 +69,8 @@ export interface DriveState {
   lastFlushAt: number;
   /** Last crash (hard impact or any contact with traffic), ms. */
   crashAt: number;
+  /** Last time a motorcycle / quad threw its riders off (ms). */
+  bikeCrashAt?: number;
   /** While true the vehicle ignores the driver's input (drag strip staging, arrests). */
   hold: boolean;
   /** Snapshot flags from the last physics step (VF). */
@@ -110,6 +113,8 @@ export class Simulation {
   highwayBodies: HighwayBody[] = [];
   /** Extra vehicles owned by services (drag strip bots, police cars), by owner. */
   private obstacleSources = new Map<string, ObstacleVehicle[]>();
+  /** A motorcycle or quad crashed (crash speed in km/h; flipped: a wheelie went over). */
+  readonly bikeCrashListeners: ((vehicleId: string, kmh: number, flipped: boolean) => void)[] = [];
 
   constructor(private readonly state: GameState) {
     this.rebuildStatic();
@@ -122,8 +127,10 @@ export class Simulation {
     this.world = { boxes: worldBoxes(levels), circles: STATIC_CIRCLES, dynamic: [], vehicles: this.dynamic, grip: this.world.grip };
   }
 
-  /** Recompute vehicle obstacles (called every tick). */
+  /** Recompute vehicle obstacles (called every tick). Passengers move with their vehicle even
+   *  when their client sends no input. */
   rebuildDynamic(): void {
+    for (const c of this.chars.values()) if (c.ridingId) this.followRide(c);
     const list: ObstacleVehicle[] = [];
     for (const v of this.state.vehicles.values()) {
       if (this.drives.has(v.id)) continue;
@@ -317,7 +324,14 @@ export class Simulation {
         return;
       }
       const keys = d.hold ? holdKeys(cmd.keys) : cmd.keys;
+      const before = d.dyn.speed;
       const res = stepVehicle(d.dyn, { ...cmd, keys }, d.params, this.world, d.vehicleId);
+      // A motorcycle or quad: flipping a wheelie or a hard hit throws the riders off.
+      if (d.params.bike && (res.flipped || res.impact > ECONOMY.bikes.crashImpact)) {
+        const kmh = Math.abs(res.flipped ? before : res.impact) * KMH_PER_MS;
+        for (const l of this.bikeCrashListeners) l(d.vehicleId, kmh, !!res.flipped);
+        if (!this.drives.has(d.vehicleId)) return;
+      }
       d.flags =
         (d.dyn.brk > 0.1 ? VF.BRAKE : 0) |
         (d.dyn.gear < 0 ? VF.REVERSE : 0) |
@@ -463,7 +477,10 @@ export class Simulation {
     }
     const v: VehicleSnap[] = [];
     for (const d of this.drives.values()) {
-      v.push([d.vehicleId, round2(d.dyn.x), round2(d.dyn.z), Math.round(d.dyn.rot * 1000) / 1000, round2(d.dyn.speed), Math.round(d.dyn.steer * 1000) / 1000, Math.round(d.dyn.rpm), d.dyn.gear, d.flags]);
+      const snap: VehicleSnap = [d.vehicleId, round2(d.dyn.x), round2(d.dyn.z), Math.round(d.dyn.rot * 1000) / 1000, round2(d.dyn.speed), Math.round(d.dyn.steer * 1000) / 1000, Math.round(d.dyn.rpm), d.dyn.gear, d.flags];
+      // A wheelie: everyone sees the front up.
+      if ((d.dyn.wheelie ?? 0) > 0.005) snap.push(round2(d.dyn.wheelie!));
+      v.push(snap);
     }
     const n: NpcSnap[] = [];
     for (const npc of this.npcs.values()) n.push([npc.id, round2(npc.x), round2(npc.z), round2(npc.rot), npc.anim, npc.style]);
