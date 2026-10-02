@@ -74,7 +74,8 @@ export function rotationSeed(secret: string, epoch: number): number {
 }
 
 export function modelsOfTier(tier: RarityTier): VehicleModel[] {
-  return VEHICLE_MODELS.filter((m) => m.tier === tier);
+  // Showroom-only cars are sold on the far shore, not by the Rare Dealer.
+  return VEHICLE_MODELS.filter((m) => m.tier === tier && !m.showroom);
 }
 
 /** Weight of a model inside its tier: legendary models use their drop chance. */

@@ -2,6 +2,7 @@
 // except the motorcycles (real bikes, by name only: stand-in 3D bodies, no logos). The exclusive
 // models sold only by the Rare Dealer (see specialVehicles.ts) are real cars.
 
+import { SHOWROOM_MODELS, type ShowroomId } from './showroomModels';
 import { SPECIAL_MODELS } from './specialVehicles';
 import type { VehicleCategory } from './types';
 
@@ -84,8 +85,10 @@ export interface VehicleModel {
   /** Factory colours. */
   colors: string[];
   description: string;
-  /** Only sold by the Rare Dealer: never generated for the used market, auctions or NPC sellers. */
+  /** Only sold by the Rare Dealer or a showroom: never generated for the used market, auctions or NPC sellers. */
   exclusive?: boolean;
+  /** Sold only in this themed showroom on the far shore (showroomModels.ts); not in the Rare Dealer's rotation. */
+  showroom?: ShowroomId;
   /** Optional photo (URL or path under client/public). Without one the UI shows a 3D render. */
   image?: string | null;
 }
@@ -408,7 +411,7 @@ export const VEHICLE_MODELS: VehicleModel[] = [
 /** Models that appear on the used market, at auctions and with NPC sellers. */
 export const CATALOG_MODELS: readonly VehicleModel[] = VEHICLE_MODELS.filter((m) => !m.exclusive);
 
-VEHICLE_MODELS.push(...SPECIAL_MODELS);
+VEHICLE_MODELS.push(...SPECIAL_MODELS, ...SHOWROOM_MODELS);
 
 /**
  * Service vehicles that are never sold: the police interceptor (a Velora Serene body with a

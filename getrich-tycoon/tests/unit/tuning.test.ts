@@ -92,7 +92,8 @@ describe('calculateVehicleStats', () => {
       const s = calculateVehicleStats(m, dropInvalidParts(m, tune(FULL)));
       expect(s.hp).toBeLessThanOrEqual(m.specs.hp * 2 + 1);
       expect(s.topSpeed).toBeLessThanOrEqual(m.specs.topSpeed * 1.45 + 1);
-      expect(s.accel).toBeGreaterThanOrEqual(1.8);
+      // Launches stay traction-limited: under 1.8 s only for a car that is already that quick stock.
+      expect(s.accel, m.id).toBeGreaterThanOrEqual(Math.min(1.8, m.specs.accel * 0.9));
     }
   });
 

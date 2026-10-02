@@ -71,10 +71,15 @@ describe('drivetrain: realistic acceleration, drag and braking', () => {
     }
   });
 
-  it('no stock car gets from 0 to 300 km/h in anything like 10 seconds: drag grows with speed', () => {
+  it('0-300 km/h takes an ordinary fast car well over 20 s; hypercars match their real-world times: drag grows with speed', () => {
+    // Measured 0-300 km/h: Bugatti Chiron 13.1 s, Rimac Nevera 9.2 s (the quickest production car).
+    const REAL_0_300: Record<string, number> = { bugatti_chiron: 13.1, rimac_nevera: 9.2 };
     for (const m of VEHICLE_MODELS) {
       const f = performanceFigures(m);
-      if (f.t300 !== null) expect(f.t100 + f.t200 + f.t300, m.id).toBeGreaterThan(20);
+      const t = f.t300 === null ? null : f.t100 + f.t200 + f.t300;
+      const real = REAL_0_300[m.id];
+      if (real !== undefined) expect(Math.abs(t! - real) / real, m.id).toBeLessThan(0.12);
+      else if (t !== null) expect(t, m.id).toBeGreaterThan(m.specs.hp >= 980 ? 12 : 20);
       // 100-200 always takes longer than 0-100, and 200-300 longer again.
       if (f.t200 < 99) expect(f.t200, m.id).toBeGreaterThan(f.t100);
       if (f.t300 !== null) expect(f.t300, m.id).toBeGreaterThan(f.t200 * 1.5);
