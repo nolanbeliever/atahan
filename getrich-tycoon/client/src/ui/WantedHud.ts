@@ -52,16 +52,17 @@ export class WantedHud {
       'busted',
       [
         h('div', { class: 'bb-title' }, 'BUSTED!'),
-        h('div', { class: 'bb-text' }, `Aracınız bağlandı ve ${formatMoney(e.fine)} ceza kesildi`),
+        h('div', { class: 'bb-text' }, `POLİSE YAKALANDIN! - ${formatMoney(e.fine)} Ceza Ödendi`),
         h('div', { class: 'bb-sub' }, `Your car was impounded and a ${formatMoney(e.fine)} fine was deducted.`),
       ],
       e.cutsceneMs,
     );
   }
 
-  escaped(reward: number, xp: number): void {
+  escaped(reward: number, xp: number, cars = 1): void {
     this.set({ stars: 0, units: 0, escapeLeft: null, bust: 0 });
-    this.show('escaped', [h('div', { class: 'bb-title' }, 'ESCAPED!'), h('div', { class: 'bb-text' }, `+${formatMoney(reward)} & ${xp} XP`), h('div', { class: 'bb-sub' }, 'You lost the police.')], 3600);
+    const sub = `${cars} polis aracından kaçtın · ${formatMoney(reward / Math.max(1, cars))} / araç`;
+    this.show('escaped', [h('div', { class: 'bb-title' }, 'ESCAPED! · KAÇTIN!'), h('div', { class: 'bb-text' }, `+${formatMoney(reward)} & ${xp} XP`), h('div', { class: 'bb-sub' }, sub)], 3600);
   }
 
   /** A mission completed: a short banner. */

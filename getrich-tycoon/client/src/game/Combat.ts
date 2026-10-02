@@ -1,4 +1,4 @@
-// Guns on the client: drawing one (1-6, Q to put it away), aiming through the crosshair, firing
+// Guns on the client: drawing one (1-6, Q to put it away), aiming down its sights, firing
 // (the server decides the hits), and showing the fight: tracers, holes, blood, explosions, cars
 // losing glass and parts and smoking, the health bar and WASTED.
 
@@ -18,6 +18,8 @@ export class CombatClient {
   equipped: WeaponDef | null = null;
   /** Rounds fired since the inventory last came from the server (shown right away). */
   private spent = new Map<string, number>();
+  /** Rounds of each kind in the last inventory from the server. */
+  private seenAmmo = new Map<string, number>();
   private cooldown = 0;
   private shotNo = 0;
   readonly carHp = new Map<string, number>();
@@ -52,6 +54,23 @@ export class CombatClient {
     return true;
   }
 
+  /** Guns in the inventory, by slot. */
+  owned(): WeaponDef[] {
+    return ownedWeapons(this.game.store.me?.inventory ?? {});
+  }
+
+  /** The touch gun button: draw the first gun, then the next one, then put it away. */
+  cycleWeapon(): void {
+    if (this.game.driving || this.game.riding || this.dead) return;
+    const guns = this.owned();
+    if (!guns.length) {
+      this.game.ui?.toast({ kind: 'info', title: 'Silahın yok', text: 'Ammu-Nation (east of the city, past the outer road) sells guns and ammo.' });
+      return;
+    }
+    const i = this.equipped ? guns.findIndex((g) => g.id === this.equipped!.id) : -1;
+    void this.equip(i + 1 < guns.length ? guns[i + 1]! : null);
+  }
+
   async equip(w: WeaponDef | null): Promise<void> {
     try {
       await this.game.net.rpc('weapon.equip', { weapon: w ? w.id : null });
@@ -72,15 +91,24 @@ export class CombatClient {
     return Math.max(0, (this.game.store.me?.inventory[w.ammo] ?? 0) - (this.spent.get(w.ammo) ?? 0));
   }
 
-  /** The inventory came from the server: it already counts the rounds fired. */
+  /** The inventory came from the server. It counts the rounds fired only once the server has saved
+   *  them (every few seconds), so only take off what it has taken off since the last update. */
   onInventory(): void {
-    this.spent.clear();
+    const inv = this.game.store.me?.inventory ?? {};
+    for (const [ammo, n] of this.spent) {
+      const taken = (this.seenAmmo.get(ammo) ?? inv[ammo] ?? 0) - (inv[ammo] ?? 0);
+      const left = taken < 0 ? 0 : n - taken;
+      if (left > 0) this.spent.set(ammo, left);
+      else this.spent.delete(ammo);
+    }
+    this.seenAmmo.clear();
+    for (const [k, n] of Object.entries(inv)) if (k.startsWith('ammo_')) this.seenAmmo.set(k, n);
     // A gun sold or lost (WASTED): put it away.
     if (this.equipped && (this.game.store.me?.inventory[`weapon_${this.equipped.id}`] ?? 0) < 1) void this.equip(null);
     this.onChange?.();
   }
 
-  /** Where the crosshair points: the first thing along the camera's ray (or far away). */
+  /** Where the sights point (the middle of the view): the first thing along the camera's ray. */
   private aimPoint(): THREE.Vector3 {
     const cam = this.game.renderer.camera;
     const o = cam.getWorldPosition(new THREE.Vector3());
@@ -165,9 +193,11 @@ export class CombatClient {
     this.shotNo++;
     this.game.net.socket.emit('fire', [w.id, round(from.x), round(from.y), round(from.z), round(yaw, 10000), round(pitch, 10000), this.shotNo]);
     this.spent.set(w.ammo, (this.spent.get(w.ammo) ?? 0) + 1);
-    // Our own shot shows at once (the server's answer adds the impact).
+    // Our own shot shows at once (the server's answer adds the impact), from the gun in view.
     const end = from.clone().add(new THREE.Vector3(Math.sin(yaw), Math.tan(pitch), Math.cos(yaw)).normalize().multiplyScalar(Math.min(w.range, from.distanceTo(to))));
-    this.fx.shot(from, end, w.tracer, 'air', null, null, w.slot >= 4);
+    const start = this.game.sightsMuzzle(new THREE.Vector3()) ?? from;
+    this.fx.shot(start, end, w.tracer, 'air', null, null, w.slot >= 4);
+    this.game.recoilKick(w);
     this.game.audio.shot(w.sound, 1);
     this.onChange?.();
   }

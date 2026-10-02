@@ -157,13 +157,15 @@ Stage 2 $3,700, Stage 3 $8,000, coilovers $2,900, chameleon paint $5,200. A full
 
 ## Police
 
-- Heat: +40 per near miss above 180 km/h, +90 per crash into traffic, +150 for ramming a police car (max 500); it cools
-  after 30 s without offences. Stars = heat / 100 rounded up (1-5).
-- From 2 stars police cars chase you (1-4 units by stars). Keep every unit 90 m away for 30 s: **escape**, +$1,000
-  (`police_escape`) and 60 XP.
-- Stopped (under 15 km/h) with a police car within 2.5 m for 3 s: **arrest**. Fine: 10% of cash, at least $1,500 (never more
-  than the cash) (`police_fine`); the car is towed to the garage (no fee); you respawn at the nearest garage. Values are in
-  `ECONOMY.police`.
+- Heat: +40 per near miss above 180 km/h, +90 per crash into traffic, +150 for ramming a police car (max 500); any gunshot
+  raises it to at least 150 (2 stars: the shot is heard and the nearest patrol comes, witnesses or not,
+  `ECONOMY.combat.heatGunshot`); it cools after 30 s without offences. Stars = heat / 100 rounded up (1-5).
+- **Shared wanted level:** heat from anyone in a car (driver or passenger) goes to everyone in that car.
+- From 2 stars police cars chase you (1-4 units by stars). Keep every unit 90 m away for 30 s: **escape**, **$1,000 for each
+  police car that took part in the chase** (`police_escape`) and 60 XP.
+- Stopped (under 15 km/h) with a police car within 2.5 m for 3 s: **arrest**. Fine: always **$3,000** (`ECONOMY.police.fine`),
+  from the cash first, then the bank (never below zero) (`police_fine`); "POLİSE YAKALANDIN! - $3,000 Ceza Ödendi"; the car is
+  towed to the garage (no fee); you respawn at the nearest garage. Values are in `ECONOMY.police`.
 
 ## Car theft
 

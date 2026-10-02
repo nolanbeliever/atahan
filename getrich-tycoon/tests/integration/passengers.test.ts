@@ -130,4 +130,25 @@ describe('passengers', () => {
     expect(await extra.rpcRaw('vehicle.ride', { vehicleId })).toMatchObject({ ok: false, code: 'conflict' });
     for (const r of [driver, extra, ...riders]) r.close();
   }, 30_000);
+
+  it('partners in crime: a crime by anyone in the car makes everyone in it wanted', async () => {
+    const { client: driver } = await connectNew(server);
+    const { client: rider } = await connectNew(server);
+    const { client: bystander } = await connectNew(server);
+    const vehicleId = await driveCar(driver);
+    besideCar(rider, vehicleId);
+    await rider.rpc('vehicle.ride', { vehicleId });
+    const police = server.game.police;
+    expect(police.crew(rider.playerId).sort()).toEqual([driver.playerId, rider.playerId].sort());
+    // The passenger commits the crime; the driver is just as wanted, the player outside isn't.
+    police.raiseHeat(rider.playerId, 250);
+    expect(police.starsOf(driver.playerId)).toBe(3);
+    expect(police.starsOf(rider.playerId)).toBe(3);
+    expect(police.starsOf(bystander.playerId)).toBe(0);
+    // And the other way round.
+    police.addHeat(driver.playerId, 100);
+    expect(police.starsOf(rider.playerId)).toBe(4);
+    await rider.waitFor<{ stars: number }>('police.wanted', (w) => w.stars === 4, 5000);
+    for (const c of [driver, rider, bystander]) c.close();
+  }, 30_000);
 });

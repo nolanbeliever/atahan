@@ -149,8 +149,9 @@ describe('shooting', () => {
     expect(wreck.condition.engine).toBe(0);
     expect(wreck.condition.body).toBe(0);
     await client.waitFor<{ title: string }>('notify', (n) => n.title === 'Engine blow-out!');
-    // Own car: no crime.
-    expect(starsFor(heat(client))).toBeLessThan(2);
+    // Own car: no crime, but the gunfire is heard and a patrol is called (2 stars, not 3).
+    expect(starsFor(heat(client))).toBe(2);
+    await client.waitFor<{ title: string }>('notify', (n) => n.title.includes('Silah sesi'));
     client.close();
   });
 

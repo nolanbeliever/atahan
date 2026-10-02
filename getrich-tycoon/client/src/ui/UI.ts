@@ -158,6 +158,8 @@ export class UI {
     this.build();
     this.touch = new TouchControls(this);
     this.root.insertBefore(this.touch.el, this.hud.offers);
+    // The look area sits behind every HUD element (first in the root), over the 3D view.
+    this.root.prepend(this.touch.lookZone);
     game.store.on('offers', () => this.renderOffers());
     game.store.on('rewards', (v) => this.onRewards(v));
     this.rewardsHud.onClick = () => void this.giftClicked();
@@ -254,7 +256,7 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Enter'), 'Chat'),
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
-    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.crosshair, this.combat.gun, this.combat.overlay, this.wanted.banner, reconnect);
+    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, reconnect);
     this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 

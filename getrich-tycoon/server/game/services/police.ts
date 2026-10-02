@@ -5,7 +5,7 @@
 // boxes as everyone) spawn behind the player and chase them: along the highway lanes, and through
 // the city on the road grid (line of sight or a route over the junctions). Losing every police car
 // for 30 s is an escape (cash + XP). A police car right beside you while you are (nearly) stopped
-// for 3 s is an arrest: a fine (10% of your cash, at least $1,500), the car is towed to your
+// for 3 s is an arrest: a fixed $3,000 fine (cash, then bank), the car is towed to your
 // garage, and you walk out of the nearest garage after a short cutscene.
 
 import { KMH_PER_MS } from '../../../shared/drivetrain';
@@ -55,16 +55,21 @@ interface Wanted {
   busted: { until: number; event: BustedEvent } | null;
   sent: string;
   sentAt: number;
+  /** Every police car that took part in the pursuit (the escape pays per car). */
+  chasers: Set<number>;
 }
 
 export function starsFor(heat: number): number {
   return Math.min(5, Math.max(0, Math.ceil(heat / 100)));
 }
 
-/** Fine for an arrest: a share of the cash, at least the minimum, never more than the cash. */
-export function policeFine(cash: number): number {
-  const c = ECONOMY.police;
-  return Math.max(0, Math.min(cash, Math.max(c.minFine, Math.round(cash * c.fineShare))));
+/** Fine for an arrest: a fixed $3,000, however many stars or police cars. It comes out of the cash,
+ *  and out of the bank when the cash isn't enough (never below zero). */
+export function policeFine(cash: number, bank = 0): { cash: number; bank: number; total: number } {
+  const fine = ECONOMY.police.fine;
+  const fromCash = Math.max(0, Math.min(cash, fine));
+  const fromBank = Math.max(0, Math.min(bank, fine - fromCash));
+  return { cash: fromCash, bank: fromBank, total: fromCash + fromBank };
 }
 
 const GARAGES = INTERACTABLES.filter((i) => i.kind === 'repair' || i.kind === 'custom').map((i) => ({ x: i.x, z: i.z + 6 }));
@@ -90,28 +95,45 @@ export class PoliceService {
   private get(playerId: string): Wanted {
     let w = this.wanted.get(playerId);
     if (!w) {
-      w = { heat: 0, lastOffence: 0, escapeT: 0, bustT: 0, units: [], pursued: false, seenHitAt: Date.now(), busted: null, sent: '', sentAt: 0 };
+      w = { heat: 0, lastOffence: 0, escapeT: 0, bustT: 0, units: [], pursued: false, seenHitAt: Date.now(), busted: null, sent: '', sentAt: 0, chasers: new Set() };
       this.wanted.set(playerId, w);
     }
     return w;
   }
 
-  /** Add heat for an offence (also used by tests). */
-  addHeat(playerId: string, amount: number): void {
-    const w = this.get(playerId);
-    if (w.busted) return;
-    w.heat = Math.min(ECONOMY.police.maxHeat, w.heat + amount);
-    w.lastOffence = Date.now();
-    w.escapeT = 0;
+  /** Everyone in the same car as a player (driver and passengers): partners in crime. */
+  crew(playerId: string): string[] {
+    const c = this.ctx.sim.chars.get(playerId);
+    const vehicleId = c?.drivingId ?? c?.ridingId;
+    if (!vehicleId) return [playerId];
+    const out = new Set([playerId]);
+    const driver = this.ctx.sim.driverOf(vehicleId);
+    if (driver) out.add(driver);
+    for (const r of this.ctx.sim.ridersOf(vehicleId)) out.add(r.id);
+    return [...out];
   }
 
-  /** Raise the heat to at least this much (e.g. a car alarm: straight to 2 stars). */
+  /** Add heat for an offence (also used by tests). Everyone in the same car shares it. */
+  addHeat(playerId: string, amount: number): void {
+    for (const id of this.crew(playerId)) {
+      const w = this.get(id);
+      if (w.busted) continue;
+      w.heat = Math.min(ECONOMY.police.maxHeat, w.heat + amount);
+      w.lastOffence = Date.now();
+      w.escapeT = 0;
+    }
+  }
+
+  /** Raise the heat to at least this much (e.g. a car alarm: straight to 2 stars). Shared with
+   *  everyone in the same car. */
   raiseHeat(playerId: string, atLeast: number): void {
-    const w = this.get(playerId);
-    if (w.busted) return;
-    w.heat = Math.min(ECONOMY.police.maxHeat, Math.max(w.heat, atLeast));
-    w.lastOffence = Date.now();
-    w.escapeT = 0;
+    for (const id of this.crew(playerId)) {
+      const w = this.get(id);
+      if (w.busted) continue;
+      w.heat = Math.min(ECONOMY.police.maxHeat, Math.max(w.heat, atLeast));
+      w.lastOffence = Date.now();
+      w.escapeT = 0;
+    }
   }
 
   /** A near miss at speed (from the highway service). */
@@ -204,6 +226,7 @@ export class PoliceService {
         const u = this.spawn(me, w.units.length);
         if (!u) break;
         w.units.push(u);
+        w.chasers.add(u.id);
         w.pursued = true;
       }
       if (w.units.length > want) w.units.length = want;
@@ -249,7 +272,9 @@ export class PoliceService {
   private target(playerId: string): { x: number; z: number; rot: number; speed: number; vx: number; vz: number; hl: number; hw: number; onFoot: boolean; vehicleId: string | null } | null {
     const c = this.ctx.sim.chars.get(playerId);
     if (!c) return null;
-    const d = c.drivingId ? this.ctx.sim.drives.get(c.drivingId) : undefined;
+    // A passenger is wherever the car is.
+    const vid = c.drivingId ?? c.ridingId;
+    const d = vid ? this.ctx.sim.drives.get(vid) : undefined;
     if (d) {
       const h = d.dyn.speed >= 0 ? d.dyn.rot + d.dyn.slip : d.dyn.rot;
       return { x: d.dyn.x, z: d.dyn.z, rot: d.dyn.rot, speed: d.dyn.speed, vx: Math.sin(h) * d.dyn.speed, vz: Math.cos(h) * d.dyn.speed, hl: d.params.halfLength, hw: d.params.halfWidth, onFoot: false, vehicleId: d.vehicleId };
@@ -424,16 +449,19 @@ export class PoliceService {
     this.wanted.delete(playerId);
     this.ctx.hub.sendTo(playerId, 'police.wanted', { stars: 0, units: 0, escapeLeft: null, bust: 0 });
     if (!w.pursued) return;
+    // $1,000 for every police car you got away from.
+    const cars = Math.max(1, w.chasers.size);
+    const reward = cfg.escapeReward * cars;
     try {
       await this.ctx.locks.run([K.player(playerId)], async () => {
         if (!this.ctx.state.players.has(playerId)) return;
         const uow = this.ctx.state.begin();
         const p = uow.player(playerId);
-        uow.credit(p, cfg.escapeReward, 'police_escape', 'Escaped a police pursuit');
+        uow.credit(p, reward, 'police_escape', `Escaped ${cars} police car${cars === 1 ? '' : 's'}`);
         uow.grantXp(p, cfg.escapeXp);
         await uow.commit();
       });
-      this.ctx.hub.sendTo(playerId, 'police.escaped', { reward: cfg.escapeReward, xp: cfg.escapeXp });
+      this.ctx.hub.sendTo(playerId, 'police.escaped', { reward, xp: cfg.escapeXp, cars });
       for (const l of this.escapeListeners) l(playerId);
     } catch (err) {
       log.error('escape reward failed', { playerId, error: (err as Error).message });
@@ -466,9 +494,14 @@ export class PoliceService {
         if (!this.ctx.state.players.has(playerId)) return;
         const uow = this.ctx.state.begin();
         const p = uow.player(playerId);
-        fine = policeFine(p.money);
-        if (fine > 0) uow.debit(p, fine, 'police_fine', 'Arrested: police fine');
-        uow.notify(playerId, { kind: 'warning', title: 'BUSTED!', text: `Your car was impounded and a $${fine.toLocaleString('en-US')} fine was deducted.` }, false, (id) => this.ctx.hub.isOnline(id));
+        const f = policeFine(p.money, p.bank);
+        fine = f.total;
+        if (f.cash > 0) uow.debit(p, f.cash, 'police_fine', 'Arrested: police fine');
+        if (f.bank > 0) {
+          p.bank -= f.bank;
+          uow.log(p, 'police_fine', -f.bank, 'Arrested: police fine (from the bank)');
+        }
+        uow.notify(playerId, { kind: 'warning', title: 'POLİSE YAKALANDIN!', text: `$${fine.toLocaleString('en-US')} ceza ödendi. Araç bağlandı, en yakın garajdan çıkıyorsun.` }, false, (id) => this.ctx.hub.isOnline(id));
         await uow.commit();
       });
     } catch (err) {

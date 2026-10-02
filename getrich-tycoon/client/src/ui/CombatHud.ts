@@ -1,5 +1,5 @@
-// Fight HUD: the health bar, the drawn gun with its rounds, the crosshair, a red flash with an arrow
-// towards whoever hit you, and the WASTED screen.
+// Fight HUD: the health bar, the drawn gun with its rounds, a red flash with an arrow towards
+// whoever hit you, and the WASTED screen. (No crosshair: you aim down the gun's own sights.)
 
 import { COMBAT, type HealthView, type WeaponDef } from '../../../shared/weapons';
 import { h } from './dom';
@@ -7,7 +7,6 @@ import { h } from './dom';
 export class CombatHud {
   readonly health: HTMLElement;
   readonly gun: HTMLElement;
-  readonly crosshair: HTMLElement;
   readonly overlay: HTMLElement;
   private hpFill: HTMLElement;
   private hpText: HTMLElement;
@@ -22,8 +21,7 @@ export class CombatHud {
     this.health = h('div', { class: 'hp-bar', 'data-testid': 'hp-bar', title: 'Health' }, h('span', { class: 'hp-heart' }, '❤'), h('div', { class: 'hp-track' }, this.hpFill), this.hpText);
     this.gunName = h('div', { class: 'gun-hud-name' });
     this.gunAmmo = h('div', { class: 'gun-hud-ammo mono', 'data-testid': 'gun-ammo' });
-    this.gun = h('div', { class: 'gun-hud', 'data-testid': 'gun-hud' }, this.gunName, this.gunAmmo, h('div', { class: 'gun-hud-keys' }, '1-6 gun · Q away · click fire'));
-    this.crosshair = h('div', { class: 'gun-crosshair', 'data-testid': 'crosshair' }, h('i'), h('i'), h('i'), h('i'));
+    this.gun = h('div', { class: 'gun-hud', 'data-testid': 'gun-hud' }, this.gunName, this.gunAmmo, h('div', { class: 'gun-hud-keys' }, '1-6 gun · Q away · click fire · nişan: gez-arpacık'));
     this.arrow = h('div', { class: 'hurt-arrow' });
     this.overlay = h('div', { class: 'hurt-overlay' }, this.arrow);
     this.setHealth({ hp: COMBAT.playerHp, max: COMBAT.playerHp, hitAt: 0 });
@@ -40,8 +38,6 @@ export class CombatHud {
   setGun(w: WeaponDef | null, ammo: number, onFoot: boolean): void {
     const show = !!w && onFoot;
     this.gun.classList.toggle('show', show);
-    this.crosshair.classList.toggle('show', show);
-    this.crosshair.classList.toggle('big', !!w && w.spread > 0.05);
     if (!w) return;
     this.gunName.textContent = w.name;
     this.gunAmmo.textContent = ammo > 0 ? `${ammo}` : 'NO AMMO';

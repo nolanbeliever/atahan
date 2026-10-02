@@ -114,8 +114,9 @@ describe('highway collisions', () => {
       [-5.4, 1],
       [12.6, 1],
     ] as const) {
-      // Aim straight at a barrier from a lane at an absurd speed.
-      const s = 150;
+      // Aim straight at a barrier from a lane at an absurd speed (between the crossover and the
+      // north junction's long ramps).
+      const s = 100;
       const a = pathPoint(s, start);
       const dir = { x: a.nx * heading, z: a.nz * heading };
       const v = newVehicleDyn(a.x, a.z, Math.atan2(dir.x, dir.z));

@@ -17,6 +17,7 @@ import {
   isOnRoad,
   type Building,
   type ZoneId,
+  CITY_LAMPS,
 } from '../../../shared/world';
 import { batchStatic } from './batch';
 import { lightGlowTexture } from './Highway';
@@ -482,17 +483,7 @@ export class City {
   }
 
   private buildLamps(): void {
-    const positions: [number, number, number][] = [];
-    for (const l of ROAD_LINES) {
-      for (let s = -150; s <= 150; s += 24) {
-        if (ROAD_LINES.some((k) => Math.abs(k - s) < 10)) continue;
-        positions.push([l - 7.5, s, 1]);
-        positions.push([l + 7.5, s + 12, -1]);
-        positions.push([s, l - 7.5, 2]);
-        // (none in the Sanayi's driveway)
-        if (l !== 150 || Math.abs(s + 12 - SANAYI.entry.x) > SANAYI.entry.width / 2 + 1.5) positions.push([s + 12, l + 7.5, -2]);
-      }
-    }
+    const positions = CITY_LAMPS;
     const poleGeo = new THREE.CylinderGeometry(0.1, 0.14, 6, 6);
     const headGeo = new THREE.BoxGeometry(0.5, 0.2, 1.2);
     const poleMat = new THREE.MeshStandardMaterial({ color: '#39404d', metalness: 0.6, roughness: 0.4 });

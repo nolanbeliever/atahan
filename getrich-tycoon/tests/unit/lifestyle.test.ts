@@ -148,14 +148,15 @@ describe('driving bonus', () => {
 });
 
 describe('police', () => {
-  it('heat becomes 1-5 stars; arrests cost 10% of cash, at least $1,500', () => {
+  it('heat becomes 1-5 stars; an arrest costs a fixed $3,000 (cash, then bank)', () => {
     expect(starsFor(0)).toBe(0);
     expect(starsFor(40)).toBe(1);
     expect(starsFor(150)).toBe(2);
     expect(starsFor(10_000)).toBe(5);
-    expect(policeFine(100_000)).toBe(10_000);
-    expect(policeFine(5_000)).toBe(1_500);
-    expect(policeFine(900)).toBe(900);
-    expect(policeFine(0)).toBe(0);
+    expect(policeFine(100_000)).toEqual({ cash: 3_000, bank: 0, total: 3_000 });
+    expect(policeFine(5_000, 50_000)).toEqual({ cash: 3_000, bank: 0, total: 3_000 });
+    expect(policeFine(900, 50_000)).toEqual({ cash: 900, bank: 2_100, total: 3_000 });
+    expect(policeFine(900, 1_000)).toEqual({ cash: 900, bank: 1_000, total: 1_900 });
+    expect(policeFine(0)).toEqual({ cash: 0, bank: 0, total: 0 });
   });
 });

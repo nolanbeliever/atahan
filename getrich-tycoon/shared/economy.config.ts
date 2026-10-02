@@ -521,9 +521,8 @@ export const ECONOMY = {
     bustGap: 2.5,
     bustKmh: 15,
     bustSec: 3,
-    /** Fine: this share of your cash, at least minFine (never more than you have). */
-    fineShare: 0.1,
-    minFine: 1_500,
+    /** Arrest fine: always this much (from the cash, then the bank; never below zero). */
+    fine: 3_000,
     /** Length of the arrest cutscene before you respawn (s). */
     cutsceneSec: 6.5,
   },
@@ -645,7 +644,8 @@ export const ECONOMY = {
     /** Wanted heat for shooting at a person or a police officer / police car (300 = 3 stars). */
     heatPerson: 300,
     heatPolice: 400,
-    heatShots: 40,
+    /** Any shot is heard (no witness needed): the heat goes to at least this (150 = 2 stars, a patrol comes). */
+    heatGunshot: 150,
     /** Vehicles: body HP; a blown engine's explosion. */
     vehicleHp: 100,
     explosionRadius: 6,

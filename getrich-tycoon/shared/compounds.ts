@@ -9,8 +9,9 @@ export const HOSPITAL = {
 };
 
 export const AMMU_NATION = {
-  box: { minX: 178, maxX: 202, minZ: -42, maxZ: -14 },
-  door: { x: 174, z: -28 },
+  // Clear of the east overpass's embankment (z ≈ -30).
+  box: { minX: 178, maxX: 202, minZ: -112, maxZ: -84 },
+  door: { x: 174, z: -98 },
 };
 
 /** Inside one of the compounds (trees stay out). */

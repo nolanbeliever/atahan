@@ -93,7 +93,11 @@
     flames, and merges parked vehicles into a few meshes. `BikeView` leans into corners and carries the rider.
   - Interior and cutscenes: `render/Cockpit.ts` fits the shared `cockpit.glb` at the driver's seat with live needles, steering
     wheel, gear lever, pedals and a gear screen; it is drawn in a second pass (`Renderer.overlay`, layer 1) so the outer body
-    never hides it. `game/EntityViews.ts` animates getting in and out (walk to the door, door, sit) and seats the drivers;
+    never hides it. `render/GunView.ts` is the first-person gun drawn in the same pass when a gun is out on foot: each gun is
+    built so its rear and front sights line up on the middle of the screen (no crosshair), with hands, walk bob, the kick
+    and muzzle flash; `Game.recoilKick` moves the view by `recoilKick()` (shared/weapons.ts) and lets it settle.
+    `ui/TouchControls.ts` adds the touch look area (right half of the screen, behind the HUD), the gun button and
+    **ATEŞ ET**. `game/EntityViews.ts` animates getting in and out (walk to the door, door, sit) and seats the drivers;
     `game/Busted.ts` plays the arrest cutscene; `game/Police.ts` renders police cars with wig-wag light bars.
   - Car theft: `game/Theft.ts` (street cars with hazard / alarm lights, the alarm sound, lockpick and lift prompts, work
     markers and the timed strip job), `render/Sanayi.ts` (yard, hall with a roof that fades while you are inside, two-post

@@ -31,6 +31,7 @@ import { AIR_LEVELS, hasAirRide } from '../../../shared/modificationsData';
 import { NITRO_ITEM } from '../../../shared/rewards';
 import { cameraSeeing } from '../../../shared/cctv';
 import { RACE, raceRoute, type StreetRaceView } from '../../../shared/streetRace';
+import { recoilKick, type WeaponDef } from '../../../shared/weapons';
 import { confetti } from '../ui/confetti';
 import { Anim, VF, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
@@ -56,6 +57,7 @@ import { Effects } from '../render/Effects';
 import { Renderer } from '../render/Renderer';
 import { createVehicleView, type AnyVehicleView, type VehicleView } from '../render/VehicleMesh';
 import { CockpitRig } from '../render/Cockpit';
+import { GunView } from '../render/GunView';
 import { Rain, setRoadWetness } from '../render/Weather';
 import { SanayiView } from '../render/Sanayi';
 import { CctvView } from '../render/Cctv';
@@ -82,6 +84,10 @@ export interface Interaction {
 
 const COCKPIT_FOV = 74;
 const CHASE_FOV = 62;
+/** Looking down the sights: a touch narrower than the chase view. */
+const SIGHTS_FOV = 56;
+/** Eye height on foot (m). */
+const EYE_HEIGHT = 1.62;
 
 const MAX_PENDING = 150;
 
@@ -127,6 +133,11 @@ export class Game {
   private cockpit: { id: string; rig: CockpitRig } | null = null;
   private lookYaw = 0;
   private lookPitch = 0;
+  /** First person with a gun drawn: up / down aim (rad), the recoil on top of it, the gun model. */
+  private aimPitch = 0;
+  private recoil = { pitch: 0, yaw: 0, burst: 0, at: 0, recover: 4 };
+  private fpsWas = false;
+  private gunView!: GunView;
   private busted: BustedCutscene | null = null;
   wanted: WantedState = { stars: 0, units: 0, escapeLeft: null, bust: 0 };
   /** What the physics did since the last frame (gauge lights, tyre sounds, shifts). */
@@ -192,6 +203,7 @@ export class Game {
     this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.combat = new CombatClient(this);
+    this.gunView = new GunView(this.renderer.scene);
     this.combat.onChange = () => this.updateGunHud();
     this.entities = new EntityViews(this.renderer.scene, () => this.store.playerId);
     this.police = new PoliceClient(this.renderer.scene);
@@ -345,7 +357,7 @@ export class Game {
     });
     net.on('police.busted', (e) => this.startBusted(e));
     net.on('police.escaped', (d) => {
-      this.ui?.wanted.escaped(d.reward, d.xp);
+      this.ui?.wanted.escaped(d.reward, d.xp, d.cars);
       this.audio.play('levelup');
     });
     net.on('auction.update', (a) => {
@@ -658,8 +670,20 @@ export class Game {
     }
     const mouse = this.input.consumeMouse();
     const cockpit = this.cockpitActive();
+    const fps = this.sightsActive();
+    if (fps !== this.fpsWas) {
+      // Into the sights: keep looking the same way; back out: the chase camera starts over.
+      this.fpsWas = fps;
+      this.aimPitch = 0;
+      this.recoil.pitch = this.recoil.yaw = 0;
+      if (!fps) this.cam.snap();
+    }
     if (this.input.enabled && !this.busted) {
-      if (cockpit) {
+      if (fps) {
+        const k = 0.0025 * this.cam.sensitivity * 0.8;
+        this.cam.yaw -= mouse.dx * k;
+        this.aimPitch = Math.max(-1.3, Math.min(1.3, this.aimPitch - mouse.dy * k * (this.cam.invertY ? -1 : 1)));
+      } else if (cockpit) {
         const k = 0.0025 * this.cam.sensitivity;
         this.lookYaw = Math.max(-1.9, Math.min(1.9, this.lookYaw - mouse.dx * k));
         this.lookPitch = Math.max(-0.7, Math.min(0.5, this.lookPitch - mouse.dy * k * (this.cam.invertY ? -1 : 1)));
@@ -698,8 +722,10 @@ export class Game {
       if ((this.dyn.nitro ?? 0) > 0) flags |= VF.NITRO;
     }
     this.entities.hideLocalDriver = cockpit && !this.busted;
+    this.entities.hideLocalBody = fps;
     document.body.classList.toggle('cockpit-view', cockpit && !this.busted);
-    this.renderer.overlay = cockpit && !this.busted;
+    document.body.classList.toggle('sights-view', fps);
+    this.renderer.overlay = (cockpit || fps) && !this.busted;
     this.entities.update(dt, now, {
       id: this.store.playerId,
       x: rx,
@@ -714,7 +740,7 @@ export class Game {
     });
 
     const camera = this.renderer.camera;
-    const fov = cockpit && !this.busted ? COCKPIT_FOV : CHASE_FOV;
+    const fov = cockpit && !this.busted ? COCKPIT_FOV : fps ? SIGHTS_FOV : CHASE_FOV;
     // A nitrous shot widens the view a little (speed rush).
     this.fovKick += ((this.nitroLeft() > 0 ? 9 : 0) - this.fovKick) * Math.min(1, dt * 4);
     if (this.fovKick < 0.05) this.fovKick = 0;
@@ -728,6 +754,7 @@ export class Game {
       this.busted.update(dt, camera);
       if (this.busted.done && (!this.driving || this.busted.t > this.busted.duration + 1.5)) this.endBusted();
     } else if (cockpit) this.updateCockpitCamera(dt);
+    else if (fps) this.updateSightsCamera(rx, rz, dt);
     else if (carried) {
       // Riding along: the chase camera follows the car (it has just been placed this frame).
       if (performance.now() - this.input.lastMouseMove > 1500) this.cam.follow(carried.rot, dt);
@@ -737,6 +764,9 @@ export class Game {
       const target = new THREE.Vector3(rx, groundHeight(rx, rz), rz);
       this.cam.update(target, dt, !!this.driving, this.dyn?.speed ?? 0, this.boxes);
     }
+    const me = this.store.me?.appearance;
+    this.gunView.set(fps ? this.combat.equipped?.slot ?? 0 : 0, me?.skin, me?.shirt);
+    this.gunView.update(camera, fps, dt, moving, (keys & KEY.SPRINT) !== 0);
     // A blast nearby shakes the camera.
     const shake = this.combat.fx.shake;
     if (shake > 0) camera.position.add(new THREE.Vector3((Math.random() - 0.5) * shake * 0.6, (Math.random() - 0.5) * shake * 0.4, (Math.random() - 0.5) * shake * 0.6));
@@ -1346,6 +1376,43 @@ export class Game {
     const glance = (this.dyn?.input ?? 0) * 0.12;
     const look = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.lookPitch - 0.15, Math.PI + this.lookYaw + glance, 0, 'YXZ'));
     camera.quaternion.copy(body).multiply(look);
+  }
+
+  /** A gun drawn on foot: first person, looking down the sights. */
+  private sightsActive(): boolean {
+    return !!this.combat.equipped && !this.driving && !this.riding && !this.combat.dead && !this.busted;
+  }
+
+  /** First person on foot: the camera at the eyes, the recoil kicking it up and settling slowly. */
+  private updateSightsCamera(x: number, z: number, dt: number): void {
+    const r = this.recoil;
+    const settle = Math.exp(-dt * r.recover);
+    r.pitch *= settle;
+    r.yaw *= settle;
+    if (performance.now() - r.at > 350) r.burst = 0;
+    const camera = this.renderer.camera;
+    const yaw = this.cam.yaw;
+    camera.position.set(x + Math.sin(yaw) * 0.12, groundHeight(x, z) + EYE_HEIGHT, z + Math.cos(yaw) * 0.12);
+    camera.quaternion.setFromEuler(new THREE.Euler(this.aimPitch + r.pitch, yaw + Math.PI + r.yaw, 0, 'YXZ'));
+  }
+
+  /** A shot: the view kicks (pistol straight up, shotgun hard, rifles spray) and the gun comes back. */
+  recoilKick(w: WeaponDef): void {
+    const r = this.recoil;
+    const k = recoilKick(w, r.burst, Math.random);
+    r.burst++;
+    r.at = performance.now();
+    r.recover = w.recoil.recover;
+    r.pitch = Math.min(0.45, r.pitch + k.pitch);
+    r.yaw = Math.max(-0.2, Math.min(0.2, r.yaw + k.yaw));
+    this.gunView.kick(k.shove, k.pitch);
+    // The shotgun and the RPG also shove you back a little.
+    if (k.shove > 0.09) this.offset.add(new THREE.Vector2(-Math.sin(this.cam.yaw), -Math.cos(this.cam.yaw)).multiplyScalar(k.shove * 0.6));
+  }
+
+  /** The drawn gun's muzzle in the world while looking down the sights (for the tracer). */
+  sightsMuzzle(out: THREE.Vector3): THREE.Vector3 | null {
+    return this.fpsWas ? this.gunView.muzzleWorld(out) : null;
   }
 
   private onMissions(missions: MissionView[]): void {

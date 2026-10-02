@@ -1,7 +1,7 @@
 // Guns, ammo, damage stages and the ray maths (shared/weapons.ts).
 
 import { describe, expect, it } from 'vitest';
-import { AMMO, WEAPONS, aimRay, ammoDef, damageLook, ownedWeapons, rayBox, rayCircle, rayObb, rayY, spreadAim, weapon, weaponItem } from '../../shared/weapons';
+import { AMMO, WEAPONS, aimRay, ammoDef, damageLook, ownedWeapons, rayBox, rayCircle, rayObb, rayY, recoilKick, spreadAim, weapon, weaponItem } from '../../shared/weapons';
 
 describe('Ammu-Nation catalogue', () => {
   it('has the requested guns and prices', () => {
@@ -58,5 +58,39 @@ describe('ray maths', () => {
     expect(Math.abs(a.yaw - 1)).toBeLessThanOrEqual(0.05);
     expect(spreadAim(1, 0, 0.05, 7)).toEqual(a);
     expect(spreadAim(1, 0, 0, 7)).toEqual({ yaw: 1, pitch: 0 });
+  });
+});
+
+describe('recoil', () => {
+  const seq = (vals: number[]) => {
+    let i = 0;
+    return () => vals[i++ % vals.length]!;
+  };
+  it('pistol: a light kick straight up', () => {
+    const k = recoilKick(weapon('pistol')!, 0, seq([0.5, 1, 0.5]));
+    expect(k.pitch).toBeGreaterThan(0.02);
+    expect(k.pitch).toBeLessThan(0.05);
+    expect(Math.abs(k.yaw)).toBeLessThan(k.pitch / 5);
+  });
+
+  it('shotgun: a hard kick up and back', () => {
+    const p = recoilKick(weapon('pistol')!, 0, () => 0.5);
+    const s = recoilKick(weapon('shotgun')!, 0, () => 0.5);
+    expect(s.pitch).toBeGreaterThan(p.pitch * 3);
+    expect(s.shove).toBeGreaterThan(p.shove * 2.5);
+  });
+
+  it('rifle: sprays up and sideways, climbing through a burst', () => {
+    const w = weapon('rifle')!;
+    const yaws = [0, 0.25, 0.5, 0.75, 1].map((r) => recoilKick(w, 0, () => r).yaw);
+    expect(Math.min(...yaws)).toBeLessThan(-0.01);
+    expect(Math.max(...yaws)).toBeGreaterThan(0.01);
+    expect(recoilKick(w, 8, () => 0.5).pitch).toBeGreaterThan(recoilKick(w, 0, () => 0.5).pitch * 1.5);
+    // Single-shot guns don't climb.
+    expect(recoilKick(weapon('pistol')!, 8, () => 0.5).pitch).toBeCloseTo(recoilKick(weapon('pistol')!, 0, () => 0.5).pitch, 6);
+  });
+
+  it('every gun settles again', () => {
+    for (const w of WEAPONS) expect(w.recoil.recover, w.id).toBeGreaterThan(1);
   });
 });

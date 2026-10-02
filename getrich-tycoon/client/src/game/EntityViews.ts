@@ -140,6 +140,8 @@ export class EntityViews {
   readonly doors = new Map<string, number>();
   /** First-person view: the local driver's own body is not drawn. */
   hideLocalDriver = false;
+  /** Hide the local player on foot (first person, looking down a gun's sights). */
+  hideLocalBody = false;
   /** Players whose next exit should not be animated (e.g. towed away after an arrest). */
   readonly skipExit = new Set<string>();
   private tmp = new THREE.Vector3();
@@ -471,7 +473,7 @@ export class EntityViews {
         e.view.animate(Anim.Idle, dt);
       } else {
         this.toScene(e);
-        e.view.root.visible = !driving;
+        e.view.root.visible = !driving && !(id === local.id && this.hideLocalBody);
         e.view.root.position.set(x, y, z);
         e.view.root.rotation.set(0, r, 0);
         e.view.animate(anim, dt);

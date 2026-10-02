@@ -211,7 +211,7 @@ export interface ServerToClientEvents {
   'missions.complete': (d: { id: string; title: string; reward: string }) => void;
   'police.wanted': (d: WantedState) => void;
   'police.busted': (d: BustedEvent) => void;
-  'police.escaped': (d: { reward: number; xp: number }) => void;
+  'police.escaped': (d: { reward: number; xp: number; cars: number }) => void;
   /** Street-parked cars changed (one was stolen, a new one parked, an alarm started). */
   'street.cars': (cars: StreetCar[]) => void;
   /** A car alarm went off nearby. */

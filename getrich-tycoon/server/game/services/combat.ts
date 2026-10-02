@@ -30,7 +30,7 @@ import { K, type Ctx } from '../context';
 import { requireNear } from '../guards';
 import type { NpcEntity } from '../simulation';
 import type { CustomerService } from './customers';
-import type { PoliceService } from './police';
+import { starsFor, type PoliceService } from './police';
 import type { TheftService } from './theft';
 import type { VehicleService } from './vehicles';
 
@@ -217,8 +217,12 @@ export class CombatService {
       const aim = spreadAim(yaw as number, pitch as number, w.spread, (n as number) * 13 + i * 7 + 1);
       this.trace(playerId, w, aimRay(x as number, y as number, z as number, aim.yaw, aim.pitch), now, i === 0);
     }
-    // Shots fired near people get reported.
-    if (this.witnesses(c.x, c.z, 40)) this.police.raiseHeat(playerId, 100);
+    // Every shot is heard, witnesses or not: the nearest patrol is called to the scene (2 stars).
+    const before = this.police.starsOf(playerId);
+    this.police.raiseHeat(playerId, C.heatGunshot);
+    if (before < starsFor(C.heatGunshot)) {
+      this.ctx.hub.notify(playerId, { kind: 'warning', title: '📢 Silah sesi ihbarı', text: 'Silah sesi duyuldu: en yakın polis devriyesi olay yerine geliyor!' });
+    }
     this.panic(c.x, c.z, 35, now);
     return true;
   }
@@ -562,12 +566,6 @@ export class CombatService {
   /** People near gunfire run. */
   private panic(x: number, z: number, radius: number, now: number): void {
     for (const p of this.peds.values()) if (!p.deadAt && Math.hypot(p.npc.x - x, p.npc.z - z) < radius) p.panicUntil = now + 7000;
-  }
-
-  private witnesses(x: number, z: number, radius: number): boolean {
-    for (const p of this.peds.values()) if (!p.deadAt && Math.hypot(p.npc.x - x, p.npc.z - z) < radius) return true;
-    for (const npc of this.ctx.sim.npcs.values()) if (npc.id.startsWith('npc') && Math.hypot(npc.x - x, npc.z - z) < radius) return true;
-    return false;
   }
 
   // ---------------------------------------------------------------- tick

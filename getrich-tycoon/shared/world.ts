@@ -5,7 +5,7 @@
 
 import { AMMU_NATION, HOSPITAL } from './compounds';
 import { dealershipLevel } from './economy.config';
-import { DRAG_BOXES, DRAG_STRIP, highwayCircles } from './highway';
+import { DRAG_BOXES, DRAG_STRIP, JUNCTIONS, highwayCircles } from './highway';
 import { SANAYI, SANAYI_BOXES, SANAYI_CIRCLES } from './theft';
 
 export interface AABB {
@@ -336,6 +336,49 @@ export function spawnPoint(seed: number): { x: number; z: number; rot: number } 
 export function isOnRoad(x: number, z: number): boolean {
   return ROADS.some((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ);
 }
+
+/**
+ * City street lamps: on the sidewalks along every road (1.5 m outside the kerb), facing the road,
+ * one every 24 m on each side. Never at a crossing (a lamp at the corner of a junction would stand
+ * on the cross road), in a junction's connector or in the Sanayi driveway. [x, z, arm direction]:
+ * ±1 arm along x, ±2 arm along z.
+ */
+export const CITY_LAMPS: [number, number, number][] = (() => {
+  const out: [number, number, number][] = [];
+  const edge = ROAD_WIDTH / 2 + 1.5;
+  // A lamp at this distance along a road would stand in a crossing road.
+  const clearOfRoads = (v: number) => ROAD_LINES.every((k) => Math.abs(k - v) > ROAD_WIDTH / 2 + 3.5);
+  const outer = ROAD_LINES[ROAD_LINES.length - 1]!;
+  const gapAt = (along: number, side: 'n' | 's' | 'e' | 'w') => {
+    for (const j of JUNCTIONS) {
+      const onSide = side === 'n' ? j.cityZ < -outer : side === 's' ? j.cityZ > outer : side === 'e' ? j.cityX > outer : j.cityX < -outer;
+      const at = side === 'n' || side === 's' ? j.cityX : j.cityZ;
+      if (onSide && Math.abs(along - at) < ROAD_WIDTH / 2 + 2.5) return true;
+    }
+    if (side === 's' && Math.abs(along - SANAYI.entry.x) < SANAYI.entry.width / 2 + 1.5) return true;
+    return false;
+  };
+  for (const l of ROAD_LINES) {
+    for (let s = -150; s <= 150; s += 24) {
+      for (const [x, z, dir] of [
+        [l - edge, s, 1],
+        [l + edge, s + 12, -1],
+        [s, l - edge, 2],
+        [s + 12, l + edge, -2],
+      ] as [number, number, number][]) {
+        const along = Math.abs(dir) === 1 ? z : x;
+        if (!clearOfRoads(along) || Math.abs(along) > outer + 3) continue;
+        // The outer side of the outer roads: no lamps where a connector or the Sanayi driveway leaves.
+        if (l === outer && dir === -2 && gapAt(x, 's')) continue;
+        if (l === -outer && dir === 2 && gapAt(x, 'n')) continue;
+        if (l === outer && dir === -1 && gapAt(z, 'e')) continue;
+        if (l === -outer && dir === 1 && gapAt(z, 'w')) continue;
+        out.push([x, z, dir]);
+      }
+    }
+  }
+  return out;
+})();
 
 /** All static colliders (buildings) - dealership buildings are added dynamically. */
 export const STATIC_BOXES: AABB[] = [...BUILDINGS.map((b) => b.box), ...DRAG_BOXES, ...SANAYI_BOXES];

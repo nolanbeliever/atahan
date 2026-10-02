@@ -26,6 +26,8 @@ import {
   OVERPASS_RAMP,
   OVERPASS_WIDTH,
   RAMP_SPAN,
+  RAMP_WIDTH,
+  rampOffset,
   SIGN_GANTRIES,
   STRAIGHT_LEN,
   STREET_LIGHTS,
@@ -158,6 +160,52 @@ function boxAt(w: number, h: number, d: number, x: number, y: number, z: number,
   const g = new THREE.BoxGeometry(w, h, d);
   g.translate(x, y, z);
   return g.applyMatrix4(frame);
+}
+
+/** A flat strip of road along a centreline of (offset, ds) points in a junction's local frame, `width`
+ *  wide, lifted `y` (and shifted sideways by `shift`, for edge lines). */
+function ribbon(centre: THREE.Vector2[], width: number, y: number, shift = 0): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const side = (i: number) => {
+    const a = centre[Math.max(0, i - 1)]!;
+    const b = centre[Math.min(centre.length - 1, i + 1)]!;
+    const t = new THREE.Vector2(b.x - a.x, b.y - a.y).normalize();
+    return new THREE.Vector2(t.y, -t.x);
+  };
+  const edge = (i: number, k: number): [number, number, number] => {
+    const n = side(i);
+    const c = centre[i]!;
+    return [c.x + n.x * (shift + (k * width) / 2), y, c.y + n.y * (shift + (k * width) / 2)];
+  };
+  let along = 0;
+  for (let i = 0; i + 1 < centre.length; i++) {
+    const next = along + centre[i]!.distanceTo(centre[i + 1]!);
+    const quad: [number[], number[]][] = [
+      [edge(i, -1), [0, along / 6]],
+      [edge(i + 1, -1), [0, next / 6]],
+      [edge(i, 1), [width / 6, along / 6]],
+      [edge(i + 1, 1), [width / 6, next / 6]],
+    ];
+    for (const tri of [
+      [0, 1, 2],
+      [2, 1, 3],
+    ]) {
+      const [p0, p1, p2] = tri.map((k) => quad[k]!);
+      // Wind each triangle so it faces up.
+      const up = (p1![0][2]! - p0![0][2]!) * (p2![0][0]! - p0![0][0]!) - (p1![0][0]! - p0![0][0]!) * (p2![0][2]! - p0![0][2]!);
+      for (const p of up >= 0 ? [p0!, p1!, p2!] : [p0!, p2!, p1!]) {
+        pos.push(...p[0]);
+        uv.push(...p[1]);
+      }
+    }
+    along = next;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return g;
 }
 
 /** Radial light pool texture (street lights and headlights at night). */
@@ -341,30 +389,20 @@ export class HighwayView implements NightLights {
       // Connector road: 2 lanes, from the city's outer road to the ramps.
       const len = -JUNCTION_APRON - cityOff;
       roads.push(boxAt(len, 0.02, 12, (cityOff - JUNCTION_APRON) / 2, 0.005, 0, f));
-      // The apron flares out to the off-ramp (before) and on-ramp (after) along the slow lane.
-      const shape = new THREE.Shape();
-      const edge = -CARRIAGEWAY_EDGE + 0.2;
-      // Shape (x, y) becomes local (x, -z) once laid flat (facing up).
-      shape.moveTo(-JUNCTION_APRON - 0.5, 6);
-      shape.lineTo(-JUNCTION_APRON - 0.5, -6);
-      shape.lineTo(edge, -RAMP_SPAN[1] - 4);
-      shape.lineTo(edge, RAMP_SPAN[0] + 4);
-      const apron = new THREE.ShapeGeometry(shape);
-      apron.rotateX(-Math.PI / 2);
-      apron.translate(0, 0.009, 0);
-      roads.push(apron.applyMatrix4(f));
-      // Markings: centre line, edges, and the ramp gore lines.
       for (let x = cityOff; x < -JUNCTION_APRON - 3; x += 6) yellows.push(boxAt(3, 0.02, 0.16, x + 1.5, 0.02, 0, f));
-      for (const side of [-1, 1]) whites.push(boxAt(len, 0.02, 0.14, (cityOff - JUNCTION_APRON) / 2, 0.02, side * 5.6, f));
-      const gore = (x0: number, z0: number, x1: number, z1: number) => {
-        const L = Math.hypot(x1 - x0, z1 - z0);
-        const g = new THREE.BoxGeometry(L, 0.02, 0.16);
-        g.rotateY(-Math.atan2(z1 - z0, x1 - x0));
-        g.translate((x0 + x1) / 2, 0.02, (z0 + z1) / 2);
-        whites.push(g.applyMatrix4(f));
-      };
-      gore(-MEDIAN_HALF - LANES * LANE_WIDTH - 0.1, -RAMP_SPAN[0], -JUNCTION_APRON, -5.6);
-      gore(-JUNCTION_APRON, 5.6, -MEDIAN_HALF - LANES * LANE_WIDTH - 0.1, RAMP_SPAN[1]);
+      // The ramps: smooth S-curves from the slow lane out to the connector (off-ramp, before the
+      // junction) and back (on-ramp, after it), with a patch where they meet the connector's end.
+      roads.push(boxAt(10, 0.02, 18, -JUNCTION_APRON - 2, 0.007, 0, f));
+      for (const [from, to] of [
+        [-RAMP_SPAN[0], -2],
+        [2, RAMP_SPAN[1]],
+      ] as const) {
+        const centre: THREE.Vector2[] = [];
+        for (let ds = from; ds <= to + 1e-6; ds += 2) centre.push(new THREE.Vector2(rampOffset(ds), ds));
+        roads.push(ribbon(centre, RAMP_WIDTH, 0.011).applyMatrix4(f));
+        // Edge lines on both sides of the ramp.
+        for (const side of [-1, 1]) whites.push(ribbon(centre, 0.15, 0.022, side * (RAMP_WIDTH / 2 - 0.25)).applyMatrix4(f));
+      }
       // Direction signs at the city end.
       this.signPost(f, cityOff - 1, 8.5, 'EXPRESSWAY', 'ALL DIRECTIONS', '#1c6b3a', Math.PI);
       this.signPost(f, -JUNCTION_APRON - 4, -8.5, 'CITY CENTER', j.name, '#1d4f91', 0);
@@ -490,7 +528,8 @@ export class HighwayView implements NightLights {
         const side = cw === 0 ? -1 : 1;
         const f = frameAt(g.s + (cw === 0 ? 0 : 20));
         const from = side * (GUARDRAIL_OFFSET + 0.8);
-        const to = side * 1.1;
+        // The inner leg stands in the middle of the median barrier, never on a lane.
+        const to = 0;
         for (const x of [from, to]) frames.push(boxAt(0.35, 7.4, 0.35, x, 3.7, 0, f));
         frames.push(boxAt(Math.abs(from - to), 0.3, 0.3, (from + to) / 2, 7.1, 0, f));
         frames.push(boxAt(Math.abs(from - to), 0.2, 0.2, (from + to) / 2, 6.3, 0, f));

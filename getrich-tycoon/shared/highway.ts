@@ -201,10 +201,27 @@ export const JUNCTIONS: Junction[] = [
   { id: 'east', name: 'Exit 2 · East Gate', s: straightS(1, 200), cityX: 156, cityZ: 50 },
   { id: 'south', name: 'Exit 3 · South Gate', s: straightS(2, 200), cityX: -50, cityZ: 156 },
 ];
-/** The off-ramp leaves this far before the junction, the on-ramp joins this far after it. */
-export const RAMP_SPAN: [number, number] = [34, 38];
+/** The off-ramp leaves this far before the junction, the on-ramp joins this far after it (long and
+ *  gentle, so a fast car leaves or joins without a sharp turn; the north on-ramp ends before the
+ *  overpass that follows it). */
+export const RAMP_SPAN: [number, number] = [62, 52];
 /** Offset where the ramps meet the straight connector road (city side of the guardrail). */
 export const JUNCTION_APRON = 34;
+/** Offset of a ramp's centreline where it leaves / joins the carriageway (just past the slow lane). */
+export const RAMP_EDGE = -(MEDIAN_HALF + LANES * LANE_WIDTH + 1.6);
+export const RAMP_WIDTH = 6.5;
+
+const smooth = (t: number) => {
+  const c = Math.max(0, Math.min(1, t));
+  return c * c * (3 - 2 * c);
+};
+
+/** Offset of a ramp's centreline `ds` metres from its junction (an S-curve, no corner anywhere):
+ *  the off-ramp for ds < 0, the on-ramp for ds > 0. */
+export function rampOffset(ds: number): number {
+  if (ds < 0) return RAMP_EDGE + (-JUNCTION_APRON - RAMP_EDGE) * smooth((ds + RAMP_SPAN[0]) / (RAMP_SPAN[0] - 4));
+  return -JUNCTION_APRON + (RAMP_EDGE + JUNCTION_APRON) * smooth((ds - 4) / (RAMP_SPAN[1] - 4));
+}
 
 export interface Barrier {
   offset: number;
@@ -218,7 +235,8 @@ export interface Barrier {
 export const CROSSOVERS: number[] = [straightS(0, 70), straightS(2, 70)];
 
 export const HIGHWAY_BARRIERS: Barrier[] = [
-  { offset: -GUARDRAIL_OFFSET, half: 0.25, kind: 'guardrail', gaps: JUNCTIONS.map((j) => [j.s - RAMP_SPAN[0] - 4, j.s + RAMP_SPAN[1] + 4] as [number, number]) },
+  // The guardrail opens well before the off-ramp and closes well after the on-ramp (no end cap to clip).
+  { offset: -GUARDRAIL_OFFSET, half: 0.25, kind: 'guardrail', gaps: JUNCTIONS.map((j) => [j.s - RAMP_SPAN[0] - 14, j.s + RAMP_SPAN[1] + 14] as [number, number]) },
   { offset: 0, half: 0.35, kind: 'median', gaps: CROSSOVERS.map((s) => [s - 9, s + 9] as [number, number]) },
   { offset: GUARDRAIL_OFFSET, half: 0.25, kind: 'guardrail', gaps: [] },
 ];
@@ -336,14 +354,15 @@ export function highwayCircles(): { x: number; z: number; r: number }[] {
 /** Inside a junction: the connector road from the city and its ramps (kept clear of trees). */
 export function inJunctionArea(x: number, z: number, margin = 0): boolean {
   const hp = projectToHighway(x, z);
-  if (hp.offset > -GUARDRAIL_OFFSET + 1 || hp.offset < -92) return false;
+  if (hp.offset > -GUARDRAIL_OFFSET + 6 || hp.offset < -92) return false;
   return JUNCTIONS.some((j) => {
     const ds = deltaS(j.s, hp.s);
-    // The apron flares from the connector (|ds| <= 7) to the ramp span at the guardrail.
-    const t = Math.max(0, Math.min(1, (-hp.offset - GUARDRAIL_OFFSET) / (JUNCTION_APRON - GUARDRAIL_OFFSET)));
-    const lo = -(RAMP_SPAN[0] + 4) * (1 - t) - 7 * t;
-    const hi = (RAMP_SPAN[1] + 4) * (1 - t) + 7 * t;
-    return ds >= lo - margin && ds <= hi + margin;
+    // The connector road (12 m wide) from the ramps to the city.
+    if (Math.abs(ds) <= 7 + margin && hp.offset <= -JUNCTION_APRON + 6) return true;
+    // Along either ramp.
+    if (ds < -RAMP_SPAN[0] - margin || ds > RAMP_SPAN[1] + margin) return false;
+    const c = Math.max(-RAMP_SPAN[0], Math.min(RAMP_SPAN[1], ds));
+    return Math.abs(hp.offset - rampOffset(Math.abs(c) < 2 ? (c < 0 ? -2 : 2) : c)) <= RAMP_WIDTH / 2 + 2 + margin;
   });
 }
 

@@ -1,6 +1,7 @@
 // On-screen controls for touch devices (iPad, phones): a movement stick, an interact button,
-// a secondary-action button (fuel/wash) and a hold button that sprints on foot and brakes while
-// driving. Looking around by dragging on the 3D view is handled by Input.
+// a secondary-action button (fuel/wash), a hold button that sprints on foot and brakes while
+// driving, a gun button (draw / switch / put away) and a big ATEŞ ET (fire) button. The whole right
+// side of the screen is a free look area: drag anywhere there (behind the HUD) to turn the camera.
 
 import { KEY } from '../../../shared/physics';
 import type { Interaction } from '../game/Game';
@@ -25,6 +26,12 @@ export class TouchControls {
   private readonly hold: HTMLButtonElement;
   private readonly horn: HTMLButtonElement;
   private readonly camBtn: HTMLButtonElement;
+  private readonly fire: HTMLButtonElement;
+  private readonly gun: HTMLButtonElement;
+  /** Right half of the screen, behind the HUD: dragging turns the camera. */
+  readonly lookZone: HTMLElement;
+  private lookPointer: { id: number; x: number; y: number } | null = null;
+  private firePointer: number | null = null;
   private hornPointer: number | null = null;
   private stickPointer: number | null = null;
   private nx = 0;
@@ -40,7 +47,16 @@ export class TouchControls {
     this.camBtn = h('button', { class: 'tbtn cam', 'data-testid': 'touch-camera', 'aria-label': 'Switch camera' }, 'CAM');
     this.hold = h('button', { class: 'tbtn hold', 'data-testid': 'touch-hold' }, 'RUN');
     this.horn = h('button', { class: 'tbtn horn', 'data-testid': 'touch-horn', 'aria-label': 'Horn' }, 'HORN');
-    this.el = h('div', { class: 'touch-controls' }, this.stick, h('div', { class: 'touch-actions' }, this.camBtn, this.horn, this.alt, this.hold, this.act));
+    this.fire = h('button', { class: 'tbtn fire', 'data-testid': 'touch-fire', 'aria-label': 'Fire' }, h('span', { class: 'fire-icon' }, '🎯'), h('span', {}, 'ATEŞ ET'));
+    this.gun = h('button', { class: 'tbtn gun', 'data-testid': 'touch-gun', 'aria-label': 'Draw or switch gun' }, '🔫');
+    this.el = h('div', { class: 'touch-controls' }, this.stick, h('div', { class: 'touch-actions' }, this.camBtn, this.horn, this.alt, this.hold, this.act), this.gun, this.fire);
+    this.lookZone = h('div', { class: 'touch-look', 'data-testid': 'touch-look' });
+    this.bindLook();
+    this.bindFire();
+    this.gun.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      ui.game.combat.cycleWeapon();
+    });
     this.camBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       ui.game.toggleCockpit();
@@ -100,12 +116,83 @@ export class TouchControls {
     this.alt.classList.toggle('show', !!secondary);
   }
 
-  /** Called ~10x per second: keeps the hold button label in sync with driving/walking. */
+  /** Called ~10x per second: keeps the buttons in sync with driving / walking / a gun drawn. */
   update(): void {
-    const label = this.ui.game.driving ? 'BRAKE' : 'RUN';
+    const g = this.ui.game;
+    const label = g.driving ? 'BRAKE' : 'RUN';
     if (this.hold.textContent !== label) this.hold.textContent = label;
-    this.horn.classList.toggle('show', !!this.ui.game.driving);
-    this.camBtn.classList.toggle('show', !!this.ui.game.driving);
+    this.horn.classList.toggle('show', !!g.driving);
+    this.camBtn.classList.toggle('show', !!g.driving);
+    const onFoot = !g.driving && !g.riding;
+    const armed = onFoot && !!g.combat.equipped;
+    this.fire.classList.toggle('show', armed);
+    this.gun.classList.toggle('show', onFoot && g.combat.owned().length > 0);
+    this.gun.classList.toggle('armed', armed);
+    document.body.classList.toggle('touch-armed', armed);
+    if (!armed && this.firePointer !== null) {
+      this.firePointer = null;
+      this.fire.classList.remove('pressed');
+      g.input.touchFire(false);
+    }
+  }
+
+  /** The right side of the screen: one finger drags the camera around. */
+  private bindLook(): void {
+    const z = this.lookZone;
+    z.addEventListener('pointerdown', (e) => {
+      if (this.lookPointer) return;
+      e.preventDefault();
+      this.lookPointer = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      try {
+        z.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture is best-effort */
+      }
+    });
+    z.addEventListener('pointermove', (e) => {
+      const p = this.lookPointer;
+      if (!p || e.pointerId !== p.id) return;
+      this.ui.game.input.addLook(e.clientX - p.x, e.clientY - p.y);
+      p.x = e.clientX;
+      p.y = e.clientY;
+    });
+    const end = (e: PointerEvent) => {
+      if (this.lookPointer?.id === e.pointerId) this.lookPointer = null;
+    };
+    z.addEventListener('pointerup', end);
+    z.addEventListener('pointercancel', end);
+  }
+
+  /** ATEŞ ET: fires on touch, keeps firing while held (automatic guns); sliding the finger aims. */
+  private bindFire(): void {
+    const f = this.fire;
+    let last = { x: 0, y: 0 };
+    f.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (this.firePointer !== null) return;
+      this.firePointer = e.pointerId;
+      last = { x: e.clientX, y: e.clientY };
+      f.classList.add('pressed');
+      try {
+        f.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture is best-effort */
+      }
+      this.ui.game.input.touchFire(true);
+    });
+    f.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== this.firePointer) return;
+      this.ui.game.input.addLook((e.clientX - last.x) * 0.6, (e.clientY - last.y) * 0.6);
+      last = { x: e.clientX, y: e.clientY };
+    });
+    const up = (e: PointerEvent) => {
+      if (e.pointerId !== this.firePointer) return;
+      this.firePointer = null;
+      f.classList.remove('pressed');
+      this.ui.game.input.touchFire(false);
+    };
+    f.addEventListener('pointerup', up);
+    f.addEventListener('pointercancel', up);
   }
 
   private bindStick(): void {

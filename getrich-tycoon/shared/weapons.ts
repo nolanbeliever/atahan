@@ -40,13 +40,28 @@ export interface WeaponDef {
   tracer: string;
   color: string;
   description: string;
+  /** How the gun kicks (see recoilKick). */
+  recoil: Recoil;
+}
+
+/**
+ * Recoil, per shot: the view kicks up by `kick` (rad), sideways by up to `side` either way (a
+ * spray), the gun is pushed back towards you by `shove` (m), and it all settles at `recover` per
+ * second. Automatic guns climb: every shot in a burst kicks a little more, up to `climb` times.
+ */
+export interface Recoil {
+  kick: number;
+  side: number;
+  shove: number;
+  recover: number;
+  climb: number;
 }
 
 export const WEAPONS: WeaponDef[] = [
-  { id: 'pistol', name: 'Pistol', slot: 1, price: 5_000, vip: null, ammo: 'ammo_pistol', rate: 3, pellets: 1, damage: 24, range: 60, spread: 0.012, auto: false, sound: 'pistol', tracer: '#ffe9a8', color: '#2b2d31', description: 'A reliable 9 mm sidearm. 12 rounds a clip.' },
-  { id: 'shotgun', name: 'Pump Shotgun', slot: 2, price: 18_000, vip: null, ammo: 'ammo_shells', rate: 1.1, pellets: 8, damage: 11, range: 28, spread: 0.075, auto: false, sound: 'shotgun', tracer: '#ffd38a', color: '#5a3b24', description: 'Eight pellets a shell: brutal up close, useless far away.' },
-  { id: 'rifle', name: 'AK-47 / M4', slot: 3, price: 45_000, vip: null, ammo: 'ammo_rifle', rate: 9, pellets: 1, damage: 19, range: 95, spread: 0.022, auto: true, sound: 'rifle', tracer: '#ffcf6b', color: '#3a3326', description: 'Full-auto assault rifle. Hold the button.' },
-  { id: 'gold_deagle', name: 'Golden Desert Eagle', slot: 4, price: null, vip: 20, ammo: 'ammo_deagle', rate: 2.2, pellets: 1, damage: 62, range: 85, spread: 0.008, auto: false, sound: 'deagle', tracer: '#ffd700', color: '#d4af37', description: 'Premium. Solid gold, hits like a truck.' },
+  { id: 'pistol', name: 'Pistol', slot: 1, price: 5_000, vip: null, ammo: 'ammo_pistol', rate: 3, pellets: 1, damage: 24, range: 60, spread: 0.012, auto: false, sound: 'pistol', tracer: '#ffe9a8', color: '#2b2d31', description: 'A reliable 9 mm sidearm. 12 rounds a clip.', recoil: { kick: 0.032, side: 0.004, shove: 0.035, recover: 5, climb: 1 } },
+  { id: 'shotgun', name: 'Pump Shotgun', slot: 2, price: 18_000, vip: null, ammo: 'ammo_shells', rate: 1.1, pellets: 8, damage: 11, range: 28, spread: 0.075, auto: false, sound: 'shotgun', tracer: '#ffd38a', color: '#5a3b24', description: 'Eight pellets a shell: brutal up close, useless far away.', recoil: { kick: 0.12, side: 0.012, shove: 0.11, recover: 2.6, climb: 1 } },
+  { id: 'rifle', name: 'AK-47 / M4', slot: 3, price: 45_000, vip: null, ammo: 'ammo_rifle', rate: 9, pellets: 1, damage: 19, range: 95, spread: 0.022, auto: true, sound: 'rifle', tracer: '#ffcf6b', color: '#3a3326', description: 'Full-auto assault rifle. Hold the button.', recoil: { kick: 0.017, side: 0.016, shove: 0.022, recover: 3.2, climb: 1.8 } },
+  { id: 'gold_deagle', name: 'Golden Desert Eagle', slot: 4, price: null, vip: 20, ammo: 'ammo_deagle', rate: 2.2, pellets: 1, damage: 62, range: 85, spread: 0.008, auto: false, sound: 'deagle', tracer: '#ffd700', color: '#d4af37', description: 'Premium. Solid gold, hits like a truck.', recoil: { kick: 0.075, side: 0.008, shove: 0.07, recover: 3, climb: 1 } },
   {
     id: 'laser_rpg',
     name: 'Laser-Guided RPG',
@@ -65,8 +80,9 @@ export const WEAPONS: WeaponDef[] = [
     tracer: '#ff2a3a',
     color: '#4a5a3a',
     description: 'Premium. A red laser shows where the rocket lands. Cars do not survive it.',
+    recoil: { kick: 0.09, side: 0.01, shove: 0.13, recover: 2.2, climb: 1 },
   },
-  { id: 'minigun', name: 'Minigun', slot: 6, price: null, vip: 45, ammo: 'ammo_minigun', rate: 16, pellets: 1, damage: 13, range: 85, spread: 0.035, auto: true, sound: 'minigun', tracer: '#ffb347', color: '#555b63', description: 'Premium. Six barrels, sixteen rounds a second.' },
+  { id: 'minigun', name: 'Minigun', slot: 6, price: null, vip: 45, ammo: 'ammo_minigun', rate: 16, pellets: 1, damage: 13, range: 85, spread: 0.035, auto: true, sound: 'minigun', tracer: '#ffb347', color: '#555b63', description: 'Premium. Six barrels, sixteen rounds a second.', recoil: { kick: 0.006, side: 0.009, shove: 0.012, recover: 4, climb: 1.5 } },
 ];
 
 export interface AmmoDef {
@@ -224,6 +240,21 @@ export function spreadAim(yaw: number, pitch: number, spread: number, seed: numb
 }
 
 export const COMBAT = ECONOMY.combat;
+
+/**
+ * One shot's kick: how far the view jumps up (pitch, rad), sideways (yaw, rad) and how far the gun
+ * comes back (m). `burst` is the shot's number in a burst (0 = first); `rand` gives 0..1.
+ * Pistols kick straight up, shotguns hard up and back, automatic rifles spray up and sideways.
+ */
+export function recoilKick(w: WeaponDef, burst: number, rand: () => number): { pitch: number; yaw: number; shove: number } {
+  const r = w.recoil;
+  const climb = w.auto ? 1 + Math.min(burst, 8) / 8 * (r.climb - 1) : 1;
+  return {
+    pitch: r.kick * climb * (0.85 + 0.3 * rand()),
+    yaw: (rand() * 2 - 1) * r.side * (w.auto ? climb : 1),
+    shove: r.shove * (0.9 + 0.2 * rand()),
+  };
+}
 
 /** A shot as other players see it: from, to, what it hit, the gun. */
 export interface ShotFx {

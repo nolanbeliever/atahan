@@ -223,11 +223,13 @@ describe('police', () => {
     for (const u of w.units) Object.assign(u.dyn, { x: -150, z: 150, speed: 0 });
     (w as { escapeT: number }).escapeT = ECONOMY.police.escapeSec - 0.3;
     const money0 = cash(client);
-    const esc = await client.waitFor<{ reward: number }>('police.escaped', () => true, 5000);
-    expect(esc.reward).toBe(ECONOMY.police.escapeReward);
+    // $1,000 for each of the two police cars.
+    const esc = await client.waitFor<{ reward: number; cars: number }>('police.escaped', () => true, 5000);
+    expect(esc.cars).toBe(2);
+    expect(esc.reward).toBe(2 * ECONOMY.police.escapeReward);
     await sleep(300);
     // (An escape mission in today's set pays on top.)
-    expect(cash(client)).toBeGreaterThanOrEqual(money0 + ECONOMY.police.escapeReward);
+    expect(cash(client)).toBeGreaterThanOrEqual(money0 + 2 * ECONOMY.police.escapeReward);
     expect(server.game.police.wantedOf(client.playerId)).toBeUndefined();
     client.close();
   }, 30_000);
@@ -253,17 +255,15 @@ describe('police', () => {
       busted = client.events.find((e) => e.event === 'police.busted')?.data as BustedEvent | undefined;
     }
     expect(busted, 'busted').toBeDefined();
-    expect(busted!.fine).toBe(policeFine(money0));
-    expect(busted!.fine).toBe(Math.round(money0 * 0.1));
+    expect(busted!.fine).toBe(policeFine(money0).total);
+    expect(busted!.fine).toBe(3_000);
     await sleep(ECONOMY.police.cutsceneSec * 1000 + 1500);
     expect(cash(client)).toBe(money0 - busted!.fine);
     expect(server.game.state.vehicles.get(vehicleId)!.status).toBe('stored');
     expect(server.game.sim.chars.get(client.playerId)!.drivingId).toBeNull();
     const pos = server.game.sim.position(client.playerId)!;
     expect(Math.hypot(pos.x - busted!.respawn.x, pos.z - busted!.respawn.z)).toBeLessThan(3);
-    // The minimum fine applies to small balances.
-    expect(policeFine(5_000)).toBe(1_500);
-    expect(policeFine(900)).toBe(900);
+    await client.waitFor<{ title: string }>('notify', (n) => n.title === 'POLİSE YAKALANDIN!');
     client.close();
   }, 40_000);
 });

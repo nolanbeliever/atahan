@@ -298,8 +298,6 @@ label.field { display: grid; gap: 6px; font-size: 12px; color: var(--text-dim); 
 
 .reconnect { position: absolute; inset: 0; display: none; place-items: center; background: rgba(5,8,16,0.7); z-index: 40; font-weight: 800; font-size: 18px; }
 .reconnect.show { display: grid; }
-.crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255,255,255,0.7); box-shadow: 0 0 4px rgba(0,0,0,0.6); pointer-events: none !important; display: none; }
-.crosshair.show { display: block; }
 
 .map-wrap { display: grid; grid-template-columns: 1fr 220px; gap: 16px; }
 .map-wrap canvas { width: 100%; aspect-ratio: 1; border-radius: 16px; background: #0f1a14; border: 1px solid var(--line); }
@@ -616,6 +614,19 @@ body.touch .nm-combo { top: auto; bottom: calc(300px + env(safe-area-inset-botto
 .ms-next { display: flex; gap: 10px; align-items: center; font-size: 12px; margin-top: 6px; }
 .ms-next .lvl { min-width: 34px; text-align: center; padding: 3px 6px; border-radius: 8px; background: rgba(122,92,255,0.25); font-weight: 900; font-size: 11px; }
 
+/* Touch: the free-look area (right half, behind the HUD), the gun button and ATEŞ ET. */
+.touch-look { position: absolute; top: 0; right: 0; bottom: 0; width: 50%; display: none; touch-action: none; -webkit-user-select: none; user-select: none; }
+body.touch .touch-look { display: block; }
+.tbtn.gun { right: calc(22px + env(safe-area-inset-right)); bottom: calc(214px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 26px; display: none; }
+.tbtn.gun.show { display: grid; }
+.tbtn.gun.armed { background: rgba(255, 59, 71, 0.35); border-color: rgba(255, 120, 120, 0.8); }
+.tbtn.fire { right: calc(18px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); width: 124px; height: 124px; display: none; gap: 0; align-content: center; font-size: 15px; letter-spacing: 0.06em; background: radial-gradient(circle at 50% 35%, #ff6b6b, #d7263d 70%); border: 3px solid rgba(255, 255, 255, 0.75); box-shadow: 0 0 0 6px rgba(215, 38, 61, 0.28), 0 8px 22px rgba(0, 0, 0, 0.45); }
+.tbtn.fire .fire-icon { font-size: 30px; line-height: 1; }
+.tbtn.fire.show { display: grid; }
+.tbtn.fire.pressed { transform: scale(0.92); background: radial-gradient(circle at 50% 35%, #ff8c8c, #b01a2e 70%); }
+/* A gun drawn: ATEŞ ET takes the bottom-right corner and the other buttons move left of it. */
+body.touch-armed .touch-actions { right: calc(160px + env(safe-area-inset-right)); }
+body.touch-armed .tbtn.gun { bottom: calc(168px + env(safe-area-inset-bottom)); right: calc(48px + env(safe-area-inset-right)); }
 .tbtn.cam { right: 10px; bottom: 222px; width: 58px; height: 46px; font-size: 11px; letter-spacing: 0.05em; display: none; }
 .tbtn.cam.show { display: grid; }
 body.touch .missions-drawer { right: 12px; top: 130px; width: min(300px, 80vw); max-height: 55vh; }
@@ -762,7 +773,7 @@ body.touch .pursuit-hud .ph-title { font-size: 14px; }
 .race-count.pop { animation: race-pop 0.6s ease-out; }
 @keyframes race-pop { 0% { transform: translate(-50%, -50%) scale(1.8); } 100% { transform: translate(-50%, -50%) scale(1); } }
 
-/* Fights: health, gun, crosshair, hits, WASTED, Ammu-Nation. */
+/* Fights: health, gun, hits, WASTED, Ammu-Nation. */
 .hp-bar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); width: 250px; }
 .hp-heart { color: #ff4d5e; font-size: 14px; }
 .hp-track { flex: 1; height: 8px; border-radius: 99px; background: rgba(255,255,255,0.1); overflow: hidden; }
@@ -772,20 +783,15 @@ body.touch .pursuit-hud .ph-title { font-size: 14px; }
 @keyframes hp-low { 50% { box-shadow: 0 0 22px rgba(255,59,71,0.55), var(--shadow); } }
 .gun-hud { position: absolute; right: 84px; bottom: 26px; display: none; flex-direction: column; align-items: flex-end; padding: 10px 14px; border-radius: 14px; background: rgba(12,14,24,0.86); border: 1px solid var(--line); box-shadow: var(--shadow); pointer-events: none !important; }
 .gun-hud.show { display: flex; }
+/* Touch: the gun box sits under the minimap, clear of the buttons. */
+body.touch .gun-hud { right: calc(18px + env(safe-area-inset-right)); bottom: auto; top: 300px; padding: 8px 12px; }
+body.touch .gun-hud-keys { display: none; }
+@media (max-width: 900px) { body.touch .gun-hud { top: 250px; } }
+@media (max-height: 520px) { body.touch .gun-hud { top: 14px; right: calc(140px + env(safe-area-inset-right)); } }
 .gun-hud-name { font-size: 12px; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
 .gun-hud-ammo { font-size: 30px; font-weight: 900; color: #ffe08a; line-height: 1.1; }
 .gun-hud-ammo.empty { color: #ff4d5e; font-size: 18px; }
 .gun-hud-keys { font-size: 10px; color: var(--text-faint); font-weight: 700; }
-.gun-crosshair { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); pointer-events: none !important; display: none; }
-.gun-crosshair.show { display: block; }
-.gun-crosshair i { position: absolute; background: rgba(255,255,255,0.92); box-shadow: 0 0 3px #000; }
-.gun-crosshair i:nth-child(1) { left: 12px; top: 0; width: 2px; height: 8px; }
-.gun-crosshair i:nth-child(2) { left: 12px; bottom: 0; width: 2px; height: 8px; }
-.gun-crosshair i:nth-child(3) { top: 12px; left: 0; width: 8px; height: 2px; }
-.gun-crosshair i:nth-child(4) { top: 12px; right: 0; width: 8px; height: 2px; }
-.gun-crosshair.big { width: 44px; height: 44px; }
-.gun-crosshair.big i:nth-child(1), .gun-crosshair.big i:nth-child(2) { left: 21px; }
-.gun-crosshair.big i:nth-child(3), .gun-crosshair.big i:nth-child(4) { top: 21px; }
 .hurt-overlay { position: absolute; inset: 0; pointer-events: none !important; opacity: 0; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(200,0,20,0.55)); transition: opacity 0.5s; }
 .hurt-overlay.show { opacity: 1; transition: opacity 0.05s; }
 .hurt-arrow { position: absolute; left: 50%; top: 50%; width: 0; height: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 26px solid rgba(255,40,60,0.9); }

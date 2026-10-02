@@ -142,17 +142,26 @@ export class Input {
     return k;
   }
 
+  /** A look drag from an on-screen area (the right side of a touch screen), in screen pixels. */
+  addLook(dx: number, dy: number): void {
+    this.mouseDX += dx * TOUCH_LOOK_SCALE;
+    this.mouseDY += dy * TOUCH_LOOK_SCALE;
+    this.lastMouseMove = performance.now();
+  }
+
+  /** The on-screen FIRE button: pressed (one shot, and held for automatic guns) or let go. */
+  touchFire(down: boolean): void {
+    if (down) {
+      this.fireHeld = true;
+      this.fireClicks++;
+    } else this.fireHeld = false;
+  }
+
   /** Clicks of the fire button since the last call. */
   consumeFire(): number {
     const n = this.fireClicks;
     this.fireClicks = 0;
     return n;
-  }
-
-  /** A click from an on-screen FIRE button. */
-  touchFire(down: boolean): void {
-    this.fireHeld = down;
-    if (down) this.fireClicks++;
   }
 
   consumeMouse(): { dx: number; dy: number } {
