@@ -41,6 +41,7 @@ import { RewardService } from './services/rewards';
 import { PursuitService } from './services/pursuit';
 import { StreetRaceService } from './services/streetRace';
 import { MotoService } from './services/moto';
+import { HitmanService } from './services/hitman';
 import { CombatService } from './services/combat';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
@@ -96,6 +97,7 @@ export class GameServer implements Hub {
   readonly streetRace: StreetRaceService;
   readonly combat: CombatService;
   readonly moto: MotoService;
+  readonly hitman: HitmanService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -141,6 +143,7 @@ export class GameServer implements Hub {
     this.streetRace = new StreetRaceService(this.ctx, this.police);
     this.combat = new CombatService(this.ctx, this.police, this.theft, this.customers, this.vehicles);
     this.moto = new MotoService(this.ctx, this.combat, this.vehicles);
+    this.hitman = new HitmanService(this.ctx, this.combat, this.police);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -198,6 +201,9 @@ export class GameServer implements Hub {
       'hospital.heal': (pid) => this.combat.heal(pid),
       'weapon.equip': (pid, p) => this.combat.equip(pid, p),
       'combat.health': (pid) => this.combat.healthView(pid),
+      'hitman.take': (pid) => this.hitman.take(pid),
+      'hitman.info': (pid) => ({ contract: this.hitman.current(pid) }),
+      'hitman.drop': (pid) => (this.hitman.drop(pid), { ok: true as const }),
       'helmet.buy': (pid, p) => this.moto.buy(pid, p),
       'helmet.wear': (pid, p) => this.moto.wear(pid, p),
       'race.info': () => ({ race: this.streetRace.view() }),
@@ -639,6 +645,7 @@ export class GameServer implements Hub {
     this.pursuit.tick(dt, now);
     this.streetRace.tick(dt, now);
     this.combat.tick(dt, now);
+    this.hitman.tick(now);
     this.missions.tickFast(dt);
   }
 

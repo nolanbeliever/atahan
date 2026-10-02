@@ -56,7 +56,7 @@ function beside(client: TestClient, vehicleId: string): void {
 const shotFrom = (c: { x: number; z: number }, yaw: number, n: number) => ['pistol', c.x, 1.5, c.z, yaw, 0, n];
 
 describe('motorcycles', () => {
-  it('a friend rides on the back and can shoot (not from inside a car)', async () => {
+  it('a friend rides on the back and shoots; the rider only with a one-handed gun', async () => {
     const { client: driver } = await connectNew(server);
     const { client: rider } = await connectNew(server);
     const bike = await rideBike(driver);
@@ -83,6 +83,13 @@ describe('motorcycles', () => {
     // Not from where they got on.
     expect(server.game.combat.fire(rider.playerId, shotFrom(start, Math.PI, 2), Date.now() + 1000)).toBe(false);
     expect(server.game.combat.ammoLeft(rider.playerId, 'ammo_pistol')).toBe(29);
+    // The rider: a pistol yes, a shotgun (two hands) no.
+    await give(driver.playerId, { weapon_pistol: 1, ammo_pistol: 5, weapon_shotgun: 1, ammo_shells: 5 });
+    await driver.rpc('weapon.equip', { weapon: 'shotgun' });
+    expect(server.game.combat.fire(driver.playerId, ['shotgun', d.x, 1.5, d.z, 0, 0, 1], Date.now() + 2000)).toBe(false);
+    await driver.rpc('weapon.equip', { weapon: 'pistol' });
+    const now = server.game.sim.drives.get(bike)!.dyn;
+    expect(server.game.combat.fire(driver.playerId, shotFrom(now, 0, 2), Date.now() + 3000)).toBe(true);
     // The shot is heard: the whole crew is wanted.
     expect(server.game.police.starsOf(driver.playerId)).toBe(2);
     for (const x of [driver, rider, third]) x.close();

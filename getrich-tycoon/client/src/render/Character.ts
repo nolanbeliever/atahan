@@ -20,6 +20,9 @@ function part(mat: THREE.Material, sx: number, sy: number, sz: number, x: number
 /** Police officer uniform. */
 export const POLICE_OFFICER: Appearance = { skin: '#c68642', shirt: '#1d2b4f', pants: '#141b2e', hair: '#1b1b1b' };
 
+/** The hitman contact: dark coat, dark trousers, a shaved head. */
+export const HITMAN_CONTACT: Appearance = { skin: '#b07a52', shirt: '#121214', pants: '#0b0b0d', hair: '#0b0b0d' };
+
 export const NPC_PALETTE: Appearance[] = [
   { skin: '#f1c27d', shirt: '#6c757d', pants: '#343a40', hair: '#4a2c2a' },
   { skin: '#8d5524', shirt: '#e9c46a', pants: '#264653', hair: '#1b1b1b' },

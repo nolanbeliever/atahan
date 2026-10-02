@@ -4,12 +4,13 @@
 
 import * as THREE from 'three';
 import { SPEED_SCALE } from '../../../shared/drivetrain';
+import { MARKS } from '../../../shared/hitman';
 import { Anim, VF, type Appearance, type MarketListing, type PublicVehicle, type Vehicle } from '../../../shared/types';
 import { angleDiff, clamp, formatMoney, lerpAngle } from '../../../shared/util';
 import { modelDisplayName } from '../../../shared/vehicles';
 import { LIFT_HEIGHT } from '../../../shared/theft';
 import { groundHeight } from '../render/City';
-import { CharacterView, NPC_PALETTE, POLICE_OFFICER, type Pose } from '../render/Character';
+import { CharacterView, HITMAN_CONTACT, NPC_PALETTE, POLICE_OFFICER, type Pose } from '../render/Character';
 import { Label } from '../render/Labels';
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
 import { getModel } from '../../../shared/vehicles';
@@ -130,6 +131,8 @@ export interface VehEntity {
 export class EntityViews {
   readonly players = new Map<string, CharEntity>();
   readonly npcs = new Map<string, CharEntity>();
+  /** The hitman mark the local player is after (its label shows). */
+  contractMark: string | null = null;
   readonly vehicles = new Map<string, VehEntity>();
   showNames = true;
   /** 0 by day, 1 at night: driven vehicles switch their lights on. */
@@ -190,13 +193,23 @@ export class EntityViews {
   upsertNpc(id: string, style: number, t: number, x: number, z: number, r: number, a: number): void {
     let e = this.npcs.get(id);
     if (!e) {
-      // Customers (npc_), people in the street (ped_, no label) and police officers on foot (cop_).
+      // Customers (npc_), people in the street (ped_, no label), police officers on foot (cop_), the
+      // hitman contact in the alley (hmc_) and contract marks (hmt_, labelled for whoever holds it).
       const cop = id.startsWith('cop_');
       const ped = id.startsWith('ped_');
-      const view = new CharacterView(cop ? POLICE_OFFICER : NPC_PALETTE[style % NPC_PALETTE.length]!);
+      const contact = id.startsWith('hmc_');
+      const mark = id.startsWith('hmt_');
+      const look = cop ? POLICE_OFFICER : contact ? HITMAN_CONTACT : mark ? MARKS[style % MARKS.length]!.look : NPC_PALETTE[style % NPC_PALETTE.length]!;
+      const view = new CharacterView(look);
       if (cop) view.setWeapon(1);
       this.scene.add(view.root);
-      const label = ped ? null : new Label(cop ? 'POLICE' : 'Customer', { color: cop ? '#7aa7ff' : '#ffd166', height: 0.3 });
+      const label = ped
+        ? null
+        : contact
+          ? new Label('??? · Görev Al', { color: '#ff6b77', height: 0.3 })
+          : mark
+            ? new Label(`🎯 ${MARKS[style % MARKS.length]!.name}`, { color: '#ff4655', height: 0.32 })
+            : new Label(cop ? 'POLICE' : 'Customer', { color: cop ? '#7aa7ff' : '#ffd166', height: 0.3 });
       if (label) this.scene.add(label.sprite);
       e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null };
       this.npcs.set(id, e);
@@ -460,7 +473,7 @@ export class EntityViews {
         const mount = carried.passengerMount(riding!.seat);
         if (e.view.root.parent !== mount) mount.add(e.view.root);
         e.board = null;
-        e.view.root.visible = true;
+        e.view.root.visible = !(id === local.id && this.hideLocalBody);
         e.view.root.position.set(0, 0, 0);
         e.view.root.rotation.set(0, 0, 0);
         e.view.pose = 'sit';
@@ -485,7 +498,7 @@ export class EntityViews {
       } else if (ride instanceof BikeView) {
         // Motorcycle riders sit on the bike.
         if (e.view.root.parent !== ride.riderMount) ride.riderMount.add(e.view.root);
-        e.view.root.visible = true;
+        e.view.root.visible = !(id === local.id && this.hideLocalBody);
         e.view.root.position.set(0, -0.86, 0.04);
         e.view.root.rotation.set(0, 0, 0);
         e.view.animate(Anim.Drive, dt);
@@ -523,6 +536,8 @@ export class EntityViews {
       e.view.animate(s.a, dt);
       if (e.label) e.label.sprite.position.set(s.x, y + 2.2, s.z);
     }
+    // Contract marks: only whoever holds the contract sees the label.
+    for (const [id, e] of this.npcs) if (e.label && id.startsWith('hmt_')) e.label.sprite.visible = id === this.contractMark;
   }
 
   private toWorld(view: AnyVehicleView, lx: number, lz: number): { x: number; z: number } {

@@ -127,6 +127,8 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   }
   const turn = yaw !== null ? yaw + Math.PI : 0;
   for (const i of INTERACTABLES) {
+    // The hitman's alley stays off the map.
+    if (i.kind === 'hitman') continue;
     const glyph = BADGES[i.kind];
     if (glyph) {
       badge(g, tx(i.x), tz(i.z), Math.max(7, 3.2 * s), INTERACT_COLORS[i.kind] ?? '#fff', glyph, turn);
@@ -178,6 +180,22 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
       badge(g, tx(st.x), tz(st.z), Math.max(8, 3.6 * s), '#ff8a3d', '🏁', turn);
     }
   }
+  // A hitman contract: the venue or the search area, a pulsing red circle.
+  const job = game.store.contract;
+  if (job) {
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+    g.save();
+    g.fillStyle = `rgba(255,50,60,${0.12 + 0.1 * pulse})`;
+    g.strokeStyle = 'rgba(255,70,85,0.95)';
+    g.lineWidth = 2;
+    g.setLineDash(job.kind === 'hit' ? [5, 4] : []);
+    g.beginPath();
+    g.arc(tx(job.x), tz(job.z), Math.max(8, job.radius * s), 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    g.restore();
+    badge(g, tx(job.x), tz(job.z), Math.max(8, 3.6 * s), '#ff4655', '🎯', turn);
+  }
   // Parked cars that can be broken into (flashing red while the alarm sounds).
   const blink = Math.floor(performance.now() / 250) % 2 === 0;
   for (const c of game.store.street.values()) {
@@ -197,7 +215,8 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   for (const c of game.traffic.cars.values()) g.fillRect(tx(c.x) - 1.5, tz(c.z) - 1.5, 3, 3);
   // NPC customers
   g.fillStyle = '#ffd166';
-  for (const n of game.entities.npcs.values()) {
+  for (const [id, n] of game.entities.npcs) {
+    if (id.startsWith('hmc_')) continue;
     const l = n.buffer.latest;
     if (l) g.fillRect(tx(l.x) - 1.5, tz(l.z) - 1.5, 3, 3);
   }

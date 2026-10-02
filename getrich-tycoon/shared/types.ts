@@ -286,7 +286,8 @@ export type TransactionKind =
   | 'weapon'
   | 'hospital'
   | 'police_escape'
-  | 'moto_gear';
+  | 'moto_gear'
+  | 'hitman';
 
 export interface Transaction {
   id: string;

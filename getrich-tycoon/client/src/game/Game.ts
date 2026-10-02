@@ -31,7 +31,7 @@ import { AIR_LEVELS, hasAirRide } from '../../../shared/modificationsData';
 import { NITRO_ITEM } from '../../../shared/rewards';
 import { cameraSeeing } from '../../../shared/cctv';
 import { RACE, raceRoute, type StreetRaceView } from '../../../shared/streetRace';
-import { recoilKick, type WeaponDef } from '../../../shared/weapons';
+import { oneHanded, recoilKick, type WeaponDef } from '../../../shared/weapons';
 import { confetti } from '../ui/confetti';
 import { Anim, VF, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
 import { formatMoney } from '../../../shared/util';
@@ -301,6 +301,20 @@ export class Game {
         .rpc('rewards.info', {})
         .then((r) => this.store.setRewards(r))
         .catch(() => undefined);
+      void this.net
+        .rpc('hitman.info', {})
+        .then((r) => this.store.setContract(r.contract))
+        .catch(() => undefined);
+    });
+    this.store.on('contract', (c) => {
+      this.ui?.hitman.set(c);
+      this.entities.contractMark = c?.markId ?? null;
+    });
+    net.on('hitman.update', (c) => this.store.setContract(c));
+    net.on('hitman.done', (d) => {
+      this.ui?.wanted.contract(d.title, `+${formatMoney(d.reward)} & ${d.xp} XP`);
+      confetti(window.innerWidth / 2, window.innerHeight * 0.4, 90);
+      this.audio.play('reward');
     });
     net.on('rewards.update', (v) => this.store.setRewards(v));
     net.on('race.update', (r) => this.onRace(r));
@@ -878,6 +892,10 @@ export class Game {
     const watched = myCar?.status === 'stolen' ? cameraSeeing(rx, rz, this.store.serverNow())?.id ?? null : null;
     this.cctv.update(dt, this.store.serverNow(), watched, this.night);
     this.ui?.pursuit.update(dt);
+    if (this.store.contract) {
+      const me = this.localPosition();
+      this.ui?.hitman.update(this.store.serverNow(), me.x, me.z);
+    }
     // Guns: firing, effects, damaged cars.
     this.combat.update(dt);
     this.updateGunHud();
@@ -1414,9 +1432,18 @@ export class Game {
     camera.quaternion.copy(body).multiply(look);
   }
 
-  /** A gun drawn on foot or on the back of a bike: first person, looking down the sights. */
+  /** A gun drawn on foot, as a passenger (car window, bike pillion) or riding a bike with a pistol:
+   *  first person, looking down the sights. */
   private sightsActive(): boolean {
-    return !!this.combat.equipped && !this.driving && (!this.riding || this.onPillion()) && !this.combat.dead && !this.busted;
+    const w = this.combat.equipped;
+    return !!w && this.canShoot(w) && !this.combat.dead && !this.busted;
+  }
+
+  /** Can this gun be used where we are? On foot and as a passenger: any; at the wheel: only a
+   *  one-handed gun on a motorcycle or quad (the server checks the same). */
+  canShoot(w: WeaponDef): boolean {
+    if (!this.driving) return true;
+    return !!this.entities.vehicles.get(this.driving)?.view.isBike && oneHanded(w);
   }
 
   /** The front wheel's height on our wheelie (rad), if riding. */
@@ -1445,11 +1472,20 @@ export class Game {
     if (performance.now() - r.at > 350) r.burst = 0;
     const camera = this.renderer.camera;
     const yaw = this.cam.yaw;
-    const bike = this.riding ? this.entities.vehicles.get(this.riding.vehicleId)?.view : undefined;
-    if (bike instanceof BikeView) {
+    const carried = this.riding ? this.entities.vehicles.get(this.riding.vehicleId)?.view : undefined;
+    const ridden = this.driving ? this.entities.vehicles.get(this.driving)?.view : undefined;
+    if (carried instanceof BikeView) {
       // Seated behind the rider, looking over their shoulder; free to look all round.
-      bike.root.updateMatrixWorld(true);
-      bike.passengerMount().localToWorld(camera.position.set(-0.2, 0.9, 0.05));
+      carried.root.updateMatrixWorld(true);
+      carried.passengerMount().localToWorld(camera.position.set(-0.2, 0.9, 0.05));
+    } else if (carried) {
+      // A car passenger leaning to the window: the eyes in their seat.
+      carried.root.updateMatrixWorld(true);
+      carried.passengerMount(this.riding!.seat).localToWorld(camera.position.set(0, 1.72, 0.05));
+    } else if (ridden instanceof BikeView) {
+      // Riding with a pistol in one hand: the rider's eyes.
+      ridden.root.updateMatrixWorld(true);
+      ridden.riderMount.localToWorld(camera.position.set(0, 0.86, 0.1));
     } else camera.position.set(x + Math.sin(yaw) * 0.12, groundHeight(x, z) + EYE_HEIGHT, z + Math.cos(yaw) * 0.12);
     camera.quaternion.setFromEuler(new THREE.Euler(this.aimPitch + r.pitch, yaw + Math.PI + r.yaw, 0, 'YXZ'));
   }

@@ -20,7 +20,7 @@ import { LOCKPICK_ITEM, parsePartItem } from '../../../shared/theft';
 import { Anim } from '../../../shared/types';
 import { angleDiff } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
-import { AMMO, COMBAT, STARTER_ROUNDS, WEAPONS, aimRay, ammoDef, rayBox, rayCircle, rayCylinder, rayObb, rayY, spreadAim, weapon, weaponItem, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type WeaponDef, type WeaponId } from '../../../shared/weapons';
+import { AMMO, COMBAT, STARTER_ROUNDS, WEAPONS, aimRay, ammoDef, oneHanded, rayBox, rayCircle, rayCylinder, rayObb, rayY, spreadAim, weapon, weaponItem, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type WeaponDef, type WeaponId } from '../../../shared/weapons';
 import { BLOCK_CENTERS, BLOCK_HALF, BUILDINGS, SIDEWALK } from '../../../shared/world';
 import { VIP_COIN } from '../../../shared/rewards';
 import { GameError } from '../../errors';
@@ -59,6 +59,8 @@ interface Ped {
   speed: number;
   panicUntil: number;
   deadAt: number;
+  /** A named person (a hitman mark): no replacement when they die. */
+  mark?: boolean;
 }
 
 interface Officer {
@@ -101,6 +103,10 @@ export class CombatService {
   private carHp = new Map<string, number>();
   private wrecks = new Set<string>();
   private peds = new Map<string, Ped>();
+  /** Someone on foot was killed (id of the person, who did it). */
+  readonly killListeners: ((id: string, by: string | null) => void)[] = [];
+  /** A bullet hit a building's wall (building id, who fired). */
+  readonly wallHitListeners: ((buildingId: string, shooter: string) => void)[] = [];
   private officers = new Map<string, Officer>();
   private pedRespawn: number[] = [];
   private flushAt = 0;
@@ -200,10 +206,13 @@ export class CombatService {
     const w = typeof wid === 'string' ? weapon(wid) : undefined;
     if (!w || ![x, y, z, yaw, pitch, n].every((v) => typeof v === 'number' && Number.isFinite(v))) return false;
     const c = this.ctx.sim.chars.get(playerId);
-    if (!c || c.drivingId || c.dead) return false;
-    // Passengers can shoot from the back of a motorcycle or a quad (not from inside a car).
-    const ride = c.ridingId ? this.ctx.sim.drives.get(c.ridingId) : undefined;
-    if (c.ridingId && !ride?.params.bike) return false;
+    if (!c || c.dead) return false;
+    // From a vehicle: any passenger (out of the window, or off the back of a bike), and the rider
+    // of a motorcycle or quad with a pistol (one hand on the bars).
+    const inside = c.ridingId ?? c.drivingId;
+    const ride = inside ? this.ctx.sim.drives.get(inside) : undefined;
+    if (inside && !ride) return false;
+    if (c.drivingId && !(ride!.params.bike && oneHanded(w))) return false;
     if (this.equipped.get(playerId) !== w.id) return false;
     if (this.police.wantedOf(playerId)?.busted) return false;
     // Fire rate (a little slack for network jitter).
@@ -221,7 +230,7 @@ export class CombatService {
     this.spent.set(playerId, spent);
     for (let i = 0; i < w.pellets; i++) {
       const aim = spreadAim(yaw as number, pitch as number, w.spread, (n as number) * 13 + i * 7 + 1);
-      this.trace(playerId, w, aimRay(x as number, y as number, z as number, aim.yaw, aim.pitch), now, i === 0, c.ridingId);
+      this.trace(playerId, w, aimRay(x as number, y as number, z as number, aim.yaw, aim.pitch), now, i === 0, inside);
     }
     // Every shot is heard, witnesses or not: the nearest patrol is called to the scene (2 stars).
     const before = this.police.starsOf(playerId);
@@ -249,6 +258,7 @@ export class CombatService {
       }
     }
     // Buildings and walls.
+    let building: string | null = null;
     for (const b of BUILDINGS) {
       const hit = rayBox(r, b.box.minX, b.box.maxX, b.box.minZ, b.box.maxZ);
       if (hit && hit.t < best && rayY(r, hit.t) <= b.height) {
@@ -256,6 +266,7 @@ export class CombatService {
         kind = 'wall';
         n = [hit.nx, 0, hit.nz];
         target = null;
+        building = b.id;
       }
     }
     for (const b of this.ctx.sim.collisionWorld.boxes) {
@@ -265,6 +276,7 @@ export class CombatService {
         kind = 'wall';
         n = [hit.nx, 0, hit.nz];
         target = null;
+        building = null;
       }
     }
     // Cars (parked and driven, street cars, police, highway traffic near players).
@@ -316,6 +328,8 @@ export class CombatService {
       this.explode(to[0], Math.max(0, to[1]), to[2], w.blast.radius, w.blast.damage, shooter, now);
       return;
     }
+    // The wall of a named building took the bullet (drive-by contracts).
+    if (kind === 'wall' && building) for (const l of this.wallHitListeners) l(building, shooter);
     if (!t) return;
     if (t.type === 'car') this.damageCar(t.id, w.damage, shooter, now);
     else if (t.type === 'heli') {
@@ -475,6 +489,7 @@ export class CombatService {
         p.deadAt = now;
         p.npc.anim = Anim.Dead;
         p.npc.rot = Math.atan2(p.npc.x - fromX, p.npc.z - fromZ);
+        for (const l of this.killListeners) l(id, by);
       }
       return;
     }
@@ -591,6 +606,25 @@ export class CombatService {
     void now;
   }
 
+  /** A named person walking round the block nearest to a point (hitman marks). */
+  spawnMark(id: string, style: number, x: number, z: number, hp: number): void {
+    const near = (v: number) => BLOCK_CENTERS.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
+    const bx = near(x);
+    const bz = near(z);
+    const s = this.ctx.rng() * LOOP_LEN;
+    const at = loopPoint(bx, bz, s);
+    const npc: NpcEntity = { id, x: at.x, z: at.z, rot: at.rot, anim: Anim.Walk, style };
+    this.peds.set(id, { npc, hp, bx, bz, dir: this.ctx.rng() < 0.5 ? 1 : -1, s, speed: 1.1, panicUntil: 0, deadAt: 0, mark: true });
+    this.ctx.sim.npcs.set(id, npc);
+  }
+
+  /** Take a named person away (contract over). */
+  removeMark(id: string): void {
+    if (!this.peds.get(id)?.mark) return;
+    this.peds.delete(id);
+    this.ctx.sim.npcs.delete(id);
+  }
+
   /** People near gunfire run. */
   private panic(x: number, z: number, radius: number, now: number): void {
     for (const p of this.peds.values()) if (!p.deadAt && Math.hypot(p.npc.x - x, p.npc.z - z) < radius) p.panicUntil = now + 7000;
@@ -605,7 +639,7 @@ export class CombatService {
         if (now - p.deadAt > 9000) {
           this.peds.delete(id);
           this.ctx.sim.npcs.delete(id);
-          this.pedRespawn.push(now + C.pedRespawnSec * 1000);
+          if (!p.mark) this.pedRespawn.push(now + C.pedRespawnSec * 1000);
         }
         continue;
       }

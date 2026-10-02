@@ -4,6 +4,7 @@
 // Coordinates: metres. +x = east, +z = south, y = up. A yaw of 0 faces +z.
 
 import { AMMU_NATION, HOSPITAL, MOTO_GEAR } from './compounds';
+import { HITMAN_ALLEY } from './hitman';
 import { dealershipLevel } from './economy.config';
 import { DRAG_BOXES, DRAG_STRIP, JUNCTIONS, highwayCircles } from './highway';
 import { SANAYI, SANAYI_BOXES, SANAYI_CIRCLES } from './theft';
@@ -65,7 +66,7 @@ export const ZONES: Zone[] = [
   { id: 'sanayi', name: 'Sanayi Industrial Estate', cx: (SANAYI.yard.minX + SANAYI.yard.maxX) / 2, cz: (SANAYI.yard.minZ + SANAYI.yard.maxZ) / 2, color: '#8d6e63' },
 ];
 
-export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag' | 'pawn' | 'sanayi' | 'ammu' | 'hospital' | 'motogear';
+export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag' | 'pawn' | 'sanayi' | 'ammu' | 'hospital' | 'motogear' | 'hitman';
 
 export interface Interactable {
   id: string;
@@ -119,6 +120,8 @@ export const BUILDINGS: Building[] = [
   { id: 'hospital', box: HOSPITAL.box, height: 14, color: '#eef2f6', kind: 'service', facing: 'south', sign: 'GETRICH GENERAL HOSPITAL', signColor: '#e63946' },
   { id: 'ammu_nation', box: AMMU_NATION.box, height: 7, color: '#3d405b', kind: 'office', facing: 'west', sign: 'AMMU-NATION', signColor: '#e63946' },
   { id: 'moto_gear', box: MOTO_GEAR.box, height: 6, color: '#22252b', kind: 'office', facing: 'south', sign: 'MOTO GEAR · KASK', signColor: '#ff7a1a' },
+  // The brick wall that closes the alley between Wrench Bros and the Parts Depot (hitman contact).
+  { id: 'hitman_wall', box: HITMAN_ALLEY.wall, height: 4.5, color: '#5b3a32', kind: 'wall', facing: 'north' },
 ];
 
 /** Decorative/structural circular obstacles. */
@@ -149,6 +152,7 @@ export const INTERACTABLES: Interactable[] = [
   { id: 'ammu', kind: 'ammu', x: AMMU_NATION.door.x, z: AMMU_NATION.door.z, radius: 4.5, label: 'Enter Ammu-Nation' },
   { id: 'hospital', kind: 'hospital', x: HOSPITAL.respawn.x, z: HOSPITAL.respawn.z - 3, radius: 4.5, label: 'Hospital · Hastane' },
   { id: 'motogear', kind: 'motogear', x: MOTO_GEAR.door.x, z: MOTO_GEAR.door.z, radius: 4.5, label: 'Moto Gear · Kask Mağazası' },
+  { id: 'hitman', kind: 'hitman', x: HITMAN_ALLEY.contact.x, z: HITMAN_ALLEY.contact.z - 1.6, radius: 3.2, label: 'Görev Al' },
 ];
 
 export const SERVICE_INTERACT_SLACK = 6;

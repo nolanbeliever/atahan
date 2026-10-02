@@ -41,7 +41,7 @@ export class CombatClient {
       return !!this.equipped;
     }
     const m = /^Digit([1-6])$/.exec(code);
-    if (!m || this.game.driving || (this.game.riding && !this.game.onPillion())) return false;
+    if (!m || this.carDriver()) return false;
     const slot = Number(m[1]);
     const inv = this.game.store.me?.inventory ?? {};
     const w = ownedWeapons(inv).find((x) => x.slot === slot);
@@ -50,8 +50,18 @@ export class CombatClient {
       this.game.ui?.toast({ kind: 'info', title: `No ${any?.name ?? 'gun'}`, text: 'Ammu-Nation (east of the city, past the outer road) sells guns and ammo.' });
       return true;
     }
+    if (!this.game.canShoot(w)) {
+      this.game.ui?.toast({ kind: 'info', title: 'Tek elle olmaz', text: 'Motor sürerken sadece tabanca (Pistol, Golden Deagle) kullanılır. Arkadaki yolcu her silahı kullanabilir.' });
+      return true;
+    }
     void this.equip(this.equipped?.id === w.id ? null : w);
     return true;
+  }
+
+  /** At the wheel of a car: no guns (a motorcycle rider may use a pistol). */
+  private carDriver(): boolean {
+    const id = this.game.driving;
+    return !!id && !this.game.entities.vehicles.get(id)?.view.isBike;
   }
 
   /** Guns in the inventory, by slot. */
@@ -61,8 +71,8 @@ export class CombatClient {
 
   /** The touch gun button: draw the first gun, then the next one, then put it away. */
   cycleWeapon(): void {
-    if (this.game.driving || (this.game.riding && !this.game.onPillion()) || this.dead) return;
-    const guns = this.owned();
+    if (this.carDriver() || this.dead) return;
+    const guns = this.owned().filter((g) => this.game.canShoot(g));
     if (!guns.length) {
       this.game.ui?.toast({ kind: 'info', title: 'Silahın yok', text: 'Ammu-Nation (east of the city, past the outer road) sells guns and ammo.' });
       return;
@@ -122,7 +132,7 @@ export class CombatClient {
       if (hit && hit.t < best && rayY(r, hit.t) <= b.height) best = hit.t;
     }
     const me = this.game.store.playerId;
-    const own = this.game.riding?.vehicleId;
+    const own = this.game.riding?.vehicleId ?? this.game.driving;
     for (const box of this.carBoxes()) {
       if (box.id === own) continue;
       const hit = rayObb(r, box.x, box.z, box.rot, box.hl, box.hw);
@@ -159,8 +169,8 @@ export class CombatClient {
 
   /** The muzzle of the drawn gun (world). */
   private muzzle(): THREE.Vector3 {
-    // On the back of a bike: just in front of the eyes, where the camera is.
-    if (this.game.onPillion()) {
+    // In or on a vehicle: just in front of the eyes, where the camera is.
+    if (this.game.riding || this.game.driving) {
       const cam = this.game.renderer.camera;
       const d = cam.getWorldDirection(new THREE.Vector3());
       d.y = 0;
@@ -182,8 +192,8 @@ export class CombatClient {
     this.cooldown -= dt;
     const w = this.equipped;
     const input = this.game.input;
-    // On foot, or on the back of a motorcycle / quad (shooting backwards and sideways while moving).
-    const canFire = !!w && !this.dead && !this.game.driving && (!this.game.riding || this.game.onPillion()) && !this.game.inCutscene && input.enabled && !this.game.ui?.anyOpen();
+    // On foot, as a passenger (out of a car window, on the back of a bike) or riding a bike with a pistol.
+    const canFire = !!w && !this.dead && this.game.canShoot(w) && !this.game.inCutscene && input.enabled && !this.game.ui?.anyOpen();
     const clicks = input.consumeFire();
     // The RPG shows where it will land.
     if (canFire && w!.blast) this.fx.setLaser(this.muzzle(), this.aimPoint());

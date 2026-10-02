@@ -23,6 +23,7 @@ const PLACE_LABEL: Record<InteractKind, string> = {
   ammu: 'Ammu-Nation',
   hospital: 'the hospital',
   motogear: 'Moto Gear (the helmet shop beside the hospital)',
+  hitman: 'the contact in the alley',
 };
 
 export function requireNear(ctx: Ctx, playerId: string, kind: InteractKind): void {

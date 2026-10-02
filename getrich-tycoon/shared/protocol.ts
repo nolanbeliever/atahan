@@ -12,6 +12,7 @@ import type { PursuitOutcome, PursuitView } from './cctv';
 import type { StreetRaceView } from './streetRace';
 import type { ExplosionFx, HealthView, ShotFx, WeaponId } from './weapons';
 import type { CrashEvent, HelmetId, VisorId } from './helmets';
+import type { ContractView } from './hitman';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -111,6 +112,9 @@ export interface RpcMethods {
   'hospital.heal': { params: Empty; result: HealthView };
   'weapon.equip': { params: { weapon: WeaponId | null }; result: { weapon: WeaponId | null } };
   'combat.health': { params: Empty; result: HealthView };
+  'hitman.take': { params: Empty; result: { contract: ContractView } };
+  'hitman.info': { params: Empty; result: { contract: ContractView | null } };
+  'hitman.drop': { params: Empty; result: { ok: true } };
   'helmet.buy': { params: { kind: 'helmet' | 'visor'; id: string }; result: { appearance: Appearance } };
   'helmet.wear': { params: { helmet: HelmetId | null; visor?: VisorId; color?: string }; result: { appearance: Appearance } };
   'race.info': { params: Empty; result: { race: StreetRaceView | null } };
@@ -203,6 +207,9 @@ export interface ServerToClientEvents {
   'combat.explosion': (d: ExplosionFx) => void;
   /** A motorcycle or quad went down: sparks, and who came off. */
   'moto.crash': (d: CrashEvent) => void;
+  /** The hitman contract changed (null: none). */
+  'hitman.update': (d: ContractView | null) => void;
+  'hitman.done': (d: { title: string; reward: number; xp: number }) => void;
   /** Tyres burst on a spike strip. */
   'police.spiked': (d: { vehicleId: string; x: number; z: number }) => void;
   'combat.carHp': (d: { id: string; hp: number }) => void;

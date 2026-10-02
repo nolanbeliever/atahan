@@ -269,6 +269,11 @@ export function spreadAim(yaw: number, pitch: number, spread: number, seed: numb
 
 export const COMBAT = ECONOMY.combat;
 
+/** Guns you can fire one-handed while riding a motorcycle or quad (the pistols). */
+export function oneHanded(w: WeaponDef): boolean {
+  return w.id === 'pistol' || w.id === 'gold_deagle';
+}
+
 /**
  * One shot's kick: how far the view jumps up (pitch, rad), sideways (yaw, rad) and how far the gun
  * comes back (m). `burst` is the shot's number in a burst (0 = first); `rand` gives 0..1.

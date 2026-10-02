@@ -1,5 +1,6 @@
 // Client-side mirror of the authoritative server state.
 
+import type { ContractView } from '../../../shared/hitman';
 import type { PrivateState } from '../../../shared/protocol';
 import type { RareMarketState } from '../../../shared/rareMarket';
 import type { RewardsView } from '../../../shared/rewards';
@@ -34,6 +35,7 @@ export interface StoreEvents extends Record<string, unknown> {
   blackMarket: BlackMarketInfo;
   rewards: RewardsView;
   health: HealthView;
+  contract: ContractView | null;
 }
 
 export class Store extends Emitter<StoreEvents> {
@@ -53,6 +55,8 @@ export class Store extends Emitter<StoreEvents> {
   rewards: RewardsView | null = null;
   /** The player's health (fights). */
   health: HealthView | null = null;
+  /** The hitman contract the player holds (null: none). */
+  contract: ContractView | null = null;
   rewardsAt = 0;
   /** Black Market lockpick stock (null until fetched). */
   blackMarket: BlackMarketInfo | null = null;
@@ -125,6 +129,11 @@ export class Store extends Emitter<StoreEvents> {
   setHealth(v: HealthView): void {
     this.health = v;
     this.emit('health', v);
+  }
+
+  setContract(v: ContractView | null): void {
+    this.contract = v;
+    this.emit('contract', v);
   }
 
   setRewards(v: RewardsView): void {

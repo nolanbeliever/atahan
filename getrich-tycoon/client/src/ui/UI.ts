@@ -14,6 +14,7 @@ import { clear, h, icon } from './dom';
 import { ICONS } from './icons';
 import { DragHud, NearMissHud } from './HighwayHud';
 import { GaugeHud } from './Gauge';
+import { HitmanHud } from './HitmanHud';
 import { MissionsHud } from './MissionsHud';
 import { RewardsHud } from './RewardsHud';
 import { claimPlaytime } from './panels/rewards';
@@ -140,6 +141,7 @@ export class UI {
   readonly cluster = new GaugeHud();
   readonly wanted = new WantedHud();
   readonly pursuit = new PursuitHud();
+  readonly hitman = new HitmanHud();
   readonly race = new RaceHud();
   readonly combat = new CombatHud();
   readonly missions = new MissionsHud();
@@ -237,6 +239,7 @@ export class UI {
       this.combat.health,
       this.wanted.el,
       this.race.el,
+      this.hitman.el,
     );
     const right = h(
       'div',

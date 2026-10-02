@@ -828,3 +828,26 @@ body.is-wasted #game-root canvas { filter: grayscale(1) contrast(1.1) brightness
 .wanted-heli { font-size: 11px; font-weight: 900; letter-spacing: 0.05em; color: #9fb3c8; margin-top: 4px; }
 .wanted-heli.seen { color: #ffe08a; animation: heli-blink 1s steps(2) infinite; }
 @keyframes heli-blink { 50% { color: #fff6d6; } }
+
+/* Hitman contract card + the contact's panel */
+.hitman-hud { display: none; align-items: flex-start; gap: 10px; padding: 9px 14px 10px 10px; border-radius: 14px; background: rgba(10,10,14,0.9); border: 1px solid rgba(255,70,85,0.5); box-shadow: 0 0 20px rgba(255,40,60,0.18), var(--shadow); max-width: 320px; pointer-events: none; }
+.hitman-hud.show { display: flex; }
+.hitman-hud.inside { border-color: rgba(255,211,90,0.85); box-shadow: 0 0 24px rgba(255,190,40,0.3), var(--shadow); }
+.hitman-hud .hm-icon { font-size: 24px; line-height: 1; }
+.hitman-hud .hm-kicker { font-size: 10px; font-weight: 900; letter-spacing: 0.08em; color: #ff6b77; font-variant-numeric: tabular-nums; }
+.hitman-hud.inside .hm-dist { color: #ffd35a; }
+.hitman-hud .hm-title { font-size: 14px; font-weight: 900; color: #fff; margin-top: 2px; }
+.hitman-hud .hm-text { font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.3; }
+.hitman-hud .hm-hits { display: flex; align-items: center; gap: 3px; margin-top: 5px; font-size: 11px; color: #fff; }
+.hitman-hud .hm-hits span { width: 14px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.14); }
+.hitman-hud .hm-hits span.on { background: #ff4655; box-shadow: 0 0 6px rgba(255,70,85,0.7); }
+.hitman-brief p { margin: 0 0 8px; }
+.hitman-brief ul { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 6px; }
+.hitman-job { padding: 12px 14px; border-radius: 12px; background: rgba(255,70,85,0.08); border: 1px solid rgba(255,70,85,0.35); display: grid; gap: 6px; }
+.hitman-job .hm-kicker { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; color: #ff6b77; }
+.hitman-job .hm-title { font-size: 18px; font-weight: 900; }
+.big-banner.contract { place-items: start center; padding-top: 16vh; }
+.big-banner.contract .bb-card { background: rgba(10,10,14,0.92); border: 1px solid rgba(255,70,85,0.55); box-shadow: 0 0 30px rgba(255,40,60,0.3); }
+.big-banner.contract .bb-kicker { color: #ff6b77; }
+.big-banner.contract .bb-title { font-size: 32px; color: #fff; text-shadow: none; margin-top: 4px; }
+.big-banner.contract .bb-text { font-size: 18px; color: var(--money); text-shadow: none; }

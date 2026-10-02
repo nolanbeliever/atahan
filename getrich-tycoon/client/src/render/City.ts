@@ -3,6 +3,7 @@
 import { registerRoad } from './Weather';
 import * as THREE from 'three';
 import { BELT_TREES, JUNCTIONS } from '../../../shared/highway';
+import { HITMAN_ALLEY } from '../../../shared/hitman';
 import { SANAYI } from '../../../shared/sanayiLayout';
 import { mulberry32 } from '../../../shared/util';
 import {
@@ -65,6 +66,9 @@ export class City {
   /** Position of the auction turntable (featured vehicle). */
   readonly turntable = new THREE.Group();
   private lampHeadMat: THREE.MeshStandardMaterial | null = null;
+  /** The bare bulb over the hitman contact (it flickers). */
+  private alleyBulb = new THREE.MeshStandardMaterial({ color: '#ffd9a0', emissive: '#ffb347', emissiveIntensity: 1.2 });
+  private alleyPool = new THREE.MeshBasicMaterial({ map: lightGlowTexture(), transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, color: '#ff9a3c' });
   private poolMat = new THREE.MeshBasicMaterial({ map: lightGlowTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, color: '#ffd9a0' });
   private pools: THREE.InstancedMesh | null = null;
   private skylineMat: THREE.MeshStandardMaterial | null = null;
@@ -83,6 +87,7 @@ export class City {
     this.buildFuelAndWash();
     this.buildAuctionStage();
     this.buildLamps();
+    this.buildAlley();
     this.buildTrees();
     this.buildSkyline();
     const animated = new Set<THREE.Object3D>([this.turntable, ...this.brushes]);
@@ -100,6 +105,11 @@ export class City {
     this.turntable.rotation.y += dt * 0.35;
     for (const b of this.brushes) b.rotation.y += dt * 6;
     if (this.water) (this.water.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.25 + Math.sin(this.time * 2) * 0.05;
+    // The alley bulb buzzes and now and then drops out.
+    const out = Math.sin(this.time * 1.3) > 0.93 && Math.sin(this.time * 37) > 0;
+    const level = out ? 0.15 : 1 + Math.sin(this.time * 23) * 0.08;
+    this.alleyBulb.emissiveIntensity = 1.2 * level;
+    this.alleyPool.opacity = 0.35 * level;
   }
 
   private buildGround(): void {
@@ -511,6 +521,46 @@ export class City {
     pools.visible = false;
     this.pools = pools;
     this.group.add(pools);
+  }
+
+  /** The dead-end alley where the hitman contact waits: dumpsters, bin bags, crates, a bare bulb. */
+  private buildAlley(): void {
+    const a = HITMAN_ALLEY;
+    const y = groundHeight((a.box.minX + a.box.maxX) / 2, (a.box.minZ + a.box.maxZ) / 2);
+    const green = new THREE.MeshStandardMaterial({ color: '#2f4a3a', roughness: 0.7, metalness: 0.35 });
+    const blue = new THREE.MeshStandardMaterial({ color: '#2a3b5c', roughness: 0.7, metalness: 0.35 });
+    const lid = new THREE.MeshStandardMaterial({ color: '#16181d', roughness: 0.6 });
+    const dumpster = (x: number, z: number, mat: THREE.Material, rot: number) => {
+      const g = new THREE.Group();
+      g.add(boxMesh(mat, 1.9, 1.15, 1.15, 0, 0.62, 0), boxMesh(lid, 2.0, 0.08, 1.25, 0, 1.23, -0.05));
+      g.position.set(x, y, z);
+      g.rotation.y = rot;
+      this.group.add(g);
+    };
+    dumpster(a.box.minX + 0.75, 73, green, Math.PI / 2);
+    dumpster(a.box.maxX - 0.75, 68, blue, -Math.PI / 2 + 0.1);
+    // Bin bags and crates.
+    const bag = new THREE.MeshStandardMaterial({ color: '#111216', roughness: 0.35, metalness: 0.1 });
+    const bagGeo = new THREE.SphereGeometry(0.38, 8, 6);
+    for (const [x, z, s] of [[110.7, 75.3, 1], [111.2, 75.8, 0.8], [115.3, 66.2, 0.9], [115.4, 79.2, 1.1], [114.9, 79.8, 0.75]] as const) {
+      const m = new THREE.Mesh(bagGeo, bag);
+      m.position.set(x, y + 0.3 * s, z);
+      m.scale.set(s, s * 0.8, s);
+      m.castShadow = true;
+      this.group.add(m);
+    }
+    const crate = new THREE.MeshStandardMaterial({ color: '#6b4f33', roughness: 0.9 });
+    this.group.add(boxMesh(crate, 0.9, 0.9, 0.9, 110.8, y + 0.45, 82.6), boxMesh(crate, 0.7, 0.7, 0.7, 110.9, y + 1.25, 82.5));
+    // A bare bulb on a bracket over the contact, and the pool of light it throws.
+    const iron = new THREE.MeshStandardMaterial({ color: '#2a2c31', metalness: 0.6, roughness: 0.5 });
+    this.group.add(boxMesh(iron, 0.08, 0.08, 0.9, a.contact.x, y + 3.4, a.wall.minZ - 0.45));
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), this.alleyBulb);
+    bulb.position.set(a.contact.x, y + 3.25, a.wall.minZ - 0.85);
+    this.group.add(bulb);
+    const pool = new THREE.Mesh(new THREE.PlaneGeometry(7, 7).rotateX(-Math.PI / 2), this.alleyPool);
+    pool.position.set(a.contact.x, y + 0.05, a.contact.z - 0.5);
+    pool.renderOrder = 2;
+    this.group.add(pool);
   }
 
   /** Street lamps and lit windows at night (0 day - 1 night). */
