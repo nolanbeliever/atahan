@@ -3,6 +3,7 @@
 
 import * as THREE from 'three';
 import { PF, type PoliceSnap } from '../../../shared/police';
+import { SPIKE_HALF_WIDTH, type SpikeSnap } from '../../../shared/policeGear';
 import { vehicleBox, type DynamicBox } from '../../../shared/physics';
 import { modelBoxHalfExtents } from '../../../shared/collision';
 import { Anim } from '../../../shared/types';
@@ -51,8 +52,45 @@ function sirenMaterials(view: VehicleView): { red: THREE.MeshStandardMaterial[];
 /** Id of the police car a cutscene drives itself. */
 const STAGED = -1;
 
+/** A spike strip: a dark mat studded with spikes, a cone and a flashing lamp at each end. */
+function spikeStrip(half: number): THREE.Group {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: '#1b1c1f', roughness: 0.8 });
+  const steel = new THREE.MeshStandardMaterial({ color: '#c9ccd1', metalness: 0.8, roughness: 0.3 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(half * 2, 0.05, SPIKE_HALF_WIDTH * 1.6), mat);
+  base.position.y = 0.03;
+  base.receiveShadow = true;
+  g.add(base);
+  const n = Math.round(half * 2 / 0.22);
+  const spikes = new THREE.InstancedMesh(new THREE.ConeGeometry(0.035, 0.12, 5), steel, n * 2);
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < n; i++) {
+    for (const [k, dz] of [
+      [0, -0.12],
+      [1, 0.12],
+    ] as const) {
+      m.makeTranslation(-half + (i + 0.5) * (half * 2 / n), 0.11, dz + (i % 2 ? 0.05 : -0.05));
+      spikes.setMatrixAt(i * 2 + k, m);
+    }
+  }
+  g.add(spikes);
+  const coneMat = new THREE.MeshStandardMaterial({ color: '#ff6a00', roughness: 0.6 });
+  const lamp = new THREE.MeshBasicMaterial({ color: '#ff2a2a', toneMapped: false });
+  for (const x of [-half - 0.5, half + 0.5]) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.7, 12), coneMat);
+    cone.position.set(x, 0.35, 0);
+    cone.castShadow = true;
+    const l = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), lamp);
+    l.position.set(x, 0.75, 0);
+    l.name = 'lamp';
+    g.add(cone, l);
+  }
+  return g;
+}
+
 export class PoliceClient {
   readonly units = new Map<number, Unit>();
+  private spikes = new Map<number, { group: THREE.Group; lastSeen: number }>();
   private time = 0;
   night = 0;
   /** Cutscene: one police car placed by the client (the server's units are hidden meanwhile). */
@@ -139,6 +177,34 @@ export class PoliceClient {
       (u.blue.material as THREE.SpriteMaterial).opacity = blueOn ? glowK : 0;
       u.red.scale.setScalar(2 + this.night * 3);
       u.blue.scale.setScalar(2 + this.night * 3);
+    }
+  }
+
+  /** Spike strips from a snapshot (ones not seen for a while are taken away). */
+  applySpikes(list: SpikeSnap[], now = performance.now()): void {
+    for (const [id, x, z, rot, half] of list) {
+      let s = this.spikes.get(id);
+      if (!s) {
+        const group = spikeStrip(half);
+        group.position.set(x, groundHeight(x, z), z);
+        // The strip runs along `rot` (0 = +z); the model runs along x.
+        group.rotation.y = rot - Math.PI / 2;
+        this.scene.add(group);
+        s = { group, lastSeen: now };
+        this.spikes.set(id, s);
+      }
+      s.lastSeen = now;
+    }
+    for (const [id, s] of this.spikes) {
+      if (now - s.lastSeen < 1500) {
+        const on = Math.sin(this.time * 10 + id) > 0;
+        s.group.traverse((o) => {
+          if (o.name === 'lamp') o.visible = on;
+        });
+        continue;
+      }
+      s.group.removeFromParent();
+      this.spikes.delete(id);
     }
   }
 

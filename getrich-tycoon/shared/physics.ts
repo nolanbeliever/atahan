@@ -320,7 +320,8 @@ export function vehicleParams(model: VehicleModel, condition: VehicleCondition, 
   const tires = Math.round(clamp(condition.tires, 0, 100));
   const hasFuel = fuel > 0.05;
   const tuning = mods?.tuning ?? null;
-  const key = `${model.id}|${tuningKey(tuning)}|${eng}|${trans}|${brakes}|${tires}|${hasFuel}`;
+  const blown = !!mods?.blown;
+  const key = `${model.id}|${tuningKey(tuning)}|${eng}|${trans}|${brakes}|${tires}|${hasFuel}|${blown}`;
   const hit = paramsCache.get(key);
   if (hit) return hit;
   const base = powertrainFor(model, tuning);
@@ -334,6 +335,11 @@ export function vehicleParams(model: VehicleModel, condition: VehicleCondition, 
     mu: base.mu * (0.7 + 0.3 * (tires / 100)),
     latGrip: base.latGrip * (0.75 + 0.25 * (tires / 100)),
   };
+  // Burst tyres (a spike strip): running on the rims.
+  if (blown) {
+    pt.mu *= ECONOMY.police.spikes.traction;
+    pt.latGrip *= ECONOMY.police.spikes.latGrip;
+  }
   const bike = model.specs.kind === 'bike';
   const p: VehicleParams = {
     pt,

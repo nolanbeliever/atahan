@@ -15,6 +15,7 @@ import { obbDistance } from '../../../shared/obb';
 import { KEY, newVehicleDyn, stepVehicle, vehicleBox, vehicleParams, type VehicleDyn, type VehicleParams } from '../../../shared/physics';
 import { PF, type BustedEvent, type PoliceSnap, type WantedState } from '../../../shared/police';
 import { angleDiff } from '../../../shared/util';
+import { onSpikes, spikePlacement, tyrePoints, type SpikeSnap, type SpikeStrip } from '../../../shared/policeGear';
 import { POLICE_MODEL, modelDisplayName } from '../../../shared/vehicles';
 import { INTERACTABLES, ROAD_LINES, type AABB } from '../../../shared/world';
 import { createLogger } from '../../logger';
@@ -84,6 +85,11 @@ export class PoliceService {
   readonly escapeListeners: ((playerId: string) => void)[] = [];
   /** A stolen car taken off an arrested thief. */
   readonly seizeListeners: ((playerId: string, vehicleId: string) => void)[] = [];
+  /** Spike strips on the roads (they burst anybody's tyres) and when each wanted driver last got one. */
+  private spikes = new Map<number, SpikeStrip & { id: number; until: number }>();
+  private spikeSeq = 1;
+  private spikeAt = new Map<string, number>();
+  private bursting = new Set<string>();
 
   constructor(
     private readonly ctx: Ctx,
@@ -242,6 +248,8 @@ export class PoliceService {
         // Lost far behind or hopelessly stuck: come back from behind the player.
         if (dist > 320 || u.stuck > 6) Object.assign(u, this.spawn(me, u.side > 0 ? 0 : 1) ?? u, { id: u.id });
       }
+      // From 3 stars a spike strip goes down across the road ahead of a wanted driver.
+      this.throwSpikes(playerId, stars, me, now);
       // Escape: no police car close for escapeSec (pursuit), or no new offence for calmSec (1 star).
       if (w.units.length > 0) {
         w.escapeT = nearest > cfg.escapeRadius ? w.escapeT + dt : 0;
@@ -265,7 +273,80 @@ export class PoliceService {
       }
       this.send(playerId, w);
     }
+    this.checkSpikes(now);
     this.publishObstacles();
+  }
+
+  // ---------------------------------------------------------------- spike strips
+
+  private throwSpikes(playerId: string, stars: number, me: { x: number; z: number; rot: number; onFoot: boolean }, now: number): void {
+    const sc = ECONOMY.police.spikes;
+    if (stars < sc.stars || me.onFoot) return;
+    // The first one a few seconds after the third star, then every `everySec`.
+    if (!this.spikeAt.has(playerId)) this.spikeAt.set(playerId, now - (sc.everySec - 6) * 1000);
+    if (now - this.spikeAt.get(playerId)! < sc.everySec * 1000) return;
+    const strip = spikePlacement(me.x, me.z, me.rot);
+    if (!strip) return;
+    const id = this.spikeSeq++;
+    this.spikes.set(id, { ...strip, id, until: now + sc.lifeSec * 1000 });
+    this.spikeAt.set(playerId, now);
+    for (const p of this.crew(playerId)) this.ctx.hub.notify(p, { kind: 'warning', title: 'Çivili barikat!', text: 'Polis ileriye çivili şerit attı: üstünden geçersen lastikler patlar.' });
+  }
+
+  /** Put a strip down (tests, events). */
+  addSpikes(strip: SpikeStrip, now = Date.now()): number {
+    const id = this.spikeSeq++;
+    this.spikes.set(id, { ...strip, id, until: now + ECONOMY.police.spikes.lifeSec * 1000 });
+    return id;
+  }
+
+  /** Any tyre on a strip bursts (whoever is driving). */
+  private checkSpikes(now: number): void {
+    for (const [id, s] of this.spikes) if (now > s.until) this.spikes.delete(id);
+    if (this.spikes.size === 0) return;
+    for (const d of this.ctx.sim.drives.values()) {
+      const v = this.ctx.state.vehicles.get(d.vehicleId);
+      if (!v || v.mods.blown || this.bursting.has(d.vehicleId)) continue;
+      const tyres = tyrePoints(d.dyn.x, d.dyn.z, d.dyn.rot, d.params.halfLength, d.params.halfWidth);
+      for (const s of this.spikes.values()) {
+        if (!tyres.some((t) => onSpikes(s, t.x, t.z))) continue;
+        void this.burst(d.vehicleId, d.playerId, d.dyn.x, d.dyn.z);
+        break;
+      }
+    }
+  }
+
+  private async burst(vehicleId: string, playerId: string, x: number, z: number): Promise<void> {
+    this.bursting.add(vehicleId);
+    try {
+      await this.ctx.locks.run([K.vehicle(vehicleId)], async () => {
+        const live = this.ctx.state.vehicles.get(vehicleId);
+        if (!live || live.mods.blown) return;
+        const uow = this.ctx.state.begin();
+        const veh = uow.vehicle(vehicleId);
+        veh.mods = { ...veh.mods, blown: true };
+        veh.condition = { ...veh.condition, tires: 0 };
+        uow.notify(playerId, { kind: 'error', title: 'LASTİKLER PATLADI!', text: `${modelDisplayName(veh.modelId)} jantların üstünde (tutuş -%90). Wrench Bros'ta lastikleri yenilet.` });
+        await uow.commit();
+        this.ctx.sim.refreshParams(this.ctx.state.vehicles.get(vehicleId)!);
+      });
+      this.ctx.hub.broadcast('police.spiked', { vehicleId, x, z });
+      log.info('tyres burst', { vehicleId, playerId });
+    } catch (err) {
+      log.warn('burst failed', { vehicleId, err: String(err) });
+    } finally {
+      this.bursting.delete(vehicleId);
+    }
+  }
+
+  /** Spike strips within `radius` of a point (for snapshots). */
+  spikeSnapshot(x: number, z: number, radius: number): SpikeSnap[] {
+    const out: SpikeSnap[] = [];
+    for (const s of this.spikes.values()) {
+      if (Math.hypot(s.x - x, s.z - z) > radius) continue;
+      out.push([s.id, Math.round(s.x * 100) / 100, Math.round(s.z * 100) / 100, Math.round(s.rot * 1000) / 1000, Math.round(s.half * 100) / 100]);
+    }
+    return out;
   }
 
   /** Where the wanted player is: their car or themselves on foot. */
@@ -605,9 +686,9 @@ export class PoliceService {
     return out;
   }
 
-  /** Any police car in the world (tick fast path). */
+  /** Any police car or spike strip in the world (tick fast path). */
   get active(): boolean {
-    return this.wanted.size > 0;
+    return this.wanted.size > 0 || this.spikes.size > 0;
   }
 }
 

@@ -6,6 +6,7 @@ import type { DragBotSnap } from './drag';
 import type { RaceBotSnap } from './streetRace';
 import type { TrafficSnap } from './traffic';
 import type { PoliceSnap } from './police';
+import type { HeliSnap, SpikeSnap } from './policeGear';
 
 export type VehicleCategory =
   | 'compact'
@@ -63,6 +64,8 @@ export interface VehicleMods {
   plate?: string;
   /** Air ride height 0-2 (with the Air Ride suspension, K while driving). */
   air?: number;
+  /** Tyres burst on a police spike strip: on the rims until repaired at Wrench Bros. */
+  blown?: boolean;
 }
 
 export interface StripState {
@@ -367,6 +370,10 @@ export interface Snapshot {
   sr?: { id: string; cars: RaceBotSnap[] };
   /** Police cars near the player. */
   po?: PoliceSnap[];
+  /** Police spike strips near the player (shared/policeGear.ts). */
+  sp?: SpikeSnap[];
+  /** Police helicopters near the player. */
+  ph?: HeliSnap[];
 }
 
 export interface CustomerOffer {

@@ -321,6 +321,8 @@ export interface AnyVehicleView {
   passengerMount(seat: number): THREE.Group;
   /** Backfire (pops & bangs). */
   pop(strength: number): void;
+  /** Running on its rims after a spike strip. */
+  readonly flat: boolean;
   /** Blue nitrous flames from the exhausts while a shot burns. */
   setNitro(on: boolean): void;
   /** Bullet damage: broken glass, parts off, a burnt-out wreck (null: none). */
@@ -385,6 +387,10 @@ abstract class ModelView implements AnyVehicleView {
   private lights: VehicleLights = { brake: false, reverse: false, night: 0 };
   protected roll = 0;
   protected pitch = 0;
+  /** Burst tyres (a spike strip): the tyres are gone and it sits down on its rims. */
+  protected flatDrop = 0;
+  /** Running on the rims (sparks while moving). */
+  flat = false;
   protected drop = 0;
   /** Body drop the air ride is heading for (m); the body moves there gradually. */
   private dropTarget = 0;
@@ -534,6 +540,16 @@ abstract class ModelView implements AnyVehicleView {
     if (!this.isBike) for (const w of this.wheels) w.pivot.rotation.z = (w.left ? 1 : -1) * camber;
     this.applyBody();
     this.applyLights();
+    // Burst tyres: hide the rubber, the rims touch the road.
+    this.flat = !!look.mods.blown;
+    this.flatDrop = this.flat ? (this.info?.wheelR ?? 0.33) * 0.2 : 0;
+    for (const w of this.wheels) {
+      w.spin.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh && !Array.isArray(m.material) && /tire|tyre/i.test(m.material.name)) m.visible = !this.flat;
+      });
+    }
+    this.applyBody();
     this.setUnderglow(findOption(look.mods.underglow)?.value ?? 'none');
     if (this.flames) this.flames.mixBlue = BIKE_EXHAUSTS.has(look.mods.tuning?.perf.exhaust ?? '');
     this.applyStrip(look.mods.strip?.removed ?? []);
@@ -722,7 +738,8 @@ abstract class ModelView implements AnyVehicleView {
   protected applyBody(): void {
     // The body rolls about the axle line and drops with lowered suspension; wheels stay planted.
     this.body.rotation.set(this.pitch, 0, this.roll);
-    this.body.position.y = -this.drop;
+    this.body.position.y = -this.drop - this.flatDrop;
+    this.wheelRoot.position.y = -this.flatDrop;
   }
 
   setLights(l: VehicleLights): void {

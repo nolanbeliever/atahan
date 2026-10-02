@@ -203,6 +203,8 @@ export interface ServerToClientEvents {
   'combat.explosion': (d: ExplosionFx) => void;
   /** A motorcycle or quad went down: sparks, and who came off. */
   'moto.crash': (d: CrashEvent) => void;
+  /** Tyres burst on a spike strip. */
+  'police.spiked': (d: { vehicleId: string; x: number; z: number }) => void;
   'combat.carHp': (d: { id: string; hp: number }) => void;
   'combat.health': (d: HealthView) => void;
   'combat.wasted': (d: { lost: string[]; respawnInMs: number }) => void;

@@ -356,6 +356,14 @@ export class Game {
       this.ui?.wanted.set(w);
     });
     net.on('police.busted', (e) => this.startBusted(e));
+    net.on('police.spiked', (e) => {
+      // Bang-bang: the tyres go, sparks fly.
+      const me = this.localPosition();
+      const d = Math.hypot(me.x - e.x, me.z - e.z);
+      if (d > 140) return;
+      this.combat.fx.sparks(new THREE.Vector3(e.x, 0.25, e.z), 30);
+      this.audio.shot('pistol', Math.max(0.1, 0.6 * (1 - d / 140)));
+    });
     net.on('moto.crash', (e) => {
       // Sparks off the tarmac (a shower of them from a helmet scraping along), a thud.
       const me = this.localPosition();
@@ -521,6 +529,7 @@ export class Game {
     this.entities.pruneNpcs(alive);
     if (s.tr) this.traffic.apply(s.tr, (this.store.serverNow() - s.t) / 1000);
     if (s.po) this.police.apply(s.po, now);
+    this.police.applySpikes(s.sp ?? [], now);
     if (s.sr) this.race.apply(s.sr);
     if (s.dr && this.drag && s.dr.id === this.drag.id) {
       for (const [lane, z, speed] of s.dr.cars) {
@@ -782,6 +791,16 @@ export class Game {
     const me = this.store.me?.appearance;
     this.gunView.set(fps ? this.combat.equipped?.slot ?? 0 : 0, me?.skin, me?.shirt);
     this.gunView.update(camera, fps, dt, moving, (keys & KEY.SPRINT) !== 0);
+    // Cars on their rims throw sparks off the road.
+    for (const [id, e] of this.entities.vehicles) {
+      if (!e.view.flat || !e.driven) continue;
+      const kmh = Math.abs(id === this.driving ? this.dyn?.speed ?? 0 : e.lastSpeed) * KMH_PER_MS;
+      if (kmh < 8 || Math.random() > Math.min(1, kmh / 60)) continue;
+      const side = Math.random() < 0.5 ? 1 : -1;
+      const back = Math.random() < 0.5 ? 1 : -1;
+      const p = new THREE.Vector3(side * e.view.width * 0.42, 0.05, back * e.view.length * 0.33).applyAxisAngle(new THREE.Vector3(0, 1, 0), e.rot).add(new THREE.Vector3(e.x, groundHeight(e.x, e.z), e.z));
+      this.combat.fx.sparks(p, 3);
+    }
     // A blast nearby shakes the camera.
     const shake = this.combat.fx.shake;
     if (shake > 0) camera.position.add(new THREE.Vector3((Math.random() - 0.5) * shake * 0.6, (Math.random() - 0.5) * shake * 0.4, (Math.random() - 0.5) * shake * 0.6));

@@ -63,6 +63,11 @@ export class GarageService {
           else delete player.inventory[kit.id];
         }
       }
+      // New tyres after a spike strip: off the rims.
+      if (veh.mods.blown && work.some((l) => l.part === 'tires')) {
+        const { blown: _, ...mods } = veh.mods;
+        veh.mods = mods;
+      }
       veh.purchasePrice += quote.total;
       veh.serviceUntil = uow.now + Math.round(quote.seconds * 1000);
       player.stats.spentOnRepairs += quote.total;

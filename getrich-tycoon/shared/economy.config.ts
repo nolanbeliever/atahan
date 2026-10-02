@@ -554,7 +554,26 @@ export const ECONOMY = {
     fine: 3_000,
     /** Length of the arrest cutscene before you respawn (s). */
     cutsceneSec: 6.5,
+    /**
+     * Spike strips from 3 stars: one thrown `ahead` m down the road of a wanted driver every
+     * `everySec`, gone after `lifeSec`. Burst tyres: lateral grip -90%, traction -70%, until the
+     * tyres are repaired.
+     */
+    spikes: { stars: 3, everySec: 22, ahead: 110, lifeSec: 40, latGrip: 0.1, traction: 0.3 },
+    /**
+     * The helicopter from 3 stars: health, height, speed (m/s), how far it sees, how long you must
+     * stay under cover for it to lose you, and how long until another one comes after it was
+     * shot down.
+     */
+    heli: { stars: 3, hp: 300, altitude: 38, speed: 30, orbit: 24, sight: 220, lostSec: 8, respawnSec: 60, spawnDist: 260 },
   },
+
+  /**
+   * Hitman contracts from the contact in the alley between Wrench Bros and the Parts Depot: $1,000
+   * a success. Drive-by: `drivebyHits` hits on the venue from a vehicle doing at least
+   * `drivebyMinKmh`. Hit: find and shoot the mark in a search area of `searchRadius` m.
+   */
+  hitman: { reward: 1_000, xp: 60, drivebyHits: 6, drivebyMinKmh: 15, drivebySec: 240, hitSec: 300, searchRadius: 45, markHp: 30, cooldownSec: 15 },
 
   /**
    * Car theft: Black Market lockpick sets, the lockpick mini-game on street-parked cars, stripping
