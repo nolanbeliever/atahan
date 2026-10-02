@@ -530,6 +530,7 @@ export class Game {
     if (s.tr) this.traffic.apply(s.tr, (this.store.serverNow() - s.t) / 1000);
     if (s.po) this.police.apply(s.po, now);
     this.police.applySpikes(s.sp ?? [], now);
+    if (s.ph) this.police.applyHelis(s.ph, now);
     if (s.sr) this.race.apply(s.sr);
     if (s.dr && this.drag && s.dr.id === this.drag.id) {
       for (const [lane, z, speed] of s.dr.cars) {
@@ -853,6 +854,7 @@ export class Game {
     this.police.night = this.night;
     this.police.update(dt, now);
     this.audio.siren(this.police.nearestSiren(rx, rz));
+    this.audio.rotor(this.police.nearestHeli(rx, rz));
     this.audio.rain(this.weather.rain);
     this.rain.update(dt, camera, this.weather.rain, this.renderer.graphics === 'low' ? 0.35 : this.renderer.graphics === 'medium' ? 0.65 : 1);
     this.missionTimer -= dt;

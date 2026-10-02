@@ -615,6 +615,7 @@ export class GameServer implements Hub {
       const nearRace = !!sr && sr.cars.some((b) => Math.hypot(c.x - b[1], c.z - b[2]) < 320);
       const po = this.police.active ? this.police.snapshot(c.x, c.z, 320) : [];
       const sp = this.police.active ? this.police.spikeSnapshot(c.x, c.z, 300) : [];
+      const ph = this.police.active ? this.police.heliSnapshot(c.x, c.z, 450) : [];
       s.socket.volatile.emit('snapshot', {
         t: now,
         ack: c.lastSeq,
@@ -627,6 +628,7 @@ export class GameServer implements Hub {
         ...(nearRace ? { sr: sr! } : {}),
         ...(po.length > 0 ? { po } : {}),
         ...(sp.length > 0 ? { sp } : {}),
+        ...(ph.length > 0 ? { ph } : {}),
       });
     }
     // Game logic that may send events (near misses, drag lights) runs after the snapshots.

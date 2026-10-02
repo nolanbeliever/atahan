@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { getModel } from '../../../shared/vehicles';
 import { BUILDINGS } from '../../../shared/world';
-import { COMBAT, damageLook, rayBox, rayCircle, rayObb, rayY, weapon, ownedWeapons, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type VehicleDamageLook, type WeaponDef } from '../../../shared/weapons';
+import { COMBAT, damageLook, rayBox, rayCircle, rayCylinder, rayObb, rayY, weapon, ownedWeapons, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type VehicleDamageLook, type WeaponDef } from '../../../shared/weapons';
 import { CombatFx } from '../render/CombatFx';
 import type { AnyVehicleView } from '../render/VehicleMesh';
 import type { Game } from './Game';
@@ -130,6 +130,11 @@ export class CombatClient {
         const y = rayY(r, hit.t);
         if (y >= 0 && y <= 1.7) best = hit.t;
       }
+    }
+    // Police helicopters overhead.
+    for (const hz of this.game.police.helis.values()) {
+      const t = rayCylinder(r, hz.x, hz.z, 2.4, hz.y - 1.6, hz.y + 1.5);
+      if (t !== null && t < best && t > 0.5) best = t;
     }
     const person = (x: number, z: number) => {
       const t = rayCircle(r, x, z, 0.4);

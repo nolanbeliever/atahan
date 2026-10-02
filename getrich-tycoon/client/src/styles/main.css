@@ -825,3 +825,6 @@ body.is-wasted #game-root canvas { filter: grayscale(1) contrast(1.1) brightness
 .tbtn.wheelie.pressed { background: linear-gradient(180deg, #ffd08a, #ff9a3c); }
 .cam-btn.wheelie-tag { cursor: default; color: #ffb347; }
 .cam-btn.wheelie-tag.up { background: linear-gradient(180deg, #ffb347, #f07a1a); color: #2a1300; }
+.wanted-heli { font-size: 11px; font-weight: 900; letter-spacing: 0.05em; color: #9fb3c8; margin-top: 4px; }
+.wanted-heli.seen { color: #ffe08a; animation: heli-blink 1s steps(2) infinite; }
+@keyframes heli-blink { 50% { color: #fff6d6; } }

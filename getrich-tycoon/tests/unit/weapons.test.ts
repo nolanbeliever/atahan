@@ -94,3 +94,18 @@ describe('recoil', () => {
     for (const w of WEAPONS) expect(w.recoil.recover, w.id).toBeGreaterThan(1);
   });
 });
+
+describe('ray vs upright cylinder (helicopter)', () => {
+  it('a steep shot climbs into the body; a flat one passes under', async () => {
+    const { rayCylinder } = await import('../../shared/weapons');
+    const up = aimRay(0, 1.5, 0, Math.PI / 2, Math.atan2(36.5, 20));
+    const t = rayCylinder(up, 20, 0, 2.4, 36.4, 39.5)!;
+    expect(t).not.toBeNull();
+    expect(rayY(up, t)).toBeGreaterThanOrEqual(36.4 - 1e-6);
+    expect(t).toBeGreaterThan(17.6);
+    const flat = aimRay(0, 1.5, 0, Math.PI / 2, 0);
+    expect(rayCylinder(flat, 20, 0, 2.4, 36.4, 39.5)).toBeNull();
+    // Pointing away: nothing.
+    expect(rayCylinder(aimRay(0, 1.5, 0, -Math.PI / 2, 1), 20, 0, 2.4, 36.4, 39.5)).toBeNull();
+  });
+});

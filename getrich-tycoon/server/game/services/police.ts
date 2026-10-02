@@ -15,7 +15,7 @@ import { obbDistance } from '../../../shared/obb';
 import { KEY, newVehicleDyn, stepVehicle, vehicleBox, vehicleParams, type VehicleDyn, type VehicleParams } from '../../../shared/physics';
 import { PF, type BustedEvent, type PoliceSnap, type WantedState } from '../../../shared/police';
 import { angleDiff } from '../../../shared/util';
-import { onSpikes, spikePlacement, tyrePoints, type SpikeSnap, type SpikeStrip } from '../../../shared/policeGear';
+import { isCovered, onSpikes, spikePlacement, tyrePoints, type HeliSnap, type SpikeSnap, type SpikeStrip } from '../../../shared/policeGear';
 import { POLICE_MODEL, modelDisplayName } from '../../../shared/vehicles';
 import { INTERACTABLES, ROAD_LINES, type AABB } from '../../../shared/world';
 import { createLogger } from '../../logger';
@@ -40,6 +40,29 @@ interface Unit {
   side: number;
   /** Parked beside the player for the arrest. */
   parked: boolean;
+}
+
+interface Heli {
+  id: number;
+  player: string;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  hp: number;
+  /** Where it circles, and where it last saw the player. */
+  orbitA: number;
+  lastX: number;
+  lastZ: number;
+  /** Seconds since it last saw the player (under cover). */
+  lostT: number;
+  /** Still tracking (reporting the player's position); sees them right now. */
+  sees: boolean;
+  visible: boolean;
+  aimX: number;
+  aimZ: number;
+  /** Shot down (ms), falling. */
+  downAt: number;
 }
 
 interface Wanted {
@@ -90,6 +113,10 @@ export class PoliceService {
   private spikeSeq = 1;
   private spikeAt = new Map<string, number>();
   private bursting = new Set<string>();
+  /** Helicopters (one per wanted player from 3 stars) and when the last one was shot down. */
+  private helis = new Map<string, Heli>();
+  private heliSeq = 1;
+  private heliGone = new Map<string, number>();
 
   constructor(
     private readonly ctx: Ctx,
@@ -248,11 +275,15 @@ export class PoliceService {
         // Lost far behind or hopelessly stuck: come back from behind the player.
         if (dist > 320 || u.stuck > 6) Object.assign(u, this.spawn(me, u.side > 0 ? 0 : 1) ?? u, { id: u.id });
       }
-      // From 3 stars a spike strip goes down across the road ahead of a wanted driver.
+      // From 3 stars a spike strip goes down across the road ahead of a wanted driver, and the
+      // helicopter comes.
       this.throwSpikes(playerId, stars, me, now);
+      this.flyHeli(playerId, stars, me, dt, now);
       // Escape: no police car close for escapeSec (pursuit), or no new offence for calmSec (1 star).
       if (w.units.length > 0) {
         w.escapeT = nearest > cfg.escapeRadius ? w.escapeT + dt : 0;
+        // The helicopter keeps telling them where you are.
+        if (this.helis.get(playerId)?.sees) w.escapeT = 0;
         if (w.escapeT >= cfg.escapeSec) {
           void this.escaped(playerId, w);
           continue;
@@ -274,7 +305,114 @@ export class PoliceService {
       this.send(playerId, w);
     }
     this.checkSpikes(now);
+    this.tickHelis(dt, now);
     this.publishObstacles();
+  }
+
+  // ---------------------------------------------------------------- helicopter
+
+  private flyHeli(playerId: string, stars: number, me: { x: number; z: number }, dt: number, now: number): void {
+    const hc = ECONOMY.police.heli;
+    let h = this.helis.get(playerId);
+    if (stars < hc.stars) {
+      if (h && !h.downAt) this.helis.delete(playerId);
+      return;
+    }
+    if (!h) {
+      if (now - (this.heliGone.get(playerId) ?? -Infinity) < hc.respawnSec * 1000) return;
+      const a = (this.time * 1.7 + playerId.length) % (Math.PI * 2);
+      h = { id: this.heliSeq++, player: playerId, x: me.x + Math.cos(a) * hc.spawnDist, y: hc.altitude, z: me.z + Math.sin(a) * hc.spawnDist, yaw: 0, hp: hc.hp, orbitA: a, lastX: me.x, lastZ: me.z, lostT: 0, sees: true, visible: false, aimX: me.x, aimZ: me.z, downAt: 0 };
+      this.helis.set(playerId, h);
+      for (const p of this.crew(playerId)) this.ctx.hub.notify(p, { kind: 'warning', title: '🚁 Polis helikopteri!', text: 'Helikopter seni yukarıdan izliyor ve yerini ekiplere bildiriyor. Köprü altına, tünele ya da kapalı bir alana gir!' });
+    }
+    if (h.downAt) return;
+    const dist = Math.hypot(h.x - me.x, h.z - me.z);
+    h.visible = !isCovered(me.x, me.z) && dist < hc.sight;
+    if (h.visible) {
+      h.lastX = me.x;
+      h.lastZ = me.z;
+      h.lostT = 0;
+    } else h.lostT += dt;
+    const was = h.sees;
+    h.sees = h.lostT < hc.lostSec;
+    if (was && !h.sees) for (const p of this.crew(playerId)) this.ctx.hub.notify(p, { kind: 'success', title: 'Helikopter izini kaybetti', text: 'Seni göremiyor: şimdi ekiplerden de kurtul.' });
+    else if (!was && h.visible) for (const p of this.crew(playerId)) this.ctx.hub.notify(p, { kind: 'warning', title: '🚁 Helikopter seni yine buldu', text: 'Projektör üzerinde!' });
+    // Circle where it last saw you, catching up fast when far away.
+    h.orbitA += dt * (hc.speed / hc.orbit) * 0.35;
+    const tx = h.lastX + Math.cos(h.orbitA) * hc.orbit;
+    const tz = h.lastZ + Math.sin(h.orbitA) * hc.orbit;
+    const dx = tx - h.x;
+    const dz = tz - h.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 0.01) {
+      const step = Math.min(d, hc.speed * (d > 60 ? 1.8 : 1) * dt);
+      h.x += (dx / d) * step;
+      h.z += (dz / d) * step;
+    }
+    h.yaw += angleDiff(h.yaw, Math.atan2(h.lastX - h.x, h.lastZ - h.z)) * Math.min(1, dt * 2);
+    h.y += (hc.altitude - h.y) * Math.min(1, dt);
+    // The searchlight: on you while it sees you, sweeping round the last place otherwise.
+    if (h.visible) {
+      h.aimX = me.x;
+      h.aimZ = me.z;
+    } else {
+      h.aimX = h.lastX + Math.cos(this.time * 0.9) * 12;
+      h.aimZ = h.lastZ + Math.sin(this.time * 0.9) * 12;
+    }
+  }
+
+  /** Shot-down helicopters fall and blow up; the ones nobody needs leave. */
+  private tickHelis(dt: number, now: number): void {
+    for (const [playerId, h] of this.helis) {
+      if (!h.downAt) {
+        if (!this.wanted.has(playerId)) this.helis.delete(playerId);
+        continue;
+      }
+      const t = (now - h.downAt) / 1000;
+      h.y -= dt * (4 + t * 9);
+      h.yaw += dt * 5;
+      if (h.y > 1.5) continue;
+      this.helis.delete(playerId);
+      this.heliGone.set(playerId, now);
+      this.ctx.hub.broadcast('combat.explosion', { x: h.x, y: 1, z: h.z, radius: 8 });
+    }
+  }
+
+  /** Helicopters that can be shot (for the bullets). */
+  heliTargets(): { id: number; x: number; y: number; z: number }[] {
+    return [...this.helis.values()].filter((h) => !h.downAt).map((h) => ({ id: h.id, x: h.x, y: h.y, z: h.z }));
+  }
+
+  /** A bullet hit a helicopter; returns true when that shot brought it down. */
+  damageHeli(id: number, amount: number, now = Date.now()): boolean {
+    for (const h of this.helis.values()) {
+      if (h.id !== id || h.downAt) continue;
+      h.hp = Math.max(0, h.hp - amount);
+      if (h.hp > 0) return false;
+      h.downAt = now;
+      h.sees = false;
+      for (const p of this.crew(h.player)) this.ctx.hub.notify(p, { kind: 'success', title: '🚁 Helikopter düşürüldü!', text: 'Bir süre gökyüzü temiz.' });
+      log.info('helicopter down', { player: h.player });
+      return true;
+    }
+    return false;
+  }
+
+  /** The helicopter after a player (tests, HUD). */
+  heliOf(playerId: string): Readonly<Heli> | undefined {
+    return this.helis.get(playerId);
+  }
+
+  /** Helicopters within `radius` of a point (for snapshots); searchlight 9999 = off. */
+  heliSnapshot(x: number, z: number, radius: number): HeliSnap[] {
+    const out: HeliSnap[] = [];
+    const r = (v: number) => Math.round(v * 100) / 100;
+    for (const h of this.helis.values()) {
+      if (Math.hypot(h.x - x, h.z - z) > radius) continue;
+      const lit = h.sees && !h.downAt;
+      out.push([h.id, r(h.x), r(h.y), r(h.z), Math.round(h.yaw * 1000) / 1000, lit ? r(h.aimX) : 9999, lit ? r(h.aimZ) : 9999, Math.round((h.hp / ECONOMY.police.heli.hp) * 100) / 100]);
+    }
+    return out;
   }
 
   // ---------------------------------------------------------------- spike strips
@@ -651,7 +789,8 @@ export class PoliceService {
     const cfg = ECONOMY.police;
     const stars = starsFor(w.heat);
     const escapeLeft = w.units.length > 0 && w.escapeT > 0.5 ? Math.max(0, Math.ceil(cfg.escapeSec - w.escapeT)) : null;
-    const state: WantedState = { stars, units: w.units.length, escapeLeft, bust: Math.round(Math.min(1, w.bustT / cfg.bustSec) * 10) / 10 };
+    const h = this.helis.get(playerId);
+    const state: WantedState = { stars, units: w.units.length, escapeLeft, bust: Math.round(Math.min(1, w.bustT / cfg.bustSec) * 10) / 10, heli: h && !h.downAt ? (h.sees ? 'seen' : 'lost') : null };
     const key = JSON.stringify(state);
     const now = Date.now();
     if (!force && (key === w.sent || now - w.sentAt < 200)) return;
@@ -686,9 +825,9 @@ export class PoliceService {
     return out;
   }
 
-  /** Any police car or spike strip in the world (tick fast path). */
+  /** Any police car, spike strip or helicopter in the world (tick fast path). */
   get active(): boolean {
-    return this.wanted.size > 0 || this.spikes.size > 0;
+    return this.wanted.size > 0 || this.spikes.size > 0 || this.helis.size > 0;
   }
 }
 

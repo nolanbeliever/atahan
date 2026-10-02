@@ -12,6 +12,7 @@ export class WantedHud {
   private status: HTMLElement;
   private bustFill: HTMLElement;
   private bust: HTMLElement;
+  private heli: HTMLElement;
   private state: WantedState = { stars: 0, units: 0, escapeLeft: null, bust: 0 };
   private bannerTimer: number | null = null;
 
@@ -25,7 +26,8 @@ export class WantedHud {
     this.status = h('div', { class: 'wanted-status' });
     this.bustFill = h('div');
     this.bust = h('div', { class: 'wanted-bust' }, h('span', null, 'ARREST'), h('div', { class: 'wanted-bust-bar' }, this.bustFill));
-    this.el = h('div', { class: 'wanted', 'data-testid': 'wanted' }, row, this.status, this.bust);
+    this.heli = h('div', { class: 'wanted-heli', 'data-testid': 'wanted-heli' });
+    this.el = h('div', { class: 'wanted', 'data-testid': 'wanted' }, row, this.status, this.heli, this.bust);
     this.banner = h('div', { class: 'big-banner', 'data-testid': 'police-banner' });
   }
 
@@ -42,6 +44,9 @@ export class WantedHud {
     else if (s.units > 0) this.status.textContent = `POLICE PURSUIT · ${s.units} unit${s.units === 1 ? '' : 's'}`;
     else if (s.stars > 0) this.status.textContent = s.stars >= 2 ? 'POLICE ON THE WAY' : 'WANTED · drive carefully';
     else this.status.textContent = '';
+    this.heli.textContent = s.heli === 'seen' ? '🚁 HELİKOPTER SENİ İZLİYOR' : s.heli === 'lost' ? '🚁 Helikopter seni kaybetti' : '';
+    this.heli.classList.toggle('seen', s.heli === 'seen');
+    this.heli.style.display = s.heli ? '' : 'none';
     this.bust.classList.toggle('show', s.bust > 0 && s.bust < 1);
     this.bustFill.style.width = `${Math.round(Math.min(1, s.bust) * 100)}%`;
   }

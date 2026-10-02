@@ -20,7 +20,7 @@ import { LOCKPICK_ITEM, parsePartItem } from '../../../shared/theft';
 import { Anim } from '../../../shared/types';
 import { angleDiff } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
-import { AMMO, COMBAT, STARTER_ROUNDS, WEAPONS, aimRay, ammoDef, rayBox, rayCircle, rayObb, rayY, spreadAim, weapon, weaponItem, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type WeaponDef, type WeaponId } from '../../../shared/weapons';
+import { AMMO, COMBAT, STARTER_ROUNDS, WEAPONS, aimRay, ammoDef, rayBox, rayCircle, rayCylinder, rayObb, rayY, spreadAim, weapon, weaponItem, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type WeaponDef, type WeaponId } from '../../../shared/weapons';
 import { BLOCK_CENTERS, BLOCK_HALF, BUILDINGS, SIDEWALK } from '../../../shared/world';
 import { VIP_COIN } from '../../../shared/rewards';
 import { GameError } from '../../errors';
@@ -87,7 +87,7 @@ function loopPoint(bx: number, bz: number, s: number): { x: number; z: number; r
 }
 
 type Who = 'player' | 'ped' | 'officer' | 'customer';
-type Target = { type: 'car'; id: string; who?: undefined } | { type: 'person'; id: string; who: Who };
+type Target = { type: 'car'; id: string; who?: undefined } | { type: 'person'; id: string; who: Who } | { type: 'heli'; id: number; who?: undefined };
 
 let seq = 1;
 
@@ -282,6 +282,15 @@ export class CombatService {
       n = [hit.nx, 0, hit.nz];
       target = { type: 'car', id: v.id };
     }
+    // Police helicopters overhead.
+    for (const hz of this.police.heliTargets()) {
+      const ht = rayCylinder(r, hz.x, hz.z, 2.4, hz.y - 1.6, hz.y + 1.5);
+      if (ht === null || ht >= best || ht < 0.5) continue;
+      best = ht;
+      kind = 'car';
+      n = undefined;
+      target = { type: 'heli', id: hz.id };
+    }
     // People.
     const person = (id: string, x: number, z: number, who: Who) => {
       const t = rayCircle(r, x, z, PERSON_R);
@@ -309,7 +318,10 @@ export class CombatService {
     }
     if (!t) return;
     if (t.type === 'car') this.damageCar(t.id, w.damage, shooter, now);
-    else this.damagePerson(t.id, t.who!, w.damage, shooter, r.x, r.z, now);
+    else if (t.type === 'heli') {
+      this.police.raiseHeat(shooter, C.heatPolice);
+      this.police.damageHeli(t.id, w.damage, now);
+    } else this.damagePerson(t.id, t.who!, w.damage, shooter, r.x, r.z, now);
   }
 
   private carHeight(id: string): number {
@@ -415,6 +427,14 @@ export class CombatService {
     for (const p of this.peds.values()) {
       const d = Math.hypot(p.npc.x - x, p.npc.z - z);
       if (d < radius && !p.deadAt) this.damagePerson(p.npc.id, 'ped', fall(d), by, x, z, now);
+    }
+    // A rocket into a helicopter.
+    for (const hz of this.police.heliTargets()) {
+      const d = Math.hypot(hz.x - x, hz.y - y, hz.z - z);
+      if (d < radius + 2) {
+        if (by) this.police.raiseHeat(by, C.heatPolice);
+        this.police.damageHeli(hz.id, fall(Math.max(0, d - 2)), now);
+      }
     }
     for (const o of this.officers.values()) {
       const d = Math.hypot(o.npc.x - x, o.npc.z - z);

@@ -1,7 +1,9 @@
 // Police kit over real sockets: spike strips ahead of a 3-star driver, tyres bursting on one (the
-// car on its rims until the tyres are repaired).
+// car on its rims until the tyres are repaired), and the helicopter (tracking, losing you under
+// cover, shot down).
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ECONOMY } from '../../shared/economy.config';
 import { isCategoryUnlocked } from '../../shared/progression';
 import { KEY } from '../../shared/physics';
 import { getModel } from '../../shared/vehicles';
@@ -66,6 +68,49 @@ describe('spike strips', () => {
     server.game.sim.teleport(client.playerId, shop.x, shop.z);
     await client.rpc('repair.start', { vehicleId, parts: ['tires'], useKits: false });
     expect(server.game.state.vehicles.get(vehicleId)!.mods.blown).toBeUndefined();
+    client.close();
+  }, 40_000);
+
+  it('the helicopter tracks a 3-star player, loses them under cover and can be shot down', async () => {
+    const { client } = await connectNew(server);
+    const police = server.game.police;
+    server.game.sim.teleport(client.playerId, -26, 40);
+    police.raiseHeat(client.playerId, 250);
+    await client.waitFor<{ title: string }>('notify', (n) => n.title === '🚁 Polis helikopteri!', 5000);
+    const h = police.heliOf(client.playerId)!;
+    expect(h).toBeDefined();
+    expect(h.y).toBeGreaterThan(30);
+    await client.waitFor<{ heli?: string }>('police.wanted', (w) => w.heli === 'seen', 5000);
+    const snap = await client.waitSnapshot((sn) => (sn.ph?.length ?? 0) > 0, 3000);
+    expect(snap.ph![0]![0]).toBe(h.id);
+    // Into the car wash tunnel: after a while it loses you.
+    server.game.sim.teleport(client.playerId, -26, 77);
+    (h as { lostT: number }).lostT = ECONOMY.police.heli.lostSec - 0.3;
+    await client.waitFor<{ title: string }>('notify', (n) => n.title === 'Helikopter izini kaybetti', 5000);
+    await client.waitFor<{ heli?: string }>('police.wanted', (w) => w.heli === 'lost', 3000);
+    // Out in the open again, and a rifle shot at it.
+    server.game.sim.teleport(client.playerId, -26, 40);
+    await sleep(300);
+    const uow = server.game.state.begin();
+    Object.assign(uow.player(client.playerId).inventory, { weapon_rifle: 1, ammo_rifle: 30 });
+    await uow.commit();
+    await client.rpc('weapon.equip', { weapon: 'rifle' });
+    const c = server.game.sim.chars.get(client.playerId)!;
+    // (Overhead: it starts far out and closes in.)
+    Object.assign(h, { x: c.x + 20, z: c.z + 5, y: ECONOMY.police.heli.altitude });
+    const hp0 = h.hp;
+    const yaw = Math.atan2(h.x - c.x, h.z - c.z);
+    const pitch = Math.atan2(h.y - 1.5, Math.hypot(h.x - c.x, h.z - c.z));
+    expect(server.game.combat.fire(client.playerId, ['rifle', c.x, 1.5, c.z, yaw, pitch, 1], Date.now())).toBe(true);
+    expect(h.hp).toBeLessThan(hp0);
+    // Finished off: it comes down, blows up, and no new one comes for a while.
+    expect(police.damageHeli(h.id, 10_000)).toBe(true);
+    await client.waitFor<{ title: string }>('notify', (n) => n.title === '🚁 Helikopter düşürüldü!', 3000);
+    await client.waitFor('combat.explosion', () => true, 10_000);
+    expect(police.heliOf(client.playerId)).toBeUndefined();
+    await sleep(500);
+    expect(police.heliOf(client.playerId)).toBeUndefined();
+    police.clearWanted(client.playerId);
     client.close();
   }, 40_000);
 });

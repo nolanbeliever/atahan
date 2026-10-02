@@ -23,7 +23,7 @@ export interface SpikeStrip {
 /** A spike strip in a snapshot: [id, x, z, rot, half length]. */
 export type SpikeSnap = [number, number, number, number, number];
 
-/** A police helicopter in a snapshot: [id, x, y, z, yaw, searchlight x, z (NaN: off), health 0-1]. */
+/** A police helicopter in a snapshot: [id, x, y, z, yaw, searchlight x, z (9999: off), health 0-1]. */
 export type HeliSnap = [number, number, number, number, number, number, number, number];
 
 /** Half the width of a strip (the spikes). */

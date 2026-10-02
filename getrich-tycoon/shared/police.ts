@@ -19,6 +19,8 @@ export interface WantedState {
   escapeLeft: number | null;
   /** How close you are to being arrested (0-1). */
   bust: number;
+  /** The helicopter: tracking you, or lost you (under cover); null: none. */
+  heli?: 'seen' | 'lost' | null;
 }
 
 export interface BustedEvent {

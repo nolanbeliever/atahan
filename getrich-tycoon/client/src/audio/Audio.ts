@@ -120,6 +120,8 @@ export class AudioSystem {
   private sirenOsc: OscillatorNode | null = null;
   private sirenGain: GainNode | null = null;
   private sirenLfo: OscillatorNode | null = null;
+  private rotorGain: GainNode | null = null;
+  private rotorLfo: OscillatorNode | null = null;
   private rainGain: GainNode | null = null;
   private dyno: { rpm: number; throttle: boolean; profile: SoundProfile; redline: number } | null = null;
   /** Called when the exhaust pops (to flash flames on the car). */
@@ -282,6 +284,22 @@ export class AudioSystem {
     this.sirenGain = ctx.createGain();
     this.sirenGain.gain.value = 0;
     this.sirenOsc.connect(sirenLp).connect(this.sirenGain).connect(this.sfxBus);
+    // Helicopter rotor: low rumble chopped by the blade pass ("whop-whop").
+    const rotorLp = ctx.createBiquadFilter();
+    rotorLp.type = 'lowpass';
+    rotorLp.frequency.value = 240;
+    const chop = ctx.createGain();
+    chop.gain.value = 0.55;
+    this.rotorLfo = ctx.createOscillator();
+    this.rotorLfo.type = 'square';
+    this.rotorLfo.frequency.value = 11;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.45;
+    this.rotorLfo.connect(depth).connect(chop.gain);
+    this.rotorGain = ctx.createGain();
+    this.rotorGain.gain.value = 0;
+    noise.connect(rotorLp).connect(chop).connect(this.rotorGain).connect(this.sfxBus);
+    this.rotorLfo.start();
     // Rain: bright hiss on the ambient bus.
     const rainHp = ctx.createBiquadFilter();
     rainHp.type = 'highpass';
@@ -297,6 +315,13 @@ export class AudioSystem {
     if (!this.ctx || !this.sirenGain) return;
     const k = Number.isFinite(distance) ? Math.max(0, 1 - distance / 140) : 0;
     this.sirenGain.gain.setTargetAtTime(0.06 * k * k, this.ctx.currentTime, 0.15);
+  }
+
+  /** Helicopter rotor loudness from the distance to the nearest helicopter (m). */
+  rotor(distance: number): void {
+    if (!this.ctx || !this.rotorGain) return;
+    const k = Number.isFinite(distance) ? Math.max(0, 1 - distance / 260) : 0;
+    this.rotorGain.gain.setTargetAtTime(0.5 * k * k, this.ctx.currentTime, 0.2);
   }
 
   /** Rain intensity 0-1. */

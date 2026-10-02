@@ -229,6 +229,34 @@ export function rayCircle(r: Ray2, cx: number, cz: number, radius: number): numb
   return c <= 0 ? 0 : null;
 }
 
+/**
+ * First distance at which the ray is inside an upright cylinder (centre cx, cz, radius, from y0 up
+ * to y1): a steep shot up at a helicopter enters its circle below it and climbs into it.
+ */
+export function rayCylinder(r: Ray2, cx: number, cz: number, radius: number, y0: number, y1: number): number | null {
+  const ox = r.x - cx;
+  const oz = r.z - cz;
+  const b = ox * r.dx + oz * r.dz;
+  const c = ox * ox + oz * oz - radius * radius;
+  const disc = b * b - c;
+  if (disc < 0) return null;
+  const tIn = Math.max(0, -b - Math.sqrt(disc));
+  const tOut = -b + Math.sqrt(disc);
+  if (tOut < 0) return null;
+  // The part of [tIn, tOut] where the ray is between y0 and y1.
+  let lo = tIn;
+  let hi = tOut;
+  if (Math.abs(r.slope) < 1e-6) {
+    if (r.y < y0 || r.y > y1) return null;
+  } else {
+    const ta = (y0 - r.y) / r.slope;
+    const tb = (y1 - r.y) / r.slope;
+    lo = Math.max(lo, Math.min(ta, tb));
+    hi = Math.min(hi, Math.max(ta, tb));
+  }
+  return lo <= hi ? lo : null;
+}
+
 /** Fire spread: a direction jittered within ±spread (deterministic from a seed). */
 export function spreadAim(yaw: number, pitch: number, spread: number, seed: number): { yaw: number; pitch: number } {
   if (spread <= 0) return { yaw, pitch };

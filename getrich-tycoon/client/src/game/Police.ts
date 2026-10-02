@@ -3,7 +3,8 @@
 
 import * as THREE from 'three';
 import { PF, type PoliceSnap } from '../../../shared/police';
-import { SPIKE_HALF_WIDTH, type SpikeSnap } from '../../../shared/policeGear';
+import { SPIKE_HALF_WIDTH, type HeliSnap, type SpikeSnap } from '../../../shared/policeGear';
+import { HelicopterView } from '../render/Helicopter';
 import { vehicleBox, type DynamicBox } from '../../../shared/physics';
 import { modelBoxHalfExtents } from '../../../shared/collision';
 import { Anim } from '../../../shared/types';
@@ -49,6 +50,10 @@ function sirenMaterials(view: VehicleView): { red: THREE.MeshStandardMaterial[];
   return out;
 }
 
+function angleWrap(a: number): number {
+  return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
 /** Id of the police car a cutscene drives itself. */
 const STAGED = -1;
 
@@ -91,6 +96,8 @@ function spikeStrip(half: number): THREE.Group {
 export class PoliceClient {
   readonly units = new Map<number, Unit>();
   private spikes = new Map<number, { group: THREE.Group; lastSeen: number }>();
+  /** Helicopters: the view, their recent states (interpolated) and when last seen. */
+  readonly helis = new Map<number, { view: HelicopterView; buffer: { t: number; s: HeliSnap }[]; lastSeen: number; x: number; y: number; z: number }>();
   private time = 0;
   night = 0;
   /** Cutscene: one police car placed by the client (the server's units are hidden meanwhile). */
@@ -138,6 +145,7 @@ export class PoliceClient {
 
   update(dt: number, now = performance.now()): void {
     this.time += dt;
+    this.updateHelis(dt, now);
     const renderT = now - INTERP_DELAY_MS;
     for (const [id, u] of this.units) {
       if (id === STAGED && this.staged) {
@@ -206,6 +214,59 @@ export class PoliceClient {
       s.group.removeFromParent();
       this.spikes.delete(id);
     }
+  }
+
+  /** Helicopters from a snapshot. */
+  applyHelis(list: HeliSnap[], now = performance.now()): void {
+    for (const s of list) {
+      let h = this.helis.get(s[0]);
+      if (!h) {
+        const view = new HelicopterView();
+        this.scene.add(view.root);
+        h = { view, buffer: [], lastSeen: now, x: s[1], y: s[2], z: s[3] };
+        this.helis.set(s[0], h);
+      }
+      h.buffer.push({ t: now, s });
+      if (h.buffer.length > 8) h.buffer.shift();
+      h.lastSeen = now;
+    }
+  }
+
+  private updateHelis(dt: number, now: number): void {
+    const renderT = now - INTERP_DELAY_MS;
+    for (const [id, h] of this.helis) {
+      if (now - h.lastSeen > 1500) {
+        h.view.dispose();
+        this.helis.delete(id);
+        continue;
+      }
+      // Interpolate between the two snapshots around the render time.
+      const b = h.buffer;
+      let a = b[0]!;
+      let c = b[b.length - 1]!;
+      for (let i = 0; i + 1 < b.length; i++) {
+        if (b[i]!.t <= renderT && b[i + 1]!.t >= renderT) {
+          a = b[i]!;
+          c = b[i + 1]!;
+          break;
+        }
+      }
+      const k = c.t > a.t ? Math.max(0, Math.min(1, (renderT - a.t) / (c.t - a.t))) : 1;
+      const lerp = (i: number) => a.s[i]! + (c.s[i]! - a.s[i]!) * k;
+      h.x = lerp(1);
+      h.y = lerp(2);
+      h.z = lerp(3);
+      const yaw = a.s[4] + angleWrap(c.s[4] - a.s[4]) * k;
+      const lit = c.s[5] < 9000;
+      h.view.update(dt, h.x, h.y, h.z, yaw, lit ? { x: c.s[5], z: c.s[6] } : null, c.s[7], this.night);
+    }
+  }
+
+  /** Distance to the nearest helicopter (rotor sound). */
+  nearestHeli(x: number, z: number): number {
+    let best = Infinity;
+    for (const h of this.helis.values()) best = Math.min(best, Math.hypot(h.x - x, h.y, h.z - z));
+    return best;
   }
 
   /** Collision boxes for local prediction (same ids as the server's). */
