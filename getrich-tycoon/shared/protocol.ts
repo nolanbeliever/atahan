@@ -18,6 +18,7 @@ import type { ContractView } from './hitman';
 import type { HeistId, HeistView } from './heists';
 import type { CrimeView } from './underworld';
 import type { BusinessId } from './realestate';
+import type { DealCar, DealScene, TgState } from './telegram';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -138,6 +139,15 @@ export interface RpcMethods {
   /** Emlak Dünyası: buy a business, pay dirty money into one to launder it. */
   'realestate.buy': { params: { businessId: BusinessId }; result: CrimeView };
   'realestate.deposit': { params: { businessId: BusinessId; amount: number }; result: CrimeView };
+  /** Telegram (the phone): the chats and orders; order from the supplier; take, turn down or drop
+   *  off a customer's order; get into a deal car (the cockpit handover). */
+  'tg.state': { params: Empty; result: TgState };
+  'tg.read': { params: Empty; result: TgState };
+  'tg.order': { params: Empty; result: TgState };
+  'tg.accept': { params: { orderId: string; mode: 'hand' | 'drop' }; result: TgState };
+  'tg.decline': { params: { orderId: string }; result: TgState };
+  'tg.drop': { params: { orderId: string }; result: TgState };
+  'tg.enter': { params: { carId: string }; result: DealScene };
   'helmet.buy': { params: { kind: 'helmet' | 'visor'; id: string }; result: { appearance: Appearance } };
   'showroom.info': { params: { showroomId: ShowroomId }; result: ShowroomInfo };
   'showroom.buy': { params: { showroomId: ShowroomId; offerId: string; color?: string; expectedPrice: number }; result: { vehicle: Vehicle; price: number } };
@@ -251,6 +261,14 @@ export interface ServerToClientEvents {
   'heist.lost': (d: { id: HeistId; amount: number; reason: 'busted' | 'wasted' | 'failed'; text: string }) => void;
   /** Your dirty money and heist record. */
   'crime.update': (d: CrimeView) => void;
+  /** Telegram: your phone changed (a message, an order...). */
+  'tg.update': (d: TgState) => void;
+  /** The deal cars parked around the city (supplier's and customers'). */
+  'deal.cars': (d: DealCar[]) => void;
+  /** A handover is over: bought, sold, or the customer was a cop. */
+  'deal.done': (d: { kind: 'buy' | 'sell'; cop: boolean; grams: number; money: number }) => void;
+  /** A dead drop was collected and paid (dirty money). */
+  'deal.paid': (d: { amount: number; name: string }) => void;
   /** Your businesses turned dirty money into clean cash. */
   'crime.laundered': (d: { amount: number }) => void;
   /** Tyres burst on a spike strip. */

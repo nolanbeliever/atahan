@@ -299,6 +299,7 @@ export type TransactionKind =
   | 'moto_gear'
   | 'hitman'
   | 'business_buy'
+  | 'deal_buy'
   | 'laundering'
   | 'showroom'
   | 'testdrive'

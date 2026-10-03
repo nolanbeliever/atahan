@@ -666,6 +666,35 @@ export const ECONOMY = {
     cover: 0.4,
   },
 
+  /**
+   * Telegram dealing (shared/telegram.ts). The supplier: `grams` for `buyPrice` (clean money), the
+   * car waits `pickupSec`. Your channel: a new order every `orderEvery` s (up to `maxOrders`),
+   * `orderGrams` grams at `perGram` dollars a gram (dirty money); a dead drop pays `dropShare` of
+   * it and the customer collects after `pickupDelay` s. Orders lapse after `orderSec`, an accepted
+   * delivery after `deliverSec`. `copChance` of customers are undercover police (`copStars` at
+   * once). The cockpit handover lasts `sceneSec`; get in within `enterRadius` m, drop within
+   * `dropRadius` m. Deal cars park at least `minSpotDist` m from you.
+   */
+  deals: {
+    grams: 10,
+    buyPrice: 500,
+    pickupSec: 420,
+    orderEvery: [60, 120] as [number, number],
+    maxOrders: 3,
+    orderGrams: [10, 20] as [number, number],
+    perGram: [110, 170] as [number, number],
+    dropShare: 0.8,
+    pickupDelay: [40, 80] as [number, number],
+    orderSec: 600,
+    deliverSec: 420,
+    copChance: 0.15,
+    copStars: 3,
+    sceneSec: 5.5,
+    enterRadius: 3.6,
+    dropRadius: 2,
+    minSpotDist: 80,
+  },
+
   /** Money laundering (shared/realestate.ts): every business you own turns up to `perCycle` of
    *  the dirty money paid into it clean every `cycleSec`. */
   laundering: { perCycle: 100_000, cycleSec: 600 },
