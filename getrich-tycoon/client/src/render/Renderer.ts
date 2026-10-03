@@ -67,6 +67,7 @@ export class Renderer {
     s.near = 10;
     s.far = 300;
     this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.radius = lowGfx ? 1 : 3.5;
     this.sun.shadow.normalBias = 0.03;
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
@@ -129,16 +130,10 @@ export class Renderer {
     const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
     this.renderer.setPixelRatio(q === 'high' ? Math.min(dpr, coarse ? 1.5 : 1.75) : q === 'medium' ? Math.min(dpr, 1.25) : 0.85);
     this.renderer.shadowMap.enabled = q !== 'low';
-    // Soft shadow edges (percentage-closer filtering with a soft kernel).
-    this.renderer.shadowMap.type = q === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+    // Soft shadow edges: the filter spreads wider on better graphics (PCF over a rotated disc).
+    this.sun.shadow.radius = q === 'high' ? 3.5 : q === 'medium' ? 2.5 : 1;
     this.sun.castShadow = q !== 'low';
-    if (q !== 'low' && !this.fx) {
-      try {
-        this.fx = new PostFx(this.renderer, this.scene, this.camera);
-      } catch (err) {
-        console.warn('post effects unavailable', err);
-      }
-    }
+    this.ensureFx();
     this.fx?.setQuality(q);
     const size = q === 'high' ? 2048 : 1024;
     if (this.sun.shadow.mapSize.x !== size) {
@@ -153,6 +148,23 @@ export class Renderer {
     this.fogFar = q === 'low' ? 300 : 480;
     (this.scene.fog as THREE.Fog).far = this.fogFar;
     this.resize();
+  }
+
+  private fxFailed = false;
+
+  /** The post effects, made the first time medium or high graphics draw. */
+  private ensureFx(): void {
+    if (this.fx || this.fxFailed || this.quality === 'low') return;
+    try {
+      this.fx = new PostFx(this.renderer, this.scene, this.camera);
+      this.fx.setQuality(this.quality);
+      const w = this.container.clientWidth || window.innerWidth;
+      const h = this.container.clientHeight || window.innerHeight;
+      this.fx.setSize(w, h, this.renderer.getPixelRatio());
+    } catch (err) {
+      this.fxFailed = true;
+      console.warn('post effects unavailable', err);
+    }
   }
 
   get graphics(): GraphicsQuality {
@@ -234,6 +246,7 @@ export class Renderer {
     const now = performance.now();
     const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
     this.lastFrame = now;
+    this.ensureFx();
     if (this.fx && this.quality !== 'low') {
       this.fx.render({ kmh: this.kmh, wet: this.wet, night: this.night, overlay: this.overlay }, dt);
       return;

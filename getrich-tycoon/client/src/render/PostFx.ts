@@ -79,6 +79,7 @@ class WetReflectionPass extends Pass {
         proj: { value: new THREE.Matrix4() },
         invProj: { value: new THREE.Matrix4() },
         viewToWorld: { value: new THREE.Matrix3() },
+        camPos: { value: new THREE.Vector3() },
         texel: { value: new THREE.Vector2() },
         wet: { value: 0 },
         time: { value: 0 },
@@ -90,6 +91,7 @@ class WetReflectionPass extends Pass {
         uniform mat4 proj;
         uniform mat4 invProj;
         uniform mat3 viewToWorld;
+        uniform vec3 camPos;
         uniform vec2 texel;
         uniform float wet;
         uniform float time;
@@ -104,7 +106,6 @@ class WetReflectionPass extends Pass {
           vec4 c = proj * vec4(p, 1.0);
           return c.xy / c.w * 0.5 + 0.5;
         }
-        float hash(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 
         void main() {
           vec4 base = texture2D(tColor, vUv);
@@ -125,11 +126,12 @@ class WetReflectionPass extends Pass {
           vec3 wn = viewToWorld * n;
           if (wn.y < 0.92) return;
           vec3 v = normalize(p);
-          // A little ripple on the water.
-          float j = hash(gl_FragCoord.xy + time * 60.0);
-          vec3 r = normalize(reflect(v, n) + vec3((j - 0.5) * 0.02, 0.0, (hash(gl_FragCoord.yx) - 0.5) * 0.02));
+          // Rain ripples: a slow, smooth wobble of the reflection over the ground.
+          vec3 wp = viewToWorld * p + camPos;
+          float rip = sin(wp.x * 3.1 + time * 2.3) * sin(wp.z * 2.7 - time * 1.9);
+          vec3 r = normalize(reflect(v, n) + vec3(rip * 0.012, 0.0, rip * 0.012));
           float maxDist = 45.0;
-          float stepLen = 0.6 + j * 0.4;
+          float stepLen = 0.7;
           vec3 q = p;
           vec2 hit = vec2(-1.0);
           float travelled = 0.0;
@@ -158,9 +160,11 @@ class WetReflectionPass extends Pass {
           vec2 edge = smoothstep(vec2(0.0), vec2(0.08), hit) * (1.0 - smoothstep(vec2(0.92), vec2(1.0), hit));
           float fade = edge.x * edge.y * (1.0 - travelled / maxDist);
           float fresnel = 0.25 + 0.75 * pow(1.0 - max(dot(-v, n), 0.0), 3.0);
-          vec3 refl = texture2D(tColor, hit).rgb;
-          float k = clamp(wet * fade * fresnel * 0.75, 0.0, 0.8);
-          gl_FragColor = vec4(mix(base.rgb, refl, k) + refl * k * 0.15, base.a);
+          // A little soft (wet asphalt is no mirror): three taps down the reflection.
+          vec2 sm = vec2(0.0, 2.5 * texel.y);
+          vec3 refl = (texture2D(tColor, hit).rgb * 2.0 + texture2D(tColor, hit + sm).rgb + texture2D(tColor, hit - sm).rgb) * 0.25;
+          float k = clamp(wet * fade * fresnel * 0.62, 0.0, 0.66);
+          gl_FragColor = vec4(mix(base.rgb, refl, k), base.a);
         }`,
       depthTest: false,
       depthWrite: false,
@@ -175,6 +179,7 @@ class WetReflectionPass extends Pass {
     (u.proj!.value as THREE.Matrix4).copy(this.camera.projectionMatrix);
     (u.invProj!.value as THREE.Matrix4).copy(this.camera.projectionMatrixInverse);
     (u.viewToWorld!.value as THREE.Matrix3).setFromMatrix4(this.camera.matrixWorld);
+    (u.camPos!.value as THREE.Vector3).setFromMatrixPosition(this.camera.matrixWorld);
     (u.texel!.value as THREE.Vector2).set(1 / read.width, 1 / read.height);
     u.wet!.value = this.wet;
     u.time!.value = (performance.now() / 1000) % 1000;
@@ -268,9 +273,9 @@ export class PostFx {
     this.overlay.enabled = f.overlay;
     // Bloom: a hint by day, the neon city at night.
     const n = f.night;
-    this.bloom.strength = (this.quality === 'high' ? 1 : 0.75) * (0.22 + 0.55 * n);
-    this.bloom.threshold = 1.35 - 0.6 * n;
-    this.bloom.radius = 0.45 + 0.2 * n;
+    this.bloom.strength = (this.quality === 'high' ? 1 : 0.75) * (0.1 + 0.36 * n);
+    this.bloom.threshold = 2.4 - 1.4 * n;
+    this.bloom.radius = 0.35 + 0.15 * n;
     // Speed blur eases in and out.
     const target = Math.max(0, Math.min(1, (f.kmh - 90) / 170));
     this.blur += (target - this.blur) * Math.min(1, dt * 3);
