@@ -41,7 +41,7 @@ export class CombatClient {
       return !!this.equipped;
     }
     const m = /^Digit([1-6])$/.exec(code);
-    if (!m || this.carDriver()) return false;
+    if (!m) return false;
     const slot = Number(m[1]);
     const inv = this.game.store.me?.inventory ?? {};
     const w = ownedWeapons(inv).find((x) => x.slot === slot);
@@ -50,18 +50,8 @@ export class CombatClient {
       this.game.ui?.toast({ kind: 'info', title: `No ${any?.name ?? 'gun'}`, text: 'Ammu-Nation (east of the city, past the outer road) sells guns and ammo.' });
       return true;
     }
-    if (!this.game.canShoot(w)) {
-      this.game.ui?.toast({ kind: 'info', title: 'Tek elle olmaz', text: 'Motor sürerken sadece tabanca (Pistol, Golden Deagle) kullanılır. Arkadaki yolcu her silahı kullanabilir.' });
-      return true;
-    }
     void this.equip(this.equipped?.id === w.id ? null : w);
     return true;
-  }
-
-  /** At the wheel of a car: no guns (a motorcycle rider may use a pistol). */
-  private carDriver(): boolean {
-    const id = this.game.driving;
-    return !!id && !this.game.entities.vehicles.get(id)?.view.isBike;
   }
 
   /** Guns in the inventory, by slot. */
@@ -71,7 +61,7 @@ export class CombatClient {
 
   /** The touch gun button: draw the first gun, then the next one, then put it away. */
   cycleWeapon(): void {
-    if (this.carDriver() || this.dead) return;
+    if (this.dead) return;
     const guns = this.owned().filter((g) => this.game.canShoot(g));
     if (!guns.length) {
       this.game.ui?.toast({ kind: 'info', title: 'Silahın yok', text: 'Ammu-Nation (east of the city, past the outer road) sells guns and ammo.' });

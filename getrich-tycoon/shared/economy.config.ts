@@ -593,6 +593,13 @@ export const ECONOMY = {
     bustSec: 3,
     /** Arrest fine: always this much (from the cash, then the bank; never below zero). */
     fine: 3_000,
+    /**
+     * How hard the chase is (all 40% softer than before): the pursuit car's power and top speed as
+     * a share of the interceptor's (480 hp, 275 km/h), how far ahead of you they aim (s of your
+     * speed), how far behind you a new car appears (m), and how far away (m) or how long stuck (s)
+     * a car must be before it gives up and a new one comes from behind.
+     */
+    chase: { power: 0.6, topSpeed: 0.6, lead: 0.84, spawnDist: 180, respawnDist: 480, stuckSec: 9 },
     /** Length of the arrest cutscene before you respawn (s). */
     cutsceneSec: 6.5,
     /**
@@ -611,10 +618,10 @@ export const ECONOMY = {
 
   /**
    * Hitman contracts from the contact in the alley between Wrench Bros and the Parts Depot: $1,000
-   * a success. Drive-by: `drivebyHits` hits on the venue from a vehicle doing at least
-   * `drivebyMinKmh`. Hit: find and shoot the mark in a search area of `searchRadius` m.
+   * a success. Drive-by: `drivebyHits` hits on the venue, from a vehicle or on foot. Hit: find and
+   * shoot the mark in a search area of `searchRadius` m.
    */
-  hitman: { reward: 1_000, xp: 60, drivebyHits: 6, drivebyMinKmh: 15, drivebySec: 240, hitSec: 300, searchRadius: 45, markHp: 30, cooldownSec: 15 },
+  hitman: { reward: 1_000, xp: 60, drivebyHits: 6, drivebySec: 240, hitSec: 300, searchRadius: 45, markHp: 30, cooldownSec: 15 },
 
   /**
    * Car theft: Black Market lockpick sets, the lockpick mini-game on street-parked cars, stripping
@@ -747,7 +754,7 @@ export const ECONOMY = {
     officerStars: 3,
     officerHp: 70,
     officerFireSec: 1.1,
-    officerDamage: [5, 9],
+    officerDamage: [3, 5.4],
     officerRange: 38,
     officerAccuracy: 0.55,
     /** Bullets fired at a moving car mostly hit the car, not the driver. */

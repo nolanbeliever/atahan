@@ -40,7 +40,7 @@ export class HitmanPanel extends Panel {
       h(
         'ul',
         null,
-        h('li', null, h('b', null, 'Drive-by: '), `bir mekânın duvarlarına hareket eden bir araçtan (en az ${H.drivebyMinKmh} km/s) ${H.drivebyHits} isabet. Arka koltuktaki arkadaşın camdan, motorun arkasındaki yolcu ya da motor sürerken tabancayla.`),
+        h('li', null, h('b', null, 'Mekan kurşunlama: '), `bir mekânın duvarlarına ${H.drivebyHits} isabet. İstersen araçtan tara (sürücü, yolcu ya da motorun arkasındaki, her silahla), istersen in ve yaya ateş et.`),
         h('li', null, h('b', null, 'Hedef: '), 'bir VIP ya da rakip çete üyesi haritada işaretli alanda yürüyor. Kıyafetinden tanı, bul ve indir.'),
       ),
       h('p', { class: 'muted tiny' }, 'Aynı araçtaki herkes işe ortak sayılır. Silah sesi polisi çağırır: yıldızlar gelir.'),

@@ -1,5 +1,5 @@
 // Hitman contracts over real sockets: the contact in the alley hands out a drive-by (a passenger
-// shoots up a venue from a moving car) or a hit (find and shoot a named mark); $1,000 each.
+// shoots up a venue, from a vehicle or on foot) or a hit (find and shoot a named mark); $1,000 each.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ECONOMY } from '../../shared/economy.config';
@@ -81,7 +81,7 @@ describe('hitman contracts', () => {
     client.close();
   }, 30_000);
 
-  it('a drive-by: the passenger of a moving car shoots up the venue; standing still does not count', async () => {
+  it('a drive-by: shots from the car (parked or moving) and on foot all count; the sixth pays the driver', async () => {
     const { client: driver } = await connectNew(server);
     const { client: gunner } = await connectNew(server);
     const start = { ...server.game.sim.chars.get(driver.playerId)! };
@@ -103,18 +103,23 @@ describe('hitman contracts', () => {
     await give(gunner.playerId, { weapon_pistol: 1, ammo_pistol: 40 });
     await gunner.rpc('weapon.equip', { weapon: 'pistol' });
     const shoot = (n: number, t: number) => server.game.combat.fire(gunner.playerId, ['pistol', d.dyn.x, 1.4, d.dyn.z, Math.PI / 2, 0, n], t);
-    // Parked: no count.
+    // From the parked car: counts.
     d.dyn.speed = 0;
     let t = Date.now();
     expect(shoot(1, (t += 500))).toBe(true);
     await sleep(100);
-    expect((await driver.rpc('hitman.info', {})).contract?.hits).toBe(0);
-    // Rolling past: every hit counts, and the sixth pays the driver who took the job.
+    expect((await driver.rpc('hitman.info', {})).contract?.hits).toBe(1);
+    // The driver shoots too (one hand on the wheel), and the gunner gets out and fires on foot.
+    await give(driver.playerId, { weapon_rifle: 1, ammo_rifle: 40 });
+    await driver.rpc('weapon.equip', { weapon: 'rifle' });
+    d.dyn.speed = 5;
+    expect(server.game.combat.fire(driver.playerId, ['rifle', d.dyn.x, 1.4, d.dyn.z, Math.PI / 2, 0, 2], (t += 500))).toBe(true);
+    await gunner.rpc('vehicle.exit', {});
+    // Right up against the venue's wall (nobody can walk between).
+    server.game.sim.teleport(gunner.playerId, venue.box.minX - 1.2, c.z + 3);
     const money0 = cash(driver);
-    for (let i = 0; i < H.drivebyHits; i++) {
-      d.dyn.speed = 5;
-      expect(shoot(10 + i, (t += 500))).toBe(true);
-    }
+    const g = server.game.sim.chars.get(gunner.playerId)!;
+    for (let i = 0; i < H.drivebyHits - 2; i++) expect(server.game.combat.fire(gunner.playerId, ['pistol', g.x, 1.4, g.z, Math.PI / 2, 0, 10 + i], (t += 500))).toBe(true);
     const done = await driver.waitFor<{ reward: number }>('hitman.done', () => true, 5000);
     expect(done.reward).toBe(H.reward);
     await sleep(200);

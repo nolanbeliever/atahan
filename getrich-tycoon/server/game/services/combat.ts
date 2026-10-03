@@ -22,7 +22,7 @@ import { LOCKPICK_ITEM, parsePartItem } from '../../../shared/theft';
 import { Anim } from '../../../shared/types';
 import { angleDiff } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
-import { AMMO, COMBAT, STARTER_ROUNDS, WEAPONS, aimRay, ammoDef, oneHanded, rayBox, rayCircle, rayCylinder, rayObb, rayY, spreadAim, weapon, weaponItem, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type WeaponDef, type WeaponId } from '../../../shared/weapons';
+import { AMMO, COMBAT, STARTER_ROUNDS, WEAPONS, aimRay, ammoDef, rayBox, rayCircle, rayCylinder, rayObb, rayY, spreadAim, weapon, weaponItem, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type WeaponDef, type WeaponId } from '../../../shared/weapons';
 import { BLOCK_CENTERS, BLOCK_HALF, BUILDINGS, SIDEWALK } from '../../../shared/world';
 import { VIP_COIN } from '../../../shared/rewards';
 import { GameError } from '../../errors';
@@ -209,12 +209,11 @@ export class CombatService {
     if (!w || ![x, y, z, yaw, pitch, n].every((v) => typeof v === 'number' && Number.isFinite(v))) return false;
     const c = this.ctx.sim.chars.get(playerId);
     if (!c || c.dead) return false;
-    // From a vehicle: any passenger (out of the window, or off the back of a bike), and the rider
-    // of a motorcycle or quad with a pistol (one hand on the bars).
+    // From a vehicle: anyone in it, any gun: a passenger out of the window or off the back of a
+    // bike, and the driver or rider too (one hand on the wheel or the bars, the other on the gun).
     const inside = c.ridingId ?? c.drivingId;
     const ride = inside ? this.ctx.sim.drives.get(inside) : undefined;
     if (inside && !ride) return false;
-    if (c.drivingId && !(ride!.params.bike && oneHanded(w))) return false;
     if (this.equipped.get(playerId) !== w.id) return false;
     if (this.police.wantedOf(playerId)?.busted) return false;
     // Fire rate (a little slack for network jitter).

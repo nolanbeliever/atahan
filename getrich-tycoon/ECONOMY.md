@@ -157,6 +157,10 @@ Stage 2 $3,700, Stage 3 $8,000, coilovers $2,900, chameleon paint $5,200. A full
 
 ## Police
 
+The chase is tuned 40% softer than the first version (`ECONOMY.police.chase`): pursuit cars run on 60% of the
+interceptor's power and top speed (288 hp, about 165 km/h), aim 0.84 s ahead of you instead of 1.4 s, appear about 180 m
+behind you (not 125 m) and only give up and come back from behind after falling 480 m back or being stuck for 9 s.
+
 - Heat: +40 per near miss above 180 km/h, +90 per crash into traffic, +150 for ramming a police car (max 500); any gunshot
   raises it to at least 150 (2 stars: the shot is heard and the nearest patrol comes, witnesses or not,
   `ECONOMY.combat.heatGunshot`); it cools after 30 s without offences. Stars = heat / 100 rounded up (1-5).
@@ -213,9 +217,10 @@ Values are in `ECONOMY.showrooms` (`shared/showrooms.ts` for the stock).
 out one contract at a time; **$1,000 + 60 XP** each (`hitman`), then a 15 s break before the next.
 
 - **Drive-by** (4 min): 6 hits on a named venue's walls (Fuel & Snacks, Hammerfall Auctions, Chroma Customs, the Used
-  Vehicle Market office) from a vehicle moving at 15 km/h or more.
+  Vehicle Market office), from a vehicle (moving or not, any seat, any gun) or on foot. Anyone who has ridden in the
+  holder's vehicle during the job stays a partner after getting out (their hits and kills count).
 - **Hit** (5 min): a mark (2 VIPs, 2 rival gang members; 30 HP) walks round a city block; the search circle (45 m) is
-  near them, not centred on them. Killing them pays; if someone outside your vehicle kills them, the job fails.
+  near them, not centred on them. Killing them pays; if someone who is not a partner kills them, the job fails.
 - Everyone in the holder's vehicle counts as the crew. Jobs run out with no penalty other than the lost reward.
 
 ## Car theft
@@ -315,12 +320,12 @@ Values are in `ECONOMY.bikes` and `shared/helmets.ts`.
 `shared/weapons.ts`, `ECONOMY.combat`. Prices: Pistol $5,000, Pump Shotgun $18,000, AK-47 / M4 $45,000 (`weapon`), each with
 24 rounds; Golden Desert Eagle 20, Laser-Guided RPG 35, Minigun 45 VIP Coins. Ammo boxes $400-$2,500. Heat: shots near
 witnesses 100, hitting a person 300 (3 stars), a police officer or car 400. From 3 stars up to two officers per nearby
-stopped police car get out and shoot (5-9 damage, less accurate at range and at a moving car). Players have 100 HP, regain
+stopped police car get out and shoot (3-5.4 damage, 40% less than before, less accurate at range and at a moving car). Players have 100 HP, regain
 3 HP/s after 8 s without a hit, and the hospital patches them up for $500 (`hospital`). WASTED: lockpick sets, stripped
 parts and stolen cars are lost, the wanted level is cleared, no fine. Cars have 100 body HP; at zero the engine blows (an
 owned car's engine and body drop to 0 until repaired).
-From vehicles: any passenger can shoot (out of a window or off the back of a bike); a motorcycle or quad rider only with a
-one-handed gun (Pistol, Golden Desert Eagle); a car driver can't.
+From vehicles: anyone can shoot, with any gun, without getting out: passengers out of a window or off the back of a bike,
+the driver one-handed out of their window, the rider over the bars.
 
 ## Reputation unlocks (by level)
 

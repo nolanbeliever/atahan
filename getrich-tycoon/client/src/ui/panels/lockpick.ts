@@ -106,8 +106,20 @@ export class LockpickPanel extends Panel {
       target.addEventListener(ev, fn as EventListener);
       this.unbind.push(() => target.removeEventListener(ev, fn as EventListener));
     };
-    on(window, 'keydown', (e) => this.onKey(e, true));
-    on(window, 'keyup', (e) => this.onKey(e, false));
+    // The lock owns the keyboard while it is open: capture the keys before the game's own handlers
+    // (W and Space would also drive / jump the character away from the car), and let go of them
+    // if the window loses focus mid-press (a stuck A or D used to keep turning the pick).
+    const capture = (e: KeyboardEvent, down: boolean) => {
+      if (e.code === 'Escape') return;
+      if (this.onKey(e, down)) e.stopImmediatePropagation();
+    };
+    const opts = { capture: true };
+    const kd = (e: KeyboardEvent) => capture(e, true);
+    const ku = (e: KeyboardEvent) => capture(e, false);
+    window.addEventListener('keydown', kd, opts);
+    window.addEventListener('keyup', ku, opts);
+    this.unbind.push(() => window.removeEventListener('keydown', kd, opts), () => window.removeEventListener('keyup', ku, opts));
+    on(window, 'blur', () => (this.keys = { left: false, right: false, fine: false }));
     on(window, 'mousemove', (e) => this.aimAt(e.clientX, e.clientY));
     on(this.canvas, 'pointerdown', (e) => {
       e.preventDefault();
@@ -125,8 +137,13 @@ export class LockpickPanel extends Panel {
       // Real time (capped), so a slow frame rate does not stretch the animations.
       const dt = Math.min(0.25, Math.max(0, (now - this.last) / 1000));
       this.last = now;
-      this.step(dt);
-      this.draw();
+      try {
+        this.step(dt);
+        this.draw();
+      } catch (err) {
+        // One bad frame must not freeze the lock.
+        console.warn('lockpick frame', err);
+      }
     };
     this.raf = requestAnimationFrame(loop);
   }
@@ -154,15 +171,17 @@ export class LockpickPanel extends Panel {
     /* the mini-game draws itself */
   }
 
-  private onKey(e: KeyboardEvent, down: boolean): void {
+  /** Returns true when the key is the lock's (the game must not see it). */
+  private onKey(e: KeyboardEvent, down: boolean): boolean {
     const c = e.code;
     if (c === 'KeyA' || c === 'ArrowLeft') this.keys.left = down;
     else if (c === 'KeyD' || c === 'ArrowRight') this.keys.right = down;
     else if (c === 'ShiftLeft' || c === 'ShiftRight') this.keys.fine = down;
-    else if (down && !e.repeat && (c === 'KeyW' || c === 'Space' || c === 'ArrowUp' || c === 'Enter')) {
-      e.preventDefault();
-      void this.turn();
-    }
+    else if (c === 'KeyW' || c === 'Space' || c === 'ArrowUp' || c === 'Enter') {
+      if (down && !e.repeat) void this.turn();
+    } else return false;
+    e.preventDefault();
+    return true;
   }
 
   /** Aim the pick at a screen point (relative to the lock). */
@@ -212,8 +231,12 @@ export class LockpickPanel extends Panel {
         this.state = 'expired';
         this.stateT = 0;
       } else {
+        // Too far, too quick or a network hiccup: the pick comes back, try again.
         this.state = 'aim';
         this.target = 0;
+        this.rot = 0;
+        this.message = code === 'too_far' ? 'Arabaya yaklaş. Get right next to the car.' : 'Tekrar dene. Try again.';
+        this.messageColor = '#ffd27a';
       }
     }
   }
@@ -415,11 +438,11 @@ export class LockpickPanel extends Panel {
     handle.addColorStop(1, '#e1e5ea');
     g.fillStyle = handle;
     g.beginPath();
-    g.roundRect(hx, hy, 130, 26, 13);
+    rrect(g, hx, hy, 130, 26, 13);
     g.fill();
     g.fillStyle = 'rgba(0,0,0,0.35)';
     g.beginPath();
-    g.roundRect(hx + 10, hy + 6, 110, 14, 7);
+    rrect(g, hx + 10, hy + 6, 110, 14, 7);
     g.fill();
 
     // Angle guide round the lock.
@@ -469,7 +492,7 @@ export class LockpickPanel extends Panel {
     g.fill();
     g.fillStyle = '#1b1407';
     g.beginPath();
-    g.roundRect(-5, -32, 10, 64, 5);
+    rrect(g, -5, -32, 10, 64, 5);
     g.fill();
     g.beginPath();
     g.arc(0, -10, 8, 0, Math.PI * 2);
@@ -488,7 +511,7 @@ export class LockpickPanel extends Panel {
     }
     g.fillStyle = '#e67e22';
     g.beginPath();
-    g.roundRect(86, 76, 34, 20, 6);
+    rrect(g, 86, 76, 34, 20, 6);
     g.fill();
     g.restore();
 
@@ -540,7 +563,7 @@ export class LockpickPanel extends Panel {
     // HUD: picks left, difficulty, time, angle, message.
     g.fillStyle = 'rgba(8,10,16,0.62)';
     g.beginPath();
-    g.roundRect(12, 12, 176, 46, 10);
+    rrect(g, 12, 12, 176, 46, 10);
     g.fill();
     g.font = '800 11px system-ui, sans-serif';
     g.fillStyle = '#9aa6bd';
@@ -574,7 +597,7 @@ export class LockpickPanel extends Panel {
     const left = Math.max(0, Math.ceil((this.expiresAt - Date.now()) / 1000));
     g.fillStyle = 'rgba(8,10,16,0.62)';
     g.beginPath();
-    g.roundRect(W - 112, 12, 100, 46, 10);
+    rrect(g, W - 112, 12, 100, 46, 10);
     g.fill();
     g.font = '800 11px system-ui, sans-serif';
     g.fillStyle = '#9aa6bd';
@@ -587,21 +610,21 @@ export class LockpickPanel extends Panel {
     const dw = g.measureText(diff.label).width + 20;
     g.fillStyle = 'rgba(8,10,16,0.62)';
     g.beginPath();
-    g.roundRect(CX - dw / 2, 14, dw, 24, 12);
+    rrect(g, CX - dw / 2, 14, dw, 24, 12);
     g.fill();
     g.fillStyle = diff.color;
     g.textAlign = 'center';
     g.fillText(diff.label, CX, 30);
     g.fillStyle = 'rgba(8,10,16,0.62)';
     g.beginPath();
-    g.roundRect(CX - 150, CY + 46, 76, 24, 8);
+    rrect(g, CX - 150, CY + 46, 76, 24, 8);
     g.fill();
     g.font = '800 13px ui-monospace, monospace';
     g.fillStyle = '#ffffff';
     g.fillText(`${this.angle.toFixed(1)}°`, CX - 112, CY + 63);
     g.fillStyle = 'rgba(8,10,16,0.7)';
     g.beginPath();
-    g.roundRect(20, H - 40, W - 40, 28, 10);
+    rrect(g, 20, H - 40, W - 40, 28, 10);
     g.fill();
     g.font = '800 13px system-ui, sans-serif';
     g.fillStyle = this.messageColor;
@@ -628,6 +651,21 @@ export class LockpickPanel extends Panel {
     if (!this.finished) void this.net.rpc('lockpick.cancel', { sessionId: this.sessionId }).catch(() => undefined);
     super.dispose();
   }
+}
+
+/** A rounded rectangle path (CanvasRenderingContext2D.roundRect is missing on older browsers). */
+function rrect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  if (typeof g.roundRect === 'function') {
+    g.roundRect(x, y, w, h, r);
+    return;
+  }
+  const k = Math.min(r, w / 2, h / 2);
+  g.moveTo(x + k, y);
+  g.arcTo(x + w, y, x + w, y + h, k);
+  g.arcTo(x + w, y + h, x, y + h, k);
+  g.arcTo(x, y + h, x, y, k);
+  g.arcTo(x, y, x + w, y, k);
+  g.closePath();
 }
 
 /** Lighten (k > 0) or darken (k < 0) a CSS hex colour. */

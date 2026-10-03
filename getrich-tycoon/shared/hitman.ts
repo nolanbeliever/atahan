@@ -1,11 +1,10 @@
 // Hitman contracts: a shady contact waits at the end of a hidden dead-end alley between Wrench
 // Bros and the Parts Depot. "Görev Al (E)" gives one contract at a time:
-//  - drive-by: shoot up a named venue from a moving vehicle (on a motorcycle or quad, or from
-//    the passenger seat of a car) with enough hits before the time runs out;
+//  - drive-by: shoot up a named venue with enough hits before the time runs out, from a vehicle
+//    or standing in front of it;
 //  - hit: a VIP or a rival gang member walks somewhere in a marked search area; find and shoot them.
 // Each success pays $1,000. Values are in ECONOMY.hitman.
 
-import { ECONOMY } from './economy.config';
 
 /** The alley (a 6 m gap between the two buildings) and the wall that closes its south end. */
 export const HITMAN_ALLEY = {
@@ -67,7 +66,3 @@ export interface ContractView {
   markId?: string;
 }
 
-/** Is a shooter in a vehicle that can do a drive-by (moving fast enough)? */
-export function drivebySpeedOk(kmh: number): boolean {
-  return kmh >= ECONOMY.hitman.drivebyMinKmh;
-}

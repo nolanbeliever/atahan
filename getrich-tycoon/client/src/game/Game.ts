@@ -31,7 +31,7 @@ import { AIR_LEVELS, hasAirRide } from '../../../shared/modificationsData';
 import { NITRO_ITEM } from '../../../shared/rewards';
 import { cameraSeeing } from '../../../shared/cctv';
 import { RACE, raceRoute, type StreetRaceView } from '../../../shared/streetRace';
-import { oneHanded, recoilKick, type WeaponDef } from '../../../shared/weapons';
+import { recoilKick, type WeaponDef } from '../../../shared/weapons';
 import { confetti } from '../ui/confetti';
 import { Anim, VF, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
 import { findShowroom, type TestDriveEnd } from '../../../shared/showrooms';
@@ -1234,13 +1234,15 @@ export class Game {
       for (const [pid, p] of this.entities.players) {
         if (pid === me || !p.driving) continue;
         const e = this.entities.vehicles.get(p.driving);
-        if (!e || e.view.isBike) continue;
+        if (!e) continue;
         const seats = passengerSeats(getModel(e.data.modelId));
         const free = seats - (riders.get(e.data.id) ?? 0);
         const d = Math.hypot(e.x - x, e.z - z);
         if (free <= 0 || d > e.view.length / 2 + 2.6 || Math.abs(e.lastSpeed) > 2) continue;
         const vid = e.data.id;
-        const it: Interaction = { id: `ride-${vid}`, label: 'Yolcu olarak bin', sub: `${this.store.playerName(pid)} · ${modelDisplayName(e.data.modelId)} · ${free} boş koltuk`, action: () => void this.rideVehicle(vid), vehicle: true };
+        const it: Interaction = e.view.isBike
+          ? { id: `ride-${vid}`, label: 'Artçı olarak bin', sub: `${this.store.playerName(pid)} · ${modelDisplayName(e.data.modelId)} · arka koltuk`, action: () => void this.rideVehicle(vid), vehicle: true }
+          : { id: `ride-${vid}`, label: 'Yolcu olarak bin', sub: `${this.store.playerName(pid)} · ${modelDisplayName(e.data.modelId)} · ${free} boş koltuk`, action: () => void this.rideVehicle(vid), vehicle: true };
         consider(d, it);
         if (d < vehicleD) {
           vehicleD = d;
@@ -1537,11 +1539,10 @@ export class Game {
     return !!w && this.canShoot(w) && !this.combat.dead && !this.busted;
   }
 
-  /** Can this gun be used where we are? On foot and as a passenger: any; at the wheel: only a
-   *  one-handed gun on a motorcycle or quad (the server checks the same). */
-  canShoot(w: WeaponDef): boolean {
-    if (!this.driving) return true;
-    return !!this.entities.vehicles.get(this.driving)?.view.isBike && oneHanded(w);
+  /** Can this gun be used where we are? Anywhere, any gun: on foot, as a passenger, and at the
+   *  wheel or the bars (one hand steers, the other shoots; the server agrees). */
+  canShoot(_w: WeaponDef): boolean {
+    return true;
   }
 
   /** The front wheel's height on our wheelie (rad), if riding. */
@@ -1588,9 +1589,13 @@ export class Game {
       carried.root.updateMatrixWorld(true);
       carried.passengerMount(this.riding!.seat).localToWorld(camera.position.set(0, 1.72, 0.05));
     } else if (ridden instanceof BikeView) {
-      // Riding with a pistol in one hand: the rider's eyes.
+      // Riding with a gun in one hand: the rider's eyes.
       ridden.root.updateMatrixWorld(true);
       ridden.riderMount.localToWorld(camera.position.set(0, 0.86, 0.1));
+    } else if (ridden) {
+      // At the wheel, one hand out of the window: the driver's eyes.
+      ridden.root.updateMatrixWorld(true);
+      ridden.driverMount.localToWorld(camera.position.set(0, 1.72, 0.05));
     } else camera.position.set(x + Math.sin(yaw) * 0.12, surfaceY(x, z, this.localDeck()) + EYE_HEIGHT, z + Math.cos(yaw) * 0.12);
     camera.quaternion.setFromEuler(new THREE.Euler(this.aimPitch + r.pitch, yaw + Math.PI + r.yaw, 0, 'YXZ'));
   }

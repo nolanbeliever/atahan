@@ -1,12 +1,11 @@
 // Hitman contracts from the contact at the end of the alley between Wrench Bros and the Parts
 // Depot. One contract at a time per player, $1,000 a success:
-//  - drive-by: hit a named venue's walls `drivebyHits` times from a moving vehicle (a passenger out
-//    of the window, the pillion of a bike, or a bike rider with a pistol);
+//  - drive-by: hit a named venue's walls `drivebyHits` times, however you like: from a vehicle (the
+//    driver, a passenger, the pillion, any gun) or standing on the pavement;
 //  - hit: a VIP or rival gang member walks round a block inside a marked search area; shoot them.
 // Your crew (everyone in the same vehicle) shares your contract. Contracts run out after a while.
 
 import { ECONOMY } from '../../../shared/economy.config';
-import { KMH_PER_MS } from '../../../shared/drivetrain';
 import { HITMAN_ALLEY, MARKS, VENUES, type ContractKind, type ContractView } from '../../../shared/hitman';
 import { Anim } from '../../../shared/types';
 import { BUILDINGS } from '../../../shared/world';
@@ -36,6 +35,9 @@ interface Contract {
   z: number;
   radius: number;
   expiresAt: number;
+  /** Everyone who has been in the holder's vehicle during the job: still partners after they get
+   *  out (a drive-by can be finished on foot). */
+  partners: Set<string>;
 }
 
 let seq = 1;
@@ -69,7 +71,7 @@ export class HitmanService {
     if (kind === 'driveby') {
       const venue = VENUES[Math.floor(rng() * VENUES.length)]!;
       const b = BUILDINGS.find((x) => x.id === venue.building)!.box;
-      c = { id, player: playerId, kind, venue, hits: 0, x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, radius: 20, expiresAt: now + H.drivebySec * 1000 };
+      c = { id, player: playerId, kind, venue, hits: 0, x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, radius: 20, expiresAt: now + H.drivebySec * 1000, partners: new Set([playerId]) };
     } else {
       const markIndex = Math.floor(rng() * MARKS.length);
       const mark = MARKS[markIndex]!;
@@ -82,7 +84,7 @@ export class HitmanService {
       const npc = this.ctx.sim.npcs.get(markId)!;
       const a = rng() * Math.PI * 2;
       const off = rng() * (H.searchRadius * 0.5);
-      c = { id, player: playerId, kind, mark, markId, hits: 0, x: npc.x + Math.cos(a) * off, z: npc.z + Math.sin(a) * off, radius: H.searchRadius, expiresAt: now + H.hitSec * 1000 };
+      c = { id, player: playerId, kind, mark, markId, hits: 0, x: npc.x + Math.cos(a) * off, z: npc.z + Math.sin(a) * off, radius: H.searchRadius, expiresAt: now + H.hitSec * 1000, partners: new Set([playerId]) };
     }
     this.contracts.set(playerId, c);
     log.info('contract', { playerId, kind, target: c.venue?.id ?? c.mark?.id });
@@ -108,6 +110,7 @@ export class HitmanService {
   /** Run-out contracts. */
   tick(now = Date.now()): void {
     for (const c of [...this.contracts.values()]) {
+      for (const p of this.police.crew(c.player)) c.partners.add(p);
       if (now < c.expiresAt) continue;
       this.end(c);
       this.cooldown.set(c.player, now + H.cooldownSec * 1000);
@@ -116,23 +119,23 @@ export class HitmanService {
     }
   }
 
-  /** A contract by its holder or anyone in their vehicle. */
+  /** A contract by its holder, anyone in their vehicle, or a partner who has got out. */
   private contractFor(shooter: string): Contract | undefined {
     for (const p of this.police.crew(shooter)) {
       const c = this.contracts.get(p);
-      if (c) return c;
+      if (c) {
+        c.partners.add(shooter);
+        return c;
+      }
     }
+    for (const c of this.contracts.values()) if (c.partners.has(shooter)) return c;
     return undefined;
   }
 
   private onWallHit(building: string, shooter: string): void {
     const c = this.contractFor(shooter);
     if (!c || c.kind !== 'driveby' || c.venue!.building !== building) return;
-    // From a moving vehicle only.
-    const ch = this.ctx.sim.chars.get(shooter);
-    const inside = ch?.ridingId ?? ch?.drivingId;
-    const d = inside ? this.ctx.sim.drives.get(inside) : undefined;
-    if (!d || Math.abs(d.dyn.speed) * KMH_PER_MS < H.drivebyMinKmh) return;
+    // From a vehicle or on foot: every hit on the walls counts.
     c.hits++;
     if (c.hits >= H.drivebyHits) void this.complete(c);
     else this.ctx.hub.sendTo(c.player, 'hitman.update', this.view(c));
@@ -141,7 +144,7 @@ export class HitmanService {
   private onKill(id: string, by: string | null): void {
     for (const c of this.contracts.values()) {
       if (c.markId !== id) continue;
-      if (by && this.police.crew(by).includes(c.player)) void this.complete(c);
+      if (by && (c.partners.has(by) || this.police.crew(by).includes(c.player))) void this.complete(c);
       else {
         // Somebody else got there first.
         this.end(c);
@@ -188,7 +191,7 @@ export class HitmanService {
       title: c.kind === 'driveby' ? `Drive-by: ${c.venue!.name}` : `Hedef: ${c.mark!.name}`,
       text:
         c.kind === 'driveby'
-          ? `Hareket halindeki bir araçtan ${c.venue!.name} binasına ${H.drivebyHits} isabet. Arka koltuktan, motorun arkasından ya da motorda tabancayla.`
+          ? `${c.venue!.name} binasına ${H.drivebyHits} isabet: araçtan tarayabilir ya da inip yaya ateş edebilirsin.`
           : `${c.mark!.kind === 'vip' ? 'VIP' : 'Rakip çete üyesi'} işaretli alanda yürüyor. Bul ve indir.`,
       x: Math.round(c.x * 10) / 10,
       z: Math.round(c.z * 10) / 10,
