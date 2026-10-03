@@ -72,6 +72,9 @@
   - `showrooms.ts` (+ `showroomModels.ts`): the eight themed showrooms (building, door, forecourt turntable, two turntables
     inside, test-drive bay, theme colours, stock), new-car and Black Market prices (`showroomPrice`, `blackMarketPrice`),
     offer ids and the test-drive view; `showroomModels.ts` holds the 12 showroom-only real cars.
+  - `tolls.ts`: the toll plazas (lanes, booth islands as colliders, the eastbound toll line), the ANPR cameras (deck or
+    ground, crossing tests), what a camera reads off a car (`plateRead`), checkpoint plans (`checkpointPlan`: four cars
+    in a V and a strip on a bridge deck near its far end) and the toll history event type.
   - `collision.ts`: builds the same collision world on both sides
   - `protocol.ts`: typed RPC map, events and validation helpers
 - **`server/`**:
@@ -109,7 +112,11 @@
     secret and the epoch like the Rare Dealer's, sold cars saved; test drives: a temporary car with status `testdrive`
     in the showroom's bay, ended when the time is up, the driver gets out, is arrested or logs off; body damage is billed;
     a test car can't be stored, sold, tuned, raced, earn the driving bonus or count towards the garage; leftovers are
-    removed at startup).
+    removed at startup), `tolls.ts` (each tick every driven car's move is tested against the toll line and the camera
+    lines: toll or evasion fine in one transaction, camera hits add police heat; a per-player session history with
+    `toll.event` pushes) and the checkpoints inside `police.ts` (set up when a 2-star driver goes from the ground onto a
+    deck, braked parked units that are also obstacles and in the snapshot, a shove on a fast hit, the breakthrough pay).
+    Plate gear: `showrooms.plateGear` (Black Market door) and `vehicles.flipPlate` (P).
   - `db/` holds the PostgreSQL and SQLite adapters behind one small `Database` interface, plus the repository (row mapping, parameterized SQL).
 - **`client/`**:
   - `game/Game.ts` runs the loop, fixed-step prediction, reconciliation and interactions.
@@ -149,6 +156,9 @@
     `ui/panels/showroom.ts` (the stock, the turntable preview in `render/Studio.ts`'s turntable mode, colours, test drive,
     buy) and `ui/TestDriveHud.ts` (the clock and **Teslim Et**). Heights on the far shore come from `City.groundHeight` /
     `surfaceY` (terrain and decks) and `surfaceTilt` (pitch and roll on slopes and ramps).
+  - Tolls: `render/Tolls.ts` (plaza canopy, booths, barrier arms that lift or fly up red, ANPR gantries and their flash),
+    `ui/TollFeed.ts` (the live feed and the fine notice), `ui/panels/tolls.ts` (history), the Black Market plate gear in
+    `ui/panels/showroom.ts`, a flipped plate's bare back in `VehicleMesh.ts`, checkpoint banners in `ui/WantedHud.ts`.
   - Weather: `render/Weather.ts` (rain streaks around the camera, wet-road materials); `Renderer#setTime(hour, rain)` runs the
     sky (orange at sunset, grey in the rain), sun / moon, image-based light and fog.
   - HUD: `ui/Gauge.ts` (canvas rev counter, speed, gear, boost, stage, ABS / TCS, driving bonus pop-up), `ui/WantedHud.ts`

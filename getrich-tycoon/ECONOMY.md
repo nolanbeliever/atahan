@@ -173,6 +173,21 @@ Stage 2 $3,700, Stage 3 $8,000, coilovers $2,900, chameleon paint $5,200. A full
   timer is held. Under cover (overpass or bridge deck, car-wash tunnel, Sanayi hall) for 8 s and it loses you. Shot down: no
   reward, but no helicopter for 60 s; shooting at it is police heat.
 
+## Tolls, plate cameras and checkpoints
+
+Values are in `ECONOMY.tolls` (`shared/tolls.ts` for where things stand).
+
+- **Toll:** $250 for heading over to the far shore (eastbound through a plaza; westbound is free), at or under **40 km/h**.
+  From the cash, then the bank (`toll`). Faster, or without $250 in total, it is an **evasion: $1,500** (cash, then bank,
+  never below zero; `toll_fine`).
+- **ANPR:** a camera reads a car's real plate; a car with a theft record (`mods.hot`), a stolen car or the car of a wanted
+  driver adds **100 heat (one star)**, shared with the crew. The same camera reads the same car at most once in 20 s.
+  Flipped plate: not read. Fake plate: reads clean.
+- **Plate gear (Black Market):** plate flipper **$6,000** (P toggles), fake plate **$3,500** (taking it off is free).
+- **Checkpoint:** for a driver with **2+ stars** who drives onto a bridge (not more than once per 90 s); stands 75 s, ends 8 s
+  after you are through. Ramming one of its cars at **40 km/h or more** shoves it aside (the car loses 28% of its speed;
+  hitting a police car is the usual heat). Getting past the line on the deck pays **$2,000** and 40 XP (`checkpoint`).
+
 ## Showrooms (Galeri Bulvarı)
 
 Values are in `ECONOMY.showrooms` (`shared/showrooms.ts` for the stock).
