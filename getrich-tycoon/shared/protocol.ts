@@ -249,6 +249,8 @@ export interface ServerToClientEvents {
   'police.breakthrough': (d: { reward: number; name: string }) => void;
   /** A checkpoint car was rammed aside. */
   'police.ram': (d: { x: number; z: number; deck: number }) => void;
+  /** A police car hit the bollards at the end of a back alley. */
+  'police.crash': (d: { x: number; z: number; kmh: number }) => void;
   /** A showroom's stock changed (the Black Market restocked or sold a car). */
   'showroom.update': (d: ShowroomInfo) => void;
   'combat.carHp': (d: { id: string; hp: number }) => void;

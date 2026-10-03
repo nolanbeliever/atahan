@@ -54,6 +54,7 @@ import { City, groundHeight, surfaceY } from '../render/City';
 import { FarShoreView } from '../render/FarShore';
 import { ShowroomsView } from '../render/Showrooms';
 import { TollsView } from '../render/Tolls';
+import { AlleysView } from '../render/Alleys';
 import { StraitView } from '../render/Strait';
 import { DealershipsView } from '../render/Dealerships';
 import { HighwayView } from '../render/Highway';
@@ -105,6 +106,7 @@ export class Game {
   readonly farShore = new FarShoreView();
   readonly showrooms = new ShowroomsView();
   readonly tolls = new TollsView();
+  readonly alleys = new AlleysView();
   /** 0 in the city - 1 on the far shore (sky and fog tint). */
   private zone = 0;
   private zoneAt = performance.now();
@@ -212,7 +214,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.alleys.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.combat = new CombatClient(this);
     this.gunView = new GunView(this.renderer.scene);
@@ -349,6 +351,14 @@ export class Game {
         confetti(window.innerWidth / 2, window.innerHeight * 0.4, 90);
         this.audio.play('reward');
       }
+    });
+    net.on('police.crash', (d) => {
+      const me = this.localPosition();
+      if (Math.hypot(d.x - me.x, d.z - me.z) > 160) return;
+      this.audio.play('crash');
+      const at = new THREE.Vector3(d.x, surfaceY(d.x, d.z) + 0.7, d.z);
+      this.combat.fx.sparks(at, 40);
+      this.combat.fx.shards(at);
     });
     net.on('police.ram', (d) => {
       const me = this.localPosition();
@@ -1020,6 +1030,7 @@ export class Game {
     this.farShore.setNight(night);
     this.showrooms.setNight(night);
     this.tolls.setNight(night);
+    this.alleys.setNight(night);
     this.trafficView.setNight(night);
     this.entities.night = night;
   }

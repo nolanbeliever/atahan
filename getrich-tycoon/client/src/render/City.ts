@@ -2,6 +2,7 @@
 
 import { registerRoad } from './Weather';
 import * as THREE from 'three';
+import { alleyAt, alleyRise } from '../../../shared/alleys';
 import { BELT_TREES, JUNCTIONS } from '../../../shared/highway';
 import { HITMAN_ALLEY } from '../../../shared/hitman';
 import { terrainGradient, terrainHeight } from '../../../shared/farShore';
@@ -32,7 +33,7 @@ export const SIDEWALK_HEIGHT = 0.12;
 export function groundHeight(x: number, z: number): number {
   if (x > WATER.east) return terrainHeight(x, z);
   if (Math.abs(x) > 156 || Math.abs(z) > 156) return 0;
-  return isOnRoad(x, z) ? 0 : SIDEWALK_HEIGHT;
+  return isOnRoad(x, z) ? 0 : SIDEWALK_HEIGHT + alleyRise(x, z);
 }
 
 /** Height of what something stands on: a bridge deck (`deck`, shared/strait.ts) or the ground. */
@@ -49,6 +50,11 @@ export function surfaceTilt(x: number, z: number, rot: number, deck = 0): { pitc
   let gz = 0;
   if (b) gx = deckHeight(b, x + 0.5) - deckHeight(b, x - 0.5);
   else if (x > WATER.east) ({ gx, gz } = terrainGradient(x, z));
+  else if (alleyAt(x, z)?.stairs) {
+    // The steps in a back alley.
+    gx = alleyRise(x + 0.5, z) - alleyRise(x - 0.5, z);
+    gz = alleyRise(x, z + 0.5) - alleyRise(x, z - 0.5);
+  }
   if (gx === 0 && gz === 0) return { pitch: 0, roll: 0 };
   // Forward (sin, cos) and the car's left (cos, -sin).
   const fwd = gx * Math.sin(rot) + gz * Math.cos(rot);

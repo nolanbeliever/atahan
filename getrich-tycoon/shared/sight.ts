@@ -21,7 +21,8 @@ export function segmentHitsAabb(ax: number, az: number, bx: number, bz: number, 
     [az, dz, b.minZ, b.maxZ],
   ] as const) {
     if (Math.abs(d) < 1e-9) {
-      if (p <= lo || p >= hi) return false;
+      // Running along a face (or the seam between two boxes side by side) counts as blocked.
+      if (p < lo || p > hi) return false;
       continue;
     }
     let a = (lo - p) / d;

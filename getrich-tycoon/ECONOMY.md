@@ -185,6 +185,14 @@ behind you (not 125 m) and only give up and come back from behind after falling 
 - **Helicopter** (`ECONOMY.police.heli`): from 3 stars, 300 HP, flies at 38 m, sees 220 m (from above: walls don't hide
   you). Seeing you for 2 s starts the hidden countdown over. Under cover (overpass or bridge deck, car-wash tunnel, Sanayi hall) for 8 s and it loses you. Shot down: no
   reward, but no helicopter for 60 s; shooting at it is police heat.
+- **Back alleys** (`shared/alleys.ts`): three 5 m wide passages through city blocks (behind Wrench Bros, behind the auction
+  house, beside Chroma Customs) between rows of apartment buildings, with two steel bollards across each end (gaps of
+  about 1.45 m: every bike and the ATV fits, no car does; an invisible gate on the bollard line stops every car dead).
+  Behind Wrench Bros the alley climbs a flight of steps to a raised courtyard and back down. A police car within 40 m
+  of you when you dive in follows you straight in and hits the bollards (above 35 km/h: it sits dazed for 3.5 s,
+  `ECONOMY.police.alleys.crashSec`, "🚧 Polis direğe çarptı!"); the others drive round to the end you're heading for
+  (or the nearer one when you stop). Police never plan routes through the alleys, and the apartment rows block their
+  view, so an alley is a good place to start the hidden countdown.
 
 ## Tolls, plate cameras and checkpoints
 

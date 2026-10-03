@@ -12,6 +12,7 @@
 // for 3 s is an arrest: a fixed $3,000 fine (cash, then bank), the car is towed to your
 // garage, and you walk out of the nearest garage after a short cutscene.
 
+import { ALLEYS, BOLLARDS, alleyAt, alleyBox, alleyMouths } from '../../../shared/alleys';
 import { KMH_PER_MS } from '../../../shared/drivetrain';
 import { ECONOMY } from '../../../shared/economy.config';
 import { CARRIAGEWAY_EDGE, laneOffset, offsetToLane, pathPoint, pathYaw, projectToHighway, travelDir, wrapS, type Carriageway } from '../../../shared/highway';
@@ -43,6 +44,9 @@ for (const e of NAV_EDGES) {
 }
 
 const PERFECT = { engine: 100, transmission: 100, brakes: 100, tires: 100, body: 100, interior: 100, cleanliness: 100 };
+
+/** The back alleys' passages (police cars don't plan routes through them). */
+const ALLEY_PASSAGES = ALLEYS.map(alleyBox);
 
 /** How far ahead of the player each car in a pursuit aims (x chase.lead): one straight at them,
  *  one cutting them off, one hanging back... so they come from different angles instead of in a queue. */
@@ -86,6 +90,10 @@ interface Unit {
   searchUntil: number;
   /** How far ahead of the player it aims (each car a little different, so they don't queue up). */
   leadK: number;
+  /** Right behind the player when they dived into this back alley: it follows straight in. */
+  followIn: string | null;
+  /** Hit the bollards: sitting there, dazed, until then (s). */
+  crashUntil: number;
 }
 
 /** A police checkpoint at a bridge's far end, set up for one wanted driver (see shared/tolls.ts). */
@@ -142,6 +150,10 @@ interface Wanted {
   /** Next sight check, and when the next police car may join (service clock, s). */
   sightAt: number;
   nextSpawnAt: number;
+  /** The back alley the player is in (to see them dive into one). */
+  inAlley: string | null;
+  /** Last "police hit the bollards" message (ms). */
+  crashNoteAt: number;
   bustT: number;
   units: Unit[];
   /** Police have been after this player (an escape pays). */
@@ -222,7 +234,7 @@ export class PoliceService {
   private get(playerId: string): Wanted {
     let w = this.wanted.get(playerId);
     if (!w) {
-      w = { heat: 0, lastOffence: 0, hiddenT: 0, dispatchUntil: 0, knows: true, lastKnown: null, seen: 0, heliSeeT: 0, sightAt: 0, nextSpawnAt: 0, bustT: 0, units: [], pursued: false, seenHitAt: Date.now(), busted: null, sent: '', sentAt: 0, chasers: new Set() };
+      w = { heat: 0, lastOffence: 0, hiddenT: 0, dispatchUntil: 0, knows: true, lastKnown: null, seen: 0, heliSeeT: 0, sightAt: 0, nextSpawnAt: 0, inAlley: null, crashNoteAt: 0, bustT: 0, units: [], pursued: false, seenHitAt: Date.now(), busted: null, sent: '', sentAt: 0, chasers: new Set() };
       this.wanted.set(playerId, w);
     }
     return w;
@@ -358,6 +370,12 @@ export class PoliceService {
       const me = this.target(playerId);
       if (!me) continue;
       this.watchBridges(playerId, stars, me, now);
+      // Into a back alley: the cars right behind follow straight in (and meet the bollards); the
+      // others go round to the far end.
+      const alley = me.deck ? undefined : alleyAt(me.x, me.z);
+      if (alley && w.inAlley !== alley.id) for (const u of w.units) if (Math.hypot(u.dyn.x - me.x, u.dyn.z - me.z) < 40) u.followIn = alley.id;
+      if (!alley) for (const u of w.units) u.followIn = null;
+      w.inAlley = alley?.id ?? null;
       // From 3 stars the helicopter comes (it looks from above first).
       this.flyHeli(playerId, stars, me, dt, now);
       // Who can see the player? (Every car on the radio hears it.)
@@ -380,7 +398,7 @@ export class PoliceService {
       let nearestGap = Infinity;
       const myBox = vehicleBox('me', me.x, me.z, me.rot, me.hl, me.hw);
       for (const u of w.units) {
-        this.drive(u, w, me, dt);
+        this.drive(playerId, u, w, me, dt);
         const dist = Math.hypot(u.dyn.x - me.x, u.dyn.z - me.z);
         // Only a car on the same level can stop you (not one on the highway under a bridge).
         const same = (u.dyn.deck ?? 0) === me.deck;
@@ -506,7 +524,7 @@ export class PoliceService {
     const units: Unit[] = plan.cars.map((c, i) => {
       const dyn = newVehicleDyn(c.x, c.z, c.rot);
       dyn.deck = plan.n;
-      return { id: nextUnitId++, dyn, stuck: 0, reverseUntil: 0, waypoint: null, replanAt: 0, side: i % 2 ? 1 : -1, parked: true, sees: false, seeT: 0, searching: false, searchAt: null, searchUntil: 0, leadK: 1 };
+      return { id: nextUnitId++, dyn, stuck: 0, reverseUntil: 0, waypoint: null, replanAt: 0, side: i % 2 ? 1 : -1, parked: true, sees: false, seeT: 0, searching: false, searchAt: null, searchUntil: 0, leadK: 1, followIn: null, crashUntil: 0 };
     });
     const spikeId = this.addSpikes({ ...plan.spikes, deck: plan.n }, now);
     const until = now + cc.lifeSec * 1000;
@@ -831,7 +849,7 @@ export class PoliceService {
     // Arrive at speed.
     dyn.speed = 80 / KMH_PER_MS;
     dyn.gear = 3;
-    return { id: nextUnitId++, dyn, stuck: 0, reverseUntil: 0, waypoint: null, replanAt: 0, side, parked: false, sees: false, seeT: 0, searching: false, searchAt: null, searchUntil: 0, leadK: LEAD_K[index % LEAD_K.length]! };
+    return { id: nextUnitId++, dyn, stuck: 0, reverseUntil: 0, waypoint: null, replanAt: 0, side, parked: false, sees: false, seeT: 0, searching: false, searchAt: null, searchUntil: 0, leadK: LEAD_K[index % LEAD_K.length]!, followIn: null, crashUntil: 0 };
   }
 
   // ---------------------------------------------------------------- driving
@@ -843,8 +861,8 @@ export class PoliceService {
    * to road point round there, slower, with its lights yellow. Cars keep their distance from each
    * other instead of driving nose to tail.
    */
-  private drive(u: Unit, w: Wanted, me: Target, dt: number): void {
-    if (u.parked) {
+  private drive(playerId: string, u: Unit, w: Wanted, me: Target, dt: number): void {
+    if (u.parked || this.time < u.crashUntil) {
       stepVehicle(u.dyn, { keys: KEY.BRAKE, dt }, this.params, this.ctx.sim.collisionWorld, `po:${u.id}`);
       return;
     }
@@ -862,12 +880,25 @@ export class PoliceService {
       goal = me;
     }
     const chase = !u.searching;
+    // The player in a back alley: straight in after them only if it was right behind them,
+    // otherwise round to the end they are heading for (the nearer one if they stopped).
+    let direct = false;
+    let boxIn = chase;
+    const alley = chase && !goal.deck ? alleyAt(goal.x, goal.z) : undefined;
+    if (alley && u.followIn === alley.id) direct = true;
+    else if (alley) {
+      const [m0, m1] = alleyMouths(alley, 8);
+      const v = alley.axis === 'x' ? goal.vx : goal.vz;
+      const mouth = Math.abs(v) > 1 ? (v > 0 ? m1 : m0) : Math.hypot(m0.x - u.dyn.x, m0.z - u.dyn.z) < Math.hypot(m1.x - u.dyn.x, m1.z - u.dyn.z) ? m0 : m1;
+      goal = { x: mouth.x, z: mouth.z, deck: 0, vx: 0, vz: 0, rot: u.dyn.rot, hw: 0 };
+      boxIn = false;
+    }
     const dist = Math.hypot(goal.x - u.dyn.x, goal.z - u.dyn.z);
     // Aim: ahead of the player when far, alongside them when close (to box them in).
     const lead = chase ? Math.min(CH.lead * u.leadK, dist / 45) : 0;
     let tx = goal.x + goal.vx * lead;
     let tz = goal.z + goal.vz * lead;
-    if (chase && dist < 22) {
+    if (boxIn && dist < 22) {
       const rx = Math.cos(goal.rot);
       const rz = -Math.sin(goal.rot);
       const side = (goal.hw + this.params.halfWidth + 0.6) * u.side;
@@ -902,7 +933,7 @@ export class PoliceService {
       const p = pathPoint(wrapS(hp.s + travelDir(cw) * Math.min(28, dist)), (hp.offset + goalHp.offset) / 2);
       tx = p.x;
       tz = p.z;
-    } else if (!onHighway && !this.clear(u.dyn.x, u.dyn.z, tx, tz)) {
+    } else if (!onHighway && !direct && !this.clear(u.dyn.x, u.dyn.z, tx, tz)) {
       if (this.time >= u.replanAt) {
         u.replanAt = this.time + 0.5;
         u.waypoint = this.route(u.dyn.x, u.dyn.z, tx, tz);
@@ -939,7 +970,25 @@ export class PoliceService {
         u.stuck += 0.5;
       }
     }
+    const v0 = Math.abs(u.dyn.speed);
     stepVehicle(u.dyn, { keys, dt }, this.params, this.ctx.sim.collisionWorld, `po:${u.id}`);
+    // Into the bollards at speed: a crash.
+    if (v0 * KMH_PER_MS > 35 && Math.abs(u.dyn.speed) < v0 * 0.55 && BOLLARDS.some((b) => Math.hypot(b.x - u.dyn.x, b.z - u.dyn.z) < this.params.halfLength + 1)) this.crash(playerId, u, w, v0);
+  }
+
+  /** A police car hit the bollards at the end of a back alley: it sits there a few seconds, then
+   *  goes round. */
+  private crash(playerId: string, u: Unit, w: Wanted, speed: number): void {
+    u.crashUntil = this.time + ECONOMY.police.alleys.crashSec;
+    u.followIn = null;
+    u.stuck = 0;
+    u.reverseUntil = 0;
+    this.ctx.hub.broadcast('police.crash', { x: u.dyn.x, z: u.dyn.z, kmh: Math.round(speed * KMH_PER_MS) });
+    const now = Date.now();
+    if (now - w.crashNoteAt < 5000) return;
+    w.crashNoteAt = now;
+    for (const p of this.crew(playerId)) this.ctx.hub.notify(p, { kind: 'success', title: '🚧 Polis direğe çarptı!', text: 'Ara sokağın bariyer direkleri polis aracını durdurdu. Diğer ekipler öbür uçtan dolanacak!' });
+    log.info('police hit the bollards', { playerId, unit: u.id });
   }
 
   /** Distance to the nearest other police car of the pursuit straight ahead of this one (Infinity: none). */
@@ -987,10 +1036,12 @@ export class PoliceService {
     return this.ctx.rng();
   }
 
-  /** Is the straight line between two points free of buildings and open water? */
+  /** Is the straight line between two points free of buildings, open water and back alleys (a
+   *  car can't get through those)? */
   private clear(ax: number, az: number, bx: number, bz: number): boolean {
     if (crossesWater(ax, az, bx, bz) || crossesWall(ax, az, bx, bz)) return false;
     for (const b of this.ctx.sim.collisionWorld.boxes) if (segmentHitsBox(ax, az, bx, bz, b, 1.4)) return false;
+    for (const b of ALLEY_PASSAGES) if (segmentHitsBox(ax, az, bx, bz, b, 0.5)) return false;
     return true;
   }
 

@@ -3,6 +3,7 @@
 import { CCTV_CAMERAS, cameraYaw } from '../../../shared/cctv';
 import { CARRIAGEWAY_EDGE, DRAG_STRIP, JUNCTIONS, JUNCTION_APRON, LOOP_LEN, pathPoint } from '../../../shared/highway';
 import { SANAYI } from '../../../shared/sanayiLayout';
+import { ALLEYS, alleyMouths } from '../../../shared/alleys';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
 import { BOULEVARD, CONTAINER_STACKS, DOCKS, DOCKS_GATE, DOCKS_ROAD, HILL, TOUGE_HALF, TOUGE_PATH } from '../../../shared/farShore';
 import { BRIDGES, BRIDGE_HALF, FAR_ROADS, WATER, WORLD_BOX } from '../../../shared/strait';
@@ -138,6 +139,18 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   for (const r of ROADS) g.fillRect(tx(r.minX), tz(r.minZ), (r.maxX - r.minX) * s, (r.maxZ - r.minZ) * s);
   g.fillStyle = '#8d93a3';
   for (const b of BUILDINGS) g.fillRect(tx(b.box.minX), tz(b.box.minZ), (b.box.maxX - b.box.minX) * s, (b.box.maxZ - b.box.minZ) * s);
+  // The back alleys (bikes and ATVs only): an orange dashed line through the block.
+  g.strokeStyle = '#ff9a3c';
+  g.lineWidth = Math.max(1.5, 1.6 * s);
+  g.setLineDash([Math.max(2, 3 * s), Math.max(2, 2 * s)]);
+  for (const a of ALLEYS) {
+    const [m0, m1] = alleyMouths(a, 0);
+    g.beginPath();
+    g.moveTo(tx(m0.x), tz(m0.z));
+    g.lineTo(tx(m1.x), tz(m1.z));
+    g.stroke();
+  }
+  g.setLineDash([]);
   // Sanayi: driveway, the hall (open to the north) and the Pawn Shop.
   g.fillStyle = '#4a4f5c';
   g.fillRect(tx(SANAYI.entry.x - SANAYI.entry.width / 2), tz(156), SANAYI.entry.width * s, (SANAYI.yard.minZ + 8 - 156) * s);

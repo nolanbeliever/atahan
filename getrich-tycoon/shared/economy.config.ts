@@ -623,6 +623,8 @@ export const ECONOMY = {
      * shot down.
      */
     heli: { stars: 3, hp: 300, altitude: 38, speed: 30, orbit: 24, sight: 220, lostSec: 8, respawnSec: 60, spawnDist: 260 },
+    /** A police car that hits the bollards of a back alley (shared/alleys.ts) sits there this long (s). */
+    alleys: { crashSec: 3.5 },
   },
 
   /**

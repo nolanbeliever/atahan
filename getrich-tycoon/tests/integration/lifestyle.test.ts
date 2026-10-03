@@ -1,6 +1,7 @@
 // Driving bonus, missions, reputation unlocks and police pursuits against a real server.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ALLEYS } from '../../shared/alleys';
 import { KMH_PER_MS } from '../../shared/drivetrain';
 import { ECONOMY } from '../../shared/economy.config';
 import { ECU_COUPON, type MissionView } from '../../shared/missions';
@@ -291,6 +292,33 @@ describe('police', () => {
     expect(st.escapeLeft!).toBeGreaterThan(ECONOMY.police.sight.hiddenSec - 5);
     client.close();
   }, 40_000);
+
+  it('a police car diving after you into a back alley hits the bollards and never gets through', async () => {
+    const { client } = await connectNew(server);
+    await setMoney(server, client.playerId, 50_000);
+    const vehicleId = await driveNewCar(client);
+    // Inside the alley behind Wrench Bros (teleported: a car couldn't get in).
+    const alley = ALLEYS.find((a) => a.id === 'wrench')!;
+    server.game.sim.placeDrive(vehicleId, 78, alley.c, Math.PI / 2);
+    server.game.police.addHeat(client.playerId, 150);
+    await client.waitFor<WantedState>('police.wanted', (x) => x.stars === 2 && x.units === 1, 9000);
+    type U = { dyn: { x: number; z: number; rot: number; speed: number; gear: number }; followIn: string | null; crashUntil: number };
+    const w = server.game.police.wantedOf(client.playerId)! as unknown as { units: U[] };
+    const u = w.units[0]!;
+    // Right behind the player at 95 km/h, following them in.
+    Object.assign(u.dyn, { x: 46, z: alley.c, rot: Math.PI / 2, speed: 95 / KMH_PER_MS, gear: 4 });
+    u.followIn = alley.id;
+    const crash = await client.waitFor<{ x: number; z: number; kmh: number }>('police.crash', () => true, 4000);
+    expect(crash.kmh).toBeGreaterThan(35);
+    expect(u.followIn).toBeNull();
+    // It never gets past the bollard line, crash or no crash.
+    const gate = alley.from + 0.7 - 0.3;
+    for (let i = 0; i < 20; i++) {
+      expect(u.dyn.x).toBeLessThan(gate);
+      await sleep(200);
+    }
+    client.close();
+  }, 30_000);
 
   it('a police car beside a stopped car for 3 s is an arrest: fine, impound, respawn at a garage', async () => {
     const { client } = await connectNew(server);

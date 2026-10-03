@@ -87,7 +87,9 @@
     lights, false starts, timing and the pool, `driving.ts`: the driving bonus every 10 s, `missions.ts`: daily mission
     progress and rewards, `police.ts`: heat and stars, police interceptors (physics cars routed over the city road grid and the
     highway lanes), line of sight five times a second per car (`policeSees` in shared/sight.ts against the solid colliders
-    minus the see-through fences and toll islands), the last sighting, searching cars (`PF.SEARCH`), the hidden countdown,
+    minus the see-through fences and toll islands), the back alleys (shared/alleys.ts: the cars right behind follow the
+    player in and crash into the bollards, the rest go round to the far end; `CAR_GATES` in shared/physics.ts stop every
+    four-wheeled vehicle on the bollard line, `render/Alleys.ts` draws the alleys), the last sighting, searching cars (`PF.SEARCH`), the hidden countdown,
     staggered spawns and spacing, escapes and arrests, spike strips thrown ahead of 3-star drivers (`spikePlacement` in
     shared/policeGear.ts; a car over one gets the `blown` mod: tyres at 0, grip down in `vehicleParams`) and the police
     helicopter (orbits the last place it saw you, searchlight, spots you like a car does, loses you under

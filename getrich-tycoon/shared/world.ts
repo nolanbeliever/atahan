@@ -3,6 +3,7 @@
 //
 // Coordinates: metres. +x = east, +z = south, y = up. A yaw of 0 faces +z.
 
+import { ALLEY_BUILDINGS, BOLLARDS, DUMPSTER_CIRCLES } from './alleys';
 import { FAR_BOXES, FAR_CIRCLES, HILL_TREES } from './farShore';
 import { AMMU_NATION, HOSPITAL, MOTO_GEAR } from './compounds';
 import { HITMAN_ALLEY } from './hitman';
@@ -127,6 +128,8 @@ export const BUILDINGS: Building[] = [
   { id: 'moto_gear', box: MOTO_GEAR.box, height: 6, color: '#22252b', kind: 'office', facing: 'south', sign: 'MOTO GEAR · KASK', signColor: '#ff7a1a' },
   // The brick wall that closes the alley between Wrench Bros and the Parts Depot (hitman contact).
   { id: 'hitman_wall', box: HITMAN_ALLEY.wall, height: 4.5, color: '#5b3a32', kind: 'wall', facing: 'north' },
+  // The old apartment rows either side of the back alleys (shared/alleys.ts).
+  ...ALLEY_BUILDINGS,
 ];
 
 /** Decorative/structural circular obstacles. */
@@ -145,6 +148,9 @@ export const STATIC_CIRCLES: Circle[] = [
   ...HILL_TREES.map((t) => ({ x: t.x, z: t.z, r: 0.5 })),
   // The turntables on the showrooms' forecourts.
   ...SHOWROOM_CIRCLES,
+  // The bollards across the ends of the back alleys (bikes and ATVs only), and their dumpsters.
+  ...BOLLARDS,
+  ...DUMPSTER_CIRCLES,
 ];
 
 export const INTERACTABLES: Interactable[] = [
