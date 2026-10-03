@@ -65,6 +65,7 @@ any vehicle (see [Vehicle models](#vehicle-models)).
 | **Chat** | Global, nearby (45 m) and system messages, with rate limiting, mutes and duplicate suppression. |
 | **UI** | HUD (money, bank, level/XP, reputation, minimap, prompts, speedometer, fuel), dock, and 17 panels, including a full map, settings and a profile with leaderboard and transaction history. |
 | **Persistence** | PostgreSQL in production, with a SQLite fallback for local development. Every transaction is written atomically; positions and driving stats are autosaved. |
+| **Graphics** | On **medium** and **high** graphics the picture is post-processed in HDR: **bloom** (a soft glow on the sun's glints by day; neon signs, headlights, brake lights and street lights glowing at night), **wet-road reflections** in the rain on high (screen-space reflections on every flat wet surface: the city lights, neon and headlights shimmer in the puddles), a **speed blur** from about 90 km/h (the edges of the picture streak outwards, the centre stays sharp; full at 260 km/h) and **soft shadows**. 4x (high) or 2x (medium) antialiasing in the HDR target; **low** draws straight to the screen as before. |
 | **Audio** | Synthesized engine following the real rpm and gear changes, intake roar with an open air filter, turbo whistle and blow-off valve (with compressor flutter on Stage 2/3 builds), pops & bangs on upshifts and throttle lifts with a Varex or straight pipe, tyre screech, police sirens, rain, UI, purchase, notification and ambient city sounds. |
 
 ## Quick start (local)

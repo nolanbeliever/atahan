@@ -138,6 +138,7 @@
 - **`client/`**:
   - `game/Game.ts` runs the loop, fixed-step prediction, reconciliation and interactions.
   - `game/EntityViews.ts` owns all dynamic scene objects.
+  - `render/PostFx.ts` (medium/high graphics): the world into an HDR multisampled target with its depth, screen-space reflections on flat wet surfaces (high, in the rain; the normal comes from the depth), the first-person interior on top, `UnrealBloomPass` (stronger and lower-threshold at night), a radial speed blur and `OutputPass` (tone mapping, sRGB). `Renderer.render()` uses it unless the quality is low; soft shadows are `PCFSoftShadowMap`.
   - `render/*` builds the city, characters and dealership levels procedurally; every vehicle is a `.glb` model. `render/batch.ts` merges static meshes per material to keep draw calls low.
   - Tuning: `shared/modificationsData.ts` (parts data) and `shared/tuningSystem.ts` (pure `calculateVehicleStats`, dyno curves, prices, `quoteTuning`) are used by both the server (authoritative pricing/validation, physics) and the client (`ui/panels/garage.ts`, `ui/DynoChart.ts`, `render/Studio.ts` for the 3D preview and Rare Dealer pictures, `audio/Audio.ts` for the engine voice).
   - Vehicle models: `data/highDetailVehicles.ts` is the registry (one `.glb` + far-away `.lod.glb` per vehicle, traffic kind and

@@ -3,14 +3,14 @@
 import * as THREE from 'three';
 import { nightFactor, sunsetFactor } from '../../../shared/environment';
 import type { GraphicsQuality } from '../../../shared/types';
+import { OVERLAY_LAYER, PostFx } from './PostFx';
 
 const DAY = { top: new THREE.Color('#3f86e8'), horizon: new THREE.Color('#cfe3f7'), sun: new THREE.Color('#fff3dc'), hemiSky: new THREE.Color('#dceeff'), hemiGround: new THREE.Color('#5b6b3a') };
 const DUSK = { top: new THREE.Color('#3b4a86'), horizon: new THREE.Color('#ff8a3d'), sun: new THREE.Color('#ff9a4a') };
 const RAIN = { top: new THREE.Color('#5d6673'), horizon: new THREE.Color('#9aa3ae') };
 const NIGHT = { top: new THREE.Color('#050a1a'), horizon: new THREE.Color('#131c33'), sun: new THREE.Color('#9fb4ff'), hemiSky: new THREE.Color('#4b5c8c'), hemiGround: new THREE.Color('#1a1e16') };
 
-/** Layer drawn after everything else with a fresh depth buffer (the first-person car interior). */
-export const OVERLAY_LAYER = 1;
+export { OVERLAY_LAYER };
 
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -28,6 +28,12 @@ export class Renderer {
   private fogFar = 480;
   /** Draw the overlay layer (first-person interior) on top of the scene. */
   overlay = false;
+  /** Post-processing on medium and high graphics: bloom, wet-road reflections, speed blur. */
+  private fx: PostFx | null = null;
+  /** For the post effects: how fast the player drives (km/h) and how wet the roads are (0-1). */
+  kmh = 0;
+  wet = 0;
+  private lastFrame = performance.now();
 
   constructor(readonly container: HTMLElement) {
     const lowGfx = new URLSearchParams(location.search).get('gfx') === 'low';
@@ -123,7 +129,17 @@ export class Renderer {
     const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
     this.renderer.setPixelRatio(q === 'high' ? Math.min(dpr, coarse ? 1.5 : 1.75) : q === 'medium' ? Math.min(dpr, 1.25) : 0.85);
     this.renderer.shadowMap.enabled = q !== 'low';
+    // Soft shadow edges (percentage-closer filtering with a soft kernel).
+    this.renderer.shadowMap.type = q === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     this.sun.castShadow = q !== 'low';
+    if (q !== 'low' && !this.fx) {
+      try {
+        this.fx = new PostFx(this.renderer, this.scene, this.camera);
+      } catch (err) {
+        console.warn('post effects unavailable', err);
+      }
+    }
+    this.fx?.setQuality(q);
     const size = q === 'high' ? 2048 : 1024;
     if (this.sun.shadow.mapSize.x !== size) {
       this.sun.shadow.mapSize.set(size, size);
@@ -147,6 +163,7 @@ export class Renderer {
     const w = this.container.clientWidth || window.innerWidth;
     const h = this.container.clientHeight || window.innerHeight;
     this.renderer.setSize(w, h, false);
+    this.fx?.setSize(w, h, this.renderer.getPixelRatio());
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }
@@ -214,6 +231,13 @@ export class Renderer {
   render(): void {
     const r = this.renderer;
     this.sky.position.set(this.camera.position.x, 0, this.camera.position.z);
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
+    this.lastFrame = now;
+    if (this.fx && this.quality !== 'low') {
+      this.fx.render({ kmh: this.kmh, wet: this.wet, night: this.night, overlay: this.overlay }, dt);
+      return;
+    }
     if (!this.overlay) {
       r.render(this.scene, this.camera);
       return;

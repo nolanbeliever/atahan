@@ -1099,6 +1099,9 @@ export class Game {
       this.auctionTimer = 20;
       void this.refreshAuctions();
     }
+    // Post effects: the speed blur and the wet-road reflections.
+    this.renderer.kmh = this.driving && !this.dealScene ? Math.abs(this.dyn?.speed ?? 0) * KMH_PER_MS : 0;
+    this.renderer.wet = this.weather.wet;
     this.renderer.render();
   }
 
