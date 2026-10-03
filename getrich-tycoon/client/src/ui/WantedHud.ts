@@ -5,6 +5,7 @@
 import { ECONOMY } from '../../../shared/economy.config';
 import type { RadarFlash } from '../../../shared/protocol';
 import type { BustedEvent, WantedState } from '../../../shared/police';
+import type { DealScene } from '../../../shared/telegram';
 import { formatMoney } from '../../../shared/util';
 import { clear, h } from './dom';
 
@@ -122,6 +123,16 @@ export class WantedHud {
   /** A hitman contract paid out. */
   contract(title: string, reward: string): void {
     this.show('contract', [h('div', { class: 'bb-kicker' }, 'İŞ TAMAM · CONTRACT COMPLETE'), h('div', { class: 'bb-title' }, title), h('div', { class: 'bb-text' }, reward)], 3600);
+  }
+
+  /** A Telegram handover in the car: done, or the customer was a cop. */
+  deal(sc: DealScene): void {
+    if (sc.cop) {
+      this.show('heist-lost', [h('div', { class: 'bb-kicker' }, '🚨 ROZET · GİZLİ POLİS'), h('div', { class: 'bb-title', 'data-testid': 'deal-banner' }, 'POLİS! KAÇ!'), h('div', { class: 'bb-text' }, `${sc.grams} gr el konuldu · 3 yıldızla aranıyorsun`)], 3600);
+      return;
+    }
+    const text = sc.kind === 'buy' ? `Siyah poşette ${sc.grams} gr · -${formatMoney(sc.money)}` : `+${formatMoney(sc.money)} kara para · ${sc.grams} gr teslim`;
+    this.show('heist', [h('div', { class: 'bb-kicker' }, 'ANLAŞMA TAMAMLANDI'), h('div', { class: 'bb-title', 'data-testid': 'deal-banner' }, 'DEAL COMPLETED'), h('div', { class: 'bb-text' }, text)], 3200);
   }
 
   /** The job is done: the loot is in the bag. */

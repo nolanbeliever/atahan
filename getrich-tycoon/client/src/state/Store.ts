@@ -2,6 +2,7 @@
 
 import type { ContractView } from '../../../shared/hitman';
 import type { CrimeView } from '../../../shared/underworld';
+import type { TgState } from '../../../shared/telegram';
 import type { PrivateState } from '../../../shared/protocol';
 import type { RareMarketState } from '../../../shared/rareMarket';
 import type { RewardsView } from '../../../shared/rewards';
@@ -40,6 +41,7 @@ export interface StoreEvents extends Record<string, unknown> {
   health: HealthView;
   contract: ContractView | null;
   crime: CrimeView;
+  tg: TgState;
   testDrive: TestDriveView | null;
   showroom: ShowroomInfo;
   tolls: TollEvent[];
@@ -66,6 +68,8 @@ export class Store extends Emitter<StoreEvents> {
   contract: ContractView | null = null;
   /** Dirty money, businesses and the heist record. */
   crime: CrimeView | null = null;
+  /** The phone: Telegram chats, orders, the goods on you. */
+  tg: TgState | null = null;
   /** The showroom test drive in progress (null: none). */
   testDrive: TestDriveView | null = null;
   /** Toll passes, fines, camera reads and checkpoints this session (newest first). */
@@ -142,6 +146,11 @@ export class Store extends Emitter<StoreEvents> {
   setHealth(v: HealthView): void {
     this.health = v;
     this.emit('health', v);
+  }
+
+  setTg(v: TgState): void {
+    this.tg = v;
+    this.emit('tg', v);
   }
 
   setCrime(v: CrimeView): void {

@@ -5,6 +5,7 @@ import { CARRIAGEWAY_EDGE, DRAG_STRIP, JUNCTIONS, JUNCTION_APRON, LOOP_LEN, path
 import { SANAYI } from '../../../shared/sanayiLayout';
 import { ALLEYS, alleyMouths } from '../../../shared/alleys';
 import { HEISTS } from '../../../shared/heists';
+import { findDrop } from '../../../shared/telegram';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
 import { BOULEVARD, CONTAINER_STACKS, DOCKS, DOCKS_GATE, DOCKS_ROAD, HILL, TOUGE_HALF, TOUGE_PATH } from '../../../shared/farShore';
 import { BRIDGES, BRIDGE_HALF, FAR_ROADS, WATER, WORLD_BOX } from '../../../shared/strait';
@@ -276,6 +277,12 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   for (const hs of HEISTS) {
     const alarm = game.heistAlarms.has(hs.id);
     badge(g, tx(hs.door.x), tz(hs.door.z), Math.max(6, 2.8 * s), alarm && ring ? '#ff3b47' : '#b8901e', '💰', turn);
+  }
+  // Telegram: the deal cars waiting for me, my orders' dead drops.
+  for (const c of game.dealCars.mine()) badge(g, tx(c.x), tz(c.z), Math.max(8, 3.4 * s), c.kind === 'supplier' ? '#8a5cff' : '#2aa3df', c.kind === 'supplier' ? '📦' : '🤝', turn);
+  for (const o of game.store.tg?.orders ?? []) {
+    const d = o.status === 'drop' && o.dropId ? findDrop(o.dropId) : undefined;
+    if (d) badge(g, tx(d.x), tz(d.z), Math.max(8, 3.4 * s), '#ff8a3d', '📍', turn);
   }
   const hv = game.ui?.heist.current;
   if (hv?.drop) badge(g, tx(hv.drop.x), tz(hv.drop.z), Math.max(9, 4 * s), '#ffc53d', '🏁', turn);

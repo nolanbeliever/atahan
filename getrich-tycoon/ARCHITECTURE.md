@@ -89,6 +89,8 @@
     cover, the loot held until the police are lost, the showroom car to the docks), `crime.ts`: dirty money per player
     (one JSON document in `player_crime`, edited through a unit of work: `UnitOfWork.setCrimeState`), `realestate.ts`:
     the estate agent (businesses bought with clean money, dirty money paid in, `launder` cycles every slow tick),
+    `telegram.ts`: Telegram dealing (the supplier's and customers' deal cars, solid and broadcast as `deal.cars`, the
+    channel's orders, dead drops, the cockpit handover timed on the server; the client plays it in `game/DealScene.ts`),
     `police.ts`: heat and stars, police interceptors (physics cars routed over the city road grid and the
     highway lanes), line of sight five times a second per car (`policeSees` in shared/sight.ts against the solid colliders
     minus the see-through fences and toll islands), the back alleys (shared/alleys.ts: the cars right behind follow the

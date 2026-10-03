@@ -127,6 +127,8 @@ export class UI {
     cash: HTMLElement;
     bank: HTMLElement;
     dirty: HTMLElement;
+    goods: HTMLElement;
+    phoneBtn: HTMLElement;
     zone: HTMLElement;
     prompt: HTMLElement;
     drive: HTMLElement;
@@ -196,6 +198,7 @@ export class UI {
     const cash = h('div', { class: 'cash', 'data-testid': 'hud-money' });
     const bank = h('div', { class: 'bank', 'data-testid': 'hud-bank' });
     const dirty = h('div', { class: 'dirty', 'data-testid': 'hud-dirty', title: 'Kara para: harcanamaz, Emlakçıdan alacağın işletmelerde aklanır' });
+    const goods = h('div', { class: 'dirty goods', 'data-testid': 'hud-goods', title: 'Üzerindeki mal (Telegram)' });
     const zone = h('div', { class: 'zone-label' });
     // Tapping or clicking the prompt does the same as E (or F on its secondary part).
     const prompt = h('div', {
@@ -236,6 +239,7 @@ export class UI {
         .then((r) => this.missions.set(r.missions))
         .catch((err) => this.error(err));
     const marketBtn = dockBtn('Marketplace', ICONS.market, 'B', 'market', 'dock-market');
+    const phoneBtn = dockBtn('Telefon · Telegram', ICONS.phone, 'Y', 'phone', 'dock-phone');
     const dock = h(
       'div',
       { class: 'dock' },
@@ -244,6 +248,7 @@ export class UI {
       dealerBtn,
       dockBtn('Auctions', ICONS.gavel, 'K', 'auctions', 'dock-auctions'),
       dockBtn('Map', ICONS.map, 'M', 'map', 'dock-map'),
+      phoneBtn,
       missionsBtn,
       dockBtn('Profile', ICONS.user, 'O', 'profile', 'dock-profile'),
       h('button', { title: 'Chat', 'data-testid': 'dock-chat', onclick: () => this.chat.toggle() }, icon(ICONS.chat), h('span', { class: 'hk' }, 'T'), h('span', { class: 'tip' }, 'Chat (T)'), h('span', { class: 'dot' })),
@@ -265,7 +270,7 @@ export class UI {
     const right = h(
       'div',
       { class: 'hud-top-right' },
-      h('div', { class: 'wallet-row' }, this.rewardsHud.el, h('div', { class: 'wallet' }, cash, bank, dirty)),
+      h('div', { class: 'wallet-row' }, this.rewardsHud.el, h('div', { class: 'wallet' }, cash, bank, dirty, goods)),
       h('div', { class: 'minimap' }, this.minimap.canvas, zone),
     );
     const hint = h(
@@ -283,10 +288,21 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
     this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.tollFeed.notice, this.flashEl, reconnect);
-    this.hud = { name, level, xpFill, xpText, rep, cash, bank, dirty, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
+    this.hud = { name, level, xpFill, xpText, rep, cash, bank, dirty, goods, phoneBtn, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 
   // ------------------------------------------------------------ HUD
+
+  /** The goods on you (Telegram), under the dirty money; hidden at zero. */
+  setGoods(grams: number): void {
+    this.hud.goods.textContent = `📦 ${grams} gr mal`;
+    this.hud.goods.classList.toggle('show', grams > 0);
+  }
+
+  /** Unread Telegram messages: a dot on the phone button. */
+  setPhoneUnread(n: number): void {
+    this.hud.phoneBtn.classList.toggle('alert', n > 0);
+  }
 
   /** Dirty money (Kara Para) under the bank balance; hidden at zero. */
   setDirty(amount: number): void {

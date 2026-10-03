@@ -56,6 +56,9 @@ import { ShowroomsView } from '../render/Showrooms';
 import { TollsView } from '../render/Tolls';
 import { AlleysView } from '../render/Alleys';
 import { HeistsView } from '../render/Heists';
+import { DealCarsView } from '../render/DealCars';
+import { DealCutscene } from './DealScene';
+import { DEALS, findDrop, type TgState } from '../../../shared/telegram';
 import { HEISTS, type HeistId, type HeistView } from '../../../shared/heists';
 import { StraitView } from '../render/Strait';
 import { DealershipsView } from '../render/Dealerships';
@@ -110,6 +113,9 @@ export class Game {
   readonly tolls = new TollsView();
   readonly alleys = new AlleysView();
   readonly heistsView = new HeistsView();
+  /** Telegram deal cars, and the cockpit handover going on (null: none). */
+  readonly dealCars = new DealCarsView(() => this.store.playerId);
+  private dealScene: DealCutscene | null = null;
   /** Heist targets whose alarm is ringing; my dirty money. */
   readonly heistAlarms = new Set<HeistId>();
   dirty = 0;
@@ -220,7 +226,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.alleys.group, this.heistsView.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.alleys.group, this.heistsView.group, this.dealCars.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.combat = new CombatClient(this);
     this.gunView = new GunView(this.renderer.scene);
@@ -326,6 +332,10 @@ export class Game {
         .then((r) => this.store.setContract(r.contract))
         .catch(() => undefined);
       void this.net
+        .rpc('tg.state', {})
+        .then((t) => this.onTg(t))
+        .catch(() => undefined);
+      void this.net
         .rpc('heist.status', {})
         .then((r) => {
           for (const id of [...this.heistAlarms]) this.setHeistAlarm(id, false);
@@ -366,6 +376,17 @@ export class Game {
       this.dirty = c.dirty;
       this.store.setCrime(c);
       this.ui?.setDirty(c.dirty);
+    });
+    // Telegram dealing: the phone, the deal cars, the handovers.
+    net.on('tg.update', (t) => this.onTg(t));
+    net.on('deal.cars', (list) => this.dealCars.set(list));
+    net.on('deal.done', (d) => {
+      if (d.cop) this.audio.play('error');
+      else this.audio.play(d.kind === 'buy' ? 'purchase' : 'coin');
+    });
+    net.on('deal.paid', (d) => {
+      this.audio.play('coin');
+      this.ui?.toast({ kind: 'success', title: `📦 @${d.name} paketi aldı`, text: `+${formatMoney(d.amount)} kara para` });
     });
     net.on('crime.laundered', (d) => {
       this.audio.play('coin');
@@ -764,7 +785,7 @@ export class Game {
     let keys = this.input.keys();
     if (this.dragHold && this.driving) keys = (keys & KEY.HORN) | KEY.BRAKE;
     // Hands off while getting in / out, and during the arrest.
-    if (this.busted || this.entities.boardingBusy(this.store.playerId)) keys = 0;
+    if (this.busted || this.dealScene || this.entities.boardingBusy(this.store.playerId)) keys = 0;
     // A gun drawn on foot: face where the camera looks.
     if (this.combat.equipped && !this.driving && !this.combat.dead) keys |= KEY.AIM;
     if (this.combat.dead) keys = 0;
@@ -867,7 +888,7 @@ export class Game {
       if ((this.dyn.nitro ?? 0) > 0) flags |= VF.NITRO;
     }
     this.entities.hideLocalDriver = cockpit && !this.busted;
-    this.entities.hideLocalBody = fps;
+    this.entities.hideLocalBody = fps || !!this.dealScene;
     document.body.classList.toggle('cockpit-view', cockpit && !this.busted);
     document.body.classList.toggle('sights-view', fps);
     this.renderer.overlay = (cockpit || fps) && !this.busted;
@@ -888,7 +909,7 @@ export class Game {
     });
 
     const camera = this.renderer.camera;
-    const fov = cockpit && !this.busted ? COCKPIT_FOV : fps ? SIGHTS_FOV : CHASE_FOV;
+    const fov = (cockpit && !this.busted) || this.dealScene ? COCKPIT_FOV : fps ? SIGHTS_FOV : CHASE_FOV;
     // A nitrous shot widens the view a little (speed rush).
     this.fovKick += ((this.nitroLeft() > 0 ? 9 : 0) - this.fovKick) * Math.min(1, dt * 4);
     if (this.fovKick < 0.05) this.fovKick = 0;
@@ -901,6 +922,9 @@ export class Game {
     if (this.busted) {
       this.busted.update(dt, camera);
       if (this.busted.done && (!this.driving || this.busted.t > this.busted.duration + 1.5)) this.endBusted();
+    } else if (this.dealScene) {
+      this.dealScene.update(dt, camera);
+      if (this.dealScene.done) this.endDealScene();
     } else if (cockpit) this.updateCockpitCamera(dt);
     else if (fps) this.updateSightsCamera(rx, rz, dt);
     else if (carried) {
@@ -976,7 +1000,7 @@ export class Game {
     // Police cars, their sirens, and the rain.
     this.police.night = this.night;
     this.police.update(dt, now);
-    this.audio.siren(this.police.nearestSiren(rx, rz));
+    this.audio.siren(Math.min(this.police.nearestSiren(rx, rz), this.dealScene?.sirenDistance ?? Infinity));
     this.audio.rotor(this.police.nearestHeli(rx, rz));
     this.audio.rain(this.weather.rain);
     this.rain.update(dt, camera, this.weather.rain, this.renderer.graphics === 'low' ? 0.35 : this.renderer.graphics === 'medium' ? 0.65 : 1);
@@ -995,6 +1019,7 @@ export class Game {
     this.showrooms.update(dt, rx, rz);
     this.tolls.update(dt);
     this.heistsView.update(dt);
+    this.dealCars.update(dt);
     // Car theft: street cars and alarms, the work on lifted cars, the lifts' arms.
     this.theft.update(dt, { x: rx, z: rz });
     const lifts = [0, 0];
@@ -1192,6 +1217,47 @@ export class Game {
     this.featured = { id: best.vehicle.id, view };
   }
 
+  // ------------------------------------------------------------ Telegram
+
+  private onTg(t: TgState): void {
+    this.store.setTg(t);
+    this.ui?.setGoods(t.goods);
+    this.ui?.setPhoneUnread(t.unread);
+  }
+
+  /** Into a deal car's passenger seat: the cockpit handover. */
+  private enterDeal(carId: string): void {
+    if (this.dealScene) return;
+    void this.net
+      .rpc('tg.enter', { carId })
+      .then((scene) => {
+        const car = this.dealCars.get(carId);
+        if (!car) return;
+        this.ui?.closeAll();
+        this.dealScene = new DealCutscene(scene, car.view, (sc) => this.ui?.wanted.deal(sc));
+        this.audio.play('door');
+      })
+      .catch((err) => this.ui.error(err));
+  }
+
+  private endDealScene(): void {
+    this.dealScene?.dispose();
+    this.dealScene = null;
+    this.cam.snap();
+  }
+
+  /** Leave the package at a dead drop. */
+  private dropPackage(orderId: string): void {
+    void this.net
+      .rpc('tg.drop', { orderId })
+      .then((t) => {
+        this.onTg(t);
+        this.audio.play('door');
+        this.ui?.toast({ kind: 'success', title: '📦 Paket bırakıldı', text: 'Müşteri birazdan alacak; para Telegram\'dan gelir.' });
+      })
+      .catch((err) => this.ui.error(err));
+  }
+
   // ------------------------------------------------------------ heists
 
   private setHeistAlarm(id: HeistId, on: boolean): void {
@@ -1296,6 +1362,25 @@ export class Game {
           consider(d + 2, { id: plot.id, label: `${dealer.name}`, sub: `Owned by ${dealer.ownerName}`, action: () => this.ui.open('market', { tab: 'players' }) });
         }
       }
+      // Telegram: the deal cars waiting for me, and the dead drops of my orders.
+      for (const car of this.dealCars.mine()) {
+        const d = Math.hypot(car.x - x, car.z - z);
+        if (d > 3.4) continue;
+        const order = this.store.tg?.orders.find((o) => o.carId === car.id);
+        consider(Math.max(0, d - 1), {
+          id: `deal-${car.id}`,
+          label: car.kind === 'supplier' ? 'Tedarikçinin arabasına bin' : `@${order?.name ?? 'müşteri'} arabasına bin`,
+          sub: car.kind === 'supplier' ? `Yolcu koltuğu · ${DEALS.grams} gr için ${formatMoney(DEALS.buyPrice)}` : `Yolcu koltuğu · ${order?.grams ?? ''} gr teslim, ${formatMoney(order?.price ?? 0)}`,
+          action: () => this.enterDeal(car.id),
+        });
+      }
+      for (const o of this.store.tg?.orders ?? []) {
+        const drop = o.status === 'drop' && o.dropId ? findDrop(o.dropId) : undefined;
+        if (!drop) continue;
+        const d = Math.hypot(drop.x - x, drop.z - z);
+        if (d > DEALS.dropRadius) continue;
+        consider(d, { id: `drop-${o.id}`, label: 'Paketi sakla (ölü nokta)', sub: `${o.grams} gr · @${o.name}`, action: () => this.dropPackage(o.id) });
+      }
       // Heist targets' doors: E starts the job (and shows how it is going).
       const job = this.ui?.heist.current;
       for (const hs of HEISTS) {
@@ -1367,8 +1452,8 @@ export class Game {
     }
     this.interaction = best;
     this.secondary = secondary;
-    this.vehicleAction = this.busted ? null : vehicleAction;
-    if (this.busted) {
+    this.vehicleAction = this.busted || this.dealScene ? null : vehicleAction;
+    if (this.busted || this.dealScene) {
       this.interaction = null;
       this.secondary = null;
     }
@@ -1415,6 +1500,7 @@ export class Game {
       KeyK: 'auctions',
       KeyM: 'map',
       KeyO: 'profile',
+      KeyY: 'phone',
     };
     if (hot[code]) {
       this.ui.open(hot[code]!);

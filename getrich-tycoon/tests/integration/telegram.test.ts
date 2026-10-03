@@ -42,6 +42,8 @@ function at(c: TestClient, car: { x: number; z: number }): Promise<void> {
 /** A new order in the channel right away. */
 async function newOrder(c: TestClient): Promise<TgState['orders'][number]> {
   const phones = (server.game.deals as unknown as { phones: Map<string, { nextOrderAt: number }> }).phones;
+  // (Opening the phone makes sure it exists: the connection may still be loading.)
+  await c.rpc('tg.state', {});
   c.events.length = 0;
   phones.get(c.playerId)!.nextOrderAt = 0;
   const s = await c.waitFor<TgState>('tg.update', (x) => x.orders.some((o) => o.status === 'open'), 4000);

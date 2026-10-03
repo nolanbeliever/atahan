@@ -220,6 +220,21 @@ Values are in `ECONOMY.heists` (`shared/heists.ts` for the targets, `shared/unde
 - **Dirty money** can't be spent; it shows under the bank balance as "Kara para" and is laundered through businesses
   (below). It is kept in `player_crime` and written in the same transaction as what it changes.
 
+## Telegram dealing
+
+Values are in `ECONOMY.deals` (`shared/telegram.ts`). The phone (**Y**, or 📱 in the dock) has Telegram:
+
+- **Supplier:** order **10 g for $500** (clean cash, paid in the car). The supplier sends the location and a picture of the
+  car (colour, model, the sticker in its rear window); it waits 7 minutes at a kerb at least 80 m away. Get into its
+  passenger seat (**E**): the cockpit handover (the black bag and the money change hands), **DEAL COMPLETED**.
+- **Your channel:** a customer order every 1-2 minutes (up to 3 open), 10 or 20 g at $110-$170 a gram, paid in **dirty
+  money**. **By hand:** their car comes to a kerb; get in for the same handover. **One customer in seven (15%) is an
+  undercover cop:** the badge comes out, the car fills with red and blue, sirens, **3 stars at once** and the package is
+  seized. **Dead drop:** walk to the hidden spot given (behind an alley dumpster, the plaza planter, under the drag
+  grandstand, the Sanayi tyres, a broken crate at the docks...) and leave the package (**E**); the customer collects it
+  40-80 s later and pays **80%** of the hand price. No cop risk. Orders lapse after 10 minutes; an accepted one after 7.
+- The goods are kept on you (`deal_goods`, shown under the wallet as 📦). Busted: the police take them. Wasted: gone.
+
 ## Laundering (Emlak Dünyası)
 
 Values are in `ECONOMY.laundering` (`shared/realestate.ts`). At the estate agent's front door on the Chroma corner (🏢 on

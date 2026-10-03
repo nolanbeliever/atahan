@@ -973,3 +973,23 @@ body.is-wasted #game-root canvas { filter: grayscale(1) contrast(1.1) brightness
 .re-name { font-weight: 900; font-size: 15px; }
 .re-bar { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; margin-top: 4px; }
 .re-bar div { height: 100%; background: linear-gradient(90deg, #ff8a5c, #2ee59d); transition: width 0.9s linear; }
+
+/* ---------------------------------------------------------------- phone (Telegram) */
+.tg-phone { display: flex; flex-direction: column; gap: 8px; height: min(62vh, 560px); }
+.tg-tabs { display: flex; gap: 6px; }
+.tg-tab { flex: 1; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: var(--text); font-weight: 800; cursor: pointer; }
+.tg-tab.on { background: #2aa3df; border-color: #2aa3df; color: #fff; }
+.tg-chat { flex: 1; overflow-y: auto; padding: 10px; border-radius: 12px; background: linear-gradient(180deg, #0f1a24, #0b121a); display: flex; flex-direction: column; gap: 8px; }
+.tg-msg { max-width: 82%; padding: 8px 10px 4px; border-radius: 12px; background: #1e2c3a; color: #e8eef4; font-size: 13px; line-height: 1.35; align-self: flex-start; }
+.tg-msg.me { align-self: flex-end; background: #2b5278; }
+.tg-msg.system { align-self: center; background: rgba(255,200,60,0.12); color: #ffd35a; font-size: 12px; text-align: center; }
+.tg-name { font-size: 11px; font-weight: 800; color: #6ec6ff; margin-bottom: 2px; }
+.tg-car img { width: 100%; max-width: 260px; border-radius: 8px; display: block; margin-bottom: 4px; }
+.tg-pin { margin-top: 4px; font-size: 12px; color: #9fd3ff; }
+.tg-time { font-size: 10px; opacity: 0.55; text-align: right; margin-top: 2px; }
+.tg-bar { padding: 8px 2px 0; display: flex; flex-direction: column; gap: 6px; }
+.tg-orders { max-height: 190px; overflow-y: auto; }
+.tg-order { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.05); font-size: 12px; }
+.wallet .goods { color: #c9a6ff; }
+.deal-fade { position: fixed; inset: 0; background: #000; opacity: 1; pointer-events: none; z-index: 40; transition: opacity 0.6s ease-out; }
+.deal-fade.out { opacity: 0; }
