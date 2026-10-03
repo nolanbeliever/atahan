@@ -1092,6 +1092,8 @@ export function bakeTemplate(t: VehicleTemplate): { paint: THREE.BufferGeometry;
     (isPaint2 ? paint2 : isPaint ? paint : fixed).push(g);
   });
   const merge = (list: THREE.BufferGeometry[]) => {
+    // (A model with no painted parts, like the semi trailer, has nothing to merge there.)
+    if (list.length === 0) return new THREE.BufferGeometry();
     const m = mergeGeometries(list, false) ?? new THREE.BufferGeometry();
     for (const g of list) g.dispose();
     return m;

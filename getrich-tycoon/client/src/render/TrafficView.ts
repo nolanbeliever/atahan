@@ -56,7 +56,8 @@ function bakedParts(t: VehicleTemplate): { geo: THREE.BufferGeometry; tint: 0 | 
     { geo: b.fixed, tint: 0 },
   ];
   if (b.paint2) list.push({ geo: b.paint2, tint: 2 });
-  return list;
+  // Models without painted parts (the semi trailer) leave an empty set out.
+  return list.filter((p) => p.geo.getAttribute('position'));
 }
 
 /** Lamp spots of a model: its own lamp helpers (heavy vehicles) or its lamp meshes (cars). */
