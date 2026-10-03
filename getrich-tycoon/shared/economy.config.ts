@@ -666,6 +666,10 @@ export const ECONOMY = {
     cover: 0.4,
   },
 
+  /** Money laundering (shared/realestate.ts): every business you own turns up to `perCycle` of
+   *  the dirty money paid into it clean every `cycleSec`. */
+  laundering: { perCycle: 100_000, cycleSec: 600 },
+
   /**
    * Car theft: Black Market lockpick sets, the lockpick mini-game on street-parked cars, stripping
    * stolen cars on a lift at the Sanayi garage, and selling the parts at the Pawn Shop.

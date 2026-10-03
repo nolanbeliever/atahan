@@ -25,6 +25,7 @@ const PLACE_LABEL: Record<InteractKind, string> = {
   motogear: 'Moto Gear (the helmet shop beside the hospital)',
   hitman: 'the contact in the alley',
   showroom: 'the showroom (Galeri Bulvarı, across the bridges)',
+  realestate: 'Emlak Dünyası (the estate agent on the Chroma corner)',
 };
 
 export function requireNear(ctx: Ctx, playerId: string, kind: InteractKind): void {

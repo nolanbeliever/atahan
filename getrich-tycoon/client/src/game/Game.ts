@@ -364,7 +364,12 @@ export class Game {
     });
     net.on('crime.update', (c) => {
       this.dirty = c.dirty;
+      this.store.setCrime(c);
       this.ui?.setDirty(c.dirty);
+    });
+    net.on('crime.laundered', (d) => {
+      this.audio.play('coin');
+      this.effects.floatText(`+${formatMoney(d.amount)}`, new THREE.Vector3(this.localPosition().x, 2.4, this.localPosition().z), '#2ee59d');
     });
     this.store.on('testDrive', (v) => this.ui?.testDrive.set(v));
     net.on('testdrive.update', (v) => this.store.setTestDrive(v));

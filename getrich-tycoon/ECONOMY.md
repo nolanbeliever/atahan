@@ -220,6 +220,24 @@ Values are in `ECONOMY.heists` (`shared/heists.ts` for the targets, `shared/unde
 - **Dirty money** can't be spent; it shows under the bank balance as "Kara para" and is laundered through businesses
   (below). It is kept in `player_crime` and written in the same transaction as what it changes.
 
+## Laundering (Emlak Dünyası)
+
+Values are in `ECONOMY.laundering` (`shared/realestate.ts`). At the estate agent's front door on the Chroma corner (🏢 on
+the map) you buy legal businesses with clean money and pay dirty money into the ones you own:
+
+| Business | Price |
+| --- | --- |
+| 🧺 Beyaz Çamaşırhane | $150,000 |
+| 💈 Makas Berber Salonu | $175,000 |
+| 🚿 Köpük Oto Yıkama | $220,000 |
+| 🍽️ Lezzet Durağı Restoran | $280,000 |
+| 🚦 Direksiyon Sürücü Kursu | $340,000 |
+| 🪩 Neon Gece Kulübü | $480,000 |
+
+- Every business you own turns up to **$100,000 of the dirty money waiting in it into clean cash every 10 minutes**
+  (`laundering`, credited to your cash). More businesses launder faster. Paying into an idle business starts a fresh
+  10-minute cycle; cycles that ran while you were offline are paid the next time you're online.
+
 ## Tolls, plate cameras and checkpoints
 
 Values are in `ECONOMY.tolls` (`shared/tolls.ts` for where things stand).

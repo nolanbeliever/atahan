@@ -298,6 +298,8 @@ export type TransactionKind =
   | 'police_escape'
   | 'moto_gear'
   | 'hitman'
+  | 'business_buy'
+  | 'laundering'
   | 'showroom'
   | 'testdrive'
   | 'toll'

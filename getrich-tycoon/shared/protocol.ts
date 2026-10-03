@@ -17,6 +17,7 @@ import type { CrashEvent, HelmetId, VisorId } from './helmets';
 import type { ContractView } from './hitman';
 import type { HeistId, HeistView } from './heists';
 import type { CrimeView } from './underworld';
+import type { BusinessId } from './realestate';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -134,6 +135,9 @@ export interface RpcMethods {
   'heist.abort': { params: Empty; result: { ok: true } };
   'heist.status': { params: Empty; result: { heist: HeistView | null; alarms: HeistId[]; cooldowns: Partial<Record<HeistId, number>> } };
   'crime.info': { params: Empty; result: CrimeView };
+  /** Emlak Dünyası: buy a business, pay dirty money into one to launder it. */
+  'realestate.buy': { params: { businessId: BusinessId }; result: CrimeView };
+  'realestate.deposit': { params: { businessId: BusinessId; amount: number }; result: CrimeView };
   'helmet.buy': { params: { kind: 'helmet' | 'visor'; id: string }; result: { appearance: Appearance } };
   'showroom.info': { params: { showroomId: ShowroomId }; result: ShowroomInfo };
   'showroom.buy': { params: { showroomId: ShowroomId; offerId: string; color?: string; expectedPrice: number }; result: { vehicle: Vehicle; price: number } };
@@ -247,6 +251,8 @@ export interface ServerToClientEvents {
   'heist.lost': (d: { id: HeistId; amount: number; reason: 'busted' | 'wasted' | 'failed'; text: string }) => void;
   /** Your dirty money and heist record. */
   'crime.update': (d: CrimeView) => void;
+  /** Your businesses turned dirty money into clean cash. */
+  'crime.laundered': (d: { amount: number }) => void;
   /** Tyres burst on a spike strip. */
   'police.spiked': (d: { vehicleId: string; x: number; z: number }) => void;
   /** Under a bridge speed radar: the speed, your best, whether it is a new best, the server record. */

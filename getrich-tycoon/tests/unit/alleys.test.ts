@@ -49,7 +49,8 @@ describe('back alleys', () => {
     for (const b of ALLEY_BUILDINGS) {
       for (const r of ROADS) expect(overlaps(b.box, r)).toBe(false);
       for (const p of PLOTS) expect(overlaps(b.box, { minX: p.cx - PLOT_HALF, maxX: p.cx + PLOT_HALF, minZ: p.cz - PLOT_HALF, maxZ: p.cz + PLOT_HALF })).toBe(false);
-      for (const i of INTERACTABLES) expect(i.x > b.box.minX - i.radius && i.x < b.box.maxX + i.radius && i.z > b.box.minZ - i.radius && i.z < b.box.maxZ + i.radius).toBe(false);
+      // (The estate agent's own front door is on one of them.)
+      for (const i of INTERACTABLES.filter((x) => x.kind !== 'realestate')) expect(i.x > b.box.minX - i.radius && i.x < b.box.maxX + i.radius && i.z > b.box.minZ - i.radius && i.z < b.box.maxZ + i.radius).toBe(false);
     }
   });
 

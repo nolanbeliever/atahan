@@ -1,6 +1,7 @@
 // Client-side mirror of the authoritative server state.
 
 import type { ContractView } from '../../../shared/hitman';
+import type { CrimeView } from '../../../shared/underworld';
 import type { PrivateState } from '../../../shared/protocol';
 import type { RareMarketState } from '../../../shared/rareMarket';
 import type { RewardsView } from '../../../shared/rewards';
@@ -38,6 +39,7 @@ export interface StoreEvents extends Record<string, unknown> {
   rewards: RewardsView;
   health: HealthView;
   contract: ContractView | null;
+  crime: CrimeView;
   testDrive: TestDriveView | null;
   showroom: ShowroomInfo;
   tolls: TollEvent[];
@@ -62,6 +64,8 @@ export class Store extends Emitter<StoreEvents> {
   health: HealthView | null = null;
   /** The hitman contract the player holds (null: none). */
   contract: ContractView | null = null;
+  /** Dirty money, businesses and the heist record. */
+  crime: CrimeView | null = null;
   /** The showroom test drive in progress (null: none). */
   testDrive: TestDriveView | null = null;
   /** Toll passes, fines, camera reads and checkpoints this session (newest first). */
@@ -138,6 +142,11 @@ export class Store extends Emitter<StoreEvents> {
   setHealth(v: HealthView): void {
     this.health = v;
     this.emit('health', v);
+  }
+
+  setCrime(v: CrimeView): void {
+    this.crime = v;
+    this.emit('crime', v);
   }
 
   setContract(v: ContractView | null): void {

@@ -962,3 +962,14 @@ body.is-wasted #game-root canvas { filter: grayscale(1) contrast(1.1) brightness
 @keyframes cp-flash { 50% { border-color: rgba(255,60,60,0.9); } }
 .cam-btn.plate-btn.up { background: linear-gradient(180deg, #ff9a8a, #e0453a); color: #2a0000; }
 .sr-gear { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: rgba(179,0,27,0.08); border: 1px dashed rgba(255,59,48,0.45); display: grid; gap: 8px; }
+
+/* ---------------------------------------------------------------- estate agent (laundering) */
+.re-sum { grid-template-columns: repeat(4, 1fr); }
+.dirty-money { color: #ff8a5c; }
+.re-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-top: 10px; }
+.re-card { padding: 12px; border-radius: 14px; background: rgba(255,255,255,0.04); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.re-card.owned { border-color: rgba(46,229,157,0.55); background: rgba(46,229,157,0.06); }
+.re-emoji { font-size: 30px; line-height: 1; }
+.re-name { font-weight: 900; font-size: 15px; }
+.re-bar { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; margin-top: 4px; }
+.re-bar div { height: 100%; background: linear-gradient(90deg, #ff8a5c, #2ee59d); transition: width 0.9s linear; }

@@ -47,6 +47,7 @@ import { ShowroomService } from './services/showrooms';
 import { TollService } from './services/tolls';
 import { CrimeService } from './services/crime';
 import { HeistService } from './services/heists';
+import { RealEstateService } from './services/realestate';
 import { CombatService } from './services/combat';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
@@ -108,6 +109,7 @@ export class GameServer implements Hub {
   readonly tolls: TollService;
   readonly crime: CrimeService;
   readonly heists: HeistService;
+  readonly realestate: RealEstateService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -159,6 +161,7 @@ export class GameServer implements Hub {
     this.tolls = new TollService(this.ctx, this.police);
     this.crime = new CrimeService(this.ctx);
     this.heists = new HeistService(this.ctx, this.police, this.combat, this.crime, this.theft);
+    this.realestate = new RealEstateService(this.ctx, this.crime);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -223,6 +226,8 @@ export class GameServer implements Hub {
       'heist.abort': (pid) => this.heists.abort(pid),
       'heist.status': (pid) => this.heists.status(pid),
       'crime.info': (pid) => this.crime.view(pid),
+      'realestate.buy': (pid, p) => this.realestate.buy(pid, p),
+      'realestate.deposit': (pid, p) => this.realestate.deposit(pid, p),
       'helmet.buy': (pid, p) => this.moto.buy(pid, p),
       'helmet.wear': (pid, p) => this.moto.wear(pid, p),
       'showroom.info': (pid, p) => this.showrooms.info(pid, p),
@@ -691,6 +696,7 @@ export class GameServer implements Hub {
     await this.driving.tick();
     await this.missions.tick();
     await this.rewards.tick();
+    await this.realestate.tick();
     await this.theft.tick();
     await this.showrooms.tick();
     if (this.cfg.simulation) {

@@ -71,7 +71,7 @@ export const ZONES: Zone[] = [
   { id: 'sanayi', name: 'Sanayi Industrial Estate', cx: (SANAYI.yard.minX + SANAYI.yard.maxX) / 2, cz: (SANAYI.yard.minZ + SANAYI.yard.maxZ) / 2, color: '#8d6e63' },
 ];
 
-export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag' | 'pawn' | 'sanayi' | 'ammu' | 'hospital' | 'motogear' | 'hitman' | 'showroom';
+export type InteractKind = 'market' | 'auction' | 'repair' | 'parts' | 'wash' | 'fuel' | 'bank' | 'custom' | 'plot' | 'drag' | 'pawn' | 'sanayi' | 'ammu' | 'hospital' | 'motogear' | 'hitman' | 'showroom' | 'realestate';
 
 export interface Interactable {
   id: string;
@@ -174,6 +174,8 @@ export const INTERACTABLES: Interactable[] = [
   { id: 'hospital', kind: 'hospital', x: HOSPITAL.respawn.x, z: HOSPITAL.respawn.z - 3, radius: 4.5, label: 'Hospital · Hastane' },
   { id: 'motogear', kind: 'motogear', x: MOTO_GEAR.door.x, z: MOTO_GEAR.door.z, radius: 4.5, label: 'Moto Gear · Kask Mağazası' },
   { id: 'hitman', kind: 'hitman', x: HITMAN_ALLEY.contact.x, z: HITMAN_ALLEY.contact.z - 1.6, radius: 3.2, label: 'Görev Al' },
+  // The estate agent's front door on the Chroma corner (businesses, the laundry).
+  { id: 'realestate', kind: 'realestate', x: -57.4, z: 68.5, radius: 3.5, label: 'Emlak Dünyası · İşletme Al' },
   // The themed showrooms on the far shore's Galeri Bulvarı.
   ...SHOWROOMS.map((s): Interactable => ({ id: `showroom_${s.id}`, kind: 'showroom', x: s.door.x, z: s.door.z, radius: SHOWROOM_DOOR_RADIUS, label: 'Galeriyi Gez', showroomId: s.id })),
 ];
