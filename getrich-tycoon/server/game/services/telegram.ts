@@ -5,6 +5,7 @@
 
 import { DEAD_DROPS, DEALS, DEAL_COLORS, DEAL_MODELS, DEAL_SPOTS, STICKERS, dropPrice, findDrop, type DealCar, type DealOrder, type DealScene, type TgMessage, type TgState } from '../../../shared/telegram';
 import { formatMoney } from '../../../shared/util';
+import { SECURITY } from '../../../shared/security';
 import { GameError } from '../../errors';
 import { createLogger } from '../../logger';
 import * as val from '../../validate';
@@ -50,7 +51,7 @@ export class DealService {
     private readonly crime: CrimeService,
   ) {
     // Arrested: the police take the goods you carry. Wasted: they're gone.
-    police.bustListeners.push((pid) => void this.takeGoods(pid, 'Polis üzerindeki malı ele geçirdi.'));
+    police.bustListeners.push((pid, vehicleId) => void this.search(pid, vehicleId));
     combat.wastedListeners.push((pid) => void this.takeGoods(pid, 'Yere düşünce paket kayboldu.'));
   }
 
@@ -90,7 +91,7 @@ export class DealService {
     if (notify) this.send(playerId);
   }
 
-  private send(playerId: string): void {
+  send(playerId: string): void {
     this.ctx.hub.sendTo(playerId, 'tg.update', this.state(playerId));
   }
 
@@ -396,7 +397,39 @@ export class DealService {
     }
   }
 
-  /** Arrested or wasted: the goods on you are gone. */
+  /** Arrested: the police search you and the car you were in. The goods on you (or loose in the
+   *  car, in the boot) are always found; a hidden compartment only one time in ten. */
+  async search(playerId: string, vehicleId: string | null): Promise<void> {
+    const v = vehicleId ? this.ctx.state.vehicles.get(vehicleId) : undefined;
+    const hidden = v && v.ownerId === playerId ? v.mods.stashGrams ?? 0 : 0;
+    if (this.goods(playerId) <= 0 && hidden <= 0) return;
+    const found = hidden > 0 && this.ctx.rng() < SECURITY.stashFindChance;
+    try {
+      await this.ctx.locks.run([K.player(playerId), ...(found && vehicleId ? [K.vehicle(vehicleId)] : [])], async () => {
+        const uow = this.ctx.state.begin();
+        const player = uow.player(playerId);
+        const grams = player.inventory[GOODS_ITEM] ?? 0;
+        if (grams > 0) {
+          delete player.inventory[GOODS_ITEM];
+          uow.notify(playerId, { kind: 'error', title: `${grams} gr mal bulundu`, text: vehicleId ? 'Polis aracı aradı: üzerindeki ve bagajdaki mala el konuldu.' : 'Polis üstünü aradı: mala el konuldu.' });
+        }
+        if (found && vehicleId) {
+          const veh = uow.vehicle(vehicleId);
+          veh.mods = { ...veh.mods, stashGrams: 0 };
+          uow.notify(playerId, { kind: 'error', title: 'GİZLİ ZULA BULUNDU!', text: `Polis bagaj tabanını söktü: ${hidden} gr mala el konuldu.` });
+        } else if (hidden > 0) {
+          uow.notify(playerId, { kind: 'success', title: 'Zula bulunamadı', text: `Polis aracı didik didik aradı ama gizli bölmeyi bulamadı: ${hidden} gr güvende.` });
+        }
+        await uow.commit();
+      });
+      this.send(playerId);
+      log.info('police search', { playerId, vehicleId, hidden, found });
+    } catch (err) {
+      log.warn('police search failed', { playerId, err: String(err) });
+    }
+  }
+
+  /** Wasted: the goods on you are gone. */
   private async takeGoods(playerId: string, text: string): Promise<void> {
     if (this.goods(playerId) <= 0) return;
     try {

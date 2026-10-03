@@ -73,6 +73,12 @@ export interface VehicleMods {
   flipper?: boolean;
   plateFlipped?: boolean;
   fakePlate?: string;
+  /** Security gear (shared/security.ts): a hidden compartment and the grams in it, run-flat tyres,
+   *  level-3 armour. */
+  stash?: boolean;
+  stashGrams?: number;
+  runflat?: boolean;
+  armor?: boolean;
 }
 
 export interface StripState {
@@ -302,6 +308,7 @@ export type TransactionKind =
   | 'deal_buy'
   | 'laundering'
   | 'mechanic'
+  | 'security'
   | 'showroom'
   | 'testdrive'
   | 'toll'

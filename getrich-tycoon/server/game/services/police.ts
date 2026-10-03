@@ -207,7 +207,8 @@ export class PoliceService {
   readonly escapeListeners: ((playerId: string) => void)[] = [];
   /** The wanted level wiped by an escape (pursuit or not), and arrests: heists hear about them. */
   readonly clearedListeners: ((playerId: string) => void)[] = [];
-  readonly bustListeners: ((playerId: string) => void)[] = [];
+  /** An arrest, and the car the player was taken out of (the police search it). */
+  readonly bustListeners: ((playerId: string, vehicleId: string | null) => void)[] = [];
   /** A stolen car taken off an arrested thief. */
   readonly seizeListeners: ((playerId: string, vehicleId: string) => void)[] = [];
   /** Spike strips on the roads (they burst anybody's tyres) and when each wanted driver last got one. */
@@ -747,7 +748,11 @@ export class PoliceService {
 
   /** Any tyre on a strip bursts (whoever is driving). */
   private checkSpikes(now: number): void {
-    for (const [id, s] of this.spikes) if (now > s.until) this.spikes.delete(id);
+    for (const [id, s] of this.spikes) {
+      if (now <= s.until) continue;
+      this.spikes.delete(id);
+      for (const key of this.rodeSpikes) if (key.startsWith(`${id}:`)) this.rodeSpikes.delete(key);
+    }
     if (this.spikes.size === 0) return;
     for (const d of this.ctx.sim.drives.values()) {
       const v = this.ctx.state.vehicles.get(d.vehicleId);
@@ -755,10 +760,31 @@ export class PoliceService {
       const tyres = tyrePoints(d.dyn.x, d.dyn.z, d.dyn.rot, d.params.halfLength, d.params.halfWidth);
       for (const s of this.spikes.values()) {
         if ((s.deck ?? 0) !== (d.dyn.deck ?? 0) || !tyres.some((t) => onSpikes(s, t.x, t.z))) continue;
+        // Run-flat tyres ride over the spikes.
+        if (v.mods.runflat) {
+          const key = `${s.id}:${d.vehicleId}`;
+          if (!this.rodeSpikes.has(key)) {
+            this.rodeSpikes.add(key);
+            this.ctx.hub.notify(d.playerId, { kind: 'success', title: 'Patlamaz lastikler dayandı!', text: 'Çivili şeridin üstünden geçtin, lastikler sağlam.' });
+            this.ctx.hub.broadcast('police.spiked', { vehicleId: d.vehicleId, x: d.dyn.x, z: d.dyn.z, held: true });
+          }
+          break;
+        }
         void this.burst(d.vehicleId, d.playerId, d.dyn.x, d.dyn.z);
         break;
       }
     }
+  }
+
+  /** Strips a run-flat car has ridden over (told once). */
+  private rodeSpikes = new Set<string>();
+
+  /** A bullet in a tyre (combat.ts): the tyres go like on a strip. */
+  burstTyres(vehicleId: string, playerId: string): void {
+    const d = this.ctx.sim.drives.get(vehicleId);
+    const v = this.ctx.state.vehicles.get(vehicleId);
+    if (!d || !v || v.mods.blown || v.mods.runflat || this.bursting.has(vehicleId)) return;
+    void this.burst(vehicleId, playerId, d.dyn.x, d.dyn.z);
   }
 
   private async burst(vehicleId: string, playerId: string, x: number, z: number): Promise<void> {
@@ -1174,7 +1200,7 @@ export class PoliceService {
     };
     w.busted = { until: Date.now() + event.cutsceneMs, event };
     w.heat = 0;
-    for (const l of this.bustListeners) l(playerId);
+    for (const l of this.bustListeners) l(playerId, me.vehicleId);
     this.ctx.hub.sendTo(playerId, 'police.busted', event);
     this.ctx.hub.sendTo(playerId, 'police.wanted', { stars: 0, units: 0, escapeLeft: null, bust: 1 });
     log.info('player arrested', { playerId, fine });

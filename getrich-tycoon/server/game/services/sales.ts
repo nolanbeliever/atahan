@@ -46,6 +46,8 @@ export function acquireVehicle(
   uow.debit(buyer, price, kind, `Bought ${modelDisplayName(v.modelId)}`, v.id, counterpartyId);
   v.ownerId = buyer.id;
   v.status = 'stored';
+  // Whatever was left in a hidden compartment goes to the scrap heap, not to the buyer.
+  if (v.mods.stashGrams) v.mods = { ...v.mods, stashGrams: 0 };
   v.purchasePrice = price;
   v.salePrice = null;
   v.plotId = null;

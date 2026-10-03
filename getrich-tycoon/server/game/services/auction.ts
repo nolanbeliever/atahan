@@ -233,6 +233,7 @@ export class AuctionService {
             // Money was already held when bidding.
             veh.ownerId = winner.id;
             veh.status = 'stored';
+            if (veh.mods.stashGrams) veh.mods = { ...veh.mods, stashGrams: 0 };
             veh.purchasePrice = a.currentBid;
             veh.salePrice = null;
             veh.plotId = null;

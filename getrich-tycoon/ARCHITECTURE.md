@@ -91,6 +91,10 @@
     the estate agent (businesses bought with clean money, dirty money paid in, `launder` cycles every slow tick),
     `telegram.ts`: Telegram dealing (the supplier's and customers' deal cars, solid and broadcast as `deal.cars`, the
     channel's orders, dead drops, the cockpit handover timed on the server; the client plays it in `game/DealScene.ts`),
+    `security.ts`: security gear bought at Chroma Customs and the hidden compartment's Z (the arrest's search of the
+    car is `DealService.search` in telegram.ts, the armour `CombatService.armorOf`/`damageCar`, the run-flats in
+    police.ts' `checkSpikes`/`burstTyres`; the compartment is left out of `toPublicVehicle`; the client draws the
+    run-flat rings, cracked glass and the garage x-ray in `render/SecurityLook.ts`),
     `mechanic.ts`: the Sanayi's part-time mechanic (shifts, customers' cars on free lifts broadcast as `mech.cars`,
     `TheftService.bayBusy` keeps stolen cars off them, the jobs timed per tick, $1,000 per car; the client draws the cars
     in `render/RepairCars.ts` and the shift card in `ui/MechanicHud.ts`),

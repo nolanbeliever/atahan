@@ -16,6 +16,7 @@ import { seatOffset } from '../../../shared/passengers';
 import { getModel, type VehicleModel } from '../../../shared/vehicles';
 import { PAINT_MATERIALS } from '../data/highDetailVehicles';
 import { rimTemplates, vehicleTemplate, type TemplateInfo, type VehicleTemplate } from './ModelLibrary';
+import { SecurityLook } from './SecurityLook';
 
 export interface VehicleLook {
   /** The vehicle's id (its own registration plate). */
@@ -74,7 +75,7 @@ const FREEZE_DELAY = 3;
 
 export function lookSignature(v: VehicleLook): string {
   // Air ride height and the plate (text, a fake one, flipped away) change in place (no rebuild).
-  const { air: _air, plate: _plate, fakePlate: _fake, plateFlipped: _flip, flipper: _flipper, hot: _hot, ...mods } = v.mods;
+  const { air: _air, plate: _plate, fakePlate: _fake, plateFlipped: _flip, flipper: _flipper, hot: _hot, stashGrams: _stash, ...mods } = v.mods;
   return [v.modelId, v.color, JSON.stringify(mods), Math.round(v.condition.cleanliness / 8), Math.round(v.condition.body / 15)].join('|');
 }
 
@@ -343,6 +344,10 @@ export interface AnyVehicleView {
   setShotDamage(d: VehicleDamageLook | null): void;
   /** Where engine smoke comes out (world space). */
   hoodPoint(out: THREE.Vector3): THREE.Vector3;
+  /** Armoured glass: 0 clean, 1-3 more and more bullet stars. */
+  setCracks(level: number): void;
+  /** Chroma Customs' x-ray of the security gear (armour, hidden compartment, run-flats). */
+  setXray(on: boolean): void;
   dispose(): void;
   readonly meshCount: number;
 }
@@ -417,6 +422,8 @@ abstract class ModelView implements AnyVehicleView {
   private glow: THREE.Mesh | null = null;
   private glowColor: string | null = null;
   private glowHue = Math.random();
+  /** Run-flat rings, cracked armoured glass, the garage's x-ray (shared/security.ts). */
+  private readonly security = new SecurityLook(this.body);
 
   constructor(look: VehicleLook, opts: { lod?: boolean } = {}) {
     this.look = look;
@@ -515,6 +522,11 @@ abstract class ModelView implements AnyVehicleView {
           g.color.set(new THREE.Color('#1c2635').lerp(new THREE.Color('#05070b'), tint));
           g.transparent = true;
           g.opacity = 0.74 + tint * 0.25;
+          // Armoured glass: thick, with the green edge of laminated ballistic glass.
+          if (look.mods.armor) {
+            g.color.lerp(new THREE.Color('#1f4d44'), 0.4);
+            g.opacity = Math.min(0.97, g.opacity + 0.06);
+          }
         });
       } else if (mesh.name === 'headlights' || name === 'headlight' || /head.?light/.test(name)) {
         next = swap(orig, (m) => (m.toneMapped = false), 'head');
@@ -575,6 +587,23 @@ abstract class ModelView implements AnyVehicleView {
       this.burnt = false;
       this.applyShot();
     }
+    this.security.apply(model, this.wheels, look.mods, this.securityInfo(), this.isBike);
+  }
+
+  private securityInfo() {
+    return { seatY: this.info?.seat.y ?? 1.1, length: this.length, width: this.width, wheelR: this.info?.wheelR ?? 0.33 };
+  }
+
+  setCracks(level: number): void {
+    if (level === this.security.level) return;
+    this.thaw();
+    this.security.setCracks(this.model, level);
+  }
+
+  setXray(on: boolean): void {
+    if (on === this.security.xray) return;
+    this.thaw();
+    this.security.setXray(this.model, on, this.model ? this.securityInfo() : null);
   }
 
   /** Air ride height (or the garage stance): snap there, or let the body move there gradually. */
@@ -654,7 +683,7 @@ abstract class ModelView implements AnyVehicleView {
       this.burnt = burnt;
       model.traverse((o) => {
         const mesh = o as THREE.Mesh;
-        if (!mesh.isMesh || Array.isArray(mesh.material)) return;
+        if (!mesh.isMesh || Array.isArray(mesh.material) || mesh.userData.secOverlay) return;
         const m = mesh.material as THREE.MeshStandardMaterial;
         if (!m.color) return;
         if (burnt) {
@@ -912,6 +941,7 @@ abstract class ModelView implements AnyVehicleView {
   dispose(): void {
     this.disposed = true;
     this.thaw();
+    this.security.dispose();
     this.setUnderglow('none');
     for (const m of this.owned) m.dispose();
     this.owned = [];

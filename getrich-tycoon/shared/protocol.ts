@@ -20,6 +20,7 @@ import type { CrimeView } from './underworld';
 import type { BusinessId } from './realestate';
 import type { DealCar, DealScene, TgState } from './telegram';
 import type { MechanicView, RepairCar, RepairTask } from './mechanic';
+import type { SecurityItem } from './security';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -153,6 +154,9 @@ export interface RpcMethods {
   'mech.start': { params: Empty; result: MechanicView };
   'mech.stop': { params: Empty; result: MechanicView };
   'mech.work': { params: { task: RepairTask }; result: MechanicView };
+  /** Security gear at Chroma Customs (shared/security.ts), and the hidden compartment (Z). */
+  'security.buy': { params: { vehicleId: string; item: SecurityItem }; result: { vehicle: Vehicle } };
+  'security.stash': { params: { vehicleId: string }; result: { vehicle: Vehicle; goods: number; moved: number } };
   'helmet.buy': { params: { kind: 'helmet' | 'visor'; id: string }; result: { appearance: Appearance } };
   'showroom.info': { params: { showroomId: ShowroomId }; result: ShowroomInfo };
   'showroom.buy': { params: { showroomId: ShowroomId; offerId: string; color?: string; expectedPrice: number }; result: { vehicle: Vehicle; price: number } };
@@ -283,7 +287,7 @@ export interface ServerToClientEvents {
   /** Your businesses turned dirty money into clean cash. */
   'crime.laundered': (d: { amount: number }) => void;
   /** Tyres burst on a spike strip. */
-  'police.spiked': (d: { vehicleId: string; x: number; z: number }) => void;
+  'police.spiked': (d: { vehicleId: string; x: number; z: number; held?: boolean }) => void;
   /** Under a bridge speed radar: the speed, your best, whether it is a new best, the server record. */
   'radar.flash': (d: RadarFlash) => void;
   /** A test drive started or is in progress (null: none). */
@@ -306,7 +310,8 @@ export interface ServerToClientEvents {
   'police.crash': (d: { x: number; z: number; kmh: number }) => void;
   /** A showroom's stock changed (the Black Market restocked or sold a car). */
   'showroom.update': (d: ShowroomInfo) => void;
-  'combat.carHp': (d: { id: string; hp: number }) => void;
+  /** A car's body HP, and its armour (%) when it has level-3 armour. */
+  'combat.carHp': (d: { id: string; hp: number; armor?: number }) => void;
   'combat.health': (d: HealthView) => void;
   'combat.wasted': (d: { lost: string[]; respawnInMs: number }) => void;
   /** The street race (null: none open). */

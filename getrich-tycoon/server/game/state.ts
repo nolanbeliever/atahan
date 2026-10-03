@@ -135,7 +135,9 @@ export class GameState {
   }
 
   toPublicVehicle(v: Vehicle): PublicVehicle {
-    return { ...v, purchasePrice: 0, ownerName: v.ownerId ? this.players.get(v.ownerId)?.name ?? null : null };
+    // A hidden compartment stays hidden: only the owner knows about it.
+    const { stash: _stash, stashGrams: _grams, ...mods } = v.mods;
+    return { ...v, mods, purchasePrice: 0, ownerName: v.ownerId ? this.players.get(v.ownerId)?.name ?? null : null };
   }
 
   netWorth(playerId: string): number {

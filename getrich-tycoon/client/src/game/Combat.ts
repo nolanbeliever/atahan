@@ -3,6 +3,7 @@
 // losing glass and parts and smoking, the health bar and WASTED.
 
 import * as THREE from 'three';
+import { crackLevel } from '../../../shared/security';
 import { getModel } from '../../../shared/vehicles';
 import { BUILDINGS } from '../../../shared/world';
 import { COMBAT, damageLook, rayBox, rayCircle, rayCylinder, rayObb, rayY, weapon, ownedWeapons, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type VehicleDamageLook, type WeaponDef } from '../../../shared/weapons';
@@ -23,6 +24,8 @@ export class CombatClient {
   private cooldown = 0;
   private shotNo = 0;
   readonly carHp = new Map<string, number>();
+  /** Armour left (%) on armoured cars that took hits. */
+  readonly carArmor = new Map<string, number>();
   private looks = new Map<string, VehicleDamageLook>();
   dead = false;
   /** Called when the HUD should change (gun, ammo). */
@@ -245,7 +248,19 @@ export class CombatClient {
     this.game.audio.boom(Math.max(0.1, 1 - Math.hypot(me.x - e.x, me.z - e.z) / 220));
   }
 
-  onCarHp(id: string, hp: number): void {
+  onCarHp(id: string, hp: number, armor?: number): void {
+    if (armor !== undefined) {
+      const before = this.carArmor.get(id) ?? 100;
+      if (armor >= 100) this.carArmor.delete(id);
+      else this.carArmor.set(id, armor);
+      this.carView(id)?.setCracks(crackLevel(armor));
+      // The bullet stopped in the armour: a dull thud and a spark off the glass.
+      if (armor < before) {
+        const view = this.carView(id);
+        if (view) this.fx.sparks(view.root.localToWorld(new THREE.Vector3((Math.random() - 0.5) * view.width, (view.info?.height ?? 1.4) * 0.75, (Math.random() - 0.3) * view.length * 0.4)), 6);
+        if (armor <= 0 && before > 0 && id === this.game.driving) this.game.audio.play('error');
+      }
+    }
     if (hp >= COMBAT.vehicleHp) this.carHp.delete(id);
     else this.carHp.set(id, hp);
     const look = damageLook(hp);
@@ -315,6 +330,7 @@ export class CombatClient {
   /** Lift the damage looks onto cars that (re)appeared. */
   refreshViews(): void {
     for (const [id, hp] of this.carHp) this.carView(id)?.setShotDamage(damageLook(hp));
+    for (const [id, a] of this.carArmor) this.carView(id)?.setCracks(crackLevel(a));
   }
 }
 

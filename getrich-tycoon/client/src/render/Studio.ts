@@ -110,6 +110,11 @@ class StudioScene {
     }, { passive: false });
   }
 
+  /** The car on show (the garage's x-ray of the security gear). */
+  get vehicle(): AnyVehicleView | null {
+    return this.view;
+  }
+
   get canvas(): HTMLCanvasElement {
     return this.renderer.domElement;
   }

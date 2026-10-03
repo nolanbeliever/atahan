@@ -460,7 +460,7 @@ export class Game {
     net.on('race.checkpoint', () => this.audio.play('coin'));
     net.on('combat.shot', (sh) => this.combat.onShot(sh));
     net.on('combat.explosion', (e) => this.combat.onExplosion(e));
-    net.on('combat.carHp', (d) => this.combat.onCarHp(d.id, d.hp));
+    net.on('combat.carHp', (d) => this.combat.onCarHp(d.id, d.hp, d.armor));
     net.on('combat.health', (v) => this.combat.onHealth(v));
     net.on('combat.wasted', (d) => this.combat.onWasted(d.lost, d.respawnInMs));
     net.on('pursuit.update', (p) => this.ui?.pursuit.set(p));
@@ -514,8 +514,9 @@ export class Game {
       const me = this.localPosition();
       const d = Math.hypot(me.x - e.x, me.z - e.z);
       if (d > 140) return;
-      this.combat.fx.sparks(new THREE.Vector3(e.x, 0.25, e.z), 30);
-      this.audio.shot('pistol', Math.max(0.1, 0.6 * (1 - d / 140)));
+      // Run-flats: a few sparks off the spikes, no bang.
+      this.combat.fx.sparks(new THREE.Vector3(e.x, 0.25, e.z), e.held ? 8 : 30);
+      if (!e.held) this.audio.shot('pistol', Math.max(0.1, 0.6 * (1 - d / 140)));
     });
     net.on('moto.crash', (e) => {
       // Sparks off the tarmac (a shower of them from a helmet scraping along), a thud.
@@ -1552,6 +1553,11 @@ export class Game {
       void this.airRide();
       return;
     }
+    // Z: the hidden compartment (Gizli Zula): hide the goods in it, or take them back out.
+    if (code === 'KeyZ' && (this.driving || this.riding)) {
+      void this.useStash();
+      return;
+    }
     // P: the Black Market's plate flipper turns the plate away (number-plate cameras can't read it).
     if (this.driving && code === 'KeyP') {
       void this.flipPlate();
@@ -1662,6 +1668,28 @@ export class Game {
       const r = await this.net.rpc('vehicle.flipPlate', {});
       this.audio.play('clunk');
       this.ui?.toast({ kind: 'info', title: r.flipped ? 'Plaka çevrildi' : 'Plaka geri çevrildi', text: r.flipped ? 'Kameralar plakanı okuyamaz.' : 'Plakan yine görünüyor.' });
+    } catch (err) {
+      this.ui?.error(err);
+    }
+  }
+
+  /** "Zulaya Sakla (Z)": the goods you carry into the car's hidden compartment, or back out. */
+  async useStash(): Promise<void> {
+    const id = this.driving ?? this.riding?.vehicleId ?? null;
+    const v = id ? this.store.myVehicle(id) : undefined;
+    if (!v) return;
+    if (!v.mods.stash) {
+      this.ui?.toast({ kind: 'info', title: 'Gizli zula yok', text: 'Chroma Customs > Güvenlik: "Gizli Zula" taktır, sonra araçtayken Z ile malı sakla.' });
+      return;
+    }
+    try {
+      const r = await this.net.rpc('security.stash', { vehicleId: v.id });
+      this.audio.play('clunk');
+      this.ui?.toast(
+        r.moved > 0
+          ? { kind: 'success', title: `🗄️ ${r.moved} gr zulaya saklandı`, text: `Zulada ${r.vehicle.mods.stashGrams ?? 0} gr. Polis aramasında bulunma ihtimali %10.` }
+          : { kind: 'info', title: `🗄️ ${-r.moved} gr zuladan alındı`, text: 'Mal artık üzerinde (satış için gerekli).' },
+      );
     } catch (err) {
       this.ui?.error(err);
     }

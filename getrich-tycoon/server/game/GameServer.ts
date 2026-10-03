@@ -50,6 +50,7 @@ import { HeistService } from './services/heists';
 import { RealEstateService } from './services/realestate';
 import { DealService } from './services/telegram';
 import { MechanicService } from './services/mechanic';
+import { SecurityService } from './services/security';
 import { CombatService } from './services/combat';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
@@ -114,6 +115,7 @@ export class GameServer implements Hub {
   readonly realestate: RealEstateService;
   readonly deals: DealService;
   readonly mechanic: MechanicService;
+  readonly security: SecurityService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -168,6 +170,7 @@ export class GameServer implements Hub {
     this.realestate = new RealEstateService(this.ctx, this.crime);
     this.deals = new DealService(this.ctx, this.police, this.combat, this.crime);
     this.mechanic = new MechanicService(this.ctx, this.theft);
+    this.security = new SecurityService(this.ctx, this.combat, this.deals);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -244,6 +247,8 @@ export class GameServer implements Hub {
       'mech.start': (pid) => this.mechanic.start(pid),
       'mech.stop': (pid) => this.mechanic.stop(pid),
       'mech.work': (pid, p) => this.mechanic.work(pid, p),
+      'security.buy': (pid, p) => this.security.buy(pid, p),
+      'security.stash': (pid, p) => this.security.stash(pid, p),
       'helmet.buy': (pid, p) => this.moto.buy(pid, p),
       'helmet.wear': (pid, p) => this.moto.wear(pid, p),
       'showroom.info': (pid, p) => this.showrooms.info(pid, p),

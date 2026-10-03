@@ -45,6 +45,7 @@ import type { Vehicle, VehicleMods } from '../../../../shared/types';
 import { formatMoney } from '../../../../shared/util';
 import { marketValue } from '../../../../shared/valuation';
 import { getModel, type VehicleModel } from '../../../../shared/vehicles';
+import { SECURITY, SECURITY_DEFS, SECURITY_ITEMS, armorRepairPrice, type SecurityItem } from '../../../../shared/security';
 import { getStudio } from '../../render/Studio';
 import type { VehicleLook } from '../../render/VehicleMesh';
 import { append, clear, h, type Child } from '../dom';
@@ -53,7 +54,7 @@ import { ICONS } from '../icons';
 import { Panel } from '../Panel';
 import { vehicleTitle } from '../widgets';
 
-type Tab = 'performance' | 'paint' | 'body' | 'wheels' | 'dyno';
+type Tab = 'performance' | 'paint' | 'body' | 'wheels' | 'security' | 'dyno';
 type LegacySlot = 'tint' | 'headlights' | 'accessory' | 'underglow';
 const LEGACY_SLOTS: LegacySlot[] = ['tint', 'headlights', 'accessory', 'underglow'];
 const LEVEL_LABEL = ['', 'Street', 'Sport', 'Race', 'Pro'];
@@ -307,6 +308,7 @@ export class TuningGaragePanel extends Panel {
           ['paint', 'Paint'],
           ['body', 'Body Kit'],
           ['wheels', 'Wheels & Stance'],
+          ['security', '🛡️ Güvenlik'],
           ['dyno', 'Dyno'],
         ] as const
       ).map(([id, label]) =>
@@ -327,10 +329,15 @@ export class TuningGaragePanel extends Panel {
       case 'wheels':
         content = this.wheelsTab(model, v, q);
         break;
+      case 'security':
+        content = this.securityTab(model, v);
+        break;
       case 'dyno':
         content = this.dynoTab(model, q);
         break;
     }
+    // The x-ray of the security gear on its tab.
+    this.studio?.vehicle?.setXray(this.tab === 'security');
     this.statsEl = h('div', { class: 'garage-stats', 'data-testid': 'garage-stats' }, this.statsCard(v, q));
     return [
       here ? null : h('div', { class: 'pill gold', style: { alignSelf: 'flex-start', marginBottom: '10px' } }, 'Browsing remotely: drive or walk to Chroma Customs to install parts.'),
@@ -738,6 +745,50 @@ export class TuningGaragePanel extends Panel {
       slider('Suspension drop', 'drop', lim.maxDrop, (x) => `${x.toFixed(1)} cm`),
       h('div', { class: 'tiny muted', style: { marginTop: '6px' } }, 'A little camber and drop sharpen handling; extreme stance costs grip and braking.'),
     ];
+  }
+
+  /** Security gear: the hidden compartment, run-flat tyres, level-3 armour (bought on the spot). */
+  private securityTab(model: VehicleModel, v: Vehicle): Child {
+    const here = this.game.nearKind('custom');
+    const money = this.store.me?.money ?? 0;
+    const bike = model.specs.kind === 'bike';
+    const armor = v.mods.armor ? this.game.combat.carArmor.get(v.id) ?? 100 : null;
+    const card = (item: SecurityItem): HTMLElement => {
+      const def = SECURITY_DEFS[item];
+      const fitted = !!v.mods[item];
+      const repair = item === 'armor' && fitted && armor !== null && armor < 100 ? armorRepairPrice(armor) : 0;
+      const price = fitted ? repair : def.price;
+      const blocked = !here ? 'Chroma Customs\'ta' : def.carsOnly && bike ? 'Motosiklete olmaz' : money < price ? 'Para yetmiyor' : null;
+      let status: string;
+      if (item === 'stash' && fitted) status = `Takılı ✓ · zulada ${v.mods.stashGrams ?? 0} / ${SECURITY.stashCapacity} gr · araçta Z`;
+      else if (item === 'armor' && fitted) status = `Takılı ✓ · zırh %${Math.ceil(armor ?? 100)}`;
+      else status = fitted ? 'Takılı ✓' : 'Takılı değil';
+      const buy = () =>
+        void this.act(
+          () => this.net.rpc('security.buy', { vehicleId: v.id, item }),
+          () => {
+            this.ui.toast({ kind: 'success', title: repair ? '🛡️ Zırh onarıldı' : `${def.icon} ${def.name} takıldı`, text: item === 'stash' ? 'Araçtayken Z: üzerindeki malı zulaya sakla.' : item === 'armor' ? 'Kurşun geçirmez: sürerken sağ altta ZIRH %.' : 'Çivili şerit ve kurşunlar artık lastikleri patlatamaz.' });
+            this.studio?.pop(0.6);
+          },
+        );
+      const btn =
+        fitted && !repair
+          ? h('button', { class: 'btn small', disabled: true }, 'Takılı')
+          : h('button', { class: 'btn small primary', 'data-testid': `security-${item}`, disabled: this.busy || !!blocked, title: blocked ?? '', onclick: buy }, repair ? `Zırhı Onar · ${formatMoney(repair)}` : `Tak · ${formatMoney(def.price)}`);
+      return h(
+        'div',
+        { class: `sec-card ${fitted ? 'fitted' : ''}`, 'data-testid': `sec-card-${item}` },
+        h('div', { class: 'sec-icon' }, def.icon),
+        h('div', { class: 'sec-body' }, h('div', { class: 'sec-name' }, def.name), h('div', { class: 'tiny muted' }, def.text), h('div', { class: `tiny sec-status ${fitted ? 'on' : ''}` }, status)),
+        h('div', { class: 'sec-buy' }, btn, blocked && !(fitted && !repair) ? h('div', { class: 'tiny muted' }, blocked) : null),
+      );
+    };
+    return h(
+      'div',
+      { class: 'sec-tab' },
+      h('div', { class: 'tiny muted', style: { marginBottom: '8px' } }, 'Önizlemede röntgen: mavi zırh (cam ve kapılar), turuncu gizli zula (bagaj tabanı), sarı patlamaz lastik halkaları. Hemen takılır; Apply gerekmez.'),
+      SECURITY_ITEMS.map(card),
+    );
   }
 
   private dynoTab(model: VehicleModel, q: TuningQuote): Child {

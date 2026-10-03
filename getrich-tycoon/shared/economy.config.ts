@@ -710,6 +710,28 @@ export const ECONOMY = {
     shiftRadius: 70,
   },
 
+  /** Security gear at Chroma Customs (shared/security.ts): the hidden compartment, run-flat
+   *  tyres and level-3 armour. */
+  security: {
+    stashPrice: 15_000,
+    /** Grams the hidden compartment holds. */
+    stashCapacity: 100,
+    /** A police search finds the hidden compartment this often (the goods on you: always). */
+    stashFindChance: 0.1,
+    runflatPrice: 25_000,
+    armorPrice: 40_000,
+    /** Bullets the armour takes before it is through (any gun; a blast takes more off). */
+    armorHits: 36,
+    /** Armour (%) a blast takes off per point of its damage. */
+    armorBlast: 0.45,
+    /** What a blast still does to the people inside an armoured car. */
+    armorBlastShare: 0.2,
+    /** The steel and the thick glass weigh this much (kg). */
+    armorKg: 240,
+    /** A police officer's bullet that hits a car bursts its tyres this often (not run-flats). */
+    tyreShotChance: 0.06,
+  },
+
   /** Money laundering (shared/realestate.ts): every business you own turns up to `perCycle` of
    *  the dirty money paid into it clean every `cycleSec`. */
   laundering: { perCycle: 100_000, cycleSec: 600 },

@@ -253,6 +253,22 @@ the map) you buy legal businesses with clean money and pay dirty money into the 
   (`laundering`, credited to your cash). More businesses launder faster. Paying into an idle business starts a fresh
   10-minute cycle; cycles that ran while you were offline are paid the next time you're online.
 
+## Security gear (Chroma Customs · Güvenlik)
+
+Values are in `ECONOMY.security` (`shared/security.ts`). Fitted on the spot from the tuning garage's **🛡️ Güvenlik** tab
+(`security`); the preview's x-ray shows what's fitted.
+
+| Gear | Price | What it does |
+| --- | --- | --- |
+| 🗄️ Gizli Zula (hidden compartment) | $15,000 | Holds up to 100 g under the boot floor. **Z** in (or next to) the car: the goods you carry go in; Z again with nothing on you takes them back out (you need them on you to sell). |
+| 🛞 Patlamaz Lastik (run-flat) | $25,000 | Spike strips and police bullets can't burst the tyres (without them an officer's bullet that hits the car bursts them 6% of the time). |
+| 🛡️ Seviye 3 Zırh (level-3 armour) | $40,000 | Takes **36 bullets** of any gun (a blast takes 0.45 % per point of damage) before anything gets through: the glass cracks in three steps but holds, the body takes no damage, the people inside take no bullets and only 20% of a blast. +240 kg. Not for motorcycles/ATVs. Worn armour is patched up at Chroma Customs for **$120 per %** ($12,000 from nothing). |
+
+- **Police search (an arrest):** the goods on you, and loose in the car (the boot), are always found and seized. The
+  hidden compartment is found only **10%** of the time; otherwise "Zula bulunamadı" and the goods stay hidden in the car.
+  Wasted: the goods on you are lost, the compartment keeps its goods. Selling the car empties the compartment.
+- While driving an armoured car the **ZIRH %** bar shows bottom right (orange under 34%, flashing red when it's through).
+
 ## Part-time mechanic (Sanayi)
 
 Values are in `ECONOMY.mechanic` (`shared/mechanic.ts`). The **TAMİRCİ ARANIYOR** board on the Sanayi hall's west wall,

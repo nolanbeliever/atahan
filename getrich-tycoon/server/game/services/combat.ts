@@ -25,6 +25,7 @@ import { getModel, modelDisplayName } from '../../../shared/vehicles';
 import { AMMO, COMBAT, STARTER_ROUNDS, WEAPONS, aimRay, ammoDef, rayBox, rayCircle, rayCylinder, rayObb, rayY, spreadAim, weapon, weaponItem, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type WeaponDef, type WeaponId } from '../../../shared/weapons';
 import { BLOCK_CENTERS, BLOCK_HALF, BUILDINGS, SIDEWALK } from '../../../shared/world';
 import { VIP_COIN } from '../../../shared/rewards';
+import { SECURITY, armorCost } from '../../../shared/security';
 import { GameError } from '../../errors';
 import { createLogger } from '../../logger';
 import * as val from '../../validate';
@@ -103,6 +104,8 @@ export class CombatService {
   private spent = new Map<string, Map<string, number>>();
   /** Body HP of damaged vehicles (by obstacle id); missing = full. */
   private carHp = new Map<string, number>();
+  /** Level-3 armour left (%) on armoured cars that took hits (none: 100). */
+  private armor = new Map<string, number>();
   private wrecks = new Set<string>();
   private peds = new Map<string, Ped>();
   /** Someone on foot was killed (id of the person, who did it). */
@@ -380,8 +383,20 @@ export class CombatService {
     return id.startsWith('tr:') || id.startsWith('po:') || this.ctx.sim.isDriven(id);
   }
 
-  /** Damage a car (when it may be damaged); at zero HP the engine blows. */
-  damageCar(id: string, amount: number, by: string | null, now = Date.now()): void {
+  /** Armour left (%) on a car with level-3 armour; null for a car without. */
+  armorOf(id: string): number | null {
+    const v = this.ctx.state.vehicles.get(id);
+    return v?.mods.armor ? this.armor.get(id) ?? 100 : null;
+  }
+
+  /** New or patched-up armour. */
+  resetArmor(id: string): void {
+    if (!this.armor.delete(id)) return;
+    this.ctx.hub.broadcast('combat.carHp', { id, hp: this.carHp.get(id) ?? C.vehicleHp, armor: 100 });
+  }
+
+  /** Damage a car (when it may be damaged); at zero HP the engine blows. Armour takes the hits first. */
+  damageCar(id: string, amount: number, by: string | null, now = Date.now(), kind: 'bullet' | 'blast' = 'bullet'): void {
     if (this.wrecks.has(id)) return;
     if (by) {
       if (id.startsWith('po:')) this.police.raiseHeat(by, C.heatPolice);
@@ -392,6 +407,20 @@ export class CombatService {
       // Nobody else's car: no damage to other players' property.
       if (by && v.ownerId !== by) return;
     } else if (!id.startsWith('tr:') && !id.startsWith('po:') && !this.theft.streetCar(id)) {
+      return;
+    }
+    const armor = this.armorOf(id);
+    if (armor !== null && armor > 0) {
+      // The armour holds: the glass cracks, nothing gets through.
+      // (Snapped to zero: 36 bullets of 100/36 % each end at exactly nothing.)
+      const raw = armor - armorCost(kind, amount);
+      const left = raw < 1e-6 ? 0 : raw;
+      this.armor.set(id, left);
+      this.ctx.hub.broadcast('combat.carHp', { id, hp: this.carHp.get(id) ?? C.vehicleHp, armor: left });
+      if (left <= 0) {
+        const driver = this.ctx.sim.driverOf(id) ?? v?.ownerId;
+        if (driver) this.ctx.hub.notify(driver, { kind: 'error', title: 'ZIRH DELİNDİ!', text: 'Zırh artık dayanmıyor: kurşunlar içeri işler. Chroma Customs\'ta zırhı onarttır.' });
+      }
       return;
     }
     const before = this.carHp.get(id) ?? C.vehicleHp;
@@ -459,7 +488,7 @@ export class CombatService {
     for (const v of [...this.ctx.sim.collisionWorld.vehicles]) {
       if (v.id === carId) continue;
       const d = Math.max(0, Math.hypot(v.x - x, v.z - z) - Math.max(v.hl, v.hw) * 0.5);
-      if (d < radius) this.damageCar(v.id, fall(d), by, now);
+      if (d < radius) this.damageCar(v.id, fall(d), by, now, 'blast');
     }
     for (const p of this.peds.values()) {
       const d = Math.hypot(p.npc.x - x, p.npc.z - z);
@@ -486,7 +515,9 @@ export class CombatService {
     for (const c of this.ctx.sim.chars.values()) {
       if (by && c.id !== by) continue;
       const d = Math.hypot(c.x - x, c.z - z);
-      if (d < radius) this.hurtPlayer(c.id, fall(d) * (c.drivingId ? 0.6 : 1), x, z, now);
+      if (d >= radius) continue;
+      const shielded = c.drivingId ? (this.armorOf(c.drivingId) ?? 0) > 0 : false;
+      this.hurtPlayer(c.id, fall(d) * (c.drivingId ? (shielded ? SECURITY.armorBlastShare : 0.6) : 1), x, z, now);
     }
     this.panic(x, z, 60, now);
   }
@@ -768,9 +799,12 @@ export class CombatService {
           const cover = this.coverFns.reduce((k, f) => Math.min(k, f(t.id)), 1);
           const dmg = (lo + this.ctx.rng() * (hi - lo)) * cover;
           if (t.drivingId) {
-            this.hurtPlayer(t.id, dmg * C.inCarShare, o.npc.x, o.npc.z, now);
+            // Armour: the bullet stops in the glass or the door.
+            if (!((this.armorOf(t.drivingId) ?? 0) > 0)) this.hurtPlayer(t.id, dmg * C.inCarShare, o.npc.x, o.npc.z, now);
             const own = this.ctx.state.vehicles.get(t.drivingId);
             if (own) this.damageCar(t.drivingId, dmg * 0.6, own.ownerId, now);
+            // A tyre takes it (run-flats ride on).
+            if (own && !own.mods.runflat && !own.mods.blown && this.ctx.rng() < SECURITY.tyreShotChance) this.police.burstTyres(t.drivingId, t.id);
           } else {
             this.hurtPlayer(t.id, dmg, o.npc.x, o.npc.z, now);
           }
@@ -803,6 +837,7 @@ export class CombatService {
   welcome(playerId: string): void {
     this.sendHealth(playerId, true);
     for (const [id, hp] of this.carHp) this.ctx.hub.sendTo(playerId, 'combat.carHp', { id, hp });
+    for (const [id, armor] of this.armor) this.ctx.hub.sendTo(playerId, 'combat.carHp', { id, hp: this.carHp.get(id) ?? C.vehicleHp, armor });
   }
 
   forget(playerId: string): void {

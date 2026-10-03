@@ -418,7 +418,8 @@ export function vehicleParams(model: VehicleModel, condition: VehicleCondition, 
   const hasFuel = fuel > 0.05;
   const tuning = mods?.tuning ?? null;
   const blown = !!mods?.blown;
-  const key = `${model.id}|${tuningKey(tuning)}|${eng}|${trans}|${brakes}|${tires}|${hasFuel}|${blown}`;
+  const armored = !!mods?.armor;
+  const key = `${model.id}|${tuningKey(tuning)}|${eng}|${trans}|${brakes}|${tires}|${hasFuel}|${blown}|${armored}`;
   const hit = paramsCache.get(key);
   if (hit) return hit;
   const base = powertrainFor(model, tuning);
@@ -432,6 +433,8 @@ export function vehicleParams(model: VehicleModel, condition: VehicleCondition, 
     mu: base.mu * (0.7 + 0.3 * (tires / 100)),
     latGrip: base.latGrip * (0.75 + 0.25 * (tires / 100)),
   };
+  // Level-3 armour: steel plates and thick glass (slower off the line, heavier in the turns).
+  if (armored) pt.mass += ECONOMY.security.armorKg;
   // Burst tyres (a spike strip): running on the rims.
   if (blown) {
     pt.mu *= ECONOMY.police.spikes.traction;

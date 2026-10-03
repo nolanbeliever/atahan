@@ -142,7 +142,7 @@ export class UI {
     hint: HTMLElement;
   };
   private toasts: HTMLElement;
-  private driveExtras!: { nosBtn: HTMLElement; nosFill: HTMLElement; nosText: HTMLElement; airBtn: HTMLElement; plateBtn: HTMLElement; wheelieTag: HTMLElement };
+  private driveExtras!: { nosBtn: HTMLElement; nosFill: HTMLElement; nosText: HTMLElement; airBtn: HTMLElement; plateBtn: HTMLElement; wheelieTag: HTMLElement; stashBtn: HTMLElement; armorTag: HTMLElement; armorFill: HTMLElement; armorText: HTMLElement };
   readonly nearMiss = new NearMissHud();
   readonly dragHud = new DragHud();
   readonly cluster = new GaugeHud();
@@ -218,8 +218,13 @@ export class UI {
     const plateBtn = h('button', { class: 'cam-btn plate-btn', 'data-testid': 'plate-btn', title: 'Plaka çevir (P)', onclick: () => void this.game.flipPlate() }, 'PLAKA', h('span', { class: 'hk' }, 'P'));
     // Motorcycles: Shift lifts the front (shown as a key hint; the touch screen has its own button).
     const wheelieTag = h('div', { class: 'cam-btn wheelie-tag', 'data-testid': 'wheelie-tag', title: 'Wheelie: hold Shift with the throttle open above 65 km/h' }, 'WHEELIE', h('span', { class: 'hk' }, 'Shift'));
-    const drive = h('div', { class: 'drive-hud' }, h('div', { class: 'drive-side' }, gauge, camBtn, nosBtn, airBtn, plateBtn, wheelieTag), this.cluster.el);
-    this.driveExtras = { nosBtn, nosFill, nosText, airBtn, plateBtn, wheelieTag };
+    // Security gear: the hidden compartment (Z) and the armour's HP.
+    const stashBtn = h('button', { class: 'cam-btn stash-btn', 'data-testid': 'stash-btn', title: 'Gizli zula: malı sakla / al (Z)', onclick: () => void this.game.useStash() }, 'ZULA', h('span', { class: 'hk' }, 'Z'));
+    const armorFill = h('span', { class: 'armor-fill' });
+    const armorText = h('span', { class: 'armor-text' }, 'ZIRH %100');
+    const armorTag = h('div', { class: 'cam-btn armor-tag', 'data-testid': 'armor-hp', title: 'Seviye 3 zırh: kalan dayanıklılık' }, armorFill, h('span', { class: 'armor-icon' }, '🛡️'), armorText);
+    const drive = h('div', { class: 'drive-hud' }, h('div', { class: 'drive-side' }, gauge, camBtn, nosBtn, airBtn, plateBtn, stashBtn, armorTag, wheelieTag), this.cluster.el);
+    this.driveExtras = { nosBtn, nosFill, nosText, airBtn, plateBtn, wheelieTag, stashBtn, armorTag, armorFill, armorText };
     const reconnect = h('div', { class: 'reconnect' }, 'Connection lost - reconnecting...');
     const offers = h('div', { class: 'passthrough' });
 
@@ -457,6 +462,17 @@ export class UI {
     x.plateBtn.style.display = v.mods.flipper ? '' : 'none';
     if (v.mods.flipper) x.plateBtn.firstChild!.textContent = v.mods.plateFlipped ? 'PLAKA: GİZLİ' : 'PLAKA';
     x.plateBtn.classList.toggle('up', !!v.mods.plateFlipped);
+    x.stashBtn.style.display = v.mods.stash ? '' : 'none';
+    if (v.mods.stash) x.stashBtn.firstChild!.textContent = `ZULA ${v.mods.stashGrams ?? 0} gr`;
+    x.stashBtn.classList.toggle('full', (v.mods.stashGrams ?? 0) > 0);
+    const armor = v.mods.armor ? (this.game.combat.carArmor.get(v.id) ?? 100) : null;
+    x.armorTag.style.display = armor === null ? 'none' : '';
+    if (armor !== null) {
+      x.armorFill.style.width = `${Math.max(0, Math.min(100, armor))}%`;
+      x.armorText.textContent = armor > 0 ? `ZIRH %${Math.ceil(armor)}` : 'ZIRH DELİNDİ';
+      x.armorTag.classList.toggle('low', armor > 0 && armor < 34);
+      x.armorTag.classList.toggle('broken', armor <= 0);
+    }
     clear(this.hud.gauge);
     this.hud.gauge.append(
       h('div', { class: 'name' }, modelDisplayName(v.modelId)),
