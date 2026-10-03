@@ -107,6 +107,10 @@ export class CombatService {
   private peds = new Map<string, Ped>();
   /** Someone on foot was killed (id of the person, who did it). */
   readonly killListeners: ((id: string, by: string | null) => void)[] = [];
+  /** A player went down (WASTED): heists drop the loot. */
+  readonly wastedListeners: ((playerId: string) => void)[] = [];
+  /** How much of an officer's shot gets through to a player (cover at a heist door: less than 1). */
+  readonly coverFns: ((playerId: string) => number)[] = [];
   /** A bullet hit a building's wall (building id, who fired). */
   readonly wallHitListeners: ((buildingId: string, shooter: string) => void)[] = [];
   private officers = new Map<string, Officer>();
@@ -595,6 +599,7 @@ export class CombatService {
     } catch (err) {
       log.error('wasted cleanup failed', { playerId, error: (err as Error).message });
     }
+    for (const l of this.wastedListeners) l(playerId);
     this.police.clearWanted(playerId);
     for (const o of this.officers.values()) if (o.target === playerId) o.target = '';
     this.ctx.hub.sendTo(playerId, 'combat.wasted', { lost, respawnInMs: 4500 });
@@ -760,7 +765,8 @@ export class CombatService {
         this.broadcastShot({ by: id, weapon: 'pistol', from: [o.npc.x, 1.35, o.npc.z], to, hit: hit ? (t.drivingId ? 'car' : 'person') : 'air', ...(hit && t.drivingId ? { carId: t.drivingId } : {}) });
         if (hit) {
           const [lo, hi] = C.officerDamage;
-          const dmg = lo + this.ctx.rng() * (hi - lo);
+          const cover = this.coverFns.reduce((k, f) => Math.min(k, f(t.id)), 1);
+          const dmg = (lo + this.ctx.rng() * (hi - lo)) * cover;
           if (t.drivingId) {
             this.hurtPlayer(t.id, dmg * C.inCarShare, o.npc.x, o.npc.z, now);
             const own = this.ctx.state.vehicles.get(t.drivingId);

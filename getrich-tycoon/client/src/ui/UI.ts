@@ -15,6 +15,7 @@ import { ICONS } from './icons';
 import { DragHud, NearMissHud } from './HighwayHud';
 import { GaugeHud } from './Gauge';
 import { HitmanHud } from './HitmanHud';
+import { HeistHud } from './HeistHud';
 import { TestDriveHud } from './TestDriveHud';
 import { TollFeed } from './TollFeed';
 import { MissionsHud } from './MissionsHud';
@@ -125,6 +126,7 @@ export class UI {
     rep: HTMLElement;
     cash: HTMLElement;
     bank: HTMLElement;
+    dirty: HTMLElement;
     zone: HTMLElement;
     prompt: HTMLElement;
     drive: HTMLElement;
@@ -144,6 +146,7 @@ export class UI {
   readonly wanted = new WantedHud();
   readonly pursuit = new PursuitHud();
   readonly hitman = new HitmanHud();
+  readonly heist = new HeistHud();
   readonly testDrive = new TestDriveHud(() => void this.game.endTestDrive());
   readonly tollFeed = new TollFeed(() => this.open('tolls'));
   /** A white flash over everything (speed cameras). */
@@ -192,6 +195,7 @@ export class UI {
     const rep = h('div', { class: 'rep' });
     const cash = h('div', { class: 'cash', 'data-testid': 'hud-money' });
     const bank = h('div', { class: 'bank', 'data-testid': 'hud-bank' });
+    const dirty = h('div', { class: 'dirty', 'data-testid': 'hud-dirty', title: 'Kara para: harcanamaz, Emlakçıdan alacağın işletmelerde aklanır' });
     const zone = h('div', { class: 'zone-label' });
     // Tapping or clicking the prompt does the same as E (or F on its secondary part).
     const prompt = h('div', {
@@ -254,13 +258,14 @@ export class UI {
       this.wanted.el,
       this.race.el,
       this.hitman.el,
+      this.heist.el,
       this.testDrive.el,
       this.tollFeed.el,
     );
     const right = h(
       'div',
       { class: 'hud-top-right' },
-      h('div', { class: 'wallet-row' }, this.rewardsHud.el, h('div', { class: 'wallet' }, cash, bank)),
+      h('div', { class: 'wallet-row' }, this.rewardsHud.el, h('div', { class: 'wallet' }, cash, bank, dirty)),
       h('div', { class: 'minimap' }, this.minimap.canvas, zone),
     );
     const hint = h(
@@ -278,10 +283,16 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
     this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.tollFeed.notice, this.flashEl, reconnect);
-    this.hud = { name, level, xpFill, xpText, rep, cash, bank, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
+    this.hud = { name, level, xpFill, xpText, rep, cash, bank, dirty, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 
   // ------------------------------------------------------------ HUD
+
+  /** Dirty money (Kara Para) under the bank balance; hidden at zero. */
+  setDirty(amount: number): void {
+    this.hud.dirty.textContent = `Kara para ${formatMoney(amount)}`;
+    this.hud.dirty.classList.toggle('show', amount > 0);
+  }
 
   private greeted = false;
 

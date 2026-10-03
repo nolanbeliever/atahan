@@ -194,6 +194,32 @@ behind you (not 125 m) and only give up and come back from behind after falling 
   (or the nearer one when you stop). Police never plan routes through the alleys, and the apartment rows block their
   view, so an alley is a good place to start the hidden countdown.
 
+## Heists and dirty money
+
+Values are in `ECONOMY.heists` (`shared/heists.ts` for the targets, `shared/underworld.ts` for dirty money).
+
+| Target | Where (the door) | Work | Wanted | Loot |
+| --- | --- | --- | --- | --- |
+| GetRich Bankası | west side, bollard forecourt | 120 s (drill) | 4★ | $55,000-$80,000 |
+| Golden Palace Casino | far shore, bollard forecourt | 110 s (hack) | 4★ | $50,000-$80,000 |
+| Kuyumcu Altınsaray | back door, Wrench Bros alley | 90 s (drill) | 3★ | $40,000-$60,000 |
+| Atlas Ofis Plaza | back door, Wrench Bros alley (courtyard) | 80 s (hack) | 3★ | $30,000-$45,000 |
+| Mega Market 7/24 | back door, auction alley | 60 s (drill) | 2★ | $20,000-$30,000 |
+| Emlak Dünyası | back door, Chroma passage | 70 s (drill) | 2★ | $25,000-$35,000 |
+| Hyper Garage (car heist) | showroom's back, bollard forecourt | 75 s (hack), then 4 min to the docks | 3★ | $45,000-$65,000 |
+
+- E at the door, on foot, owning a gun. The starter and everyone within 25 m is the crew. The police know at once (the
+  stars above, heat `stars × 100 - 50`), but their cars arrive after 30 s (2★), 25 s (3★) or 20 s (4★+). The work runs
+  while someone of the crew is within 3 m of the door; at the door officers' shots do 40% damage (cover). Everyone more
+  than 45 m away for 12 s: the job is off. A target can be hit again after 10 minutes; a player can start one every 90 s.
+- Done: the loot (rolled in the range, to $100) is in the bag. Lose the police (the wanted level wiped by an escape) and
+  it is **dirty money** (`crime.dirty`, shared between the crew still on the job) plus 150 XP. Busted: the police take
+  it. Wasted or logged off: it is gone.
+- The showroom job: once hacked, a hypercar from the Hyper Garage stands outside the bollards (status `stolen`); drive it
+  into the docks' drop circle (under 25 km/h) within 4 minutes; the buyer pays the loot (then lose the police).
+- **Dirty money** can't be spent; it shows under the bank balance as "Kara para" and is laundered through businesses
+  (below). It is kept in `player_crime` and written in the same transaction as what it changes.
+
 ## Tolls, plate cameras and checkpoints
 
 Values are in `ECONOMY.tolls` (`shared/tolls.ts` for where things stand).

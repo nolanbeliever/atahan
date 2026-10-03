@@ -124,6 +124,21 @@ export class WantedHud {
     this.show('contract', [h('div', { class: 'bb-kicker' }, 'İŞ TAMAM · CONTRACT COMPLETE'), h('div', { class: 'bb-title' }, title), h('div', { class: 'bb-text' }, reward)], 3600);
   }
 
+  /** The job is done: the loot is in the bag. */
+  heistDone(title: string, loot: number): void {
+    this.show('heist', [h('div', { class: 'bb-kicker' }, `${title} · SOYGUN BAŞARILI`), h('div', { class: 'bb-title', 'data-testid': 'heist-banner' }, `ÇANTADA ${formatMoney(loot)}`), h('div', { class: 'bb-text' }, 'ŞİMDİ POLİSİ ATLAT!'), h('div', { class: 'bb-sub' }, 'Kaçarsan para senin (kara para). Yakalanırsan polis el koyar.')], 4200);
+  }
+
+  /** Got away with it: dirty money. */
+  heistCashed(amount: number, xp: number): void {
+    this.show('heist', [h('div', { class: 'bb-kicker' }, 'İZİ KAYBETTİRDİN · TEMİZ KAÇIŞ'), h('div', { class: 'bb-title' }, `KARA PARA +${formatMoney(amount)}`), h('div', { class: 'bb-text' }, `+${xp} XP`), h('div', { class: 'bb-sub' }, 'Kara para harcanamaz: Emlakçıdan işletme alıp akla.')], 4200);
+  }
+
+  /** The job fell through, or the police took the bag. */
+  heistLost(title: string, text: string): void {
+    this.show('heist-lost', [h('div', { class: 'bb-kicker' }, 'SOYGUN'), h('div', { class: 'bb-title' }, title), h('div', { class: 'bb-text' }, text)], 3600);
+  }
+
   /** The stolen car is the player's for good. */
   stolenOk(model: string): void {
     this.show('stolen-ok', [h('div', { class: 'bb-kicker' }, model.toUpperCase()), h('div', { class: 'bb-title' }, 'CAR STOLEN SUCCESSFULLY!'), h('div', { class: 'bb-text' }, '(Araç Tamamen Senindir)'), h('div', { class: 'bb-sub' }, 'Keep it, store it or sell it on the Marketplace.')], 4200);

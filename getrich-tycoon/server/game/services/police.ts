@@ -203,8 +203,11 @@ export class PoliceService {
   private sightCache: { src: readonly AABB[]; world: SightWorld } | null = null;
   private params: VehicleParams = vehicleParams(PURSUIT_MODEL, PERFECT, 100);
   private time = 0;
-  /** Missions and others hear about escapes. */
+  /** Missions and others hear about escapes (from a pursuit). */
   readonly escapeListeners: ((playerId: string) => void)[] = [];
+  /** The wanted level wiped by an escape (pursuit or not), and arrests: heists hear about them. */
+  readonly clearedListeners: ((playerId: string) => void)[] = [];
+  readonly bustListeners: ((playerId: string) => void)[] = [];
   /** A stolen car taken off an arrested thief. */
   readonly seizeListeners: ((playerId: string, vehicleId: string) => void)[] = [];
   /** Spike strips on the roads (they burst anybody's tyres) and when each wanted driver last got one. */
@@ -260,6 +263,12 @@ export class PoliceService {
       w.heat = Math.min(ECONOMY.police.maxHeat, w.heat + amount);
       this.reported(w);
     }
+  }
+
+  /** Police cars come only after `sec` (a heist alarm: they know, and they're on their way). */
+  holdUnits(playerId: string, sec: number): void {
+    const w = this.wanted.get(playerId);
+    if (w) w.nextSpawnAt = Math.max(w.nextSpawnAt, this.time + sec);
   }
 
   /** Raise the heat to at least this much (e.g. a car alarm: straight to 2 stars). Shared with
@@ -1095,6 +1104,7 @@ export class PoliceService {
     this.closeCheckpoint(playerId);
     this.publishObstacles();
     this.ctx.hub.sendTo(playerId, 'police.wanted', { stars: 0, units: 0, escapeLeft: null, bust: 0 });
+    for (const l of this.clearedListeners) l(playerId);
     if (!w.pursued) return;
     // $2,000, or $1,000 for every police car you got away from when that is more.
     const cars = Math.max(1, w.chasers.size);
@@ -1164,6 +1174,7 @@ export class PoliceService {
     };
     w.busted = { until: Date.now() + event.cutsceneMs, event };
     w.heat = 0;
+    for (const l of this.bustListeners) l(playerId);
     this.ctx.hub.sendTo(playerId, 'police.busted', event);
     this.ctx.hub.sendTo(playerId, 'police.wanted', { stars: 0, units: 0, escapeLeft: null, bust: 1 });
     log.info('player arrested', { playerId, fine });

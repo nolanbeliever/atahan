@@ -635,6 +635,38 @@ export const ECONOMY = {
   hitman: { reward: 1_000, xp: 60, drivebyHits: 6, drivebySec: 240, hitSec: 300, searchRadius: 45, markHp: 30, cooldownSec: 15 },
 
   /**
+   * Heists (shared/heists.ts): per target the seconds of work at the door, the wanted stars it
+   * brings straight away and the loot range (dollars, dirty money once you've lost the police).
+   * The work goes on while someone of the crew (players within `crewRadius` m when it started) is
+   * within `workRadius` m of the door; everyone away beyond `abortRadius` m for `abortSec` and it
+   * is off. A target can be hit again after `cooldownSec`, a player can start one every
+   * `playerCooldownSec`. The showroom car has to reach the docks within `dropSec`. XP per heist.
+   * The police know at once, but their cars take `responseSec[stars]` to get there; at the door
+   * you're in cover: officers' shots do `cover` of their damage.
+   */
+  heists: {
+    targets: {
+      bank: { workSec: 120, stars: 4, loot: [55_000, 80_000] as [number, number] },
+      casino: { workSec: 110, stars: 4, loot: [50_000, 80_000] as [number, number] },
+      jeweler: { workSec: 90, stars: 3, loot: [40_000, 60_000] as [number, number] },
+      office: { workSec: 80, stars: 3, loot: [30_000, 45_000] as [number, number] },
+      supermarket: { workSec: 60, stars: 2, loot: [20_000, 30_000] as [number, number] },
+      realestate: { workSec: 70, stars: 2, loot: [25_000, 35_000] as [number, number] },
+      dealership: { workSec: 75, stars: 3, loot: [45_000, 65_000] as [number, number] },
+    },
+    workRadius: 3,
+    crewRadius: 25,
+    abortRadius: 45,
+    abortSec: 12,
+    cooldownSec: 600,
+    playerCooldownSec: 90,
+    dropSec: 240,
+    xp: 150,
+    responseSec: [0, 0, 30, 25, 20, 20],
+    cover: 0.4,
+  },
+
+  /**
    * Car theft: Black Market lockpick sets, the lockpick mini-game on street-parked cars, stripping
    * stolen cars on a lift at the Sanayi garage, and selling the parts at the Pawn Shop.
    */

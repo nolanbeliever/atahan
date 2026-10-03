@@ -85,7 +85,10 @@
   - `game/services/*` contains one module per gameplay system (`tuning.ts`: the tuning garage, `rareMarket.ts`: the Rare Dealer rotation,
     `highway.ts`: near-miss detection, combos, batched payouts and traffic yielding, `drag.ts`: drag strip queue, bot matching,
     lights, false starts, timing and the pool, `driving.ts`: the driving bonus every 10 s, `missions.ts`: daily mission
-    progress and rewards, `police.ts`: heat and stars, police interceptors (physics cars routed over the city road grid and the
+    progress and rewards, `heists.ts`: heists (shared/heists.ts: the crew, the police response delay, work at the door,
+    cover, the loot held until the police are lost, the showroom car to the docks), `crime.ts`: dirty money per player
+    (one JSON document in `player_crime`, edited through a unit of work: `UnitOfWork.setCrimeState`),
+    `police.ts`: heat and stars, police interceptors (physics cars routed over the city road grid and the
     highway lanes), line of sight five times a second per car (`policeSees` in shared/sight.ts against the solid colliders
     minus the see-through fences and toll islands), the back alleys (shared/alleys.ts: the cars right behind follow the
     player in and crash into the bollards, the rest go round to the far end; `CAR_GATES` in shared/physics.ts stop every

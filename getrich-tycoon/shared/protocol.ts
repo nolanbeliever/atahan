@@ -15,6 +15,8 @@ import type { StreetRaceView } from './streetRace';
 import type { ExplosionFx, HealthView, ShotFx, WeaponId } from './weapons';
 import type { CrashEvent, HelmetId, VisorId } from './helmets';
 import type { ContractView } from './hitman';
+import type { HeistId, HeistView } from './heists';
+import type { CrimeView } from './underworld';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -127,6 +129,11 @@ export interface RpcMethods {
   'hitman.take': { params: Empty; result: { contract: ContractView } };
   'hitman.info': { params: Empty; result: { contract: ContractView | null } };
   'hitman.drop': { params: Empty; result: { ok: true } };
+  /** Heists: start one at the target's door (E), give it up; the dirty money. */
+  'heist.start': { params: { heistId: HeistId }; result: HeistView };
+  'heist.abort': { params: Empty; result: { ok: true } };
+  'heist.status': { params: Empty; result: { heist: HeistView | null; alarms: HeistId[]; cooldowns: Partial<Record<HeistId, number>> } };
+  'crime.info': { params: Empty; result: CrimeView };
   'helmet.buy': { params: { kind: 'helmet' | 'visor'; id: string }; result: { appearance: Appearance } };
   'showroom.info': { params: { showroomId: ShowroomId }; result: ShowroomInfo };
   'showroom.buy': { params: { showroomId: ShowroomId; offerId: string; color?: string; expectedPrice: number }; result: { vehicle: Vehicle; price: number } };
@@ -229,6 +236,17 @@ export interface ServerToClientEvents {
   /** The hitman contract changed (null: none). */
   'hitman.update': (d: ContractView | null) => void;
   'hitman.done': (d: { title: string; reward: number; xp: number }) => void;
+  /** Your heist (null: none). */
+  'heist.update': (d: HeistView | null) => void;
+  /** A target's alarm went on or off (everyone sees the lights). */
+  'heist.alarm': (d: { id: HeistId; on: boolean }) => void;
+  /** The job is done: the loot is in the bag (lose the police to keep it). */
+  'heist.done': (d: { id: HeistId; title: string; loot: number }) => void;
+  /** The loot is yours (dirty money), taken by the police, or lost; or the job fell through. */
+  'heist.cashed': (d: { id: HeistId; amount: number; xp: number }) => void;
+  'heist.lost': (d: { id: HeistId; amount: number; reason: 'busted' | 'wasted' | 'failed'; text: string }) => void;
+  /** Your dirty money and heist record. */
+  'crime.update': (d: CrimeView) => void;
   /** Tyres burst on a spike strip. */
   'police.spiked': (d: { vehicleId: string; x: number; z: number }) => void;
   /** Under a bridge speed radar: the speed, your best, whether it is a new best, the server record. */

@@ -2,6 +2,7 @@
 // client (prediction). Keep this file free of DOM/Node APIs.
 
 import { CAR_GATES } from './alleys';
+import { SECURITY_GATES } from './heists';
 import { ECONOMY } from './economy.config';
 import { G, KMH_PER_MS, SPEED_SCALE, driveStep, powertrainFor, topSpeedOf, tuningKey, type DriveOut, type DriveState, type Powertrain } from './drivetrain';
 import { HIGHWAY_BARRIERS, inGap, nearHighway, projectToHighway } from './highway';
@@ -476,6 +477,9 @@ export interface VehicleStepResult {
   shifted: number;
 }
 
+/** The bike-only gates: the back alleys' ends and the heist targets' security forecourts. */
+const ALL_GATES = [...CAR_GATES, ...SECURITY_GATES];
+
 /** Longest distance a vehicle moves in one physics sub-step (keeps fast cars from tunnelling). */
 const MAX_SUBSTEP_DIST = 1;
 
@@ -720,9 +724,9 @@ function resolveVehicle(v: VehicleDyn, p: VehicleParams, world: CollisionWorld, 
       if (v.x + reach < b.minX || v.x - reach > b.maxX || v.z + reach < b.minZ || v.z - reach > b.maxZ) continue;
       take(obbVsObb(box, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, rot: 0, hl: (b.maxZ - b.minZ) / 2, hw: (b.maxX - b.minX) / 2 }));
     }
-    // The back alleys: a car (not a bike or an ATV) can't get between the bollards.
+    // The back alleys and the security forecourts: a car (not a bike or an ATV) can't get between the bollards.
     if (!deck && !p.bike) {
-      for (const g of CAR_GATES) {
+      for (const g of ALL_GATES) {
         if (v.x + reach < g.minX || v.x - reach > g.maxX || v.z + reach < g.minZ || v.z - reach > g.maxZ) continue;
         take(obbVsObb(box, { x: (g.minX + g.maxX) / 2, z: (g.minZ + g.maxZ) / 2, rot: 0, hl: (g.maxZ - g.minZ) / 2, hw: (g.maxX - g.minX) / 2 }));
       }

@@ -167,6 +167,15 @@ function row(a: Alley, side: -1 | 1, far: number, segs: [number, number, number]
 
 const [WRENCH, AUCTION, CHROMA] = ALLEYS as [Alley, Alley, Alley];
 
+/** Shops in the rows, with their signs on the street side (heist targets robbed through their
+ *  back doors on the alley: shared/heists.ts). */
+const SHOPS: Record<string, { sign: string; signColor: string; color?: string }> = {
+  alley_wrench_r2: { sign: 'KUYUMCU ALTINSARAY', signColor: '#ffc53d', color: '#3b2a1e' },
+  alley_wrench_l3: { sign: 'ATLAS OFİS PLAZA', signColor: '#4f8cff', color: '#5c6b7a' },
+  alley_auction_r2: { sign: 'MEGA MARKET 7/24', signColor: '#2ec4b6' },
+  alley_chroma_r1: { sign: 'EMLAK DÜNYASI', signColor: '#ff7a1a' },
+};
+
 /** The apartment rows that make the alleys (colliders; drawn like the other buildings). */
 export const ALLEY_BUILDINGS: Building[] = [
   ...row(WRENCH, -1, 101, [[59, 77, 13], [77, 93, 10], [93, 108, 15], [108, 125, 11], [125, 141, 14]], 'north', 0),
@@ -176,4 +185,4 @@ export const ALLEY_BUILDINGS: Building[] = [
   ...row(CHROMA, -1, -84, [[59, 78, 12]], 'north', 4),
   ...row(CHROMA, -1, -84, [[78, 97, 9]], 'south', 7).map((b) => ({ ...b, id: 'alley_chroma_l2' })),
   ...row(CHROMA, 1, -59, [[59, 78, 14], [78, 97, 10]], 'east', 6),
-];
+].map((b) => (SHOPS[b.id] ? { ...b, ...SHOPS[b.id] } : b));

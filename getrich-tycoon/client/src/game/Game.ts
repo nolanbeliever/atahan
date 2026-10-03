@@ -55,6 +55,8 @@ import { FarShoreView } from '../render/FarShore';
 import { ShowroomsView } from '../render/Showrooms';
 import { TollsView } from '../render/Tolls';
 import { AlleysView } from '../render/Alleys';
+import { HeistsView } from '../render/Heists';
+import { HEISTS, type HeistId, type HeistView } from '../../../shared/heists';
 import { StraitView } from '../render/Strait';
 import { DealershipsView } from '../render/Dealerships';
 import { HighwayView } from '../render/Highway';
@@ -107,6 +109,10 @@ export class Game {
   readonly showrooms = new ShowroomsView();
   readonly tolls = new TollsView();
   readonly alleys = new AlleysView();
+  readonly heistsView = new HeistsView();
+  /** Heist targets whose alarm is ringing; my dirty money. */
+  readonly heistAlarms = new Set<HeistId>();
+  dirty = 0;
   /** 0 in the city - 1 on the far shore (sky and fog tint). */
   private zone = 0;
   private zoneAt = performance.now();
@@ -214,7 +220,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.alleys.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.alleys.group, this.heistsView.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.combat = new CombatClient(this);
     this.gunView = new GunView(this.renderer.scene);
@@ -319,6 +325,14 @@ export class Game {
         .rpc('hitman.info', {})
         .then((r) => this.store.setContract(r.contract))
         .catch(() => undefined);
+      void this.net
+        .rpc('heist.status', {})
+        .then((r) => {
+          for (const id of [...this.heistAlarms]) this.setHeistAlarm(id, false);
+          for (const id of r.alarms) this.setHeistAlarm(id, true);
+          this.onHeist(r.heist);
+        })
+        .catch(() => undefined);
       // A test drive never survives a reconnect (the car went back when the connection dropped).
       this.store.setTestDrive(null);
     });
@@ -327,6 +341,31 @@ export class Game {
       this.entities.contractMark = c?.markId ?? null;
     });
     net.on('hitman.update', (c) => this.store.setContract(c));
+    // Heists: my job, the alarms, the loot, the dirty money.
+    net.on('heist.update', (v) => this.onHeist(v));
+    net.on('heist.alarm', (a) => {
+      this.setHeistAlarm(a.id, a.on);
+    });
+    net.on('heist.done', (d) => {
+      this.ui?.wanted.heistDone(d.title, d.loot);
+      this.audio.play('reward');
+    });
+    net.on('heist.cashed', (d) => {
+      // After the ESCAPED banner that comes with it.
+      window.setTimeout(() => {
+        this.ui?.wanted.heistCashed(d.amount, d.xp);
+        confetti(window.innerWidth / 2, window.innerHeight * 0.4, 120);
+        this.audio.play('levelup');
+      }, 3200);
+    });
+    net.on('heist.lost', (d) => {
+      this.ui?.wanted.heistLost(d.reason === 'busted' ? 'GANİMETE EL KONULDU' : d.reason === 'wasted' ? 'ÇANTA GİTTİ' : 'SOYGUN YATTI', d.text);
+      this.audio.play('error');
+    });
+    net.on('crime.update', (c) => {
+      this.dirty = c.dirty;
+      this.ui?.setDirty(c.dirty);
+    });
     this.store.on('testDrive', (v) => this.ui?.testDrive.set(v));
     net.on('testdrive.update', (v) => this.store.setTestDrive(v));
     net.on('testdrive.end', (d) => this.onTestDriveEnd(d.reason, d.modelId, d.fee));
@@ -950,6 +989,7 @@ export class Game {
     this.farShore.update(dt);
     this.showrooms.update(dt, rx, rz);
     this.tolls.update(dt);
+    this.heistsView.update(dt);
     // Car theft: street cars and alarms, the work on lifted cars, the lifts' arms.
     this.theft.update(dt, { x: rx, z: rz });
     const lifts = [0, 0];
@@ -961,6 +1001,10 @@ export class Game {
     const watched = myCar?.status === 'stolen' ? cameraSeeing(rx, rz, this.store.serverNow())?.id ?? null : null;
     this.cctv.update(dt, this.store.serverNow(), watched, this.night);
     this.ui?.pursuit.update(dt);
+    if (this.ui?.heist.current) {
+      const me = this.localPosition();
+      this.ui.heist.update(this.store.serverNow(), me.x, me.z);
+    }
     if (this.store.contract) {
       const me = this.localPosition();
       this.ui?.hitman.update(this.store.serverNow(), me.x, me.z);
@@ -1031,6 +1075,7 @@ export class Game {
     this.showrooms.setNight(night);
     this.tolls.setNight(night);
     this.alleys.setNight(night);
+    this.heistsView.setNight(night);
     this.trafficView.setNight(night);
     this.entities.night = night;
   }
@@ -1142,6 +1187,27 @@ export class Game {
     this.featured = { id: best.vehicle.id, view };
   }
 
+  // ------------------------------------------------------------ heists
+
+  private setHeistAlarm(id: HeistId, on: boolean): void {
+    if (on) this.heistAlarms.add(id);
+    else this.heistAlarms.delete(id);
+    this.heistsView.setAlarm(id, on);
+  }
+
+  private onHeist(v: HeistView | null): void {
+    this.ui?.heist.set(v);
+    this.heistsView.showDrop(v?.phase === 'drive');
+  }
+
+  /** E at a heist target's door. */
+  private startHeist(id: HeistId): void {
+    void this.net
+      .rpc('heist.start', { heistId: id })
+      .then((v) => this.onHeist(v))
+      .catch((err) => this.ui.error(err));
+  }
+
   // ------------------------------------------------------------ interactions
 
   private updateInteraction(x: number, z: number): void {
@@ -1225,6 +1291,14 @@ export class Game {
           consider(d + 2, { id: plot.id, label: `${dealer.name}`, sub: `Owned by ${dealer.ownerName}`, action: () => this.ui.open('market', { tab: 'players' }) });
         }
       }
+      // Heist targets' doors: E starts the job (and shows how it is going).
+      const job = this.ui?.heist.current;
+      for (const hs of HEISTS) {
+        const d = Math.hypot(hs.stand.x - x, hs.stand.z - z);
+        if (d > 2.4 || (job && (job.id !== hs.id || job.phase !== 'work'))) continue;
+        if (job) consider(d, { id: `heist-${hs.id}`, label: `${hs.title} sürüyor · %${Math.round(job.progress * 100)}`, sub: hs.task, action: () => undefined });
+        else consider(d, { id: `heist-${hs.id}`, label: `Soygunu Başlat: ${hs.name}`, sub: `${formatMoney(hs.loot[0])}-${formatMoney(hs.loot[1])} · ${hs.workSec} sn · polis ${'★'.repeat(hs.stars)}`, action: () => this.startHeist(hs.id) });
+      }
       // Lockpicking a parked car.
       const street = this.theft.nearestCar(x, z);
       if (street) consider(street.d, this.lockpickInteraction(street.car));
@@ -1272,7 +1346,8 @@ export class Game {
           const l = e.listing;
           consider(d, { id: v.id, label: `Inspect ${modelDisplayName(v.modelId)}`, sub: `Asking ${formatMoney(l.askingPrice)} - seller: ${l.sellerName}`, action: () => this.ui.open('inspect', { listingId: l.id }) });
         } else if (ownParked) {
-          const it: Interaction = { id: v.id, label: `Drive ${modelDisplayName(v.modelId)}`, sub: stolen ? 'Stolen - take it to the Sanayi (🔧 on the map)' : `Fuel ${Math.round(v.fuel)}%`, action: () => void this.enterVehicle(v.id), vehicle: true };
+          const heistCar = this.ui?.heist.current?.carId === v.id;
+          const it: Interaction = { id: v.id, label: `Drive ${modelDisplayName(v.modelId)}`, sub: heistCar ? 'Galeri soygunu: limana teslim et (🏁 haritada)' : stolen ? 'Stolen - take it to the Sanayi (🔧 on the map)' : `Fuel ${Math.round(v.fuel)}%`, action: () => void this.enterVehicle(v.id), vehicle: true };
           consider(d, it);
           if (d < vehicleD) {
             vehicleD = d;

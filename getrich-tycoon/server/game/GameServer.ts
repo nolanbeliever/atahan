@@ -45,6 +45,8 @@ import { HitmanService } from './services/hitman';
 import { RadarService } from './services/radar';
 import { ShowroomService } from './services/showrooms';
 import { TollService } from './services/tolls';
+import { CrimeService } from './services/crime';
+import { HeistService } from './services/heists';
 import { CombatService } from './services/combat';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
@@ -104,6 +106,8 @@ export class GameServer implements Hub {
   readonly radar: RadarService;
   readonly showrooms: ShowroomService;
   readonly tolls: TollService;
+  readonly crime: CrimeService;
+  readonly heists: HeistService;
   readonly police: PoliceService;
   readonly theft: TheftService;
   private tickCount = 0;
@@ -153,6 +157,8 @@ export class GameServer implements Hub {
     this.radar = new RadarService(this.ctx);
     this.showrooms = new ShowroomService(this.ctx, this.vehicles, this.police);
     this.tolls = new TollService(this.ctx, this.police);
+    this.crime = new CrimeService(this.ctx);
+    this.heists = new HeistService(this.ctx, this.police, this.combat, this.crime, this.theft);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -213,6 +219,10 @@ export class GameServer implements Hub {
       'hitman.take': (pid) => this.hitman.take(pid),
       'hitman.info': (pid) => ({ contract: this.hitman.current(pid) }),
       'hitman.drop': (pid) => (this.hitman.drop(pid), { ok: true as const }),
+      'heist.start': (pid, p) => this.heists.start(pid, p),
+      'heist.abort': (pid) => this.heists.abort(pid),
+      'heist.status': (pid) => this.heists.status(pid),
+      'crime.info': (pid) => this.crime.view(pid),
       'helmet.buy': (pid, p) => this.moto.buy(pid, p),
       'helmet.wear': (pid, p) => this.moto.wear(pid, p),
       'showroom.info': (pid, p) => this.showrooms.info(pid, p),
@@ -414,6 +424,7 @@ export class GameServer implements Hub {
     this.broadcast('player.upsert', this.publicPlayer(playerId));
     await this.missions.load(playerId);
     await this.rewards.load(playerId);
+    await this.crime.load(playerId);
     this.combat.welcome(playerId);
     for (const m of this.chat.history) socket.emit('chat', m);
     log.info('player connected', { playerId, name: record.name, online: this.sessions.size });
@@ -439,6 +450,8 @@ export class GameServer implements Hub {
     this.streetRace.forget(playerId);
     this.combat.forget(playerId);
     this.tolls.forget(playerId);
+    this.heists.forget(playerId);
+    this.crime.forget(playerId);
     // A test-drive car goes back before the usual drive flush below.
     await this.showrooms.forget(playerId);
     await this.missions.forget(playerId);
@@ -668,6 +681,7 @@ export class GameServer implements Hub {
     this.hitman.tick(now);
     this.radar.tick();
     this.tolls.tick(now);
+    this.heists.tick(dt, now);
     this.missions.tickFast(dt);
   }
 

@@ -145,3 +145,10 @@ CREATE TABLE IF NOT EXISTS player_rewards (
   data TEXT NOT NULL,
   updated_at BIGINT NOT NULL
 );
+
+-- The underworld side of a player: dirty money and the heist record (JSON document, see shared/underworld.ts).
+CREATE TABLE IF NOT EXISTS player_crime (
+  player_id TEXT PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,
+  updated_at BIGINT NOT NULL
+);

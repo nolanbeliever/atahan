@@ -230,6 +230,7 @@ export class UnitOfWork {
   readonly worldValues = new Map<string, string>();
   /** Reward state documents written in the same transaction (player id -> state). */
   readonly rewardWrites = new Map<string, unknown>();
+  readonly crimeWrites = new Map<string, unknown>();
   newTrends: CategoryTrends | null = null;
   private committed = false;
   readonly now = Date.now();
@@ -314,6 +315,11 @@ export class UnitOfWork {
   /** Save a player's reward state with this transaction (a claim and its payout are one write). */
   setRewardState(playerId: string, state: unknown): void {
     this.rewardWrites.set(playerId, structuredClone(state));
+  }
+
+  /** Save a player's underworld state (dirty money) with this transaction. */
+  setCrimeState(playerId: string, state: unknown): void {
+    this.crimeWrites.set(playerId, structuredClone(state));
   }
 
   setTrends(t: CategoryTrends): void {
@@ -438,6 +444,7 @@ export class UnitOfWork {
       for (const n of this.notices) await repo.insertNotice(q, n);
       for (const [k, v] of this.worldValues) await repo.setWorldValue(q, k, v);
       for (const [pid, data] of this.rewardWrites) await repo.saveRewards(q, pid, data, now);
+      for (const [pid, data] of this.crimeWrites) await repo.saveCrime(q, pid, data, now);
     });
     const result = this.state.apply(this);
     this.state.onCommit(result);

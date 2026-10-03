@@ -19,7 +19,7 @@ import type { ServerConfig } from '../../server/config';
 
 export const TEST_DB_URL = process.env.TEST_DATABASE_URL ?? '';
 
-const TABLES = ['player_rewards', 'player_missions', 'notices', 'transactions', 'auctions', 'market_listings', 'dealerships', 'vehicles', 'sessions', 'players', 'world_state', 'schema_info'];
+const TABLES = ['player_crime', 'player_rewards', 'player_missions', 'notices', 'transactions', 'auctions', 'market_listings', 'dealerships', 'vehicles', 'sessions', 'players', 'world_state', 'schema_info'];
 
 export async function resetPostgres(url = TEST_DB_URL): Promise<void> {
   if (!url) return;

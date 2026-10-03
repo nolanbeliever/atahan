@@ -3,6 +3,7 @@
 // is lined up in), the glowing work spots round a car on the lift and the stripping job itself
 // (the server times it: start, wait, finish).
 
+import { findHeist } from '../../../shared/heists';
 import * as THREE from 'three';
 import type { ObstacleVehicle } from '../../../shared/collision';
 import { ECONOMY } from '../../../shared/economy.config';
@@ -271,6 +272,11 @@ export class TheftClient {
     for (const [id, a] of this.alarms) {
       if (a.until <= now) this.alarms.delete(id);
       else nearestAlarm = Math.min(nearestAlarm, Math.hypot(a.x - me.x, a.z - me.z));
+    }
+    // Heist targets' alarm bells too.
+    for (const id of this.game.heistAlarms) {
+      const h = findHeist(id);
+      if (h) nearestAlarm = Math.min(nearestAlarm, Math.hypot(h.door.x - me.x, h.door.z - me.z) * 0.6);
     }
     this.game.audio.alarm(nearestAlarm);
     for (const s of this.cars.values()) {

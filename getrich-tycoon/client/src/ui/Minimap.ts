@@ -4,6 +4,7 @@ import { CCTV_CAMERAS, cameraYaw } from '../../../shared/cctv';
 import { CARRIAGEWAY_EDGE, DRAG_STRIP, JUNCTIONS, JUNCTION_APRON, LOOP_LEN, pathPoint } from '../../../shared/highway';
 import { SANAYI } from '../../../shared/sanayiLayout';
 import { ALLEYS, alleyMouths } from '../../../shared/alleys';
+import { HEISTS } from '../../../shared/heists';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
 import { BOULEVARD, CONTAINER_STACKS, DOCKS, DOCKS_GATE, DOCKS_ROAD, HILL, TOUGE_HALF, TOUGE_PATH } from '../../../shared/farShore';
 import { BRIDGES, BRIDGE_HALF, FAR_ROADS, WATER, WORLD_BOX } from '../../../shared/strait';
@@ -269,6 +270,14 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
     g.restore();
     badge(g, tx(job.x), tz(job.z), Math.max(8, 3.6 * s), '#ff4655', '🎯', turn);
   }
+  // Heist targets: a money bag (red, flashing, while the alarm rings); the docks for the showroom job.
+  const ring = Math.floor(performance.now() / 300) % 2 === 0;
+  for (const hs of HEISTS) {
+    const alarm = game.heistAlarms.has(hs.id);
+    badge(g, tx(hs.door.x), tz(hs.door.z), Math.max(6, 2.8 * s), alarm && ring ? '#ff3b47' : '#b8901e', '💰', turn);
+  }
+  const hv = game.ui?.heist.current;
+  if (hv?.drop) badge(g, tx(hv.drop.x), tz(hv.drop.z), Math.max(9, 4 * s), '#ffc53d', '🏁', turn);
   // Parked cars that can be broken into (flashing red while the alarm sounds).
   const blink = Math.floor(performance.now() / 250) % 2 === 0;
   for (const c of game.store.street.values()) {

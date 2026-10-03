@@ -4,6 +4,7 @@
 // Coordinates: metres. +x = east, +z = south, y = up. A yaw of 0 faces +z.
 
 import { ALLEY_BUILDINGS, BOLLARDS, DUMPSTER_CIRCLES } from './alleys';
+import { CASINO_BUILDING, SECURITY_BOLLARDS } from './heists';
 import { FAR_BOXES, FAR_CIRCLES, HILL_TREES } from './farShore';
 import { AMMU_NATION, HOSPITAL, MOTO_GEAR } from './compounds';
 import { HITMAN_ALLEY } from './hitman';
@@ -130,6 +131,8 @@ export const BUILDINGS: Building[] = [
   { id: 'hitman_wall', box: HITMAN_ALLEY.wall, height: 4.5, color: '#5b3a32', kind: 'wall', facing: 'north' },
   // The old apartment rows either side of the back alleys (shared/alleys.ts).
   ...ALLEY_BUILDINGS,
+  // The casino on the far shore (a heist target, shared/heists.ts).
+  CASINO_BUILDING,
 ];
 
 /** Decorative/structural circular obstacles. */
@@ -151,6 +154,8 @@ export const STATIC_CIRCLES: Circle[] = [
   // The bollards across the ends of the back alleys (bikes and ATVs only), and their dumpsters.
   ...BOLLARDS,
   ...DUMPSTER_CIRCLES,
+  // The security bollards round the bank's, the casino's and the hypercar showroom's back doors.
+  ...SECURITY_BOLLARDS,
 ];
 
 export const INTERACTABLES: Interactable[] = [

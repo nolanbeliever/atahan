@@ -321,6 +321,11 @@ export class TheftService {
     return { ok: true };
   }
 
+  /** A stolen car that came some other way (a heist): count it as just used, so it isn't cleared away as abandoned. */
+  touch(vehicleId: string): void {
+    this.lastUsed.set(vehicleId, Date.now());
+  }
+
   /** The lock is open: the street car becomes the player's stolen car, and they get in. */
   private async steal(playerId: string, car: StreetEntry): Promise<string> {
     const now = Date.now();
