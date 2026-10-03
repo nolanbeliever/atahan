@@ -25,6 +25,8 @@ interface Unit {
   lastSeen: number;
   flags: number;
   sirens: { red: THREE.MeshStandardMaterial[]; blue: THREE.MeshStandardMaterial[] } | null;
+  /** The light bar's colours: red / blue (pursuit) or amber (searching). */
+  amber: boolean;
   x: number;
   z: number;
   rot: number;
@@ -46,6 +48,7 @@ function sirenMaterials(view: VehicleView): { red: THREE.MeshStandardMaterial[];
     const list = mat.name === 'siren_red' ? out.red : mat.name === 'siren_blue' ? out.blue : null;
     if (!list || !mat.emissive) return;
     const own = mat.clone();
+    own.userData.base = { emissive: own.emissive.getHex(), color: own.color.getHex() };
     m.material = own;
     list.push(own);
   });
@@ -55,6 +58,9 @@ function sirenMaterials(view: VehicleView): { red: THREE.MeshStandardMaterial[];
 function angleWrap(a: number): number {
   return Math.atan2(Math.sin(a), Math.cos(a));
 }
+
+/** Searching police cars' lights. */
+const AMBER = '#ffb300';
 
 /** Id of the police car a cutscene drives itself. */
 const STAGED = -1;
@@ -133,7 +139,7 @@ export class PoliceClient {
         const driver = new CharacterView(POLICE_OFFICER);
         driver.pose = 'sit';
         view.driverMount.add(driver.root);
-        const unit: Unit = { id, buffer: new InterpBuffer(), view, driver, red: glow('#ff2a2a'), blue: glow('#2a5bff'), lastSeen: now, flags, x, z, rot, speed: 0, sirens: null, deck: 0 };
+        const unit: Unit = { id, buffer: new InterpBuffer(), view, driver, red: glow('#ff2a2a'), blue: glow('#2a5bff'), lastSeen: now, flags, x, z, rot, speed: 0, sirens: null, amber: false, deck: 0 };
         view.root.rotation.order = 'YXZ';
         void view.ready.then(() => (unit.sirens = sirenMaterials(view)));
         u = unit;
@@ -176,9 +182,12 @@ export class PoliceClient {
       u.view.animate(s.a, s.b, dt);
       u.driver.animate(Anim.Idle, dt);
       u.view.setLights({ brake: (u.flags & PF.BRAKE) !== 0, reverse: false, night: Math.max(this.night, 0.3) });
-      // Wig-wag: red and blue alternate with a quick double flash.
-      const siren = (u.flags & PF.SIREN) !== 0;
-      const phase = (this.time * 2.2 + id * 0.37) % 1;
+      // Wig-wag: red and blue alternate with a quick double flash. Searching (they lost you): the
+      // whole bar flashes amber, slower.
+      const search = (u.flags & PF.SEARCH) !== 0;
+      const siren = search || (u.flags & PF.SIREN) !== 0;
+      if (search !== u.amber) this.paintLights(u, search);
+      const phase = (this.time * (search ? 1.1 : 2.2) + id * 0.37) % 1;
       const redOn = siren && (phase < 0.12 || (phase > 0.2 && phase < 0.32));
       const blueOn = siren && ((phase > 0.5 && phase < 0.62) || (phase > 0.7 && phase < 0.82));
       for (const m of u.sirens?.red ?? []) m.emissiveIntensity = redOn ? 4 : 0.15;
@@ -193,6 +202,19 @@ export class PoliceClient {
       u.red.scale.setScalar(2 + this.night * 3);
       u.blue.scale.setScalar(2 + this.night * 3);
     }
+  }
+
+  /** Switch a car's light bar between red / blue and amber. */
+  private paintLights(u: Unit, amber: boolean): void {
+    if (!u.sirens) return;
+    u.amber = amber;
+    for (const m of [...u.sirens.red, ...u.sirens.blue]) {
+      const base = m.userData.base as { emissive: number; color: number };
+      m.emissive.set(amber ? AMBER : base.emissive);
+      m.color.set(amber ? AMBER : base.color);
+    }
+    (u.red.material as THREE.SpriteMaterial).color.set(amber ? AMBER : '#ff2a2a');
+    (u.blue.material as THREE.SpriteMaterial).color.set(amber ? AMBER : '#2a5bff');
   }
 
   /** Spike strips from a snapshot (ones not seen for a while are taken away). */

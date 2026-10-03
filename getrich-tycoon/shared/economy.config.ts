@@ -580,10 +580,19 @@ export const ECONOMY = {
     pursuitStars: 2,
     /** Police cars in pursuit by wanted level (index = stars). */
     unitsByStars: [0, 0, 1, 2, 3, 4],
-    /** Seconds without a police car near you (m) to lose them. */
-    escapeSec: 30,
-    escapeRadius: 90,
-    escapeReward: 1_000,
+    /**
+     * What a police car sees (shared/sight.ts): a cone of `fovDeg` ahead, out to `range` m, and
+     * anything within `nearSense` m whatever the direction; the line to you must be clear of
+     * buildings, walls, piers and the hill. A car has to keep you in sight for `spotSec` before
+     * the hidden countdown starts over; out of sight for `hiddenSec` (uninterrupted, a glimpse
+     * doesn't count) is an escape. Sight is checked `checkHz` times a second. Searching units
+     * comb road points within `searchRadius` m of where you were last seen at up to
+     * `searchKmh`; units keep `spacing` m apart and join a pursuit `spawnGapSec` apart.
+     */
+    sight: { range: 140, fovDeg: 150, nearSense: 10, spotSec: 2, hiddenSec: 45, checkHz: 5, searchRadius: 45, searchKmh: 70, spacing: 10, spawnGapSec: 4, dispatchSec: 6 },
+    /** Escaping pays at least `escapeReward`, or `escapePerCar` for every police car that chased you. */
+    escapeReward: 2_000,
+    escapePerCar: 1_000,
     escapeXp: 60,
     /** At 1 star (no pursuit) the heat simply fades after this long without an offence (s). */
     calmSec: 30,

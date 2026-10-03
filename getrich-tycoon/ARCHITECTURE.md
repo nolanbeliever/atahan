@@ -86,9 +86,11 @@
     `highway.ts`: near-miss detection, combos, batched payouts and traffic yielding, `drag.ts`: drag strip queue, bot matching,
     lights, false starts, timing and the pool, `driving.ts`: the driving bonus every 10 s, `missions.ts`: daily mission
     progress and rewards, `police.ts`: heat and stars, police interceptors (physics cars routed over the city road grid and the
-    highway lanes), escapes and arrests, spike strips thrown ahead of 3-star drivers (`spikePlacement` in
+    highway lanes), line of sight five times a second per car (`policeSees` in shared/sight.ts against the solid colliders
+    minus the see-through fences and toll islands), the last sighting, searching cars (`PF.SEARCH`), the hidden countdown,
+    staggered spawns and spacing, escapes and arrests, spike strips thrown ahead of 3-star drivers (`spikePlacement` in
     shared/policeGear.ts; a car over one gets the `blown` mod: tyres at 0, grip down in `vehicleParams`) and the police
-    helicopter (orbits the last place it saw you, searchlight, holds the escape clock while it sees you, loses you under
+    helicopter (orbits the last place it saw you, searchlight, spots you like a car does, loses you under
     cover: `isCovered`), `theft.ts`: the Black Market stock, street-parked cars (solid for the simulation),
     lockpick sessions with the sweet spot kept on the server, the alarm and police heat, the Sanayi lifts and timed
     stripping, the Pawn Shop and clean-up of abandoned stolen cars).
@@ -162,7 +164,7 @@
   - Weather: `render/Weather.ts` (rain streaks around the camera, wet-road materials); `Renderer#setTime(hour, rain)` runs the
     sky (orange at sunset, grey in the rain), sun / moon, image-based light and fog.
   - HUD: `ui/Gauge.ts` (canvas rev counter, speed, gear, boost, stage, ABS / TCS, driving bonus pop-up), `ui/WantedHud.ts`
-    (stars, escape countdown, arrest meter, BUSTED / ESCAPED / mission banners), `ui/MissionsHud.ts` (the missions drawer).
+    (stars, the blue HIDDEN countdown and the "being seen" meter, arrest meter, BUSTED / ESCAPED / mission banners), `ui/MissionsHud.ts` (the missions drawer).
   - Highway: `render/Highway.ts` sweeps the carriageways, markings, guardrails, median, ramps, bridges, gantries, lights and
     the drag strip from `shared/highway.ts`. `game/Traffic.ts` extrapolates the traffic between updates (errors fade out) and
     feeds its boxes to local prediction; `render/TrafficView.ts` draws it with instancing (each vehicle's GLB baked into two

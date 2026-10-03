@@ -8,6 +8,8 @@ export const PF = {
   /** Lights and siren on. */
   SIREN: 1,
   BRAKE: 2,
+  /** Lost you: searching round where you were last seen (yellow lights). */
+  SEARCH: 4,
 } as const;
 
 export interface WantedState {
@@ -15,8 +17,13 @@ export interface WantedState {
   stars: number;
   /** Police cars after you. */
   units: number;
-  /** Seconds left to lose the police (counting while none is close); null when not counting. */
+  /** Hidden from the police: seconds left on the escape countdown (it only starts over when a
+   *  police car keeps you in sight for 2 s); null while they can see you. */
   escapeLeft: number | null;
+  /** A police car has you in its sight right now: how close it is to spotting you (0-1). */
+  seen?: number;
+  /** The units lost you and are searching round where you were last seen. */
+  search?: boolean;
   /** How close you are to being arrested (0-1). */
   bust: number;
   /** The helicopter: tracking you, or lost you (under cover); null: none. */

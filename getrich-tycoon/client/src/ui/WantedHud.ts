@@ -1,6 +1,8 @@
-// Wanted level HUD: 1-5 stars (flashing red / blue while police are chasing), the escape countdown,
-// the arrest meter, and the full-screen BUSTED / ESCAPED banners.
+// Wanted level HUD: 1-5 stars (flashing red / blue while police are chasing), the blue HIDDEN
+// countdown while no police car can see you (and a warning while one is about to spot you), the
+// arrest meter, and the full-screen BUSTED / ESCAPED banners.
 
+import { ECONOMY } from '../../../shared/economy.config';
 import type { RadarFlash } from '../../../shared/protocol';
 import type { BustedEvent, WantedState } from '../../../shared/police';
 import { formatMoney } from '../../../shared/util';
@@ -14,6 +16,12 @@ export class WantedHud {
   private bustFill: HTMLElement;
   private bust: HTMLElement;
   private heli: HTMLElement;
+  private hidden: HTMLElement;
+  private hiddenText: HTMLElement;
+  private hiddenFill: HTMLElement;
+  private hiddenSub: HTMLElement;
+  private seen: HTMLElement;
+  private seenFill: HTMLElement;
   private state: WantedState = { stars: 0, units: 0, escapeLeft: null, bust: 0 };
   private bannerTimer: number | null = null;
 
@@ -28,7 +36,13 @@ export class WantedHud {
     this.bustFill = h('div');
     this.bust = h('div', { class: 'wanted-bust' }, h('span', null, 'ARREST'), h('div', { class: 'wanted-bust-bar' }, this.bustFill));
     this.heli = h('div', { class: 'wanted-heli', 'data-testid': 'wanted-heli' });
-    this.el = h('div', { class: 'wanted', 'data-testid': 'wanted' }, row, this.status, this.heli, this.bust);
+    this.hiddenText = h('div', { class: 'wh-title', 'data-testid': 'wanted-hidden' });
+    this.hiddenFill = h('div');
+    this.hiddenSub = h('div', { class: 'wh-sub' });
+    this.hidden = h('div', { class: 'wanted-hidden' }, this.hiddenText, h('div', { class: 'wh-bar' }, this.hiddenFill), this.hiddenSub);
+    this.seenFill = h('div');
+    this.seen = h('div', { class: 'wanted-seen', 'data-testid': 'wanted-seen' }, h('span', null, '👁 GÖRÜLÜYORSUN'), h('div', { class: 'wanted-bust-bar' }, this.seenFill));
+    this.el = h('div', { class: 'wanted', 'data-testid': 'wanted' }, row, this.status, this.hidden, this.seen, this.heli, this.bust);
     this.banner = h('div', { class: 'big-banner', 'data-testid': 'police-banner' });
   }
 
@@ -41,10 +55,23 @@ export class WantedHud {
     this.el.classList.toggle('show', s.stars > 0 || s.bust > 0);
     this.el.classList.toggle('pursuit', s.units > 0);
     this.stars.forEach((el, i) => el.classList.toggle('on', i < s.stars));
-    if (s.units > 0 && s.escapeLeft !== null) this.status.textContent = `LOSE THEM · ${Math.ceil(s.escapeLeft)}s`;
+    const hiding = s.escapeLeft !== null && s.stars >= ECONOMY.police.pursuitStars;
+    if (hiding) this.status.textContent = s.search ? 'POLİS SENİ ARIYOR · SEARCHING' : 'GÖZDEN KAYBOLDUN';
     else if (s.units > 0) this.status.textContent = `POLICE PURSUIT · ${s.units} unit${s.units === 1 ? '' : 's'}`;
     else if (s.stars > 0) this.status.textContent = s.stars >= 2 ? 'POLICE ON THE WAY' : 'WANTED · drive carefully';
     else this.status.textContent = '';
+    // Out of sight: the blue countdown to the escape (it only starts over if a police car keeps
+    // you in sight for 2 s).
+    this.hidden.classList.toggle('show', hiding);
+    if (hiding) {
+      const left = Math.max(0, Math.ceil(s.escapeLeft!));
+      this.hiddenText.textContent = `HIDDEN / GİZLENDİN - İZİNİ KAYBETTİRİYORSUN (${mmss(left)})`;
+      this.hiddenFill.style.width = `${Math.round((left / ECONOMY.police.sight.hiddenSec) * 100)}%`;
+      this.hiddenSub.textContent = s.search ? 'Ekipler son görüldüğün yeri arıyor (sarı tepe lambaları). Görüş alanlarına girme!' : 'Duvarların, binaların arkasında kal: 2 sn görülürsen sayaç baştan başlar.';
+    }
+    const seen = s.seen ?? 0;
+    this.seen.classList.toggle('show', seen > 0 && seen < 1);
+    this.seenFill.style.width = `${Math.round(Math.min(1, seen) * 100)}%`;
     this.heli.textContent = s.heli === 'seen' ? '🚁 HELİKOPTER SENİ İZLİYOR' : s.heli === 'lost' ? '🚁 Helikopter seni kaybetti' : '';
     this.heli.classList.toggle('seen', s.heli === 'seen');
     this.heli.style.display = s.heli ? '' : 'none';
@@ -67,8 +94,8 @@ export class WantedHud {
 
   escaped(reward: number, xp: number, cars = 1): void {
     this.set({ stars: 0, units: 0, escapeLeft: null, bust: 0 });
-    const sub = `${cars} polis aracından kaçtın · ${formatMoney(reward / Math.max(1, cars))} / araç`;
-    this.show('escaped', [h('div', { class: 'bb-title' }, 'ESCAPED! · KAÇTIN!'), h('div', { class: 'bb-text' }, `+${formatMoney(reward)} & ${xp} XP`), h('div', { class: 'bb-sub' }, sub)], 3600);
+    const sub = `${cars} polis aracını atlattın · aranma seviyen tamamen silindi · +${xp} XP`;
+    this.show('escaped', [h('div', { class: 'bb-kicker' }, 'KAÇTIN! · İZİ KAYBETTİRDİN'), h('div', { class: 'bb-title', 'data-testid': 'escaped-banner' }, `ESCAPED! +${formatMoney(reward)}`), h('div', { class: 'bb-sub' }, sub)], 3800);
   }
 
   /** A mission completed: a short banner. */
@@ -111,4 +138,10 @@ export class WantedHud {
     if (this.bannerTimer) clearTimeout(this.bannerTimer);
     this.bannerTimer = window.setTimeout(() => this.banner.classList.remove('show'), ms);
   }
+}
+
+/** 45 -> "00:45". */
+function mmss(sec: number): string {
+  const m = Math.floor(sec / 60);
+  return `${String(m).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
 }

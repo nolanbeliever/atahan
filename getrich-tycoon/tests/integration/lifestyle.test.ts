@@ -5,7 +5,7 @@ import { KMH_PER_MS } from '../../shared/drivetrain';
 import { ECONOMY } from '../../shared/economy.config';
 import { ECU_COUPON, type MissionView } from '../../shared/missions';
 import { KEY } from '../../shared/physics';
-import type { BustedEvent, WantedState } from '../../shared/police';
+import { PF, type BustedEvent, type WantedState } from '../../shared/police';
 import { isCategoryUnlocked } from '../../shared/progression';
 import { discountedPrice, garageSlots, marketDiscount, spawnSlots } from '../../shared/reputation';
 import { marketValue, quickSellPrice } from '../../shared/valuation';
@@ -210,33 +210,87 @@ describe('missions', () => {
 });
 
 describe('police', () => {
-  it('wanted stars bring pursuit cars; losing them for 30 s is an escape', async () => {
+  it('wanted stars bring pursuit cars; 45 s out of their sight is an escape', async () => {
     const { client } = await connectNew(server);
     await setMoney(server, client.playerId, 50_000);
     const vehicleId = await driveNewCar(client);
     server.game.sim.placeDrive(vehicleId, 50, -120, 0);
     server.game.police.addHeat(client.playerId, 250);
-    const wanted = await client.waitFor<WantedState>('police.wanted', (w) => w.stars === 3 && w.units === 2, 5000);
+    // The cars join one after the other, a few seconds apart (not in a bunch).
+    const wanted = await client.waitFor<WantedState>('police.wanted', (w) => w.stars === 3 && w.units === 2, 9000);
     expect(wanted.stars).toBe(3);
     await client.waitSnapshot((s) => (s.po?.length ?? 0) === 2, 5000);
-    // 3 stars bring the helicopter too; it holds the escape clock while it sees you.
+    // 3 stars bring the helicopter too; it spots you from above.
     await client.waitFor<WantedState>('police.wanted', (x) => x.heli === 'seen', 5000);
-    // Lose them: the police cars and the helicopter end up far away and the player keeps clear for the escape time.
-    const w = server.game.police.wantedOf(client.playerId)!;
+    // Lose them: the police cars and the helicopter end up far away, the report is old news, and
+    // the hidden countdown is nearly over.
+    const w = server.game.police.wantedOf(client.playerId)! as unknown as { units: { dyn: { x: number; z: number; speed: number } }[]; hiddenT: number; dispatchUntil: number };
     for (const u of w.units) Object.assign(u.dyn, { x: -150, z: 150, speed: 0 });
     Object.assign(server.game.police.heliOf(client.playerId)!, { x: -150, z: 150, lostT: ECONOMY.police.heli.lostSec + 1 });
-    (w as { escapeT: number }).escapeT = ECONOMY.police.escapeSec - 0.3;
+    w.dispatchUntil = 0;
+    w.hiddenT = ECONOMY.police.sight.hiddenSec - 0.3;
     const money0 = cash(client);
-    // $1,000 for each of the two police cars.
+    // ESCAPED: $2,000 for the two police cars, and the wanted level is gone.
     const esc = await client.waitFor<{ reward: number; cars: number }>('police.escaped', () => true, 5000);
     expect(esc.cars).toBe(2);
-    expect(esc.reward).toBe(2 * ECONOMY.police.escapeReward);
+    expect(esc.reward).toBe(2_000);
+    expect(esc.reward).toBe(Math.max(ECONOMY.police.escapeReward, 2 * ECONOMY.police.escapePerCar));
     await sleep(300);
     // (An escape mission in today's set pays on top.)
-    expect(cash(client)).toBeGreaterThanOrEqual(money0 + 2 * ECONOMY.police.escapeReward);
+    expect(cash(client)).toBeGreaterThanOrEqual(money0 + 2_000);
     expect(server.game.police.wantedOf(client.playerId)).toBeUndefined();
+    expect(server.game.police.starsOf(client.playerId)).toBe(0);
     client.close();
   }, 30_000);
+
+  it('behind a building the hidden countdown runs; a glimpse does not reset it, 2 s in sight does; lost units search', async () => {
+    const { client } = await connectNew(server);
+    await setMoney(server, client.playerId, 50_000);
+    const vehicleId = await driveNewCar(client);
+    // West of the bank, facing north; the police car on the far (east) side of the bank.
+    server.game.sim.placeDrive(vehicleId, -131, -24, 0);
+    server.game.police.addHeat(client.playerId, 150);
+    await client.waitFor<WantedState>('police.wanted', (x) => x.stars === 2 && x.units === 1, 9000);
+    type U = { dyn: { x: number; z: number; rot: number; speed: number }; parked: boolean; searching: boolean };
+    const w = server.game.police.wantedOf(client.playerId)! as unknown as { units: U[]; hiddenT: number; dispatchUntil: number; knows: boolean };
+    const u = w.units[0]!;
+    const hide = () => Object.assign(u.dyn, { x: -68, z: -24, rot: -Math.PI / 2, speed: 0 });
+    const show = () => Object.assign(u.dyn, { x: -131, z: -52, rot: 0, speed: 0 });
+    u.parked = true;
+    hide();
+    w.dispatchUntil = 0;
+    w.hiddenT = 0;
+    client.events.length = 0;
+    // Out of sight: HIDDEN, counting down from 45 s.
+    const hidden = await client.waitFor<WantedState>('police.wanted', (x) => x.escapeLeft !== null, 5000);
+    expect(hidden.escapeLeft!).toBeGreaterThan(ECONOMY.police.sight.hiddenSec - 3);
+    expect(w.knows).toBe(false);
+    await sleep(800);
+    const before = w.hiddenT;
+    expect(before).toBeGreaterThan(0.5);
+    // A glimpse (under 2 s): the countdown goes on.
+    client.events.length = 0;
+    show();
+    await client.waitFor<WantedState>('police.wanted', (x) => (x.seen ?? 0) > 0, 3000);
+    expect(w.knows).toBe(true);
+    await sleep(600);
+    hide();
+    await sleep(300);
+    expect(w.hiddenT).toBeGreaterThan(before + 0.6);
+    // Kept in sight for 2 s: spotted, the countdown is gone.
+    client.events.length = 0;
+    show();
+    await client.waitFor<WantedState>('police.wanted', (x) => x.escapeLeft === null, 5000);
+    expect(w.hiddenT).toBe(0);
+    // Hidden again with the car free to drive: it searches round the last sighting (yellow lights).
+    client.events.length = 0;
+    hide();
+    u.parked = false;
+    await client.waitSnapshot((s) => (s.po ?? []).some((p) => (p[6] & PF.SEARCH) !== 0), 5000);
+    const st = await client.waitFor<WantedState>('police.wanted', (x) => x.search === true && x.escapeLeft !== null, 5000);
+    expect(st.escapeLeft!).toBeGreaterThan(ECONOMY.police.sight.hiddenSec - 5);
+    client.close();
+  }, 40_000);
 
   it('a police car beside a stopped car for 3 s is an arrest: fine, impound, respawn at a garage', async () => {
     const { client } = await connectNew(server);

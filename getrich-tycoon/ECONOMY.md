@@ -165,16 +165,25 @@ behind you (not 125 m) and only give up and come back from behind after falling 
   raises it to at least 150 (2 stars: the shot is heard and the nearest patrol comes, witnesses or not,
   `ECONOMY.combat.heatGunshot`); it cools after 30 s without offences. Stars = heat / 100 rounded up (1-5).
 - **Shared wanted level:** heat from anyone in a car (driver or passenger) goes to everyone in that car.
-- From 2 stars police cars chase you (1-4 units by stars). Keep every unit 90 m away for 30 s: **escape**, **$1,000 for each
-  police car that took part in the chase** (`police_escape`) and 60 XP.
+- From 2 stars police cars chase you (1-4 units by stars, joining one at a time 4 s apart, each aiming at a different point
+  ahead of you and keeping 10 m from the car in front). **Line of sight** (`ECONOMY.police.sight`, `shared/sight.ts`): a car
+  sees you inside a 150° cone ahead of it out to 140 m (or within 10 m in any direction), and only when the straight line
+  to you is clear of buildings, walls, ramp embankments, piers (columns 0.9 m or thicker) and the hill; a car on a bridge
+  deck and one below never see each other. The police know where you are while any car (or the helicopter) sees you, and
+  for 6 s after a reported offence; otherwise the cars drive to where you were last seen and **search** road points within
+  45 m of it at up to 70 km/h (amber light bars, no siren). Out of sight the **HIDDEN / GİZLENDİN** countdown runs from
+  45 s; a glimpse doesn't stop it, only a car (or the helicopter) keeping you in sight for 2 s starts it over. At zero:
+  **ESCAPED!**, the wanted level is wiped and you get **$2,000, or $1,000 for each police car that took part in the chase
+  when that is more** (`police_escape`), and 60 XP. While searching, a car that falls far behind is not brought back
+  behind you (only a car stuck for 9 s is replaced, near your last sighting).
 - Stopped (under 15 km/h) with a police car within 2.5 m for 3 s: **arrest**. Fine: always **$3,000** (`ECONOMY.police.fine`),
   from the cash first, then the bank (never below zero) (`police_fine`); "POLİSE YAKALANDIN! - $3,000 Ceza Ödendi"; the car is
   towed to the garage (no fee); you respawn at the nearest garage. Values are in `ECONOMY.police`.
 - **Spike strips** (`ECONOMY.police.spikes`): from 3 stars, every 22 s, 110 m ahead of a wanted driver on the highway or a
   city street; a strip lasts 40 s. Bursting the tyres sets the `blown` mod and the tyres part to 0: side grip x0.1 (-90%),
   drive/brake traction x0.6. Replacing the tyres at Wrench Bros (the normal tyres repair) clears it.
-- **Helicopter** (`ECONOMY.police.heli`): from 3 stars, 300 HP, flies at 38 m, sees 220 m. While it sees you the escape
-  timer is held. Under cover (overpass or bridge deck, car-wash tunnel, Sanayi hall) for 8 s and it loses you. Shot down: no
+- **Helicopter** (`ECONOMY.police.heli`): from 3 stars, 300 HP, flies at 38 m, sees 220 m (from above: walls don't hide
+  you). Seeing you for 2 s starts the hidden countdown over. Under cover (overpass or bridge deck, car-wash tunnel, Sanayi hall) for 8 s and it loses you. Shot down: no
   reward, but no helicopter for 60 s; shooting at it is police heat.
 
 ## Tolls, plate cameras and checkpoints
