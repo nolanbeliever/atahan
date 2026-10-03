@@ -695,6 +695,21 @@ export const ECONOMY = {
     minSpotDist: 80,
   },
 
+  /**
+   * The part-time mechanic at the Sanayi (shared/mechanic.ts): `pay` clean money for every car put
+   * right, paid at once. The next car comes `nextCarSec` after the last one left; each job takes
+   * `taskSec` seconds at its spot (within `workRadius` m of it); walk further than `shiftRadius`
+   * m from the hall and the shift is over.
+   */
+  mechanic: {
+    pay: 1_000,
+    xp: 30,
+    nextCarSec: [6, 12] as [number, number],
+    taskSec: { engine: 6, body: 5, tyres: 4 },
+    workRadius: 1.8,
+    shiftRadius: 70,
+  },
+
   /** Money laundering (shared/realestate.ts): every business you own turns up to `perCycle` of
    *  the dirty money paid into it clean every `cycleSec`. */
   laundering: { perCycle: 100_000, cycleSec: 600 },

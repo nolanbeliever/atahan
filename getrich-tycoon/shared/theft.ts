@@ -228,6 +228,9 @@ export interface LiftBay {
 export const LIFT_BAYS: LiftBay[] = [
   { x: 82, z: 186, yaw: 0 },
   { x: 106, z: 186, yaw: 0 },
+  // The repair lifts at either end of the hall (the part-time mechanic's jobs; strip work too).
+  { x: 70, z: 186, yaw: 0 },
+  { x: 118, z: 186, yaw: 0 },
 ];
 
 /** How high the lift takes a car (m). */

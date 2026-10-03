@@ -26,7 +26,7 @@ import type { BustedEvent, WantedState } from '../../../shared/police';
 import type { DragRaceView } from '../../../shared/drag';
 import { DRAG_STRIP, gameHour } from '../../../shared/highway';
 import type { PrivateState } from '../../../shared/protocol';
-import { SANAYI, isLifted, partLabelTr, type StreetCar } from '../../../shared/theft';
+import { LIFT_BAYS, SANAYI, isLifted, partLabelTr, type StreetCar } from '../../../shared/theft';
 import { AIR_LEVELS, hasAirRide } from '../../../shared/modificationsData';
 import { NITRO_ITEM } from '../../../shared/rewards';
 import { cameraSeeing } from '../../../shared/cctv';
@@ -57,6 +57,8 @@ import { TollsView } from '../render/Tolls';
 import { AlleysView } from '../render/Alleys';
 import { HeistsView } from '../render/Heists';
 import { DealCarsView } from '../render/DealCars';
+import { RepairCarsView } from '../render/RepairCars';
+import { JOB_BOARD, MECH, TASK_LABEL, taskPoint, type MechanicView, type RepairTask } from '../../../shared/mechanic';
 import { DealCutscene } from './DealScene';
 import { DEALS, findDrop, type TgState } from '../../../shared/telegram';
 import { HEISTS, type HeistId, type HeistView } from '../../../shared/heists';
@@ -115,6 +117,9 @@ export class Game {
   readonly heistsView = new HeistsView();
   /** Telegram deal cars, and the cockpit handover going on (null: none). */
   readonly dealCars = new DealCarsView(() => this.store.playerId);
+  readonly repairCars = new RepairCarsView(() => this.store.playerId);
+  /** My shift as the Sanayi's part-time mechanic. */
+  mech: MechanicView | null = null;
   private dealScene: DealCutscene | null = null;
   /** Heist targets whose alarm is ringing; my dirty money. */
   readonly heistAlarms = new Set<HeistId>();
@@ -226,7 +231,7 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.alleys.group, this.heistsView.group, this.dealCars.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.alleys.group, this.heistsView.group, this.dealCars.group, this.repairCars.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.combat = new CombatClient(this);
     this.gunView = new GunView(this.renderer.scene);
@@ -345,6 +350,8 @@ export class Game {
         .catch(() => undefined);
       // A test drive never survives a reconnect (the car went back when the connection dropped).
       this.store.setTestDrive(null);
+      // Nor a mechanic's shift.
+      this.onMech(null);
     });
     this.store.on('contract', (c) => {
       this.ui?.hitman.set(c);
@@ -387,6 +394,13 @@ export class Game {
     net.on('deal.paid', (d) => {
       this.audio.play('coin');
       this.ui?.toast({ kind: 'success', title: `📦 @${d.name} paketi aldı`, text: `+${formatMoney(d.amount)} kara para` });
+    });
+    // The part-time mechanic at the Sanayi.
+    net.on('mech.cars', (list) => this.repairCars.set(list));
+    net.on('mech.update', (v) => this.onMech(v));
+    net.on('mech.paid', (d) => {
+      this.ui?.wanted.mechPaid(d.amount, d.owner, modelDisplayName(d.modelId));
+      this.audio.play('coin');
     });
     net.on('crime.laundered', (d) => {
       this.audio.play('coin');
@@ -879,7 +893,7 @@ export class Game {
 
     const keys = this.input.keys();
     const moving = (keys & (KEY.FORWARD | KEY.BACK | KEY.LEFT | KEY.RIGHT)) !== 0;
-    const busyHands = (this.working || !!this.theft.job) && !this.driving;
+    const busyHands = (this.working || !!this.theft.job || !!this.mech?.working) && !this.driving;
     const anim = moving ? (keys & KEY.SPRINT ? Anim.Run : Anim.Walk) : busyHands ? Anim.Interact : Anim.Idle;
     let flags = 0;
     if (this.dyn && this.driving) {
@@ -1020,10 +1034,12 @@ export class Game {
     this.tolls.update(dt);
     this.heistsView.update(dt);
     this.dealCars.update(dt);
+    this.repairCars.update(dt, this.store.serverNow(), (at, level, step) => this.combat.fx.smoke(at, level, false, step));
     // Car theft: street cars and alarms, the work on lifted cars, the lifts' arms.
     this.theft.update(dt, { x: rx, z: rz });
-    const lifts = [0, 0];
+    const lifts = LIFT_BAYS.map(() => 0);
     for (const e of this.entities.vehicles.values()) if (e.data.mods.strip) lifts[e.data.mods.strip.bay] = e.lift;
+    for (const c of this.repairCars.list()) lifts[c.bay] = this.repairCars.liftOf(c.id, this.store.serverNow());
     lifts.forEach((y, bay) => this.sanayi.setLift(bay, y));
     this.sanayi.update(dt, rx, rz, this.night);
     // CCTV: the cameras turn; the one that has you in a stolen car flares up.
@@ -1031,6 +1047,7 @@ export class Game {
     const watched = myCar?.status === 'stolen' ? cameraSeeing(rx, rz, this.store.serverNow())?.id ?? null : null;
     this.cctv.update(dt, this.store.serverNow(), watched, this.night);
     this.ui?.pursuit.update(dt);
+    if (this.ui?.mechanic.current) this.ui.mechanic.update(this.store.serverNow());
     if (this.ui?.heist.current) {
       const me = this.localPosition();
       this.ui.heist.update(this.store.serverNow(), me.x, me.z);
@@ -1258,6 +1275,36 @@ export class Game {
       .catch((err) => this.ui.error(err));
   }
 
+  // ------------------------------------------------------------ the Sanayi mechanic
+
+  private onMech(v: MechanicView | null): void {
+    this.mech = v?.onDuty ? v : null;
+    this.ui?.mechanic.set(this.mech);
+    this.repairCars.showBoard(!this.mech);
+  }
+
+  /** "Tamirci Olarak Çalış" at the job board (or end the shift there). */
+  private mechShift(on: boolean): void {
+    void this.net
+      .rpc(on ? 'mech.start' : 'mech.stop', {})
+      .then((v) => {
+        this.onMech(v);
+        this.audio.play(on ? 'purchase' : 'click');
+      })
+      .catch((err) => this.ui.error(err));
+  }
+
+  /** A job on the customer's car, at its spot. */
+  private mechWork(task: RepairTask): void {
+    void this.net
+      .rpc('mech.work', { task })
+      .then((v) => {
+        this.onMech(v);
+        this.audio.play('door');
+      })
+      .catch((err) => this.ui.error(err));
+  }
+
   // ------------------------------------------------------------ heists
 
   private setHeistAlarm(id: HeistId, on: boolean): void {
@@ -1380,6 +1427,24 @@ export class Game {
         const d = Math.hypot(drop.x - x, drop.z - z);
         if (d > DEALS.dropRadius) continue;
         consider(d, { id: `drop-${o.id}`, label: 'Paketi sakla (ölü nokta)', sub: `${o.grams} gr · @${o.name}`, action: () => this.dropPackage(o.id) });
+      }
+      // The Sanayi job board, and the jobs on my customer's car.
+      const board = Math.hypot(JOB_BOARD.x - x, JOB_BOARD.z - z);
+      if (board <= JOB_BOARD.radius) {
+        if (this.mech) consider(board, { id: 'mech-stop', label: 'Mesaiyi Bitir', sub: `Bu mesai: ${this.mech.cars} araç · ${formatMoney(this.mech.earned)}`, action: () => this.mechShift(false) });
+        else consider(board, { id: 'mech-start', label: 'Tamirci Olarak Çalış', sub: `Araç başı ${formatMoney(MECH.pay)} · motor, kaporta, lastik`, action: () => this.mechShift(true) });
+      }
+      const repair = this.mech?.car;
+      if (repair && this.mech) {
+        const m = getModel(repair.modelId);
+        for (const task of repair.todo) {
+          const p = taskPoint(repair.bay, task, m.shape.length, m.shape.width);
+          const d = Math.hypot(p.x - x, p.z - z);
+          if (d > MECH.workRadius) continue;
+          const w = this.mech.working;
+          if (w?.task === task) consider(d, { id: `mech-${task}`, label: `${TASK_LABEL[task]} · %${Math.round(Math.min(1, 1 - (w.until - this.store.serverNow()) / (w.sec * 1000)) * 100)}`, sub: 'Başından ayrılma', action: () => undefined });
+          else if (!w) consider(d, { id: `mech-${task}`, label: TASK_LABEL[task], sub: `${MECH.taskSec[task]} sn · ${repair.owner}`, action: () => this.mechWork(task) });
+        }
       }
       // Heist targets' doors: E starts the job (and shows how it is going).
       const job = this.ui?.heist.current;

@@ -253,6 +253,20 @@ the map) you buy legal businesses with clean money and pay dirty money into the 
   (`laundering`, credited to your cash). More businesses launder faster. Paying into an idle business starts a fresh
   10-minute cycle; cycles that ran while you were offline are paid the next time you're online.
 
+## Part-time mechanic (Sanayi)
+
+Values are in `ECONOMY.mechanic` (`shared/mechanic.ts`). The **TAMİRCİ ARANIYOR** board on the Sanayi hall's west wall,
+next to the office: **Tamirci Olarak Çalış (E)** starts a shift.
+
+- A customer's damaged car comes in every **6-12 s** after the last one and goes up on a free lift (the hall has four;
+  a lift with a customer's car on it can't take a stolen car meanwhile). The jobs, each at its own spot round the car
+  (a floating 🔧 / 🔨 / 🛞 marks it): **Motoru Onar** (the engine smokes; 6 s, in front of the bonnet),
+  **Kaportayı Düzelt** (the bumper and the driver's door hang off; 5 s, by that door), and often **Lastikleri Değiştir**
+  (the tyres are flat; 4 s, at the right rear wheel). Walk away from a job and it stops.
+- All done: the customer pays **$1,000 clean cash on the spot** (`mechanic`) and +30 XP; the lift comes down and the
+  next car comes in. **TAMİR TAMAM +$1,000** on screen.
+- The shift ends at the board (**Mesaiyi Bitir**), by going more than 70 m from the hall, or on leaving the game.
+
 ## Tolls, plate cameras and checkpoints
 
 Values are in `ECONOMY.tolls` (`shared/tolls.ts` for where things stand).

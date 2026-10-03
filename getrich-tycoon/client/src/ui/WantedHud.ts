@@ -150,6 +150,11 @@ export class WantedHud {
     this.show('heist-lost', [h('div', { class: 'bb-kicker' }, 'SOYGUN'), h('div', { class: 'bb-title' }, title), h('div', { class: 'bb-text' }, text)], 3600);
   }
 
+  /** A customer's car repaired at the Sanayi: paid on the spot. */
+  mechPaid(amount: number, owner: string, model: string): void {
+    this.show('mech', [h('div', { class: 'bb-kicker' }, `${owner} · ${model}`.toUpperCase()), h('div', { class: 'bb-title', 'data-testid': 'mech-banner' }, 'TAMİR TAMAM'), h('div', { class: 'bb-text' }, `+${formatMoney(amount)}`), h('div', { class: 'bb-sub' }, 'Müşteri nakit ödedi. Sıradaki araç geliyor.')], 3000);
+  }
+
   /** The stolen car is the player's for good. */
   stolenOk(model: string): void {
     this.show('stolen-ok', [h('div', { class: 'bb-kicker' }, model.toUpperCase()), h('div', { class: 'bb-title' }, 'CAR STOLEN SUCCESSFULLY!'), h('div', { class: 'bb-text' }, '(Araç Tamamen Senindir)'), h('div', { class: 'bb-sub' }, 'Keep it, store it or sell it on the Marketplace.')], 4200);

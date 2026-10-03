@@ -50,7 +50,7 @@ export const DEAD_DROPS: DeadDrop[] = [
   { id: 'chroma_pipe', name: 'Chroma Pasajı · yağmur borusunun dibi', x: -71.6, z: 90 },
   { id: 'plaza_planter', name: 'Fortune Plaza · çiçekliğin içi', x: 21.5, z: -12 },
   { id: 'grandstand', name: 'Drag pisti tribünü · alt basamak', x: -170.6, z: 30 },
-  { id: 'sanayi_tyres', name: 'Sanayi · lastik yığınının arkası', x: 205, z: 150 },
+  { id: 'sanayi_tyres', name: 'Sanayi · lastik yığınının arkası', x: 129.2, z: 207 },
   { id: 'docks_crate', name: 'Liman · kırık kasanın altı', x: 905, z: 156 },
   { id: 'casino_palm', name: 'Golden Palace · palmiyenin dibi', x: 1009, z: 22 },
 ];

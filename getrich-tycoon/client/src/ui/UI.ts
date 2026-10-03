@@ -16,6 +16,7 @@ import { DragHud, NearMissHud } from './HighwayHud';
 import { GaugeHud } from './Gauge';
 import { HitmanHud } from './HitmanHud';
 import { HeistHud } from './HeistHud';
+import { MechanicHud } from './MechanicHud';
 import { TestDriveHud } from './TestDriveHud';
 import { TollFeed } from './TollFeed';
 import { MissionsHud } from './MissionsHud';
@@ -149,6 +150,7 @@ export class UI {
   readonly pursuit = new PursuitHud();
   readonly hitman = new HitmanHud();
   readonly heist = new HeistHud();
+  readonly mechanic = new MechanicHud();
   readonly testDrive = new TestDriveHud(() => void this.game.endTestDrive());
   readonly tollFeed = new TollFeed(() => this.open('tolls'));
   /** A white flash over everything (speed cameras). */
@@ -264,6 +266,7 @@ export class UI {
       this.race.el,
       this.hitman.el,
       this.heist.el,
+      this.mechanic.el,
       this.testDrive.el,
       this.tollFeed.el,
     );

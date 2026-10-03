@@ -91,6 +91,9 @@
     the estate agent (businesses bought with clean money, dirty money paid in, `launder` cycles every slow tick),
     `telegram.ts`: Telegram dealing (the supplier's and customers' deal cars, solid and broadcast as `deal.cars`, the
     channel's orders, dead drops, the cockpit handover timed on the server; the client plays it in `game/DealScene.ts`),
+    `mechanic.ts`: the Sanayi's part-time mechanic (shifts, customers' cars on free lifts broadcast as `mech.cars`,
+    `TheftService.bayBusy` keeps stolen cars off them, the jobs timed per tick, $1,000 per car; the client draws the cars
+    in `render/RepairCars.ts` and the shift card in `ui/MechanicHud.ts`),
     `police.ts`: heat and stars, police interceptors (physics cars routed over the city road grid and the
     highway lanes), line of sight five times a second per car (`policeSees` in shared/sight.ts against the solid colliders
     minus the see-through fences and toll islands), the back alleys (shared/alleys.ts: the cars right behind follow the

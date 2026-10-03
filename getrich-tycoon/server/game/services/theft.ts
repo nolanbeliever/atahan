@@ -321,6 +321,9 @@ export class TheftService {
     return { ok: true };
   }
 
+  /** Another use of the lifts (the mechanic's customers' cars): is this one taken? */
+  bayBusy: ((bay: number) => boolean) | null = null;
+
   /** A stolen car that came some other way (a heist): count it as just used, so it isn't cleared away as abandoned. */
   touch(vehicleId: string): void {
     this.lastUsed.set(vehicleId, Date.now());
@@ -388,6 +391,7 @@ export class TheftService {
       if (bay < 0) throw new GameError('too_far', 'Line the car up between the lift posts.');
       if (Math.abs(d.dyn.speed) > 0.6) throw new GameError('conflict', 'Stop the car first.');
       for (const v of this.ctx.state.vehicles.values()) if (v.mods.strip?.bay === bay && v.id !== vehicleId) throw new GameError('conflict', 'That lift is taken.');
+      if (this.bayBusy?.(bay)) throw new GameError('conflict', 'That lift is taken: a customer\'s car is up on it.');
       await this.vehicles.flushDrive(vehicleId, true);
       this.ctx.sim.stopDriving(playerId);
       const b = LIFT_BAYS[bay]!;

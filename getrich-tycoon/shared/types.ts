@@ -301,6 +301,7 @@ export type TransactionKind =
   | 'business_buy'
   | 'deal_buy'
   | 'laundering'
+  | 'mechanic'
   | 'showroom'
   | 'testdrive'
   | 'toll'

@@ -19,6 +19,7 @@ import type { HeistId, HeistView } from './heists';
 import type { CrimeView } from './underworld';
 import type { BusinessId } from './realestate';
 import type { DealCar, DealScene, TgState } from './telegram';
+import type { MechanicView, RepairCar, RepairTask } from './mechanic';
 import type { BlackMarketInfo, LockDifficulty, StreetCar, StripPart } from './theft';
 import type { TuningChange } from './tuningSystem';
 import type {
@@ -148,6 +149,10 @@ export interface RpcMethods {
   'tg.decline': { params: { orderId: string }; result: TgState };
   'tg.drop': { params: { orderId: string }; result: TgState };
   'tg.enter': { params: { carId: string }; result: DealScene };
+  /** The part-time mechanic at the Sanayi (shared/mechanic.ts). */
+  'mech.start': { params: Empty; result: MechanicView };
+  'mech.stop': { params: Empty; result: MechanicView };
+  'mech.work': { params: { task: RepairTask }; result: MechanicView };
   'helmet.buy': { params: { kind: 'helmet' | 'visor'; id: string }; result: { appearance: Appearance } };
   'showroom.info': { params: { showroomId: ShowroomId }; result: ShowroomInfo };
   'showroom.buy': { params: { showroomId: ShowroomId; offerId: string; color?: string; expectedPrice: number }; result: { vehicle: Vehicle; price: number } };
@@ -269,6 +274,12 @@ export interface ServerToClientEvents {
   'deal.done': (d: { kind: 'buy' | 'sell'; cop: boolean; grams: number; money: number }) => void;
   /** A dead drop was collected and paid (dirty money). */
   'deal.paid': (d: { amount: number; name: string }) => void;
+  /** The customers' cars up on the Sanayi lifts (everyone sees them). */
+  'mech.cars': (d: RepairCar[]) => void;
+  /** Your shift as a mechanic. */
+  'mech.update': (d: MechanicView) => void;
+  /** A car repaired: the customer paid. */
+  'mech.paid': (d: { amount: number; owner: string; modelId: string }) => void;
   /** Your businesses turned dirty money into clean cash. */
   'crime.laundered': (d: { amount: number }) => void;
   /** Tyres burst on a spike strip. */
