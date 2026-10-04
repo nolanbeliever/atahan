@@ -1,0 +1,238 @@
+// Client-side mirror of the authoritative server state.
+
+import type { ContractView } from '../../../shared/hitman';
+import type { CrimeView } from '../../../shared/underworld';
+import type { TgState } from '../../../shared/telegram';
+import type { PrivateState } from '../../../shared/protocol';
+import type { RareMarketState } from '../../../shared/rareMarket';
+import type { RewardsView } from '../../../shared/rewards';
+import type { ShowroomInfo, TestDriveView } from '../../../shared/showrooms';
+import type { TollEvent } from '../../../shared/tolls';
+import type { HealthView } from '../../../shared/weapons';
+import { LOCKPICK_ITEM, type BlackMarketInfo, type StreetCar } from '../../../shared/theft';
+import type {
+  CategoryTrends,
+  CustomerOffer,
+  Dealership,
+  MarketListing,
+  PlayerPublic,
+  PublicVehicle,
+  Vehicle,
+  WorldInit,
+} from '../../../shared/types';
+import { neutralTrends } from '../../../shared/valuation';
+import { Emitter } from './Emitter';
+
+export interface StoreEvents extends Record<string, unknown> {
+  self: PrivateState;
+  players: void;
+  vehicles: void;
+  vehicle: PublicVehicle;
+  vehicleRemoved: string;
+  dealerships: Dealership | null;
+  market: MarketListing[];
+  trends: CategoryTrends;
+  listingsChanged: void;
+  offers: void;
+  rare: RareMarketState;
+  street: StreetCar[];
+  blackMarket: BlackMarketInfo;
+  rewards: RewardsView;
+  health: HealthView;
+  contract: ContractView | null;
+  crime: CrimeView;
+  tg: TgState;
+  testDrive: TestDriveView | null;
+  showroom: ShowroomInfo;
+  tolls: TollEvent[];
+}
+
+export class Store extends Emitter<StoreEvents> {
+  playerId = '';
+  self: PrivateState | null = null;
+  players = new Map<string, PlayerPublic>();
+  vehicles = new Map<string, PublicVehicle>();
+  dealerships = new Map<string, Dealership>();
+  marketListings: MarketListing[] = [];
+  trends: CategoryTrends = neutralTrends();
+  offers = new Map<string, CustomerOffer>();
+  /** Rare Dealer stock (null until fetched). */
+  rare: RareMarketState | null = null;
+  /** Cars parked on the street / highway shoulder that can be broken into. */
+  street = new Map<string, StreetCar>();
+  /** Daily streak and playtime rewards (null until fetched) and when they arrived (local clock). */
+  rewards: RewardsView | null = null;
+  /** The player's health (fights). */
+  health: HealthView | null = null;
+  /** The hitman contract the player holds (null: none). */
+  contract: ContractView | null = null;
+  /** Dirty money, businesses and the heist record. */
+  crime: CrimeView | null = null;
+  /** The phone: Telegram chats, orders, the goods on you. */
+  tg: TgState | null = null;
+  /** The showroom test drive in progress (null: none). */
+  testDrive: TestDriveView | null = null;
+  /** Toll passes, fines, camera reads and checkpoints this session (newest first). */
+  tollEvents: TollEvent[] = [];
+  rewardsAt = 0;
+  /** Black Market lockpick stock (null until fetched). */
+  blackMarket: BlackMarketInfo | null = null;
+  /** Server clock minus local clock (ms), learned from the welcome and Rare Dealer updates. */
+  clockOffset = 0;
+
+  applyWelcome(playerId: string, self: PrivateState, world: WorldInit): void {
+    this.playerId = playerId;
+    this.clockOffset = world.serverTime - Date.now();
+    this.self = self;
+    this.players = new Map(world.players.map((p) => [p.id, p]));
+    this.vehicles = new Map(world.vehicles.map((v) => [v.id, v]));
+    this.dealerships = new Map(world.dealerships.map((d) => [d.plotId, d]));
+    this.marketListings = world.marketListings;
+    this.trends = world.trends;
+    this.emit('self', self);
+    this.emit('players', undefined);
+    this.emit('vehicles', undefined);
+    this.emit('dealerships', null);
+    this.emit('market', this.marketListings);
+    this.emit('trends', this.trends);
+  }
+
+  applySelf(s: PrivateState): void {
+    this.self = s;
+    this.emit('self', s);
+  }
+
+  upsertPlayer(p: PlayerPublic): void {
+    this.players.set(p.id, p);
+    this.emit('players', undefined);
+  }
+
+  removePlayer(id: string): void {
+    this.players.delete(id);
+    this.emit('players', undefined);
+  }
+
+  upsertVehicle(v: PublicVehicle): void {
+    this.vehicles.set(v.id, v);
+    this.emit('vehicle', v);
+  }
+
+  removeVehicle(id: string): void {
+    this.vehicles.delete(id);
+    this.emit('vehicleRemoved', id);
+  }
+
+  upsertDealership(d: Dealership): void {
+    this.dealerships.set(d.plotId, d);
+    this.emit('dealerships', d);
+  }
+
+  setMarket(listings: MarketListing[]): void {
+    this.marketListings = listings;
+    this.emit('market', listings);
+  }
+
+  setTrends(t: CategoryTrends): void {
+    this.trends = t;
+    this.emit('trends', t);
+  }
+
+  setRare(s: RareMarketState): void {
+    this.clockOffset = s.serverTime - Date.now();
+    this.rare = s;
+    this.emit('rare', s);
+  }
+
+  setHealth(v: HealthView): void {
+    this.health = v;
+    this.emit('health', v);
+  }
+
+  setTg(v: TgState): void {
+    this.tg = v;
+    this.emit('tg', v);
+  }
+
+  setCrime(v: CrimeView): void {
+    this.crime = v;
+    this.emit('crime', v);
+  }
+
+  setContract(v: ContractView | null): void {
+    this.contract = v;
+    this.emit('contract', v);
+  }
+
+  setTestDrive(v: TestDriveView | null): void {
+    this.testDrive = v;
+    this.emit('testDrive', v);
+  }
+
+  setTollEvents(list: TollEvent[]): void {
+    this.tollEvents = list;
+    this.emit('tolls', list);
+  }
+
+  addTollEvent(e: TollEvent): void {
+    if (this.tollEvents.some((x) => x.id === e.id)) return;
+    this.tollEvents = [e, ...this.tollEvents].slice(0, 40);
+    this.emit('tolls', this.tollEvents);
+  }
+
+  setShowroom(v: ShowroomInfo): void {
+    this.emit('showroom', v);
+  }
+
+  setRewards(v: RewardsView): void {
+    this.rewards = v;
+    this.rewardsAt = Date.now();
+    this.emit('rewards', v);
+  }
+
+  setStreet(cars: StreetCar[]): void {
+    this.street = new Map(cars.map((c) => [c.id, c]));
+    this.emit('street', cars);
+  }
+
+  /** Black Market stock (the owned count comes from our own inventory). */
+  setBlackMarket(info: Omit<BlackMarketInfo, 'owned'> & { owned?: number }): void {
+    this.blackMarket = { ...info, owned: info.owned ?? this.lockpicks() };
+    this.emit('blackMarket', this.blackMarket);
+  }
+
+  /** Lockpick & saw sets in the inventory. */
+  lockpicks(): number {
+    return this.self?.player.inventory[LOCKPICK_ITEM] ?? 0;
+  }
+
+  /** Best estimate of the server clock (ms). */
+  serverNow(): number {
+    return Date.now() + this.clockOffset;
+  }
+
+  // ---------------------------------------------------------------- helpers
+
+  get me() {
+    return this.self?.player ?? null;
+  }
+
+  /** The player's vehicles (a showroom's test-drive car is not one of them). */
+  myVehicles(): Vehicle[] {
+    return (this.self?.vehicles ?? []).filter((v) => v.status !== 'testdrive');
+  }
+
+  myVehicle(id: string): Vehicle | undefined {
+    return this.self?.vehicles.find((v) => v.id === id);
+  }
+
+  myDealership(): Dealership | undefined {
+    const plotId = this.self?.player.dealershipPlotId;
+    return plotId ? this.dealerships.get(plotId) : undefined;
+  }
+
+  playerName(id: string | null): string {
+    if (!id) return 'Unknown';
+    if (id === this.playerId) return this.self?.player.name ?? 'You';
+    return this.players.get(id)?.name ?? 'Unknown';
+  }
+}
