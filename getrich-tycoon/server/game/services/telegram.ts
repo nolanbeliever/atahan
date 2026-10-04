@@ -62,7 +62,7 @@ export class DealService {
     if (!p) {
       p = { messages: [], seq: 1, unread: 0, orders: [], pickup: null, nextOrderAt: Date.now() + 20_000, inScene: false, payAt: new Map() };
       this.phones.set(playerId, p);
-      this.say(playerId, p, { chat: 'supplier', from: 'them', text: 'Selam. Mal lazımsa yaz: 10 gr $500. Konum atarım, arabaya binersin, iş biter.' }, false);
+      this.say(playerId, p, { chat: 'supplier', from: 'them', text: `Selam. Mal lazımsa yaz: ${D.grams} gr ${formatMoney(D.buyPrice)}. Konum atarım, arabaya binersin, iş biter.` }, false);
       this.say(playerId, p, { chat: 'channel', from: 'system', text: 'Kanalın açıldı. Müşteriler sipariş bırakınca burada görünür: elden teslim (arabalarına bin) ya da ölü nokta (paketi gizli bir yere bırak).' }, false);
     }
     return p;

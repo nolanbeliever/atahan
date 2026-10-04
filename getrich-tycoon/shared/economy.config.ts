@@ -646,13 +646,14 @@ export const ECONOMY = {
    */
   heists: {
     targets: {
-      bank: { workSec: 120, stars: 4, loot: [55_000, 80_000] as [number, number] },
-      casino: { workSec: 110, stars: 4, loot: [50_000, 80_000] as [number, number] },
-      jeweler: { workSec: 90, stars: 3, loot: [40_000, 60_000] as [number, number] },
-      office: { workSec: 80, stars: 3, loot: [30_000, 45_000] as [number, number] },
-      supermarket: { workSec: 60, stars: 2, loot: [20_000, 30_000] as [number, number] },
-      realestate: { workSec: 70, stars: 2, loot: [25_000, 35_000] as [number, number] },
-      dealership: { workSec: 75, stars: 3, loot: [45_000, 65_000] as [number, number] },
+      // Every job pays $5,000-$10,000; the harder the target, the higher in that range.
+      bank: { workSec: 120, stars: 4, loot: [8_500, 10_000] as [number, number] },
+      casino: { workSec: 110, stars: 4, loot: [8_000, 10_000] as [number, number] },
+      jeweler: { workSec: 90, stars: 3, loot: [7_000, 9_000] as [number, number] },
+      office: { workSec: 80, stars: 3, loot: [6_000, 8_000] as [number, number] },
+      supermarket: { workSec: 60, stars: 2, loot: [5_000, 6_500] as [number, number] },
+      realestate: { workSec: 70, stars: 2, loot: [5_500, 7_500] as [number, number] },
+      dealership: { workSec: 75, stars: 3, loot: [7_500, 9_500] as [number, number] },
     },
     workRadius: 3,
     crewRadius: 25,
@@ -677,12 +678,12 @@ export const ECONOMY = {
    */
   deals: {
     grams: 10,
-    buyPrice: 500,
+    buyPrice: 100,
     pickupSec: 420,
     orderEvery: [60, 120] as [number, number],
     maxOrders: 3,
     orderGrams: [10, 20] as [number, number],
-    perGram: [110, 170] as [number, number],
+    perGram: [300, 300] as [number, number],
     dropShare: 0.8,
     pickupDelay: [40, 80] as [number, number],
     orderSec: 600,

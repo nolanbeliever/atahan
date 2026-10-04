@@ -14,13 +14,13 @@ const GOOD = { engine: 100, transmission: 100, brakes: 100, tires: 100, body: 10
 const inside = (x: number, z: number, b: { minX: number; maxX: number; minZ: number; maxZ: number }, pad = 0) => x > b.minX - pad && x < b.maxX + pad && z > b.minZ - pad && z < b.maxZ + pad;
 
 describe('heist targets', () => {
-  it('seven targets, 1-2 minutes of work, $20,000-$80,000 of loot', () => {
+  it('seven targets, 1-2 minutes of work, $5,000-$10,000 of loot', () => {
     expect(HEISTS.map((h) => h.id).sort()).toEqual(['bank', 'casino', 'dealership', 'jeweler', 'office', 'realestate', 'supermarket']);
     for (const h of HEISTS) {
       expect(h.workSec).toBeGreaterThanOrEqual(60);
       expect(h.workSec).toBeLessThanOrEqual(120);
-      expect(h.loot[0]).toBeGreaterThanOrEqual(20_000);
-      expect(h.loot[1]).toBeLessThanOrEqual(80_000);
+      expect(h.loot[0]).toBeGreaterThanOrEqual(5_000);
+      expect(h.loot[1]).toBeLessThanOrEqual(10_000);
       expect(rollLoot(h, 0)).toBe(h.loot[0]);
       expect(rollLoot(h, 1)).toBe(h.loot[1]);
       expect(rollLoot(h, 0.5) % 100).toBe(0);

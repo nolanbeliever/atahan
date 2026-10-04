@@ -1,4 +1,4 @@
-// Telegram dealing (the phone, Y): order a package from the supplier ($500 for 10 g, clean money);
+// Telegram dealing (the phone, Y): order a package from the supplier ($100 for 10 g, clean money);
 // the supplier sends a location and a picture of the car with its colour and window sticker. Get
 // into that car: the camera goes to the passenger seat, the money and a black bag (siyah poşet)
 // change hands, "DEAL COMPLETED". Then your own channel: customers post orders; deliver by hand

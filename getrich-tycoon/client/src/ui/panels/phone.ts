@@ -1,4 +1,4 @@
-// The phone (Y): Telegram. The supplier's chat (order 10 g for $500, get a location and a picture of
+// The phone (Y): Telegram. The supplier's chat (order 10 g for $100, get a location and a picture of
 // the car with its sticker) and your channel (customers' orders: take one by hand, through a dead
 // drop, or turn it down).
 
@@ -75,6 +75,12 @@ function carPicture(color: string, sticker: string): string {
   g.fillText(sticker, 186, 64);
   return c.toDataURL('image/png');
 }
+
+/** The price a gram sells for: one figure, or a range. */
+const perGramText = () => {
+  const [lo, hi] = ECONOMY.deals.perGram;
+  return lo === hi ? formatMoney(lo) : `${formatMoney(lo)}-${formatMoney(hi)}`;
+};
 
 const pics = new Map<string, string>();
 const picture = (color: string, sticker: string) => {
@@ -195,7 +201,7 @@ export class PhonePanel extends Panel {
         const status = o.status === 'hand' ? '🤝 Müşterinin arabasına git, yolcu koltuğuna bin (E).' : o.status === 'drop' ? `📍 ${drop?.name ?? ''}: paketi bırak (E).` : '📦 Paket bırakıldı, müşteri alacak.';
         return h('div', { class: 'tg-order' }, head, h('div', { class: 'tiny' }, status));
       }),
-      h('div', { class: 'tiny muted' }, `Satışlar kara para öder: ${formatMoney(ECONOMY.deals.perGram[0])}-${formatMoney(ECONOMY.deals.perGram[1])} / gr.`),
+      h('div', { class: 'tiny muted' }, `Satışlar kara para öder: ${perGramText()} / gr.`),
     );
   }
 }

@@ -200,13 +200,13 @@ Values are in `ECONOMY.heists` (`shared/heists.ts` for the targets, `shared/unde
 
 | Target | Where (the door) | Work | Wanted | Loot |
 | --- | --- | --- | --- | --- |
-| GetRich Bankası | west side, bollard forecourt | 120 s (drill) | 4★ | $55,000-$80,000 |
-| Golden Palace Casino | far shore, bollard forecourt | 110 s (hack) | 4★ | $50,000-$80,000 |
-| Kuyumcu Altınsaray | back door, Wrench Bros alley | 90 s (drill) | 3★ | $40,000-$60,000 |
-| Atlas Ofis Plaza | back door, Wrench Bros alley (courtyard) | 80 s (hack) | 3★ | $30,000-$45,000 |
-| Mega Market 7/24 | back door, auction alley | 60 s (drill) | 2★ | $20,000-$30,000 |
-| Emlak Dünyası | back door, Chroma passage | 70 s (drill) | 2★ | $25,000-$35,000 |
-| Hyper Garage (car heist) | showroom's back, bollard forecourt | 75 s (hack), then 4 min to the docks | 3★ | $45,000-$65,000 |
+| GetRich Bankası | west side, bollard forecourt | 120 s (drill) | 4★ | $8,500-$10,000 |
+| Golden Palace Casino | far shore, bollard forecourt | 110 s (hack) | 4★ | $8,000-$10,000 |
+| Kuyumcu Altınsaray | back door, Wrench Bros alley | 90 s (drill) | 3★ | $7,000-$9,000 |
+| Atlas Ofis Plaza | back door, Wrench Bros alley (courtyard) | 80 s (hack) | 3★ | $6,000-$8,000 |
+| Mega Market 7/24 | back door, auction alley | 60 s (drill) | 2★ | $5,000-$6,500 |
+| Emlak Dünyası | back door, Chroma passage | 70 s (drill) | 2★ | $5,500-$7,500 |
+| Hyper Garage (car heist) | showroom's back, bollard forecourt | 75 s (hack), then 4 min to the docks | 3★ | $7,500-$9,500 |
 
 - E at the door, on foot, owning a gun. The starter and everyone within 25 m is the crew. The police know at once (the
   stars above, heat `stars × 100 - 50`), but their cars arrive after 30 s (2★), 25 s (3★) or 20 s (4★+). The work runs
@@ -224,10 +224,10 @@ Values are in `ECONOMY.heists` (`shared/heists.ts` for the targets, `shared/unde
 
 Values are in `ECONOMY.deals` (`shared/telegram.ts`). The phone (**Y**, or 📱 in the dock) has Telegram:
 
-- **Supplier:** order **10 g for $500** (clean cash, paid in the car). The supplier sends the location and a picture of the
+- **Supplier:** order **10 g for $100** (clean cash, paid in the car). The supplier sends the location and a picture of the
   car (colour, model, the sticker in its rear window); it waits 7 minutes at a kerb at least 80 m away. Get into its
   passenger seat (**E**): the cockpit handover (the black bag and the money change hands), **DEAL COMPLETED**.
-- **Your channel:** a customer order every 1-2 minutes (up to 3 open), 10 or 20 g at $110-$170 a gram, paid in **dirty
+- **Your channel:** a customer order every 1-2 minutes (up to 3 open), 10 or 20 g at **$300 a gram**, paid in **dirty
   money**. **By hand:** their car comes to a kerb; get in for the same handover. **One customer in seven (15%) is an
   undercover cop:** the badge comes out, the car fills with red and blue, sirens, **3 stars at once** and the package is
   seized. **Dead drop:** walk to the hidden spot given (behind an alley dumpster, the plaza planter, under the drag
