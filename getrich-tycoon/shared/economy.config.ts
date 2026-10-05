@@ -755,6 +755,42 @@ export const ECONOMY = {
   },
 
   /**
+   * Gang territories (shared/gangs.ts): protection money per zone every `incomeSec` (real time), the
+   * number of waves to take each zone and what each wave brings (`waveMix`: cars, bikes; two members a
+   * car, one a bike); `waveGapSec` between waves. Members: `memberHp`, they close in to about 14 m and
+   * shoot every `memberFireSec` (accuracy falling off to `memberRange`, `memberDamage`). Their cars drive
+   * in at `carSpeed` m/s. Out of the zone (more than `leaveDist` m) for `leaveSec`, or wasted: the war is
+   * lost. Every `retaliateSec` (while the owner is on) the gang hits back: get into the zone within
+   * `attackSec` and beat off `defendWaves` wave(s), or the zone is gone. `idleMembers` stand round each
+   * gang's hangout. A shot hitting a building in the zone counts as shooting up a shop. XP for a zone.
+   */
+  gangs: {
+    income: { sanayi: 12_000, docks: 18_000, downtown: 25_000, touge: 15_000 },
+    incomeSec: 600,
+    waves: { sanayi: 2, docks: 3, downtown: 3, touge: 2 },
+    waveMix: [
+      [2, 1],
+      [3, 1],
+      [3, 2],
+    ] as [number, number][],
+    waveGapSec: 6,
+    memberHp: 70,
+    memberRange: 40,
+    memberAccuracy: 0.3,
+    memberDamage: [5, 10] as [number, number],
+    memberFireSec: 1.5,
+    carSpeed: 17,
+    leaveDist: 60,
+    leaveSec: 25,
+    retaliateSec: [1_800, 2_700] as [number, number],
+    attackSec: 120,
+    defendWaves: 1,
+    idleMembers: 3,
+    raidReach: 2.6,
+    xp: 250,
+  },
+
+  /**
    * Telegram dealing (shared/telegram.ts). The supplier: `grams` for `buyPrice` (clean money), the
    * car waits `pickupSec`. Your channel: a new order every `orderEvery` s (up to `maxOrders`),
    * `orderGrams` grams at `perGram` dollars a gram (dirty money); a dead drop pays `dropShare` of

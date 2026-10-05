@@ -89,6 +89,7 @@ import { TrafficStopsView } from '../render/TrafficStops';
 import { CharacterView } from '../render/Character';
 import { TheftClient } from './Theft';
 import { BurglaryClient } from './Burglary';
+import { GangClient } from './Gangs';
 import { VillasView } from '../render/Villas';
 import { TrafficClient } from './Traffic';
 
@@ -145,6 +146,7 @@ export class Game {
   /** Street cars, alarms, the lifts and stripping. */
   readonly theft: TheftClient;
   readonly burglary: BurglaryClient;
+  readonly gangs: GangClient;
   private villas: VillasView;
   /** Hands busy (lockpicking, working on a car): the character plays its work animation. */
   working = false;
@@ -268,6 +270,7 @@ export class Game {
     this.cam = new CameraController(this.renderer.camera);
     this.net = new Network(token);
     this.burglary = new BurglaryClient(this);
+    this.gangs = new GangClient(this);
     this.rebuildBoxes();
     this.bindNetwork();
     this.bindStore();
@@ -821,6 +824,7 @@ export class Game {
     }
     this.dynamic.length = 0;
     this.theft.obstacles(list);
+    list.push(...this.gangs.obstacles());
     vehicleObstacles(list, this.dynamic);
     this.traffic.boxesNear(this.curr.x, this.curr.z, 70, this.dynamic);
     this.police.boxesNear(this.curr.x, this.curr.z, 70, this.dynamic);
@@ -1060,6 +1064,7 @@ export class Game {
     this.crimeScenes.update(dt, this.night);
     this.trafficStops.update(dt, this.night);
     this.burglary.update(dt, rx, rz, this.night);
+    this.gangs.update(dt);
     this.villas.update(this.night);
     CharacterView.night = this.night;
     this.ui?.scanner.update(dt, now);
@@ -1513,6 +1518,7 @@ export class Game {
       }
       // Night burglaries: the locked doors outside, the loot / safe / way out inside.
       this.burglary.interactions(x, z, consider);
+      this.gangs.interactions(x, z, consider);
       // Lockpicking a parked car.
       const street = this.theft.nearestCar(x, z);
       if (street) consider(street.d, this.lockpickInteraction(street.car));

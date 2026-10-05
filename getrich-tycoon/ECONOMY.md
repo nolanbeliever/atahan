@@ -290,6 +290,31 @@ Values are in `ECONOMY.burglary` (`shared/burglary.ts` for the places and the ro
 - A place that was robbed (or rang) is sealed for `cooldownSec` 8 minutes; a player can go into another one after
   `playerCooldownSec` 30 s. The door stays open while anyone is inside: the crew can walk in.
 
+## Gang territories (Çete Bölgeleri)
+
+Values are in `ECONOMY.gangs` (`shared/gangs.ts` for the zones, hangouts and roads, `server/game/services/gangs.ts`).
+
+| Zone | Gang | Hangout | Waves | Protection money / 10 min |
+| --- | --- | --- | --- | --- |
+| Sanayi | Sanayi Kurtları (grey-green) | Kurtlar Kahvesi, the Sanayi yard | 2 | $12,000 |
+| Liman (Docks) | Liman Baronları (blue) | Baronlar Deposu, the quay | 3 | $18,000 |
+| Downtown | Kızıl Eller (red) | Kızıl Kulüp, Fortune Plaza | 3 | $25,000 |
+| Touge | Dağ Akrepleri (yellow) | Akrep Garajı, the foot of the pass | 2 | $15,000 |
+
+- A war starts on a raid (E at the hangout door), a member of the gang shot, or a bullet in a building's wall in the zone
+  (shooter within 30 m of the zone); not in your own zone, not while another war is on there. Everyone within 30 m
+  fights along. The hangout's `idleMembers` 3 fight first, then the waves (`waveMix` cars, bikes: 2+1, 3+1, 3+2; two
+  members a car, one a bike) `waveGapSec` 6 s apart. Members: `memberHp` 70, close in to about 14 m, shoot every
+  `memberFireSec` 1.5 s (accuracy 0.3 falling off to `memberRange` 40 m, 5-10 damage; less at a moving car). Shooting
+  them is no police matter of its own (the gunfire is).
+- Won: the zone is the leader's, +250 XP; a zone held by another player changes hands. Lost: everyone of the crew down
+  or more than `leaveDist` 60 m from the zone for `leaveSec` 25 s.
+- Protection money every `incomeSec` 600 s (real time): into the bank while the owner is on and chose the bank; into the
+  cash box (`gang.collect` at Emlak Dünyası: `protection` transaction) otherwise.
+- Retaliation every `retaliateSec` 30-45 minutes while the owner is on: `attackSec` 120 s to get into the zone, then
+  `defendWaves` 1 wave; beaten off: kept. Not there in time, or the defence lost: the zone goes back to the gang.
+- Who holds what, the cash boxes and the pay choice are kept in the world state (`gangs`).
+
 ## Telegram dealing
 
 Values are in `ECONOMY.deals` (`shared/telegram.ts`). The phone (**Y**, or 📱 in the dock) has Telegram:

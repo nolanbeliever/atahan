@@ -129,7 +129,15 @@
     police treat the burglar as standing at the front door, unseen and unarrestable; the bag is paid clean on a quiet
     exit or kept hot until `clearedListeners`; `render/Interiors.ts` draws a room the first time you're in it plus the
     outdoor alarm flashers, `render/Villas.ts` the two villas, `ui/BurglaryHud.ts` the noise meter, `game/Burglary.ts`
-    the prompts, and the lockpick panel has `door` and `safe` modes).
+    the prompts, and the lockpick panel has `door` and `safe` modes),
+    `gangs.ts`: gang territories (shared/gangs.ts zones, hangouts as `BUILDINGS`, the roads the gang cars come in on;
+    members `gng_*` are NPCs fed to combat through `CombatService.hostileSources` (shot without police heat) and shoot
+    back with `CombatService.npcFire`; a bullet in a building in a zone (`wallHitListeners`) or a hit on a member starts a
+    war; the gang cars are kinematic along their lanes, solid through `sim.setExtraObstacles('gangs')`, sent as
+    `gang.cars` five times a second; waves, capture, protection money, retaliation, all saved in the world state
+    `gangs`; the client draws the cars and the hangouts' neon and flags in `render/GangView.ts`, the zones and dominance
+    bars on the maps in `ui/Minimap.ts`, the banner / war card / attack alert in `ui/GangHud.ts`, the cash box in the
+    Emlak Dünyası panel).
   - `game/traffic.ts` is the traffic driver model (IDM car following + MOBIL-style lane changes with indicators, keep-right,
     yielding; players, walkers and parked cars are obstacles).
   - Newer services: `rewards.ts` (streak and playtime, state in `player_rewards`, claims paid in one transaction),

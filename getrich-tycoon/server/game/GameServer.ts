@@ -54,6 +54,7 @@ import { SecurityService } from './services/security';
 import { CombatService } from './services/combat';
 import { TrafficStopService } from './services/trafficStops';
 import { BurglaryService } from './services/burglary';
+import { GangService } from './services/gangs';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
 import { HighwayService } from './services/highway';
@@ -121,6 +122,7 @@ export class GameServer implements Hub {
   readonly police: PoliceService;
   readonly stops: TrafficStopService;
   readonly burglary: BurglaryService;
+  readonly gangs: GangService;
   readonly theft: TheftService;
   private tickCount = 0;
   private sessions = new Map<string, Session>();
@@ -178,6 +180,7 @@ export class GameServer implements Hub {
     // (Random world events are off in the test suite: tests set them up themselves.)
     this.stops = new TrafficStopService(this.ctx, this.police, cfg.env !== 'test');
     this.burglary = new BurglaryService(this.ctx, this.police, this.combat, this.crime);
+    this.gangs = new GangService(this.ctx, this.combat);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -276,6 +279,10 @@ export class GameServer implements Hub {
       'burglary.safe': (pid) => this.burglary.safe(pid),
       'burglary.take': (pid, p) => this.burglary.take(pid, p),
       'burglary.leave': (pid) => this.burglary.leave(pid),
+      'gang.raid': (pid, p) => this.gangs.raid(pid, p),
+      'gang.status': (pid) => this.gangs.status(pid),
+      'gang.mode': (pid, p) => this.gangs.setMode(pid, p),
+      'gang.collect': (pid) => this.gangs.collect(pid),
       'missions.list': (pid) => this.missions.list(pid),
       'rewards.info': (pid) => this.rewards.view(pid),
       'rewards.daily': (pid) => this.rewards.claimDaily(pid),
@@ -365,6 +372,7 @@ export class GameServer implements Hub {
 
     await this.rare.init();
     await this.theft.init();
+    await this.gangs.init();
     await this.showrooms.init();
     if (this.cfg.simulation) {
       await this.market.refresh().catch((err) => log.error('initial market refresh failed', { error: (err as Error).message }));
@@ -473,6 +481,7 @@ export class GameServer implements Hub {
     for (const v of this.police.scenes.views()) this.sendTo(playerId, 'police.scene', v);
     this.stops.welcome(playerId);
     this.burglary.welcome(playerId);
+    this.gangs.welcome(playerId);
     for (const m of this.chat.history) socket.emit('chat', m);
     log.info('player connected', { playerId, name: record.name, online: this.sessions.size });
 
@@ -494,6 +503,7 @@ export class GameServer implements Hub {
     this.police.forget(playerId);
     this.stops.forget(playerId);
     this.burglary.forget(playerId);
+    this.gangs.forget(playerId);
     this.theft.forget(playerId);
     this.pursuit.forget(playerId);
     this.streetRace.forget(playerId);
@@ -728,6 +738,7 @@ export class GameServer implements Hub {
     this.police.tick(dt, now);
     this.stops.tick(dt, now);
     this.burglary.tick(dt, now);
+    this.gangs.tick(dt, now);
     this.pursuit.tick(dt, now);
     this.streetRace.tick(dt, now);
     this.combat.tick(dt, now);

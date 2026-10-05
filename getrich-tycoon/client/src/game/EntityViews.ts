@@ -12,6 +12,7 @@ import { modelDisplayName } from '../../../shared/vehicles';
 import { LIFT_HEIGHT } from '../../../shared/theft';
 import { groundHeight, surfaceTilt, surfaceY } from '../render/City';
 import { DogView } from '../render/Dog';
+import { GANG_ZONES } from '../../../shared/gangs';
 import { CharacterView, HITMAN_CONTACT, NPC_PALETTE, POLICE_OFFICER, SWAT_OFFICER, type Pose } from '../render/Character';
 import { Label } from '../render/Labels';
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
@@ -223,6 +224,22 @@ export class EntityViews {
         this.scene.add(leash);
         this.leashes.set(id, leash);
         e = { view: dog as unknown as CharacterView, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null, deck: 0 };
+        this.npcs.set(id, e);
+        e.buffer.push({ t, x, z, r, a, b: 0 });
+        return;
+      }
+      // A street gang's member (gng_<zone>_n; style = zone index x 4 + variant): the gang's colour,
+      // a gun, the gang's name over the head.
+      if (id.startsWith('gng_')) {
+        const zone = GANG_ZONES[Math.floor(style / 4) % GANG_ZONES.length]!;
+        const variant = style % 4;
+        const look = { skin: ['#8d5524', '#c68642', '#e0ac69', '#6b4423'][variant]!, shirt: zone.color, pants: variant % 2 ? '#1c1c22' : '#2b2f3a', hair: '#141414' };
+        const view = new CharacterView(look);
+        view.setWeapon(variant === 3 ? 2 : 1);
+        this.scene.add(view.root);
+        const label = new Label(zone.gang, { color: zone.color, height: 0.28 });
+        this.scene.add(label.sprite);
+        e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null, deck: 0 };
         this.npcs.set(id, e);
         e.buffer.push({ t, x, z, r, a, b: 0 });
         return;

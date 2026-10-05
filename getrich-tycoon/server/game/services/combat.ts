@@ -91,7 +91,7 @@ function loopPoint(bx: number, bz: number, s: number): { x: number; z: number; r
   return { x: bx - h, z: bz + h - k, rot: Math.PI };
 }
 
-type Who = 'player' | 'ped' | 'officer' | 'customer';
+type Who = 'player' | 'ped' | 'officer' | 'customer' | 'hostile';
 type Target = { type: 'car'; id: string; who?: undefined } | { type: 'person'; id: string; who: Who } | { type: 'heli'; id: number; who?: undefined };
 
 let seq = 1;
@@ -116,6 +116,10 @@ export class CombatService {
   readonly coverFns: ((playerId: string) => number)[] = [];
   /** A bullet hit a building's wall (building id, who fired). */
   readonly wallHitListeners: ((buildingId: string, shooter: string) => void)[] = [];
+  /** Armed people who are nobody's business but the shooter's (gang members in a turf war, a SWAT
+   *  ambush at the docks): who they are, and a hit on one (true: it was theirs). Shooting them is
+   *  no police matter of its own (the gunfire is). */
+  readonly hostileSources: { list: () => NpcEntity[]; hit: (id: string, amount: number, by: string | null) => boolean }[] = [];
   private officers = new Map<string, Officer>();
   private pedRespawn: number[] = [];
   private flushAt = 0;
@@ -343,6 +347,7 @@ export class CombatService {
     for (const o of this.officers.values()) if (!o.deadAt) person(o.npc.id, o.npc.x, o.npc.z, 'officer');
     // Police on foot at crime scenes and checkpoints.
     for (const src of this.police.officerSources) for (const o of src.list()) person(o.id, o.x, o.z, 'officer');
+    for (const src of this.hostileSources) for (const o of src.list()) person(o.id, o.x, o.z, 'hostile');
     for (const npc of this.ctx.sim.npcs.values()) if (npc.id.startsWith('npc')) person(npc.id, npc.x, npc.z, 'customer');
 
     const to: [number, number, number] = [r.x + r.dx * best, rayY(r, best), r.z + r.dz * best];
@@ -517,6 +522,12 @@ export class CombatService {
       const d = Math.hypot(npc.x - x, npc.z - z);
       if (d < radius) this.damagePerson(npc.id, 'customer', fall(d), by, x, z, now);
     }
+    for (const src of this.hostileSources) {
+      for (const o of src.list()) {
+        const d = Math.hypot(o.x - x, o.z - z);
+        if (d < radius) src.hit(o.id, fall(d), by);
+      }
+    }
     // Players: only the one who set it off (no PvP), and anyone caught in a police car's blast.
     for (const c of this.ctx.sim.chars.values()) {
       if (by && c.id !== by) continue;
@@ -529,6 +540,10 @@ export class CombatService {
   }
 
   private damagePerson(id: string, who: Who, amount: number, by: string | null, fromX: number, fromZ: number, now: number): void {
+    if (who === 'hostile') {
+      for (const src of this.hostileSources) if (src.hit(id, amount, by)) return;
+      return;
+    }
     if (by) this.police.raiseHeat(by, who === 'officer' ? C.heatPolice : C.heatPerson, who === 'officer' ? 'copShot' : 'shooting');
     if (who === 'player') return; // no PvP
     if (who === 'customer') {
@@ -823,6 +838,38 @@ export class CombatService {
         }
       }
     }
+  }
+
+  /**
+   * Someone not a police officer shoots at a player (gang members, an ambush): the tracer for
+   * everyone near, a hit roll falling off with distance (worse at a moving car), the damage
+   * (in a car: through the glass unless it's armoured, the car takes some). True if it hit.
+   */
+  npcFire(shooterId: string, from: { x: number; z: number }, targetId: string, opts: { accuracy: number; range: number; damage: [number, number]; weapon?: WeaponId }, now = Date.now()): boolean {
+    const t = this.ctx.sim.chars.get(targetId);
+    if (!t || t.dead) return false;
+    const tpos = t.drivingId ? this.ctx.sim.drives.get(t.drivingId)?.dyn : t.ridingId ? this.ctx.sim.drives.get(t.ridingId)?.dyn : t;
+    if (!tpos) return false;
+    const d = Math.hypot(tpos.x - from.x, tpos.z - from.z);
+    if (d > opts.range) return false;
+    const vid = t.drivingId ?? t.ridingId;
+    const moving = vid ? Math.abs(this.ctx.sim.drives.get(vid)?.dyn.speed ?? 0) : 0;
+    const chance = opts.accuracy * (1 - d / opts.range) * (moving > 8 ? 0.45 : 1) + 0.08;
+    const hit = this.ctx.rng() < chance;
+    const aimY = vid ? 1.0 : 1.3;
+    const jitter = hit ? 0 : (this.ctx.rng() - 0.5) * 3;
+    const to: [number, number, number] = [tpos.x + jitter, aimY + (hit ? 0 : this.ctx.rng() * 1.2), tpos.z + jitter];
+    this.broadcastShot({ by: shooterId, weapon: opts.weapon ?? 'pistol', from: [from.x, 1.35, from.z], to, hit: hit ? (vid ? 'car' : 'person') : 'air', ...(hit && vid ? { carId: vid } : {}) });
+    if (!hit) return false;
+    const [lo, hi] = opts.damage;
+    const cover = this.coverFns.reduce((k, f) => Math.min(k, f(t.id)), 1);
+    const dmg = (lo + this.ctx.rng() * (hi - lo)) * cover;
+    if (vid) {
+      if (!((this.armorOf(vid) ?? 0) > 0)) this.hurtPlayer(t.id, dmg * C.inCarShare, from.x, from.z, now);
+      const own = this.ctx.state.vehicles.get(vid);
+      if (own) this.damageCar(vid, dmg * 0.6, own.ownerId, now);
+    } else this.hurtPlayer(t.id, dmg, from.x, from.z, now);
+    return true;
   }
 
   /** Take fired rounds out of the saved inventory. */

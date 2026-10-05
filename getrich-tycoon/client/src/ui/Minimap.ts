@@ -7,6 +7,7 @@ import { ALLEYS, alleyMouths } from '../../../shared/alleys';
 import { HEISTS } from '../../../shared/heists';
 import { BURGLARY_TARGETS } from '../../../shared/burglary';
 import { VILLAS } from '../../../shared/compounds';
+import { GANG_ZONES, PLAYER_ZONE_COLOR } from '../../../shared/gangs';
 import { POLICE_STATIONS } from '../../../shared/police';
 import { findDrop } from '../../../shared/telegram';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
@@ -146,6 +147,47 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   g.fillStyle = '#8d93a3';
   for (const b of BUILDINGS) g.fillRect(tx(b.box.minX), tz(b.box.minZ), (b.box.maxX - b.box.minX) * s, (b.box.maxZ - b.box.minZ) * s);
   for (const v of VILLAS) g.fillRect(tx(v.box.minX), tz(v.box.minZ), (v.box.maxX - v.box.minX) * s, (v.box.maxZ - v.box.minZ) * s);
+  // Gang territories: the zone in its holder's colour (the gang's, or purple once a player holds it),
+  // the name and a dominance bar (the holder's control; a war: how far the attacker has got).
+  const turn0 = yaw === null ? 0 : yaw + Math.PI;
+  for (const z of GANG_ZONES) {
+    const v = game.gangs.zones.find((q) => q.id === z.id);
+    const color = v?.owner ? PLAYER_ZONE_COLOR : z.color;
+    const b = z.box;
+    const pulse = v?.war || v?.attackUntil ? 0.12 + 0.1 * Math.sin(performance.now() / 160) : 0.12;
+    g.save();
+    g.globalAlpha = pulse;
+    g.fillStyle = color;
+    g.fillRect(tx(b.minX), tz(b.minZ), (b.maxX - b.minX) * s, (b.maxZ - b.minZ) * s);
+    g.globalAlpha = 0.85;
+    g.strokeStyle = color;
+    g.lineWidth = Math.max(1.5, 1.2 * s);
+    g.setLineDash([Math.max(3, 5 * s), Math.max(2, 3 * s)]);
+    g.strokeRect(tx(b.minX), tz(b.minZ), (b.maxX - b.minX) * s, (b.maxZ - b.minZ) * s);
+    g.setLineDash([]);
+    g.restore();
+    // Label and dominance bar at the zone's middle (upright on a rotating map).
+    const cx2 = tx((b.minX + b.maxX) / 2);
+    const cz2 = tz((b.minZ + b.maxZ) / 2);
+    if (size >= 300 || (b.maxX - b.minX) * s > 60) {
+      g.save();
+      g.translate(cx2, cz2);
+      g.rotate(-turn0);
+      const w = Math.max(54, Math.min(110, (b.maxX - b.minX) * s * 0.6));
+      g.fillStyle = 'rgba(8,10,16,0.75)';
+      g.fillRect(-w / 2 - 4, -16, w + 8, 26);
+      g.fillStyle = color;
+      g.font = `900 ${size >= 300 ? 11 : 9}px system-ui, sans-serif`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(`${z.name} · ${v?.owner ? v.ownerName ?? 'Oyuncu' : z.gang}`, 0, -8);
+      g.fillStyle = 'rgba(255,255,255,0.15)';
+      g.fillRect(-w / 2, 2, w, 5);
+      g.fillStyle = PLAYER_ZONE_COLOR;
+      g.fillRect(-w / 2, 2, (w * (v?.dominance ?? 0)) / 100, 5);
+      g.restore();
+    }
+  }
   // The back alleys (bikes and ATVs only): an orange dashed line through the block.
   g.strokeStyle = '#ff9a3c';
   g.lineWidth = Math.max(1.5, 1.6 * s);
@@ -281,6 +323,11 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   for (const hs of HEISTS) {
     const alarm = game.heistAlarms.has(hs.id);
     badge(g, tx(hs.door.x), tz(hs.door.z), Math.max(6, 2.8 * s), alarm && ring ? '#ff3b47' : '#b8901e', '💰', turn);
+  }
+  // The gangs' hangouts (a flag in the holder's colour).
+  for (const z of GANG_ZONES) {
+    const v = game.gangs.zones.find((q) => q.id === z.id);
+    badge(g, tx(z.venue.door.x), tz(z.venue.door.z), Math.max(6, 2.8 * s), v?.owner ? PLAYER_ZONE_COLOR : z.color, v?.war ? '⚔' : '⚑', turn);
   }
   // Night burglaries: an open lock on the places that can be done tonight; red while one rings.
   const night = game.burglary.night();

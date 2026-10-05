@@ -26,6 +26,7 @@ import { WantedHud } from './WantedHud';
 import { ScannerHud } from './ScannerHud';
 import { StopHud } from './StopHud';
 import { BurglaryHud } from './BurglaryHud';
+import { GangHud } from './GangHud';
 import { PursuitHud } from './PursuitHud';
 import { RaceHud } from './RaceHud';
 import { CombatHud } from './CombatHud';
@@ -153,6 +154,7 @@ export class UI {
   readonly scanner = new ScannerHud();
   readonly stop = new StopHud();
   readonly burglary = new BurglaryHud();
+  readonly gang = new GangHud();
   readonly pursuit = new PursuitHud();
   readonly hitman = new HitmanHud();
   readonly heist = new HeistHud();
@@ -302,7 +304,7 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Enter'), 'Chat'),
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
-    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.scanner.strip, this.stop.el, this.burglary.el, this.tollFeed.notice, this.flashEl, reconnect);
+    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.scanner.strip, this.stop.el, this.burglary.el, this.gang.el, this.gang.banner, this.tollFeed.notice, this.flashEl, reconnect);
     this.hud = { name, level, xpFill, xpText, rep, cash, bank, dirty, goods, phoneBtn, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 
@@ -381,6 +383,11 @@ export class UI {
     this.hud.bank.textContent = `Bank ${formatMoney(p.bank)}`;
     this.hud.dealerBtn.classList.toggle('alert', !p.dealershipPlotId && p.money >= 12_000);
     this.missions.setLevel(p.level);
+    if (this.panel) this.panel.onStoreChange();
+  }
+
+  /** Something an open panel shows changed (outside the store). */
+  refreshPanel(): void {
     if (this.panel) this.panel.onStoreChange();
   }
 

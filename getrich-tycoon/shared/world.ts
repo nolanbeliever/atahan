@@ -8,6 +8,7 @@ import { CASINO_BUILDING, SECURITY_BOLLARDS } from './heists';
 import { FAR_BOXES, FAR_CIRCLES, HILL_TREES } from './farShore';
 import { AMMU_NATION, HOSPITAL, MOTO_GEAR, POLICE_STATIONS, VILLA_BOXES } from './compounds';
 import { HITMAN_ALLEY } from './hitman';
+import { GANG_VENUE_BOXES } from './gangs';
 import { dealershipLevel } from './economy.config';
 import { DRAG_BOXES, DRAG_STRIP, JUNCTIONS, highwayCircles } from './highway';
 import { SHOWROOMS, SHOWROOM_BOXES, SHOWROOM_CIRCLES, SHOWROOM_DOOR_RADIUS, type ShowroomId } from './showrooms';
@@ -135,6 +136,8 @@ export const BUILDINGS: Building[] = [
   ...ALLEY_BUILDINGS,
   // The casino on the far shore (a heist target, shared/heists.ts).
   CASINO_BUILDING,
+  // The gangs' hangouts (shared/gangs.ts): raid one to start a turf war.
+  ...GANG_VENUE_BOXES.map((v): Building => ({ id: v.id, box: v.box, height: 4.6, color: '#26262c', kind: 'office', facing: v.facing, sign: v.sign, signColor: v.color })),
 ];
 
 /** Decorative/structural circular obstacles. */

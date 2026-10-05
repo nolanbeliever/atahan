@@ -7,6 +7,7 @@ import type { MissionView } from './missions';
 import type { BustedEvent, CrimeSceneView, RadioLine, WantedState } from './police';
 import type { StopState, StopView } from './trafficStops';
 import type { BurglaryResult, BurglaryState, BurglaryTargetView, LootItemId } from './burglary';
+import type { GangCarView, GangMine, GangZoneId, GangZoneView, TurfWarView } from './gangs';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { ShowroomId, ShowroomInfo, TestDriveEnd, TestDriveView } from './showrooms';
@@ -134,6 +135,11 @@ export interface RpcMethods {
   'burglary.safe': { params: Empty; result: { sessionId: string; picks: number; difficulty: LockDifficulty; name: string; mode: 'door' | 'safe' } };
   'burglary.take': { params: { lootId: string }; result: BurglaryState };
   'burglary.leave': { params: Empty; result: { ok: true } };
+  /** Gang territories: raid a hangout (a turf war), what's going on, how protection money is paid, collect the cash box. */
+  'gang.raid': { params: { zoneId: GangZoneId }; result: TurfWarView };
+  'gang.status': { params: Empty; result: { zones: GangZoneView[]; mine: GangMine; war: TurfWarView | null } };
+  'gang.mode': { params: { mode: 'bank' | 'cash' }; result: GangMine };
+  'gang.collect': { params: Empty; result: GangMine & { amount: number } };
   /** Sanayi: put the stolen car you are driving up on the lift in this bay; strip a part. */
   'sanayi.lift': { params: { vehicleId: string }; result: { vehicle: Vehicle } };
   'sanayi.strip': { params: { vehicleId: string; part: StripPart }; result: StripResult };
@@ -354,6 +360,18 @@ export interface ServerToClientEvents {
   'burglary.result': (d: BurglaryResult) => void;
   /** The bag is cashed (lost the police) or lost (busted / wasted). */
   'burglary.cashed': (d: { cash: number; text: string; ok: boolean }) => void;
+  /** Gang zones: who holds them, dominance, wars, attacks (everyone; also on connect). */
+  'gang.zones': (d: GangZoneView[]) => void;
+  /** The turf war I'm in (null: over / out). */
+  'gang.war': (d: TurfWarView | null) => void;
+  /** Gang cars racing in (positions, a few times a second). */
+  'gang.cars': (d: GangCarView[]) => void;
+  /** A big banner (war started, wave, zone taken / lost, under attack). */
+  'gang.banner': (d: { text: string; color: string; kind: 'war' | 'win' | 'lost' | 'wave' | 'attack' }) => void;
+  /** My zone is under attack: get there by `until` (null: over). */
+  'gang.alert': (d: { zone: GangZoneId; until: number; text: string } | null) => void;
+  /** My zones, the cash box at Emlak Dünyası, how it pays. */
+  'gang.mine': (d: GangMine) => void;
   'police.busted': (d: BustedEvent) => void;
   'police.escaped': (d: { reward: number; xp: number; cars: number }) => void;
   /** Street-parked cars changed (one was stolen, a new one parked, an alarm started). */

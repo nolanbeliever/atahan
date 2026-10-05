@@ -3,6 +3,7 @@
 
 import { ECONOMY } from '../../../../shared/economy.config';
 import { BUSINESSES, type BusinessId } from '../../../../shared/realestate';
+import { findZone } from '../../../../shared/gangs';
 import { formatMoney } from '../../../../shared/util';
 import { h, type Child } from '../dom';
 import { ICONS } from '../icons';
@@ -99,12 +100,48 @@ export class RealEstatePanel extends Panel {
           );
         }),
       ),
+      this.renderProtection(),
       h(
         'div',
         { class: 'tiny muted', style: { marginTop: '10px', lineHeight: '1.5' } },
         `Soygun ve satıştan gelen kara para harcanamaz. Bir işletmeye yatır: her işletme her ${L.cycleSec / 60} dakikada ${formatMoney(L.perCycle)} kara parayı temiz paraya çevirip kasana koyar. ` +
           'Ne kadar çok işletmen varsa o kadar hızlı aklarsın. Sen oyunda yokken de döngüler işler; döndüğünde ödenir.',
       ),
+    );
+  }
+
+  /** Protection money from the gang zones held (shared/gangs.ts): how it pays, the cash box here. */
+  private renderProtection(): Child {
+    const m = this.game.gangs.mine;
+    const zones = m.zones.map((id) => findZone(id)!);
+    const per = zones.reduce((t, z) => t + z.income, 0);
+    return h(
+      'div',
+      { class: 'gang-protect', 'data-testid': 'gang-protect' },
+      h('div', { class: 'section-title' }, '🏴 Haraç · Protection money'),
+      zones.length
+        ? h('div', { class: 'small' }, `Bölgelerin: ${zones.map((z) => z.name).join(', ')} · her 10 dakikada ${formatMoney(per)}`)
+        : h('div', { class: 'small muted' }, 'Henüz bölgen yok: bir çetenin mekanını bas ve bölge savaşını kazan (haritada renkli alanlar).'),
+      h(
+        'div',
+        { class: 'row', style: { gap: '8px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' } },
+        h('span', { class: 'tiny muted' }, 'Ödeme:'),
+        h('button', { class: `btn small ${m.mode === 'bank' ? 'primary' : ''}`, disabled: this.busy, 'data-testid': 'gang-mode-bank', onclick: () => void this.setMode('bank') }, 'Bankaya otomatik'),
+        h('button', { class: `btn small ${m.mode === 'cash' ? 'primary' : ''}`, disabled: this.busy, 'data-testid': 'gang-mode-cash', onclick: () => void this.setMode('cash') }, 'Nakit (burada topla)'),
+        h('span', { class: 'mono', style: { marginLeft: 'auto' } }, `Kasa: ${formatMoney(m.cash)}`),
+        h('button', { class: 'btn small primary', disabled: this.busy || m.cash <= 0, 'data-testid': 'gang-collect', onclick: () => void this.collectCash() }, 'Nakdi Topla'),
+      ),
+    );
+  }
+
+  private async setMode(mode: 'bank' | 'cash'): Promise<void> {
+    await this.act(() => this.game.gangs.setMode(mode));
+  }
+
+  private async collectCash(): Promise<void> {
+    await this.act(
+      () => this.game.gangs.collect(),
+      () => this.game.audio.play('coin'),
     );
   }
 
