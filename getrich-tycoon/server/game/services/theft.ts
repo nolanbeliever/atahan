@@ -47,6 +47,7 @@ import {
   type StreetCar,
   type StripPart,
 } from '../../../shared/theft';
+import { LOOT_ITEM_IDS, isLootItem, lootPawnRange } from '../../../shared/burglary';
 import type { LockpickResult, StripResult } from '../../../shared/protocol';
 import { PAWN_BONUS_ITEM } from '../../../shared/rewards';
 import type { Vehicle } from '../../../shared/types';
@@ -503,7 +504,8 @@ export class TheftService {
 
   async sell(playerId: string, params: unknown): Promise<{ amount: number; count: number }> {
     const p = val.obj(params);
-    const only = p.part === undefined || p.part === null ? null : val.oneOf(p.part, 'part', STRIP_IDS);
+    // A stripped part, a burglary loot item (jewellery, watches, electronics), or everything.
+    const only = p.part === undefined || p.part === null ? null : val.oneOf(p.part, 'part', [...STRIP_IDS, ...LOOT_ITEM_IDS]);
     return this.ctx.locks.run([K.player(playerId)], async () => {
       requireNear(this.ctx, playerId, 'pawn');
       const uow = this.ctx.state.begin();
@@ -511,9 +513,22 @@ export class TheftService {
       // Parts from the same kind of car share one price for this sale (so a whole car fetches $10,000-$15,000).
       const groups = new Map<string, { tier: number; share: number }>();
       let count = 0;
+      let loot = 0;
+      let exact = 0;
       for (const [id, qty] of Object.entries(player.inventory)) {
+        if (qty <= 0) continue;
+        if (isLootItem(id)) {
+          if (only && only !== id) continue;
+          // Night burglary loot: each piece at its own price.
+          const [lo, hi] = lootPawnRange(id);
+          for (let i = 0; i < qty; i++) exact += lo + this.ctx.rng() * (hi - lo);
+          count += qty;
+          loot += qty;
+          delete player.inventory[id];
+          continue;
+        }
         const item = parsePartItem(id);
-        if (!item || (only && item.part !== only) || qty <= 0) continue;
+        if (!item || (only && item.part !== only)) continue;
         const key = `${item.tier}:${item.profile}`;
         const g = groups.get(key) ?? { tier: item.tier, share: 0 };
         g.share += partShare(item.part, item.profile) * qty;
@@ -521,8 +536,7 @@ export class TheftService {
         count += qty;
         delete player.inventory[id];
       }
-      if (count === 0) throw new GameError('bad_request', 'You have no parts to sell.');
-      let exact = 0;
+      if (count === 0) throw new GameError('bad_request', 'You have nothing to sell.');
       for (const g of groups.values()) exact += pawnCarPrice(g.tier, this.ctx.rng()) * g.share;
       // A Pawn Shop bonus coupon (3-hour playtime reward) adds 50% to this sale.
       const bonus = (player.inventory[PAWN_BONUS_ITEM] ?? 0) > 0;
@@ -533,8 +547,8 @@ export class TheftService {
         else delete player.inventory[PAWN_BONUS_ITEM];
       }
       const amount = Math.max(1, Math.round(exact));
-      uow.credit(player, amount, 'pawn_sale', `Pawn Shop: ${count} part${count === 1 ? '' : 's'}`);
-      uow.notify(playerId, { kind: 'money', title: `Parçalar Pawn Shop'a satıldı: +${formatMoney(amount)}`, text: `${count} parça (${count} part${count === 1 ? '' : 's'})${bonus ? ` · +%${Math.round(ECONOMY.rewards.pawnBonus * 100)} bonus kuponu kullanıldı` : ''}` });
+      uow.credit(player, amount, 'pawn_sale', `Pawn Shop: ${count} item${count === 1 ? '' : 's'}`);
+      uow.notify(playerId, { kind: 'money', title: `${loot === count ? 'Mallar' : 'Parçalar'} Pawn Shop'a satıldı: +${formatMoney(amount)}`, text: `${count} parça (${count} item${count === 1 ? '' : 's'})${bonus ? ` · +%${Math.round(ECONOMY.rewards.pawnBonus * 100)} bonus kuponu kullanıldı` : ''}` });
       await uow.commit();
       return { amount, count };
     });

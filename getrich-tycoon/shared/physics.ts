@@ -2,6 +2,7 @@
 // client (prediction). Keep this file free of DOM/Node APIs.
 
 import { CAR_GATES } from './alleys';
+import { INTERIOR_BOXES, inInteriorZone } from './burglary';
 import { SECURITY_GATES } from './heists';
 import { ECONOMY } from './economy.config';
 import { G, KMH_PER_MS, SPEED_SCALE, driveStep, powertrainFor, topSpeedOf, tuningKey, type DriveOut, type DriveState, type Powertrain } from './drivetrain';
@@ -99,6 +100,7 @@ interface Push {
  */
 export function resolveCircle(x: number, z: number, r: number, world: CollisionWorld, ignoreId?: string, from?: { x: number; z: number }, deck = 0): Push {
   if (deck) return resolveOnDeck(x, z, r, world, ignoreId, deck);
+  if (inInteriorZone(x, z)) return resolveIndoors(x, z, r, world, ignoreId);
   let px = x;
   let pz = z;
   let hit = false;
@@ -240,6 +242,65 @@ function clampToWorld(px: number, pz: number, r: number, hit: boolean, nx: numbe
     if (pz > w.maxZ - r) nz -= 1;
     px = clamp(px, w.minX + r, w.maxX - r);
     pz = clamp(pz, w.minZ + r, w.maxZ - r);
+  }
+  const nl = Math.hypot(nx, nz) || 1;
+  return { x: px, z: pz, hit, nx: nx / nl, nz: nz / nl, hitId };
+}
+
+/** Inside a burglary room (shared/burglary.ts, far from the city): its walls and furniture and the
+ *  other people in there, nothing else (and no world edge). */
+function resolveIndoors(x: number, z: number, r: number, world: CollisionWorld, ignoreId: string | undefined): Push {
+  let px = x;
+  let pz = z;
+  let hit = false;
+  let nx = 0;
+  let nz = 0;
+  let hitId: string | undefined;
+  for (let pass = 0; pass < 2; pass++) {
+    let moved = false;
+    for (const b of INTERIOR_BOXES) {
+      if (px + r < b.minX || px - r > b.maxX || pz + r < b.minZ || pz - r > b.maxZ) continue;
+      const cx = clamp(px, b.minX, b.maxX);
+      const cz = clamp(pz, b.minZ, b.maxZ);
+      const dx = px - cx;
+      const dz = pz - cz;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= r * r) continue;
+      hit = moved = true;
+      if (d2 < 1e-8) {
+        // Centre inside the box: out along the shortest way.
+        const m = Math.min(px - b.minX, b.maxX - px, pz - b.minZ, b.maxZ - pz);
+        if (m === px - b.minX) [px, nx] = [b.minX - r, nx - 1];
+        else if (m === b.maxX - px) [px, nx] = [b.maxX + r, nx + 1];
+        else if (m === pz - b.minZ) [pz, nz] = [b.minZ - r, nz - 1];
+        else [pz, nz] = [b.maxZ + r, nz + 1];
+        continue;
+      }
+      const d = Math.sqrt(d2);
+      px = cx + (dx / d) * r;
+      pz = cz + (dz / d) * r;
+      nx += dx / d;
+      nz += dz / d;
+    }
+    for (const c of world.dynamic) {
+      if (ignoreId !== undefined && c.id === ignoreId) continue;
+      const rr = r + c.r;
+      const dx = px - c.x;
+      const dz = pz - c.z;
+      if (dx > rr || dx < -rr || dz > rr || dz < -rr) continue;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= rr * rr) continue;
+      hit = moved = true;
+      hitId = c.id;
+      const d = Math.sqrt(d2) || 1e-4;
+      const ux = d2 < 1e-8 ? 1 : dx / d;
+      const uz = d2 < 1e-8 ? 0 : dz / d;
+      px = c.x + ux * rr;
+      pz = c.z + uz * rr;
+      nx += ux;
+      nz += uz;
+    }
+    if (!moved) break;
   }
   const nl = Math.hypot(nx, nz) || 1;
   return { x: px, z: pz, hit, nx: nx / nl, nz: nz / nl, hitId };

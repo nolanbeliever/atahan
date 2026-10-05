@@ -6,6 +6,7 @@ import type { DragInfo, DragRaceView } from './drag';
 import type { MissionView } from './missions';
 import type { BustedEvent, CrimeSceneView, RadioLine, WantedState } from './police';
 import type { StopState, StopView } from './trafficStops';
+import type { BurglaryResult, BurglaryState, BurglaryTargetView, LootItemId } from './burglary';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { ShowroomId, ShowroomInfo, TestDriveEnd, TestDriveView } from './showrooms';
@@ -124,6 +125,15 @@ export interface RpcMethods {
   'lockpick.start': { params: { carId: string }; result: { sessionId: string; picks: number; difficulty: LockDifficulty; modelId: string } };
   'lockpick.try': { params: { sessionId: string; angle: number }; result: LockpickResult };
   'lockpick.cancel': { params: { sessionId: string }; result: { ok: true } };
+  /** Night burglaries (22:00-06:00): pick a door's lock (each snapped pick costs a lockpick), turn
+   *  the pick; walk in through a door someone else opened; crack the safe; take loot; leave. */
+  'burglary.pick': { params: { targetId: string }; result: { sessionId: string; picks: number; difficulty: LockDifficulty; name: string; mode: 'door' | 'safe' } };
+  'burglary.turn': { params: { sessionId: string; angle: number }; result: LockpickResult & { noise: number } };
+  'burglary.cancel': { params: { sessionId: string }; result: { ok: true } };
+  'burglary.enter': { params: { targetId: string }; result: BurglaryState };
+  'burglary.safe': { params: Empty; result: { sessionId: string; picks: number; difficulty: LockDifficulty; name: string; mode: 'door' | 'safe' } };
+  'burglary.take': { params: { lootId: string }; result: BurglaryState };
+  'burglary.leave': { params: Empty; result: { ok: true } };
   /** Sanayi: put the stolen car you are driving up on the lift in this bay; strip a part. */
   'sanayi.lift': { params: { vehicleId: string }; result: { vehicle: Vehicle } };
   'sanayi.strip': { params: { vehicleId: string; part: StripPart }; result: StripResult };
@@ -173,7 +183,7 @@ export interface RpcMethods {
   /** Forged papers: a stolen car in the Sanayi yard becomes the player's own. */
   'sanayi.papers': { params: { vehicleId: string }; result: { vehicle: Vehicle; price: number } };
   /** Pawn Shop: sell stripped parts (one kind, or all of them). */
-  'pawn.sell': { params: { part?: StripPart }; result: { amount: number; count: number } };
+  'pawn.sell': { params: { part?: StripPart | LootItemId }; result: { amount: number; count: number } };
   /** Today's missions (and start a timed one). */
   'missions.list': { params: Empty; result: { missions: MissionView[] } };
   /** Daily login streak and playtime milestones. */
@@ -336,6 +346,14 @@ export interface ServerToClientEvents {
   'stop.state': (d: StopState) => void;
   /** A sniffer dog barking (everyone nearby hears it). */
   'stop.bark': (d: { x: number; z: number }) => void;
+  /** Night burglary targets: security, alarms, open doors (everyone; also sent on connect). */
+  'burglary.targets': (d: BurglaryTargetView[]) => void;
+  /** Inside a place (the people in there): noise, alarm, loot taken, what went over; null: out. */
+  'burglary.state': (d: BurglaryState | null) => void;
+  /** Out with the bag: clean money straight away, or hot until the police are lost. */
+  'burglary.result': (d: BurglaryResult) => void;
+  /** The bag is cashed (lost the police) or lost (busted / wasted). */
+  'burglary.cashed': (d: { cash: number; text: string; ok: boolean }) => void;
   'police.busted': (d: BustedEvent) => void;
   'police.escaped': (d: { reward: number; xp: number; cars: number }) => void;
   /** Street-parked cars changed (one was stolen, a new one parked, an alarm started). */

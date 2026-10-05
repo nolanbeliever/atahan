@@ -53,6 +53,7 @@ import { MechanicService } from './services/mechanic';
 import { SecurityService } from './services/security';
 import { CombatService } from './services/combat';
 import { TrafficStopService } from './services/trafficStops';
+import { BurglaryService } from './services/burglary';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
 import { HighwayService } from './services/highway';
@@ -119,6 +120,7 @@ export class GameServer implements Hub {
   readonly security: SecurityService;
   readonly police: PoliceService;
   readonly stops: TrafficStopService;
+  readonly burglary: BurglaryService;
   readonly theft: TheftService;
   private tickCount = 0;
   private sessions = new Map<string, Session>();
@@ -175,6 +177,7 @@ export class GameServer implements Hub {
     this.security = new SecurityService(this.ctx, this.combat, this.deals);
     // (Random world events are off in the test suite: tests set them up themselves.)
     this.stops = new TrafficStopService(this.ctx, this.police, cfg.env !== 'test');
+    this.burglary = new BurglaryService(this.ctx, this.police, this.combat, this.crime);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -266,6 +269,13 @@ export class GameServer implements Hub {
       'race.join': async (pid) => ({ race: await this.streetRace.join(pid) }),
       'race.leave': (pid) => (this.streetRace.leave(pid), { ok: true as const }),
       'pawn.sell': (pid, p) => this.theft.sell(pid, p),
+      'burglary.pick': (pid, p) => this.burglary.pick(pid, p),
+      'burglary.turn': (pid, p) => this.burglary.turn(pid, p),
+      'burglary.cancel': (pid, p) => this.burglary.cancel(pid, p),
+      'burglary.enter': (pid, p) => this.burglary.enter(pid, p),
+      'burglary.safe': (pid) => this.burglary.safe(pid),
+      'burglary.take': (pid, p) => this.burglary.take(pid, p),
+      'burglary.leave': (pid) => this.burglary.leave(pid),
       'missions.list': (pid) => this.missions.list(pid),
       'rewards.info': (pid) => this.rewards.view(pid),
       'rewards.daily': (pid) => this.rewards.claimDaily(pid),
@@ -423,7 +433,9 @@ export class GameServer implements Hub {
     this.sessions.set(playerId, session);
 
     // Place the character where they left (pushed out of any new buildings).
-    const pos = resolveCircle(record.posX, record.posZ, CHAR_RADIUS, this.sim.collisionWorld);
+    // (Saved inside a burglary room: back out on the pavement in front of it.)
+    const out = BurglaryService.spawnOutside(record.posX, record.posZ);
+    const pos = resolveCircle(out?.x ?? record.posX, out?.z ?? record.posZ, CHAR_RADIUS, this.sim.collisionWorld);
     let { x, z } = pos;
     if (!Number.isFinite(x) || !Number.isFinite(z)) ({ x, z } = spawnPoint(hashString(playerId)));
     this.sim.addPlayer(playerId, x, z, record.rot);
@@ -460,6 +472,7 @@ export class GameServer implements Hub {
     this.combat.welcome(playerId);
     for (const v of this.police.scenes.views()) this.sendTo(playerId, 'police.scene', v);
     this.stops.welcome(playerId);
+    this.burglary.welcome(playerId);
     for (const m of this.chat.history) socket.emit('chat', m);
     log.info('player connected', { playerId, name: record.name, online: this.sessions.size });
 
@@ -480,6 +493,7 @@ export class GameServer implements Hub {
     this.driving.forget(playerId);
     this.police.forget(playerId);
     this.stops.forget(playerId);
+    this.burglary.forget(playerId);
     this.theft.forget(playerId);
     this.pursuit.forget(playerId);
     this.streetRace.forget(playerId);
@@ -713,6 +727,7 @@ export class GameServer implements Hub {
     this.drag.tick(dt);
     this.police.tick(dt, now);
     this.stops.tick(dt, now);
+    this.burglary.tick(dt, now);
     this.pursuit.tick(dt, now);
     this.streetRace.tick(dt, now);
     this.combat.tick(dt, now);

@@ -4,8 +4,14 @@
 // spot the cylinder stops short, the pick strains and snaps, and the lock gives a hint: which way
 // the sweet spot is and roughly how far (shown as a green zone on the dial and an arrow). Three
 // snapped picks and the alarm goes off. On the spot the lock opens and the car is yours.
+//
+// The same game opens a night burglary's front door (mode 'door': a wooden door with a brass lock;
+// every snapped pick costs one lockpick from the inventory and the click raises the place's
+// security 20%) and cracks the safe inside (mode 'safe': a steel door with a dial; three wrong
+// turns and the safe's alarm goes off). Every listener it adds is taken off again when it closes.
 
 import { ECONOMY } from '../../../../shared/economy.config';
+import type { RpcName } from '../../../../shared/protocol';
 import { vehicleColor } from '../../../../shared/customization';
 import type { LockpickResult } from '../../../../shared/protocol';
 import { hintBandRange, type LockDifficulty } from '../../../../shared/theft';
@@ -31,6 +37,7 @@ const DIFFICULTY: Record<LockDifficulty, { label: string; color: string }> = {
 };
 
 type State = 'aim' | 'turning' | 'strain' | 'snap' | 'open' | 'alarm' | 'expired';
+type LockMode = 'car' | 'door' | 'safe';
 
 interface Shard {
   x: number;
@@ -55,9 +62,13 @@ export class LockpickPanel extends Panel {
   private readonly carId = String(this.arg.carId ?? '');
   private readonly modelId = String(this.arg.modelId ?? '');
   private readonly difficulty = (this.arg.difficulty as LockDifficulty) ?? 'medium';
+  private readonly mode: LockMode = this.arg.mode === 'door' || this.arg.mode === 'safe' ? this.arg.mode : 'car';
+  private readonly placeName = String(this.arg.name ?? '');
   private readonly totalPicks = Number(this.arg.picks ?? ECONOMY.theft.picks);
   private picksLeft = this.totalPicks;
-  private readonly expiresAt = Date.now() + ECONOMY.theft.sessionSec * 1000;
+  /** The place's noise / security after the last snap (burglaries). */
+  private noise = 0;
+  private readonly expiresAt = Date.now() + (this.mode === 'car' ? ECONOMY.theft.sessionSec : ECONOMY.burglary.sessionSec) * 1000;
   private canvas = h('canvas', { class: 'lp-canvas', 'data-testid': 'lockpick-canvas' });
   private turnBtn = h('button', { class: 'btn primary lp-turn', 'data-testid': 'lockpick-turn' }, 'ÇEVİR · Turn');
   private root: HTMLElement | null = null;
@@ -86,10 +97,14 @@ export class LockpickPanel extends Panel {
   private tryAngle = 90;
 
   title() {
-    return 'Lockpick Et';
+    return this.mode === 'door' ? 'Kilitli Kapı · Maymuncuk' : this.mode === 'safe' ? 'Kasa Kırma' : 'Lockpick Et';
   }
   override subtitle() {
-    return `${modelDisplayName(this.modelId)} · ${DIFFICULTY[this.difficulty].label}`;
+    return `${this.mode === 'car' ? modelDisplayName(this.modelId) : this.placeName} · ${DIFFICULTY[this.difficulty].label}`;
+  }
+
+  private rpcNames(): { turn: RpcName; cancel: RpcName } {
+    return this.mode === 'car' ? { turn: 'lockpick.try', cancel: 'lockpick.cancel' } : { turn: 'burglary.turn', cancel: 'burglary.cancel' };
   }
   iconSvg() {
     return ICONS.lockpick;
@@ -98,6 +113,9 @@ export class LockpickPanel extends Panel {
   override init(): void {
     const car = this.store.street.get(this.carId);
     if (car) this.paint = vehicleColor(car.color, car.mods);
+    if (this.mode === 'door') this.paint = '#6b4226';
+    if (this.mode === 'safe') this.paint = '#3a4049';
+    if (this.mode !== 'car') this.message = this.mode === 'safe' ? 'Kadranı ayarla, sonra çevir. 3 yanlış = kasa alarmı!' : 'Açıyı ayarla, sonra çevir. Her kırık maymuncuk +%20 güvenlik.';
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     this.canvas.width = W * dpr;
     this.canvas.height = H * dpr;
@@ -130,7 +148,9 @@ export class LockpickPanel extends Panel {
     on(this.canvas, 'pointermove', (e) => {
       if (e.pointerType !== 'mouse' && e.buttons) this.aimAt(e.clientX, e.clientY, true);
     });
-    this.turnBtn.addEventListener('click', () => void this.turn());
+    on(this.turnBtn, 'click', () => void this.turn());
+    // Keys held when the lock opened would never see their key-up in the game: let go of them.
+    this.game.input.releaseAll();
     this.game.working = true;
     const loop = (now: number) => {
       this.raf = requestAnimationFrame(loop);
@@ -220,7 +240,9 @@ export class LockpickPanel extends Panel {
     this.messageColor = '#cfd6e6';
     this.game.audio.play('pick');
     try {
-      const r = await this.net.rpc('lockpick.try', { sessionId: this.sessionId, angle: Math.round(this.angle * 10) / 10 });
+      const params = { sessionId: this.sessionId, angle: Math.round(this.angle * 10) / 10 };
+      const r: LockpickResult & { noise?: number } = this.mode === 'car' ? await this.net.rpc('lockpick.try', params) : await this.net.rpc('burglary.turn', params);
+      if (typeof r.noise === 'number') this.noise = r.noise;
       this.result = r;
       this.target = r.opened ? 1 : r.turn;
     } catch (err) {
@@ -235,7 +257,7 @@ export class LockpickPanel extends Panel {
         this.state = 'aim';
         this.target = 0;
         this.rot = 0;
-        this.message = code === 'too_far' ? 'Arabaya yaklaş. Get right next to the car.' : 'Tekrar dene. Try again.';
+        this.message = code === 'too_far' ? (this.mode === 'car' ? 'Arabaya yaklaş. Get right next to the car.' : 'Yaklaş. Get closer.') : 'Tekrar dene. Try again.';
         this.messageColor = '#ffd27a';
       }
     }
@@ -268,7 +290,7 @@ export class LockpickPanel extends Panel {
           if (this.result.opened) {
             this.state = 'open';
             this.finished = true;
-            this.message = 'KİLİT AÇILDI! The lock is open.';
+            this.message = this.mode === 'safe' ? 'KASA AÇILDI! Nakit çantada.' : this.mode === 'door' ? 'KAPI AÇILDI! İçeri giriyorsun...' : 'KİLİT AÇILDI! The lock is open.';
             this.messageColor = '#2ee59d';
             this.game.audio.play('unlock');
           } else {
@@ -292,7 +314,10 @@ export class LockpickPanel extends Panel {
           const [lo, hi] = hintBandRange(r.band);
           const way = r.dir > 0 ? 'SAĞA →' : 'SOLA ←';
           const far = hi >= 180 ? `${lo}°'den fazla` : `${lo}-${hi}°`;
-          this.message = r.failed ? 'Son maymuncuk da kırıldı! ALARM - polis geliyor ★★' : `KIRILDI! ${way} çevir: doğru açı ${far} ${r.dir > 0 ? 'sağda' : 'solda'} (${this.picksLeft} hak)`;
+          const hint = `${way} çevir: doğru açı ${far} ${r.dir > 0 ? 'sağda' : 'solda'}`;
+          if (this.mode === 'car') this.message = r.failed ? 'Son maymuncuk da kırıldı! ALARM - polis geliyor ★★' : `KIRILDI! ${hint} (${this.picksLeft} hak)`;
+          else if (this.mode === 'door') this.message = r.failed ? (this.noise >= 100 ? 'Komşular tıkırtıyı duydu! POLİS ARANDI ★★' : 'Maymuncuğun kalmadı! Black Market’tan al.') : `KIRILDI! Güvenlik %${Math.round(this.noise)} · ${hint} (${this.picksLeft} maymuncuk)`;
+          else this.message = r.failed ? 'Kasa yanlış zorlandı! ALARM ★★ - polis 30 sn içinde kapıda' : `Yanlış! Sürgüler takırdadı · ${hint} (${this.picksLeft} hak)`;
           this.messageColor = r.failed ? '#ff5c7a' : '#ffd27a';
         }
         break;
@@ -301,7 +326,8 @@ export class LockpickPanel extends Panel {
         if (this.stateT > 0.65) {
           this.stateT = 0;
           if (this.result?.failed) {
-            this.state = 'alarm';
+            // (Out of lockpicks at a door is not an alarm, just the end.)
+            this.state = this.mode === 'door' && this.noise < 100 ? 'expired' : 'alarm';
             this.finished = true;
           } else {
             this.state = 'aim';
@@ -318,7 +344,7 @@ export class LockpickPanel extends Panel {
         if (this.stateT > 2.2) this.ui.closeAll();
         break;
       case 'expired':
-        if (this.stateT > 1.8) this.ui.closeAll();
+        if (this.stateT > 2.2) this.ui.closeAll();
         break;
     }
     for (const s of this.shards) {
@@ -420,7 +446,108 @@ export class LockpickPanel extends Panel {
     const g = this.canvas.getContext('2d');
     if (!g) return;
     g.clearRect(0, 0, W, H);
-    // The door skin in the car's colour, with a chrome handle.
+    if (this.mode === 'door') this.drawWoodDoor(g);
+    else if (this.mode === 'safe') this.drawSafe(g);
+    else this.drawCarDoor(g);
+    this.drawLock(g);
+  }
+
+  /** A front door at night: dark wood panels and a brass escutcheon. */
+  private drawWoodDoor(g: CanvasRenderingContext2D): void {
+    const wood = g.createLinearGradient(0, 0, W, 0);
+    wood.addColorStop(0, '#4a2c17');
+    wood.addColorStop(0.5, '#6b4226');
+    wood.addColorStop(1, '#3d2412');
+    g.fillStyle = wood;
+    g.fillRect(0, 0, W, H);
+    // Grain.
+    g.strokeStyle = 'rgba(0,0,0,0.18)';
+    g.lineWidth = 1;
+    for (let i = 0; i < 26; i++) {
+      const x = (i * 97) % W;
+      g.beginPath();
+      g.moveTo(x, 0);
+      g.bezierCurveTo(x + 8, H * 0.3, x - 8, H * 0.6, x + 4, H);
+      g.stroke();
+    }
+    // Raised panels.
+    g.strokeStyle = 'rgba(0,0,0,0.35)';
+    g.lineWidth = 4;
+    g.strokeRect(24, 22, W - 48, H * 0.32);
+    g.strokeStyle = 'rgba(255,220,170,0.12)';
+    g.lineWidth = 2;
+    g.strokeRect(28, 26, W - 56, H * 0.32 - 8);
+    // Brass escutcheon round the cylinder and a lever handle on the right.
+    const brass = g.createRadialGradient(CX - 20, CY - 30, 10, CX, CY, 90);
+    brass.addColorStop(0, '#ffe7a3');
+    brass.addColorStop(0.6, '#c6952f');
+    brass.addColorStop(1, '#7a5a1b');
+    g.fillStyle = brass;
+    g.beginPath();
+    rrect(g, CX - 46, CY - 80, 92, 160, 30);
+    g.fill();
+    const hx = W - 150;
+    const hy = CY + 34;
+    g.fillStyle = brass;
+    g.beginPath();
+    rrect(g, hx, hy, 120, 22, 11);
+    g.fill();
+    // A thin strip of street light under the door.
+    g.fillStyle = 'rgba(255,200,120,0.25)';
+    g.fillRect(0, H - 6, W, 6);
+  }
+
+  /** A safe's steel door: rivets, a big chrome dial with numbers, the handle. */
+  private drawSafe(g: CanvasRenderingContext2D): void {
+    const steel = g.createLinearGradient(0, 0, W, H);
+    steel.addColorStop(0, '#59616c');
+    steel.addColorStop(0.5, '#3a4049');
+    steel.addColorStop(1, '#22262c');
+    g.fillStyle = steel;
+    g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(0,0,0,0.5)';
+    g.lineWidth = 6;
+    g.strokeRect(14, 14, W - 28, H - 28);
+    g.fillStyle = '#8a929c';
+    for (const [x, y] of [
+      [30, 30],
+      [W - 30, 30],
+      [30, H - 30],
+      [W - 30, H - 30],
+    ] as const) {
+      g.beginPath();
+      g.arc(x, y, 6, 0, Math.PI * 2);
+      g.fill();
+    }
+    // Numbers round the dial.
+    g.save();
+    g.translate(CX, CY);
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.font = '700 11px ui-monospace, monospace';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    for (let i = 0; i < 20; i++) {
+      const a = Math.PI + (i / 19) * Math.PI;
+      g.fillText(String(i * 5), Math.cos(a) * (GUIDE_R + 22), Math.sin(a) * (GUIDE_R + 22));
+    }
+    g.restore();
+    // The handle (spokes) on the right.
+    g.strokeStyle = '#c9ced4';
+    g.lineWidth = 8;
+    g.lineCap = 'round';
+    const hx = W - 92;
+    const hy = CY + 60;
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.4;
+      g.beginPath();
+      g.moveTo(hx, hy);
+      g.lineTo(hx + Math.cos(a) * 34, hy + Math.sin(a) * 34);
+      g.stroke();
+    }
+  }
+
+  /** The car door skin in the car's colour, with a chrome handle. */
+  private drawCarDoor(g: CanvasRenderingContext2D): void {
     const door = g.createLinearGradient(0, 0, 0, H);
     door.addColorStop(0, shade(this.paint, 0.35));
     door.addColorStop(0.45, shade(this.paint, 0.05));
@@ -444,7 +571,9 @@ export class LockpickPanel extends Panel {
     g.beginPath();
     rrect(g, hx + 10, hy + 6, 110, 14, 7);
     g.fill();
+  }
 
+  private drawLock(g: CanvasRenderingContext2D): void {
     // Angle guide round the lock.
     g.save();
     g.translate(CX, CY);
@@ -567,10 +696,16 @@ export class LockpickPanel extends Panel {
     g.fill();
     g.font = '800 11px system-ui, sans-serif';
     g.fillStyle = '#9aa6bd';
-    g.fillText('MAYMUNCUK · PICKS', 22, 28);
-    for (let i = 0; i < this.totalPicks; i++) {
-      const ok = i < this.picksLeft;
-      const x = 24 + i * 52;
+    g.fillText(this.mode === 'safe' ? 'HAK · TRIES' : 'MAYMUNCUK · PICKS', 22, 28);
+    const shown = Math.min(3, this.totalPicks);
+    if (this.totalPicks > 3) {
+      g.font = '900 13px ui-monospace, monospace';
+      g.fillStyle = this.picksLeft > 0 ? '#ffffff' : '#ff5c7a';
+      g.fillText(`×${this.picksLeft}`, 150, 49);
+    }
+    for (let i = 0; i < shown; i++) {
+      const ok = this.totalPicks > 3 ? i < Math.min(3, this.picksLeft) : i < this.picksLeft;
+      const x = 24 + i * (this.totalPicks > 3 ? 40 : 52);
       g.strokeStyle = ok ? '#e8ecf1' : '#ff5c7a';
       g.lineWidth = 3;
       g.beginPath();
@@ -593,6 +728,21 @@ export class LockpickPanel extends Panel {
         g.lineTo(x + 10, 50);
         g.stroke();
       }
+    }
+    if (this.mode !== 'car') {
+      // The place's security / noise (100: the police are called).
+      const k = Math.min(1, this.noise / 100);
+      g.fillStyle = 'rgba(8,10,16,0.62)';
+      g.beginPath();
+      rrect(g, 12, 64, 176, 30, 10);
+      g.fill();
+      g.font = '800 10px system-ui, sans-serif';
+      g.fillStyle = '#9aa6bd';
+      g.fillText('GÜVENLİK · NOISE', 22, 77);
+      g.fillStyle = 'rgba(255,255,255,0.12)';
+      g.fillRect(22, 82, 156, 6);
+      g.fillStyle = k > 0.75 ? '#ff5c7a' : k > 0.4 ? '#ffc53d' : '#2ee59d';
+      g.fillRect(22, 82, 156 * k, 6);
     }
     const left = Math.max(0, Math.ceil((this.expiresAt - Date.now()) / 1000));
     g.fillStyle = 'rgba(8,10,16,0.62)';
@@ -637,7 +787,7 @@ export class LockpickPanel extends Panel {
       g.font = '900 40px system-ui, sans-serif';
       g.textAlign = 'center';
       g.fillStyle = this.state === 'open' ? '#2ee59d' : '#ff5c7a';
-      g.fillText(this.state === 'open' ? 'KİLİT AÇILDI!' : 'ALARM!', CX, CY - 80);
+      g.fillText(this.state === 'open' ? (this.mode === 'safe' ? 'KASA AÇILDI!' : 'KİLİT AÇILDI!') : 'ALARM!', CX, CY - 80);
       g.textAlign = 'left';
     }
   }
@@ -646,9 +796,11 @@ export class LockpickPanel extends Panel {
     cancelAnimationFrame(this.raf);
     for (const u of this.unbind) u();
     this.unbind = [];
+    this.keys = { left: false, right: false, fine: false };
+    this.game.input.releaseAll();
     this.game.working = false;
     // Walking away mid-attempt ends it (the set is spent).
-    if (!this.finished) void this.net.rpc('lockpick.cancel', { sessionId: this.sessionId }).catch(() => undefined);
+    if (!this.finished) void this.net.rpc(this.rpcNames().cancel as 'lockpick.cancel', { sessionId: this.sessionId }).catch(() => undefined);
     super.dispose();
   }
 }

@@ -174,6 +174,12 @@ const SHOPS: Record<string, { sign: string; signColor: string; color?: string }>
   alley_wrench_l3: { sign: 'ATLAS OFİS PLAZA', signColor: '#4f8cff', color: '#5c6b7a' },
   alley_auction_r2: { sign: 'MEGA MARKET 7/24', signColor: '#2ec4b6' },
   alley_chroma_r1: { sign: 'EMLAK DÜNYASI', signColor: '#ff7a1a' },
+  // Night burglary targets (shared/burglary.ts), robbed through their front doors.
+  alley_wrench_r1: { sign: 'GÜL APARTMANI', signColor: '#ff9fb2' },
+  alley_wrench_r4: { sign: 'SAAT GALERİSİ ZAMAN', signColor: '#e8c872', color: '#2e2a26' },
+  alley_auction_r1: { sign: 'MEŞE APARTMANI', signColor: '#9ad17a' },
+  alley_auction_r3: { sign: 'TEKNO DÜNYA ELEKTRONİK', signColor: '#39c0ff', color: '#3d4a57' },
+  alley_chroma_r2: { sign: 'MEDYA ELEKTRONİK', signColor: '#ff4fa3' },
 };
 
 /** The apartment rows that make the alleys (colliders; drawn like the other buildings). */

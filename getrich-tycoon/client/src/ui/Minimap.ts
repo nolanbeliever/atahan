@@ -5,6 +5,8 @@ import { CARRIAGEWAY_EDGE, DRAG_STRIP, JUNCTIONS, JUNCTION_APRON, LOOP_LEN, path
 import { SANAYI } from '../../../shared/sanayiLayout';
 import { ALLEYS, alleyMouths } from '../../../shared/alleys';
 import { HEISTS } from '../../../shared/heists';
+import { BURGLARY_TARGETS } from '../../../shared/burglary';
+import { VILLAS } from '../../../shared/compounds';
 import { POLICE_STATIONS } from '../../../shared/police';
 import { findDrop } from '../../../shared/telegram';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
@@ -143,6 +145,7 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   for (const r of ROADS) g.fillRect(tx(r.minX), tz(r.minZ), (r.maxX - r.minX) * s, (r.maxZ - r.minZ) * s);
   g.fillStyle = '#8d93a3';
   for (const b of BUILDINGS) g.fillRect(tx(b.box.minX), tz(b.box.minZ), (b.box.maxX - b.box.minX) * s, (b.box.maxZ - b.box.minZ) * s);
+  for (const v of VILLAS) g.fillRect(tx(v.box.minX), tz(v.box.minZ), (v.box.maxX - v.box.minX) * s, (v.box.maxZ - v.box.minZ) * s);
   // The back alleys (bikes and ATVs only): an orange dashed line through the block.
   g.strokeStyle = '#ff9a3c';
   g.lineWidth = Math.max(1.5, 1.6 * s);
@@ -278,6 +281,13 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   for (const hs of HEISTS) {
     const alarm = game.heistAlarms.has(hs.id);
     badge(g, tx(hs.door.x), tz(hs.door.z), Math.max(6, 2.8 * s), alarm && ring ? '#ff3b47' : '#b8901e', '💰', turn);
+  }
+  // Night burglaries: an open lock on the places that can be done tonight; red while one rings.
+  const night = game.burglary.night();
+  for (const t of BURGLARY_TARGETS) {
+    const v = game.burglary.targets.find((x) => x.id === t.id);
+    if (v?.alarm) badge(g, tx(t.door.x), tz(t.door.z), Math.max(6, 2.8 * s), ring ? '#ff3b47' : '#7a0010', '🚨', turn);
+    else if (night) badge(g, tx(t.door.x), tz(t.door.z), Math.max(6, 2.6 * s), v && v.readyAt > game.store.serverNow() ? '#5b6472' : '#2ee59d', '🔓', turn);
   }
   // Telegram: the deal cars waiting for me, my orders' dead drops.
   for (const c of game.dealCars.mine()) badge(g, tx(c.x), tz(c.z), Math.max(8, 3.4 * s), c.kind === 'supplier' ? '#8a5cff' : '#2aa3df', c.kind === 'supplier' ? '📦' : '🤝', turn);

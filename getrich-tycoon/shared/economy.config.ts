@@ -712,6 +712,49 @@ export const ECONOMY = {
   },
 
   /**
+   * Night burglaries (shared/burglary.ts): on between `fromHour` and `toHour` (game time); the
+   * owners are back at `ownersHour` (an alarm for anyone still inside). At the door: the lockpick
+   * mini-game, every snapped pick costs one lockpick (the Black Market's set) and adds
+   * `breakSecurity` to the place's security (noise meter, 0-100); it cools down `securityDecay` a
+   * second while nobody is at it. Inside: running adds `runNoise` a second, walking `walkNoise`,
+   * standing still takes `quietDecay` a second off (never below the security from the door);
+   * knocking something over adds `knockNoise`; a wrong turn on the safe's dial adds `safeNoise`
+   * and after `safeTries` wrong turns the alarm goes off. Full noise, a laser beam broken or a
+   * motion sensor seeing you move: the alarm (`alarmHeat`: 2 stars; the first car `policeSec`
+   * away). Taking loot takes `takeSec`. A place can be done again after `cooldownSec`, a player can
+   * start one every `playerCooldownSec`. XP per burglary. The Pawn Shop's prices (each).
+   */
+  burglary: {
+    fromHour: 22,
+    toHour: 6,
+    ownersHour: 7,
+    breakSecurity: 20,
+    securityDecay: 0.05,
+    runNoise: 14,
+    walkNoise: 0.6,
+    quietDecay: 2.5,
+    knockNoise: 25,
+    safeNoise: 22,
+    safeTries: 3,
+    alarmHeat: 180,
+    policeSec: 30,
+    takeSec: { jewels: 3, watches: 3, laptop: 1.5, electronics: 2 } as Record<'jewels' | 'watches' | 'laptop' | 'electronics', number>,
+    /** How many of a thing are on a counter / shelf. */
+    qty: { jewels: [1, 3], watches: [1, 2], laptop: [1, 1], electronics: [1, 3] } as Record<'jewels' | 'watches' | 'laptop' | 'electronics', [number, number]>,
+    pawn: {
+      loot_jewels: [2_500, 4_000],
+      loot_watch: [3_000, 6_000],
+      loot_laptop: [1_200, 2_000],
+      loot_electronics: [500, 1_200],
+    } as Record<'loot_jewels' | 'loot_watch' | 'loot_laptop' | 'loot_electronics', [number, number]>,
+    sessionSec: 90,
+    pickReach: 2.2,
+    cooldownSec: 480,
+    playerCooldownSec: 30,
+    xp: 90,
+  },
+
+  /**
    * Telegram dealing (shared/telegram.ts). The supplier: `grams` for `buyPrice` (clean money), the
    * car waits `pickupSec`. Your channel: a new order every `orderEvery` s (up to `maxOrders`),
    * `orderGrams` grams at `perGram` dollars a gram (dirty money); a dead drop pays `dropShare` of

@@ -88,7 +88,11 @@ export type Sfx =
   | 'empty'
   | 'hit'
   | 'wasted'
-  | 'shutter';
+  | 'shutter'
+  | 'glass'
+  | 'thud'
+  | 'beep'
+  | 'grab';
 
 export class AudioSystem {
   private ctx: AudioContext | null = null;
@@ -592,6 +596,26 @@ export class AudioSystem {
       case 'ratchet':
         if (this.ctx && this.noiseBuf) for (let i = 0; i < 6; i++) this.burst(this.ctx.currentTime + i * 0.055, 0.025, 'bandpass', 3000 + (i % 2) * 600, 0.14);
         return;
+      // Night burglaries: a vase / bottles smashing, a chair or a box going over, a motion
+      // sensor arming, loot into the bag.
+      case 'glass':
+        if (this.ctx && this.noiseBuf) {
+          const t = this.ctx.currentTime;
+          this.burst(t, 0.06, 'highpass', 4200, 0.5);
+          for (let i = 0; i < 9; i++) this.burst(t + 0.04 + i * 0.035 + Math.random() * 0.02, 0.05, 'bandpass', 3000 + Math.random() * 4000, 0.18 - i * 0.015);
+        }
+        return this.tone([2093, 2793, 3520], 0.05, 'triangle', 0.03, undefined, 0.03);
+      case 'thud':
+        if (this.ctx && this.noiseBuf) {
+          this.burst(this.ctx.currentTime, 0.25, 'lowpass', 220, 0.7);
+          this.burst(this.ctx.currentTime + 0.12, 0.15, 'lowpass', 320, 0.35);
+        }
+        return this.tone([70, 55], 0.22, 'sine', 0.18, undefined, 0.1);
+      case 'beep':
+        return this.tone([1760], 0.06, 'square', 0.018);
+      case 'grab':
+        if (this.ctx && this.noiseBuf) this.burst(this.ctx.currentTime, 0.14, 'bandpass', 1500, 0.18);
+        return this.tone([660, 990], 0.06, 'triangle', 0.04, undefined, 0.05);
       case 'clunk':
         if (this.ctx && this.noiseBuf) {
           this.burst(this.ctx.currentTime, 0.18, 'lowpass', 300, 0.45);
@@ -727,6 +751,52 @@ export class AudioSystem {
       this.alarmNodes.osc.stop();
       this.alarmNodes.lfo.stop();
       this.alarmNodes = null;
+    }
+  }
+
+  private bellNodes: { osc: OscillatorNode[]; lfo: OscillatorNode; gain: GainNode } | null = null;
+
+  /** A burglar alarm's bell (0: off, 1: standing right under it): a loud metallic ring, the
+   *  hammer beating it twenty times a second. */
+  bell(level: number): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const k = Math.max(0, Math.min(1, level));
+    if (k > 0 && !this.bellNodes) {
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      // The hammer: the bell's amplitude chopped by a fast square wave.
+      const ring = ctx.createGain();
+      ring.gain.value = 0.5;
+      const lfo = ctx.createOscillator();
+      lfo.type = 'square';
+      lfo.frequency.value = 19;
+      const depth = ctx.createGain();
+      depth.gain.value = 0.5;
+      lfo.connect(depth).connect(ring.gain);
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 2400;
+      f.Q.value = 2;
+      // Inharmonic partials make it sound like metal.
+      const osc = [1180, 2760, 3910].map((hz) => {
+        const o = ctx.createOscillator();
+        o.type = 'triangle';
+        o.frequency.value = hz;
+        o.connect(f);
+        o.start();
+        return o;
+      });
+      f.connect(ring).connect(gain).connect(this.sfxBus);
+      lfo.start();
+      this.bellNodes = { osc, lfo, gain };
+    }
+    if (!this.bellNodes) return;
+    this.bellNodes.gain.gain.setTargetAtTime(0.09 * k, ctx.currentTime, 0.05);
+    if (k === 0 && this.bellNodes.gain.gain.value < 0.0005) {
+      for (const o of this.bellNodes.osc) o.stop();
+      this.bellNodes.lfo.stop();
+      this.bellNodes = null;
     }
   }
 

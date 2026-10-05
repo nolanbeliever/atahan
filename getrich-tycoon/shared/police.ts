@@ -27,7 +27,7 @@ export const PF = {
 
 /** What was reported: the radio wording, and whether it gets a crime scene (tape, evidence) when
  *  the police find it empty (traffic offences don't). */
-export type OffenceId = 'gunshot' | 'shooting' | 'copShot' | 'heist' | 'carAlarm' | 'deal' | 'crash' | 'reckless' | 'copRam' | 'anpr' | 'race' | 'stolenCar' | 'tamper' | 'evade' | 'uturn' | 'k9';
+export type OffenceId = 'gunshot' | 'shooting' | 'copShot' | 'heist' | 'carAlarm' | 'deal' | 'crash' | 'reckless' | 'copRam' | 'anpr' | 'race' | 'stolenCar' | 'tamper' | 'evade' | 'uturn' | 'k9' | 'burglary';
 
 export const OFFENCES: Record<OffenceId, { kind: 'crime' | 'traffic'; radio: string; evidence: EvidenceKind[] }> = {
   gunshot: { kind: 'crime', radio: 'silah sesi ihbarı', evidence: ['casing', 'casing', 'glass'] },
@@ -46,6 +46,7 @@ export const OFFENCES: Record<OffenceId, { kind: 'crime' | 'traffic'; radio: str
   evade: { kind: 'traffic', radio: 'çevirme noktasından kaçan araç', evidence: [] },
   uturn: { kind: 'traffic', radio: 'çevirme noktasını görüp geri dönen şüpheli araç', evidence: [] },
   k9: { kind: 'crime', radio: 'çevirme noktasında narkotik köpeği uyuşturucu tespit etti', evidence: [] },
+  burglary: { kind: 'crime', radio: 'hırsız alarmı, binaya zorla girildi', evidence: ['glass', 'glass'] },
 };
 
 /** Where something is, the way the radio says it ("Fortune Plaza civarında", "otoyolda"). */

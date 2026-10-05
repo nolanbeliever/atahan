@@ -88,6 +88,8 @@ import { CrimeScenes } from '../render/CrimeScene';
 import { TrafficStopsView } from '../render/TrafficStops';
 import { CharacterView } from '../render/Character';
 import { TheftClient } from './Theft';
+import { BurglaryClient } from './Burglary';
+import { VillasView } from '../render/Villas';
 import { TrafficClient } from './Traffic';
 
 export interface Interaction {
@@ -97,6 +99,8 @@ export interface Interaction {
   action: () => void;
   /** Getting into / out of a vehicle (the F key). */
   vehicle?: boolean;
+  /** Prompt colour (a burglary's locked door is green, an alarm red). */
+  tone?: 'green' | 'red';
 }
 
 const COCKPIT_FOV = 74;
@@ -140,6 +144,8 @@ export class Game {
   combat!: CombatClient;
   /** Street cars, alarms, the lifts and stripping. */
   readonly theft: TheftClient;
+  readonly burglary: BurglaryClient;
+  private villas: VillasView;
   /** Hands busy (lockpicking, working on a car): the character plays its work animation. */
   working = false;
   /** The drag race on the strip (null when it is free). */
@@ -150,7 +156,7 @@ export class Game {
   private hornOn = false;
   private flash = 0;
   /** Fixed time of day for screenshots/debugging: ?hour=22 */
-  private forcedHour: number | null = (() => {
+  forcedHour: number | null = (() => {
     const v = Number(new URLSearchParams(location.search).get('hour'));
     return new URLSearchParams(location.search).has('hour') && Number.isFinite(v) ? v : null;
   })();
@@ -251,6 +257,7 @@ export class Game {
     this.trafficStops = new TrafficStopsView(this.renderer.scene);
     this.entities.serverNow = () => this.store.serverNow();
     this.theft = new TheftClient(this);
+    this.villas = new VillasView(this.renderer.scene);
     this.renderer.scene.add(this.theft.group);
     this.renderer.scene.add(this.rain.mesh);
     // Pops & bangs from our own exhaust flash flames at the tips.
@@ -260,6 +267,7 @@ export class Game {
     this.input = new Input(this.renderer.renderer.domElement);
     this.cam = new CameraController(this.renderer.camera);
     this.net = new Network(token);
+    this.burglary = new BurglaryClient(this);
     this.rebuildBoxes();
     this.bindNetwork();
     this.bindStore();
@@ -982,7 +990,8 @@ export class Game {
     } else {
       if (this.driving && this.dyn && performance.now() - this.input.lastMouseMove > 1500) this.cam.follow(this.dyn.rot, dt);
       const target = new THREE.Vector3(rx, surfaceY(rx, rz, this.localDeck()), rz);
-      this.cam.update(target, dt, !!this.driving, this.dyn?.speed ?? 0, this.boxes);
+      // Inside a burglary room: its walls and ceiling keep the camera in.
+      this.cam.update(target, dt, !!this.driving, this.dyn?.speed ?? 0, this.burglary.roomBoxes() ?? this.boxes, this.burglary.ceiling());
     }
     const me = this.store.me?.appearance;
     this.gunView.set(fps ? this.combat.equipped?.slot ?? 0 : 0, me?.skin, me?.shirt);
@@ -1050,12 +1059,16 @@ export class Game {
     this.police.update(dt, now);
     this.crimeScenes.update(dt, this.night);
     this.trafficStops.update(dt, this.night);
+    this.burglary.update(dt, rx, rz, this.night);
+    this.villas.update(this.night);
     CharacterView.night = this.night;
     this.ui?.scanner.update(dt, now);
     this.audio.siren(Math.min(this.police.nearestSiren(rx, rz), this.dealScene?.sirenDistance ?? Infinity));
     this.audio.rotor(this.police.nearestHeli(rx, rz));
-    this.audio.rain(this.weather.rain);
-    this.rain.update(dt, camera, this.weather.rain, this.renderer.graphics === 'low' ? 0.35 : this.renderer.graphics === 'medium' ? 0.65 : 1);
+    // (No rain indoors.)
+    const rainHere = this.burglary.inside ? 0 : this.weather.rain;
+    this.audio.rain(rainHere * (this.burglary.inside ? 0 : 1));
+    this.rain.update(dt, camera, rainHere, this.renderer.graphics === 'low' ? 0.35 : this.renderer.graphics === 'medium' ? 0.65 : 1);
     this.missionTimer -= dt;
     if (this.missionTimer <= 0) {
       this.missionTimer = 1;
@@ -1127,7 +1140,8 @@ export class Game {
     this.minimapTimer -= dt;
     if (this.minimapTimer <= 0) {
       this.minimapTimer = 0.1;
-      this.ui?.minimap.draw(this, rx, rz, this.cam.yaw);
+      const mp = this.burglary.mapPosition(rx, rz);
+      this.ui?.minimap.draw(this, mp.x, mp.z, this.cam.yaw);
       this.combat.refreshViews();
       this.ui?.updateDriving();
       this.ui?.setZone(zoneAt(rx, rz)?.name ?? '');
@@ -1497,6 +1511,8 @@ export class Game {
         if (job) consider(d, { id: `heist-${hs.id}`, label: `${hs.title} sürüyor · %${Math.round(job.progress * 100)}`, sub: hs.task, action: () => undefined });
         else consider(d, { id: `heist-${hs.id}`, label: `Soygunu Başlat: ${hs.name}`, sub: `${formatMoney(hs.loot[0])}-${formatMoney(hs.loot[1])} · ${hs.workSec} sn · polis ${'★'.repeat(hs.stars)}`, action: () => this.startHeist(hs.id) });
       }
+      // Night burglaries: the locked doors outside, the loot / safe / way out inside.
+      this.burglary.interactions(x, z, consider);
       // Lockpicking a parked car.
       const street = this.theft.nearestCar(x, z);
       if (street) consider(street.d, this.lockpickInteraction(street.car));

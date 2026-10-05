@@ -40,6 +40,14 @@ export class Input {
   fireHeld = false;
   private fireClicks = 0;
 
+  /** Forget every key held (a panel that owned the keyboard closed: keys let go while it was open
+   *  never reached us, and must not stay stuck down). */
+  releaseAll(): void {
+    this.down.clear();
+    this.fireHeld = false;
+    this.dragging = false;
+  }
+
   constructor(private readonly canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', (e) => this.onKey(e, true));
     window.addEventListener('keyup', (e) => this.onKey(e, false));

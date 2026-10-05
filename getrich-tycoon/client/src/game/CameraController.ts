@@ -28,7 +28,8 @@ export class CameraController {
     this.yaw += angleDiff(this.yaw, heading) * Math.min(1, dt * strength);
   }
 
-  update(target: THREE.Vector3, dt: number, driving: boolean, speed: number, boxes: readonly AABB[]): void {
+  /** `ceiling`: indoors, the camera stays below this height (m). */
+  update(target: THREE.Vector3, dt: number, driving: boolean, speed: number, boxes: readonly AABB[], ceiling: number | null = null): void {
     const wantDist = driving ? 8.5 + Math.min(4, Math.abs(speed) * 0.12) : this.distance;
     const height = driving ? 2.2 : 1.6;
     const focus = new THREE.Vector3(target.x, target.y + height, target.z);
@@ -41,17 +42,19 @@ export class CameraController {
       const pz = focus.z - fz * t * Math.cos(this.pitch);
       const py = focus.y + Math.sin(this.pitch) * t;
       const hit = boxes.some((b) => px > b.minX - 0.3 && px < b.maxX + 0.3 && pz > b.minZ - 0.3 && pz < b.maxZ + 0.3 && py < 14);
-      if (hit) {
+      if (hit || (ceiling !== null && py > ceiling)) {
         dist = Math.max(1.5, t - 0.6);
         break;
       }
     }
+    if (ceiling !== null) dist = Math.max(1.2, dist);
     const desired = new THREE.Vector3(
       focus.x - fx * dist * Math.cos(this.pitch),
       // Never below the ground there (the far shore's hill) or the target's own level.
       Math.max(0.6, focus.y - 1.2, terrainHeight(focus.x - fx * dist * Math.cos(this.pitch), focus.z - fz * dist * Math.cos(this.pitch)) + 1.2, focus.y + Math.sin(this.pitch) * dist),
       focus.z - fz * dist * Math.cos(this.pitch),
     );
+    if (ceiling !== null) desired.y = Math.min(desired.y, ceiling);
     if (!this.initialized) {
       this.current.copy(desired);
       this.look.copy(focus);

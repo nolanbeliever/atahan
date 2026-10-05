@@ -241,6 +241,55 @@ Values are in `ECONOMY.heists` (`shared/heists.ts` for the targets, `shared/unde
 - **Dirty money** can't be spent; it shows under the bank balance as "Kara para" and is laundered through businesses
   (below). It is kept in `player_crime` and written in the same transaction as what it changes.
 
+## Police checkpoints (çevirme)
+
+Values are in `ECONOMY.police.stops` (`shared/trafficStops.ts`, `server/game/services/trafficStops.ts`).
+
+- `active` 3 checkpoints up at a time, each for `lifeSec` 300 s, a new one `gapSec` 45 s after one closes; half of them
+  (`k9Chance`) with a K9 dog. Sites: the north and south city gates, the far-shore bridge exits, the three highway
+  connectors, Merkez Cadde and Galeri Bulvarı.
+- Warned `warnDist` 85 m out. Stop within `stopBox` 9 m of the line under `stopKmh` 6 km/h: the check takes 3-5 s
+  (`checkSec`). Found: goods on anyone in the car with the dog (`k9Open` 100%) or by an officer alone (`officerOpen`
+  50%); goods in the hidden compartment with the dog (`k9Stash` 15%); a stolen car always. Caught: heat `caughtHeat` 150
+  (2 stars) and the stop's two cars give chase.
+- Through the line without the check, or moving off during it: 2 stars. A U-turn once warned: always seen within
+  `uturnSure` 60 m (half the time further out): heat `uturnHeat` 100 (1 star, a call). A wanted driver is engaged at once.
+
+## Night burglaries (Gece Soygunu)
+
+Values are in `ECONOMY.burglary` (`shared/burglary.ts` for the places and the rooms, `server/game/services/burglary.ts`).
+
+| Place | Kind | Lock (± degrees) | Safe |
+| --- | --- | --- | --- |
+| Kuyumcu Altınsaray | jeweller | 5 | $24,000-$35,000 |
+| Saat Galerisi Zaman | jeweller | 5 | $22,000-$33,000 |
+| Tekno Dünya Elektronik | electronics | 7 | $15,000-$24,000 |
+| Medya Elektronik | electronics | 7 | $15,000-$24,000 |
+| Villa Lale | villa | 4.5 | $22,000-$35,000 |
+| Villa Manolya | villa | 4.5 | $20,000-$35,000 |
+| Gül Apartmanı Daire 4 | flat | 9 | $15,000-$20,000 |
+| Meşe Apartmanı Daire 2 | flat | 9 | $15,000-$21,000 |
+
+- Only between `fromHour` 22:00 and `toHour` 06:00 (game time); not while wanted. Each snapped pick at the door costs
+  **one lockpick** (`lockpick_set`, the Black Market's $2,500 set) and adds `breakSecurity` 20 to the place's security
+  (it cools down 0.05 a second); every bit of security makes the lock's sweet spot narrower. Security 100: the
+  neighbours call the police (2 stars, 30 s).
+- Inside, the noise meter starts at the place's security: running +14/s, walking +0.6/s, standing still -2.5/s (never
+  below the start), something knocked over +25 (x1.5 running), a wrong turn on the safe +22. 100: the alarm. So does a
+  laser beam (within 0.42 m while on), a motion sensor seeing you move inside its circle while its LED is red, the third
+  wrong turn on the safe (`safeTries`), or the owners getting back at `ownersHour` 07:00.
+- The alarm: heat `alarmHeat` 180 (2 stars) for everyone inside, the first police car exactly `policeSec` 30 s away (the
+  call goes to the front door; inside nobody sees you and nobody can arrest you). Still inside when they arrive: they come
+  in, you're put out on the pavement in a pursuit.
+- Loot (`takeSec` 1.5-3 s standing still at it, `qty` per counter / shelf): jewellery 1-3, watches 1-2, a laptop, phones &
+  tablets 1-3. Pawn Shop prices each (`pawn`): jewellery $2,500-$4,000, watches $3,000-$6,000, laptops $1,200-$2,000,
+  phones & tablets $500-$1,200.
+- Out through the front door without the alarm: the cash is **clean** (`burglary` transaction) and the goods go into the
+  inventory, +90 XP. With the alarm: the bag is hot until the police lose you; then the cash is **dirty money** and the
+  goods are yours. Busted or wasted: gone. Logged off inside: back on the pavement, the bag lost.
+- A place that was robbed (or rang) is sealed for `cooldownSec` 8 minutes; a player can go into another one after
+  `playerCooldownSec` 30 s. The door stays open while anyone is inside: the crew can walk in.
+
 ## Telegram dealing
 
 Values are in `ECONOMY.deals` (`shared/telegram.ts`). The phone (**Y**, or 📱 in the dock) has Telegram:

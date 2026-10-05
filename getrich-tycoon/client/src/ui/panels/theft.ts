@@ -3,6 +3,7 @@
 // who is on which lift).
 
 import { ECONOMY } from '../../../../shared/economy.config';
+import { LOOT_ITEM_IDS, LOOT_LABELS, lootPawnRange, type LootItemId } from '../../../../shared/burglary';
 import {
   LIFT_BAYS,
   LOCKPICK_ITEM,
@@ -58,6 +59,15 @@ export function theftItemLabel(id: string): string | null {
 }
 
 /** Stripped parts in an inventory, grouped by part (all tiers together). */
+/** Night burglary loot in the inventory (the Pawn Shop buys it): id, count, the price range. */
+export function lootItems(inv: Record<string, number>): { id: LootItemId; count: number; min: number; max: number }[] {
+  return LOOT_ITEM_IDS.filter((id) => (inv[id] ?? 0) > 0).map((id) => {
+    const [lo, hi] = lootPawnRange(id);
+    const n = inv[id]!;
+    return { id, count: n, min: lo * n, max: hi * n };
+  });
+}
+
 export function strippedParts(inv: Record<string, number>): { part: StripPart; count: number; min: number; max: number; items: { id: string; tier: number; qty: number }[] }[] {
   const by = new Map<StripPart, { part: StripPart; count: number; min: number; max: number; items: { id: string; tier: number; qty: number }[] }>();
   for (const [id, qty] of Object.entries(inv)) {
@@ -172,15 +182,16 @@ export class PawnPanel extends Panel {
   renderBody(): Child {
     const inv = this.store.me?.inventory ?? {};
     const rows = strippedParts(inv);
-    if (rows.length === 0) {
+    const loot = lootItems(inv);
+    if (rows.length === 0 && loot.length === 0) {
       return h(
         'div',
         { class: 'empty', 'data-testid': 'pawn-empty' },
         h('div', { style: { fontSize: '16px', fontWeight: '800', marginBottom: '6px' } }, 'Nothing to sell'),
-        `Strip a stolen car at the Sanayi next door: all the parts of one car fetch ${moneyRange(T.pawnMin, T.pawnMax)} here.`,
+        `Strip a stolen car at the Sanayi next door: all the parts of one car fetch ${moneyRange(T.pawnMin, T.pawnMax)} here. Gece soygunlarından mücevher, saat, laptop ve telefon da alırız.`,
       );
     }
-    const total = rows.reduce((a, r) => ({ min: a.min + r.min, max: a.max + r.max, n: a.n + r.count }), { min: 0, max: 0, n: 0 });
+    const total = [...rows, ...loot].reduce((a, r) => ({ min: a.min + r.min, max: a.max + r.max, n: a.n + r.count }), { min: 0, max: 0, n: 0 });
     return h(
       'div',
       { class: 'col' },
@@ -205,19 +216,41 @@ export class PawnPanel extends Panel {
           }),
         ),
       ),
-      h('div', { class: 'row between' }, h('div', { class: 'muted small' }, `${total.n} part${total.n === 1 ? '' : 's'}`), h('div', { class: 'mono' }, moneyRange(total.min, total.max))),
+      loot.length
+        ? h(
+            'table',
+            { class: 'table', 'data-testid': 'pawn-loot' },
+            h('thead', null, h('tr', null, h('th', null, 'Gece Soygunu Malı'), h('th', null, 'Qty'), h('th', null, 'Pays'), h('th', null, ''))),
+            h(
+              'tbody',
+              null,
+              loot.map((r) =>
+                h(
+                  'tr',
+                  { 'data-loot': r.id },
+                  h('td', null, h('div', { style: { fontWeight: '700' } }, `${LOOT_LABELS[r.id].icon} ${LOOT_LABELS[r.id].tr}`), h('div', { class: 'tiny muted' }, LOOT_LABELS[r.id].en)),
+                  h('td', { class: 'mono' }, String(r.count)),
+                  h('td', { class: 'mono' }, moneyRange(r.min, r.max)),
+                  h('td', null, h('button', { class: 'btn small', disabled: this.busy, 'data-testid': 'pawn-sell-loot', onclick: () => void this.sell(r.id) }, 'Sat')),
+                ),
+              ),
+            ),
+          )
+        : null,
+      h('div', { class: 'row between' }, h('div', { class: 'muted small' }, `${total.n} item${total.n === 1 ? '' : 's'}`), h('div', { class: 'mono' }, moneyRange(total.min, total.max))),
     );
   }
 
   override renderFoot(): Child {
-    const any = strippedParts(this.store.me?.inventory ?? {}).length > 0;
+    const inv = this.store.me?.inventory ?? {};
+    const any = strippedParts(inv).length > 0 || lootItems(inv).length > 0;
     return [
       h('button', { class: 'btn ghost', onclick: () => this.ui.closeAll() }, 'Leave'),
       h('button', { class: 'btn primary', disabled: this.busy || !any, 'data-testid': 'pawn-sell-all', onclick: () => void this.sell() }, 'Hepsini Sat (sell all)'),
     ];
   }
 
-  private async sell(part?: StripPart): Promise<void> {
+  private async sell(part?: StripPart | LootItemId): Promise<void> {
     await this.act(
       () => this.net.rpc('pawn.sell', part ? { part } : {}),
       () => this.game.audio.play('purchase'),

@@ -1077,3 +1077,33 @@ body.is-wasted #game-root canvas { filter: grayscale(1) contrast(1.1) brightness
 .stop-card.uturn { border-color: #ff9f1c; }
 .stop-card.uturn .stop-icon { background: #e07b00; }
 body.touch .stop-card { top: calc(110px + env(safe-area-inset-top)); min-width: 260px; }
+
+/* Night burglaries: green / red prompts, the noise meter, the bag, the alarm banner. */
+.prompt.tone-green { border-color: #2ee59d; box-shadow: 0 0 0 1px rgba(46,229,157,0.35), 0 0 24px rgba(46,229,157,0.35), var(--shadow); }
+.prompt.tone-green > div > div:first-child { color: #5dffb6; }
+.prompt.tone-red { border-color: #ff4d5e; box-shadow: 0 0 22px rgba(255,77,94,0.45), var(--shadow); }
+.prompt.tone-red > div > div:first-child { color: #ff8a96; }
+.prompt.tone-red .kbd { background: #ff4d5e; color: #2a0006; }
+.burglary-hud { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); display: none; flex-direction: column; gap: 10px; width: 290px; pointer-events: none; z-index: 38; }
+.burglary-hud.show { display: flex; }
+.burglary-hud .bg-card { padding: 12px 14px; border-radius: 14px; background: rgba(8,12,18,0.88); border: 1px solid rgba(46,229,157,0.45); color: #e8fff5; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+.burglary-hud.loud .bg-card { animation: bg-loud 0.6s ease-in-out infinite alternate; }
+@keyframes bg-loud { from { border-color: rgba(255,92,122,0.4); } to { border-color: #ff5c7a; box-shadow: 0 0 24px rgba(255,92,122,0.55); } }
+.burglary-hud .bg-title { font-weight: 900; font-size: 14px; margin-bottom: 8px; }
+.burglary-hud .bg-meter-row { display: flex; align-items: center; gap: 8px; }
+.burglary-hud .bg-label { font-size: 10px; font-weight: 900; letter-spacing: 0.08em; color: #9aa6bd; }
+.burglary-hud .bg-meter { flex: 1; height: 10px; border-radius: 6px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.burglary-hud .bg-fill { height: 100%; width: 0; background: linear-gradient(90deg, #1fbf7a, #2ee59d); transition: width 0.15s; }
+.burglary-hud .bg-fill.warm { background: linear-gradient(90deg, #f5a623, #ffc53d); }
+.burglary-hud .bg-fill.hot { background: linear-gradient(90deg, #ff2d55, #ff5c7a); }
+.burglary-hud .bg-pct { font-size: 12px; font-weight: 800; width: 40px; text-align: right; }
+.burglary-hud .bg-bag { margin-top: 8px; font-size: 13px; font-weight: 800; color: #ffd76a; }
+.burglary-hud .bg-work { margin-top: 8px; }
+.burglary-hud .bg-tip { margin-top: 8px; font-size: 11px; color: #9aa6bd; line-height: 1.35; }
+.burglary-hud .bg-alarm { display: none; padding: 10px 14px; border-radius: 14px; background: rgba(120,0,16,0.92); border: 2px solid #ff2d55; color: #fff; box-shadow: 0 0 30px rgba(255,45,85,0.6); animation: bg-flash 0.5s steps(2) infinite; }
+.burglary-hud .bg-alarm.show { display: block; }
+@keyframes bg-flash { 0% { background: rgba(120,0,16,0.92); } 100% { background: rgba(200,10,40,0.95); } }
+.burglary-hud .bg-alarm-head { font-weight: 900; font-size: 16px; letter-spacing: 0.04em; }
+.burglary-hud .bg-alarm-text { font-size: 12px; margin-top: 4px; }
+.burglary-hud .bg-alarm-time { font-size: 15px; font-weight: 900; margin-top: 6px; color: #ffd0d6; }
+@media (max-width: 720px) { .burglary-hud { top: 84px; transform: none; width: 220px; left: 8px; } }

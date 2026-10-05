@@ -25,6 +25,7 @@ import { claimPlaytime } from './panels/rewards';
 import { WantedHud } from './WantedHud';
 import { ScannerHud } from './ScannerHud';
 import { StopHud } from './StopHud';
+import { BurglaryHud } from './BurglaryHud';
 import { PursuitHud } from './PursuitHud';
 import { RaceHud } from './RaceHud';
 import { CombatHud } from './CombatHud';
@@ -151,6 +152,7 @@ export class UI {
   readonly wanted = new WantedHud();
   readonly scanner = new ScannerHud();
   readonly stop = new StopHud();
+  readonly burglary = new BurglaryHud();
   readonly pursuit = new PursuitHud();
   readonly hitman = new HitmanHud();
   readonly heist = new HeistHud();
@@ -300,7 +302,7 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Enter'), 'Chat'),
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
-    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.scanner.strip, this.stop.el, this.tollFeed.notice, this.flashEl, reconnect);
+    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.scanner.strip, this.stop.el, this.burglary.el, this.tollFeed.notice, this.flashEl, reconnect);
     this.hud = { name, level, xpFill, xpText, rep, cash, bank, dirty, goods, phoneBtn, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 
@@ -392,7 +394,7 @@ export class UI {
   }
 
   setPrompt(i: Interaction | null, secondary: Interaction | null): void {
-    const key = `${i?.id}|${i?.label}|${i?.sub}|${secondary?.id}|${this.anyOpen()}`;
+    const key = `${i?.id}|${i?.label}|${i?.sub}|${i?.tone}|${secondary?.id}|${this.anyOpen()}`;
     if (key === this.lastPromptKey) return;
     this.lastPromptKey = key;
     const el = this.hud.prompt;
@@ -402,6 +404,8 @@ export class UI {
       this.touch.setActions(null, null);
       return;
     }
+    el.classList.toggle('tone-green', i.tone === 'green');
+    el.classList.toggle('tone-red', i.tone === 'red');
     el.append(h('span', { class: 'kbd' }, i.vehicle ? 'F' : 'E'), h('div', null, h('div', null, i.label), i.sub ? h('div', { class: 'sub' }, i.sub) : null));
     if (secondary) el.append(h('div', { class: 'alt' }, h('span', { class: 'kbd', style: { background: '#ffc53d' } }, 'G'), h('div', null, secondary.label)));
     el.classList.add('show');

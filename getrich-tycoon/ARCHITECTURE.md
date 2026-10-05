@@ -115,7 +115,21 @@
     helicopter (orbits the last place it saw you, searchlight, spots you like a car does, loses you under
     cover: `isCovered`), `theft.ts`: the Black Market stock, street-parked cars (solid for the simulation),
     lockpick sessions with the sweet spot kept on the server, the alarm and police heat, the Sanayi lifts and timed
-    stripping, the Pawn Shop and clean-up of abandoned stolen cars).
+    stripping, the Pawn Shop and clean-up of abandoned stolen cars),
+    `trafficStops.ts`: police checkpoints (shared/trafficStops.ts sites and cone layout; two parked units per stop fed
+    to the police snapshots through `PoliceService.unitSources`, officers `stp_*` and the K9 dog `k9_*` as NPCs, the
+    warn / check / verdict state machine per driver, `police.engageWith` hands the stop's cars over to a pursuit;
+    `render/TrafficStops.ts`, `render/Dog.ts`, `ui/StopHud.ts` on the client),
+    `burglary.ts`: night burglaries (shared/burglary.ts: the eight places, their front doors and their rooms; the rooms
+    are built far south of the world in `INTERIOR_ZONE`, where `resolveCircle` in shared/physics.ts only looks at
+    `INTERIOR_BOXES` (the walls and furniture) and other people, so client prediction and the server agree and nobody
+    outside can walk in; the door and safe locks reuse shared/theft.ts `lockTurn`/`lockHint` with the sweet spot kept on
+    the server; the noise meter, lasers and blinking motion sensors (`cycleOn` on the server clock, the same on the
+    client) checked every tick; the alarm calls `police.raiseHeat(..., etaSec 30)` and `PoliceService.hideouts` makes the
+    police treat the burglar as standing at the front door, unseen and unarrestable; the bag is paid clean on a quiet
+    exit or kept hot until `clearedListeners`; `render/Interiors.ts` draws a room the first time you're in it plus the
+    outdoor alarm flashers, `render/Villas.ts` the two villas, `ui/BurglaryHud.ts` the noise meter, `game/Burglary.ts`
+    the prompts, and the lockpick panel has `door` and `safe` modes).
   - `game/traffic.ts` is the traffic driver model (IDM car following + MOBIL-style lane changes with indicators, keep-right,
     yielding; players, walkers and parked cars are obstacles).
   - Newer services: `rewards.ts` (streak and playtime, state in `player_rewards`, claims paid in one transaction),

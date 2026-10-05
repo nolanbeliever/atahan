@@ -306,6 +306,9 @@ export class PoliceService {
   readonly unitSources: (() => readonly Unit[])[] = [];
   /** Police on foot bullets can hit (crime scenes, checkpoints): who they are, and a hit. */
   readonly officerSources: { list: () => NpcEntity[]; hit: (id: string, amount: number) => boolean }[] = [];
+  /** Inside somewhere (a burglary: shared/burglary.ts): to the police the player is at that door,
+   *  out of everyone's sight. Null: out in the open. */
+  readonly hideouts: ((playerId: string) => { x: number; z: number } | null)[] = [];
 
   constructor(
     private readonly ctx: Ctx,
@@ -381,12 +384,12 @@ export class PoliceService {
 
   /** Raise the heat to at least this much (e.g. a car alarm: straight to 2 stars). Shared with
    *  everyone in the same car. */
-  raiseHeat(playerId: string, atLeast: number, what: OffenceId = 'gunshot'): void {
+  raiseHeat(playerId: string, atLeast: number, what: OffenceId = 'gunshot', etaSec?: number): void {
     for (const id of this.crew(playerId)) {
       const w = this.get(id);
       if (w.busted) continue;
       w.heat = Math.min(ECONOMY.police.maxHeat, Math.max(w.heat, atLeast));
-      this.reported(id, w, what);
+      this.reported(id, w, what, etaSec);
     }
   }
 
@@ -395,7 +398,7 @@ export class PoliceService {
    * hidden countdown starts over. Otherwise it is a call: the units set off for where it happened
    * (or the officers of a crime scene close by come straight over).
    */
-  private reported(playerId: string, w: Wanted, what: OffenceId): void {
+  private reported(playerId: string, w: Wanted, what: OffenceId, etaSec?: number): void {
     const now = Date.now();
     w.lastOffence = now;
     w.hiddenT = 0;
@@ -418,16 +421,17 @@ export class PoliceService {
         return;
       }
     }
-    this.dispatch(playerId, w, what, me);
+    this.dispatch(playerId, w, what, me, etaSec);
   }
 
-  /** Send (or update) the police call for an offence at the player's position. */
-  private dispatch(playerId: string, w: Wanted, what: OffenceId, at: { x: number; z: number; deck: number }): void {
+  /** Send (or update) the police call for an offence at the player's position (`etaSec`: a fixed
+   *  time to the first car, e.g. a burglar alarm's). */
+  private dispatch(playerId: string, w: Wanted, what: OffenceId, at: { x: number; z: number; deck: number }, etaSec?: number): void {
     const R = ECONOMY.police.response;
     const stars = starsFor(w.heat);
     if (stars === 0) return;
     const [lo, hi] = R.etaSec[stars] ?? R.etaSec[R.etaSec.length - 1]!;
-    const eta = lo + this.rng() * (hi - lo);
+    const eta = etaSec ?? lo + this.rng() * (hi - lo);
     const prev = w.call;
     let fresh = !prev;
     if (prev) {
@@ -787,7 +791,7 @@ export class PoliceService {
         }
         // Arrest: a police car right beside you while you're (nearly) stopped.
         const slow = Math.abs(me.speed) * KMH_PER_MS < cfg.bustKmh;
-        const close = me.onFoot ? nearestSame < 6 : nearestGap < cfg.bustGap;
+        const close = (me.onFoot ? nearestSame < 6 : nearestGap < cfg.bustGap) && !this.hideout(playerId);
         w.bustT = slow && close ? w.bustT + dt : Math.max(0, w.bustT - dt * 0.5);
         if (w.bustT >= cfg.bustSec) {
           void this.bust(playerId, w, me);
@@ -884,10 +888,12 @@ export class PoliceService {
   private look(playerId: string, w: Wanted, me: Target, dt: number, now: number): boolean {
     const sc = ECONOMY.police.sight;
     const cars = [...w.units, ...(this.checkpoints.get(playerId)?.units ?? [])];
-    if (this.time >= w.sightAt) {
+    // Indoors nobody sees you (the hideout's owner decides what happens when they come in).
+    const indoors = !!this.hideout(playerId);
+    if (this.time >= w.sightAt || indoors) {
       w.sightAt = this.time + 1 / sc.checkHz;
       const world = this.sightWorld();
-      for (const u of cars) u.sees = policeSees(u.dyn.x, u.dyn.z, u.dyn.deck ?? 0, u.dyn.rot, me.x, me.z, me.deck, world);
+      for (const u of cars) u.sees = !indoors && policeSees(u.dyn.x, u.dyn.z, u.dyn.deck ?? 0, u.dyn.rot, me.x, me.z, me.deck, world);
     }
     let best = 0;
     let sees = false;
@@ -897,7 +903,7 @@ export class PoliceService {
       best = Math.max(best, u.seeT);
     }
     const h = this.helis.get(playerId);
-    const heliSees = !!h && !h.downAt && h.visible;
+    const heliSees = !indoors && !!h && !h.downAt && h.visible;
     w.heliSeeT = heliSees ? w.heliSeeT + dt : 0;
     const reported = now < w.dispatchUntil;
     w.knows = sees || heliSees || reported;
@@ -1240,9 +1246,20 @@ export class PoliceService {
   }
 
   /** Where the wanted player is: their car or themselves on foot. */
+  /** Where a player hiding indoors is, to the police (null: out in the open). */
+  private hideout(playerId: string): { x: number; z: number } | null {
+    for (const f of this.hideouts) {
+      const at = f(playerId);
+      if (at) return at;
+    }
+    return null;
+  }
+
   private target(playerId: string): Target | null {
     const c = this.ctx.sim.chars.get(playerId);
     if (!c) return null;
+    const hid = this.hideout(playerId);
+    if (hid) return { x: hid.x, z: hid.z, rot: 0, speed: 0, vx: 0, vz: 0, hl: 0.4, hw: 0.4, onFoot: true, vehicleId: null, deck: 0 };
     // A passenger is wherever the car is.
     const vid = c.drivingId ?? c.ridingId;
     const d = vid ? this.ctx.sim.drives.get(vid) : undefined;

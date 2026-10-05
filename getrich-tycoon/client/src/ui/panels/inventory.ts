@@ -9,7 +9,8 @@ import { ICONS } from '../icons';
 import { Panel } from '../Panel';
 import { moneyInput, statusPill, vehicleCard, vehicleTitle } from '../widgets';
 import { LOCKPICK_ITEM, stripPart } from '../../../../shared/theft';
-import { moneyRange, strippedParts } from './theft';
+import { lootItems, moneyRange, strippedParts } from './theft';
+import { LOOT_LABELS } from '../../../../shared/burglary';
 import { ECU_COUPON_ITEM, NEON_SPECIAL_ITEM, NITRO_ITEM, PAWN_BONUS_ITEM, REWARD_ITEM_LABELS, RIM_COUPON, VIP_COIN } from '../../../../shared/rewards';
 
 /** What each reward item does (inventory). */
@@ -73,9 +74,12 @@ export class InventoryPanel extends Panel {
           stolen.map((r) =>
             h('tr', { 'data-part': r.part }, h('td', null, `Sökülmüş Parça: ${stripPart(r.part)!.labelTr}`), h('td', { class: 'muted' }, `Pawn Shop pays ${moneyRange(r.min, r.max)}`), h('td', { class: 'mono' }, String(r.count))),
           ),
+          lootItems(inv).map((r) =>
+            h('tr', { 'data-loot': r.id }, h('td', null, `${LOOT_LABELS[r.id].icon} ${LOOT_LABELS[r.id].tr}`), h('td', { class: 'muted' }, `Gece soygunu malı · Pawn Shop pays ${moneyRange(r.min, r.max)}`), h('td', { class: 'mono' }, String(r.count))),
+          ),
         ),
       ),
-      stolen.length ? h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => this.ui.open('map') }, 'Find the Pawn Shop ($ on the map)')) : null,
+      stolen.length || lootItems(inv).length ? h('div', { class: 'row' }, h('button', { class: 'btn small', onclick: () => this.ui.open('map') }, 'Find the Pawn Shop ($ on the map)')) : null,
       this.renderRewardItems(inv),
     );
   }

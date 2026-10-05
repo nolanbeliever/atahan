@@ -315,7 +315,10 @@ export type TransactionKind =
   | 'testdrive'
   | 'toll'
   | 'toll_fine'
-  | 'checkpoint';
+  | 'checkpoint'
+  | 'burglary'
+  | 'protection'
+  | 'import';
 
 export interface Transaction {
   id: string;
