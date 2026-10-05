@@ -1,5 +1,7 @@
 # Snoop
 
+> **Also in this repository:** [GetRich Tycoon](getrich-tycoon/README.md), a multiplayer 3D browser vehicle-trading tycoon game (`getrich-tycoon/`).
+
 Snapchat'ten esinlenilmiş, tarayıcıda çalışan bir web uygulaması.
 
 ## Özellikler

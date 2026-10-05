@@ -1,0 +1,767 @@
+// Scene objects for everything dynamic: players, NPCs, vehicles, price tags. Drivers sit visibly in
+// their cars; getting in and out is animated (door opens, the character ducks in and sits down, the
+// door shuts); cars roll and pitch with their motion and show brake / reverse lights.
+
+import * as THREE from 'three';
+import { SPEED_SCALE } from '../../../shared/drivetrain';
+import { MARKS } from '../../../shared/hitman';
+import { deckAt } from '../../../shared/strait';
+import { Anim, VF, type Appearance, type MarketListing, type PublicVehicle, type Vehicle } from '../../../shared/types';
+import { angleDiff, clamp, formatMoney, lerpAngle } from '../../../shared/util';
+import { modelDisplayName } from '../../../shared/vehicles';
+import { LIFT_HEIGHT } from '../../../shared/theft';
+import { groundHeight, surfaceTilt, surfaceY } from '../render/City';
+import { DogView } from '../render/Dog';
+import { GANG_ZONES } from '../../../shared/gangs';
+import { CharacterView, HITMAN_CONTACT, NPC_PALETTE, POLICE_OFFICER, SWAT_OFFICER, type Pose } from '../render/Character';
+import { Label } from '../render/Labels';
+import { calculateVehicleStats } from '../../../shared/tuningSystem';
+import { getModel } from '../../../shared/vehicles';
+import { HeadlightRig } from '../render/Headlights';
+import { StripRig } from '../render/StripRig';
+import { BikeView, createVehicleView, type AnyVehicleView } from '../render/VehicleMesh';
+import { INTERP_DELAY_MS, InterpBuffer } from './Interpolation';
+
+const LEASH_MAT = new THREE.LineBasicMaterial({ color: '#1a1a1a' });
+const LEASH_A = new THREE.Vector3();
+const LEASH_B = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
+
+export interface CharEntity {
+  view: CharacterView;
+  label: Label | null;
+  buffer: InterpBuffer;
+  anim: number;
+  driving: string | null;
+  lastSeen: number;
+  /** What it was driving last frame (undefined until first drawn: no animation on first sight). */
+  prevDriving?: string | null;
+  /** Last place on foot (where an enter animation starts). */
+  foot: { x: number; z: number; rot: number };
+  board: Boarding | null;
+  /** Riding as a passenger (vehicle and seat). */
+  riding: { vehicleId: string; seat: number } | null;
+  /** On foot up on a bridge deck (shared/strait.ts), 0 on the ground. */
+  deck: number;
+}
+
+/** Getting into / out of a car. */
+interface Boarding {
+  vehicleId: string;
+  kind: 'in' | 'out';
+  /** Seconds since it started (on the real clock, so a slow frame rate doesn't stretch it). */
+  t: number;
+  start: number;
+  from: { x: number; z: number; rot: number };
+  /** Getting in: the walk to the driver's door (around the car if needed) and how long it takes. */
+  path?: { x: number; z: number }[];
+  walk?: number;
+}
+
+/** A character placed by a cutscene (overrides everything else for that player). */
+export interface Puppet {
+  x: number;
+  z: number;
+  rot: number;
+  anim: number;
+  pose: Pose;
+}
+
+/** Enter (after the walk to the door) / exit animation lengths (s). */
+export const BOARD_IN = 1.0;
+export const BOARD_OUT = 1.25;
+const WALK_SPEED = 4.2;
+
+function pathLength(p: { x: number; z: number }[]): number {
+  let d = 0;
+  for (let i = 1; i < p.length; i++) d += Math.hypot(p[i]!.x - p[i - 1]!.x, p[i]!.z - p[i - 1]!.z);
+  return d;
+}
+
+/** Point at distance d along a path, and the heading there. */
+function along(p: { x: number; z: number }[], d: number): { x: number; z: number; rot: number } {
+  for (let i = 1; i < p.length; i++) {
+    const a = p[i - 1]!;
+    const b = p[i]!;
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    if (d <= len || i === p.length - 1) {
+      const k = len > 1e-6 ? Math.min(1, d / len) : 1;
+      return { x: a.x + (b.x - a.x) * k, z: a.z + (b.z - a.z) * k, rot: Math.atan2(b.x - a.x, b.z - a.z) };
+    }
+    d -= len;
+  }
+  const last = p[p.length - 1]!;
+  return { x: last.x, z: last.z, rot: 0 };
+}
+
+const ease = (t: number) => {
+  const u = clamp(t, 0, 1);
+  return u * u * (3 - 2 * u);
+};
+
+/** Seconds the Sanayi lift takes to raise a car, after the driver has got out. */
+export const LIFT_SECONDS = 3.2;
+export const LIFT_DELAY = 1.3;
+
+/** How high a car on a Sanayi lift is right now (m; 0 when it is not on one). */
+export function liftY(v: Pick<Vehicle, 'mods'>, serverNow: number): number {
+  const s = v.mods.strip;
+  return s ? LIFT_HEIGHT * ease((serverNow - s.liftedAt - LIFT_DELAY * 1000) / (LIFT_SECONDS * 1000)) : 0;
+}
+
+export interface VehEntity {
+  view: AnyVehicleView;
+  /** Previous frame speed, to spot throttle lifts on other players' cars (backfires). */
+  lastSpeed: number;
+  accel: number;
+  label: Label | null;
+  data: Vehicle;
+  kind: 'public' | 'market';
+  listing?: MarketListing;
+  buffer: InterpBuffer;
+  driven: boolean;
+  lastDriven: number;
+  x: number;
+  z: number;
+  rot: number;
+  lights: HeadlightRig | null;
+  /** Body roll / pitch (rad) and the smoothed longitudinal acceleration behind them. */
+  roll: number;
+  pitch: number;
+  aLong: number;
+  prevRot: number;
+  /** Engine bay, exhaust and interior shown while it is up on a Sanayi lift. */
+  strip: StripRig | null;
+  /** Current lift height (m). */
+  lift: number;
+  /** Motorcycle wheelie (rad): from our own physics or the last snapshot. */
+  wheelie: number;
+  /** Up on a bridge deck (from snapshots while driven; parked: where it was left, or a guess). */
+  deck: number;
+}
+
+export class EntityViews {
+  readonly players = new Map<string, CharEntity>();
+  readonly npcs = new Map<string, CharEntity>();
+  /** The K9 dogs' leashes (by the dog's id). */
+  private leashes = new Map<string, THREE.Line>();
+  /** The hitman mark the local player is after (its label shows). */
+  contractMark: string | null = null;
+  readonly vehicles = new Map<string, VehEntity>();
+  showNames = true;
+  /** 0 by day, 1 at night: driven vehicles switch their lights on. */
+  night = 0;
+  /** Full-beam flash of the local player's car (0-1). */
+  flash = 0;
+  /** Cutscene-controlled characters (by player id). */
+  readonly puppets = new Map<string, Puppet>();
+  /** Doors held open by a cutscene (vehicle id -> 0..1). */
+  readonly doors = new Map<string, number>();
+  /** First-person view: the local driver's own body is not drawn. */
+  hideLocalDriver = false;
+  /** Hide the local player on foot (first person, looking down a gun's sights). */
+  hideLocalBody = false;
+  /** Players whose next exit should not be animated (e.g. towed away after an arrest). */
+  readonly skipExit = new Set<string>();
+  private tmp = new THREE.Vector3();
+  /** Best estimate of the server clock (lift animations). */
+  serverNow: () => number = () => Date.now();
+
+  constructor(
+    private readonly scene: THREE.Scene,
+    private readonly myId: () => string,
+  ) {}
+
+  // ------------------------------------------------------------ characters
+
+  ensurePlayer(id: string, name: string, level: number, appearance: Appearance): CharEntity {
+    let e = this.players.get(id);
+    if (!e) {
+      const view = new CharacterView(appearance);
+      this.scene.add(view.root);
+      const isMe = id === this.myId();
+      const label = isMe ? null : new Label(name, { badge: String(level), badgeColor: '#7a5cff' });
+      if (label) this.scene.add(label.sprite);
+      e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: performance.now(), foot: { x: 0, z: 0, rot: 0 }, board: null, riding: null, deck: 0 };
+      this.players.set(id, e);
+    } else {
+      e.view.setAppearance(appearance);
+      e.label?.set(name, { badge: String(level), badgeColor: '#7a5cff' });
+    }
+    e.view.setHelmet(appearance.helmet, appearance.visor, appearance.helmetColor ?? '#e9e9e4');
+    return e;
+  }
+
+  removePlayer(id: string): void {
+    const e = this.players.get(id);
+    if (!e) return;
+    e.view.root.removeFromParent(); // the scene, or a motorcycle's rider mount
+    if (e.label) {
+      this.scene.remove(e.label.sprite);
+      e.label.dispose();
+    }
+    e.view.dispose();
+    this.players.delete(id);
+  }
+
+  upsertNpc(id: string, style: number, t: number, x: number, z: number, r: number, a: number): void {
+    let e = this.npcs.get(id);
+    if (!e) {
+      // Customers (npc_), people in the street (ped_, no label), police officers on foot (cop_;
+      // style 1: SWAT), officers combing a crime scene (csi_), the hitman contact in the alley
+      // (hmc_) and contract marks (hmt_, labelled for whoever holds it).
+      const csi = id.startsWith('csi_') || id.startsWith('stp_');
+      const swat = id.startsWith('cop_') && style === 1;
+      const cop = id.startsWith('cop_') || csi;
+      // A checkpoint's K9 sniffer dog.
+      if (id.startsWith('k9_')) {
+        const dog = new DogView();
+        this.scene.add(dog.root);
+        const label = new Label('K9', { color: '#7aa7ff', height: 0.26 });
+        this.scene.add(label.sprite);
+        const leash = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), LEASH_MAT);
+        leash.frustumCulled = false;
+        this.scene.add(leash);
+        this.leashes.set(id, leash);
+        e = { view: dog as unknown as CharacterView, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null, deck: 0 };
+        this.npcs.set(id, e);
+        e.buffer.push({ t, x, z, r, a, b: 0 });
+        return;
+      }
+      // A street gang's member (gng_<zone>_n; style = zone index x 4 + variant): the gang's colour,
+      // a gun, the gang's name over the head.
+      if (id.startsWith('gng_')) {
+        const zone = GANG_ZONES[Math.floor(style / 4) % GANG_ZONES.length]!;
+        const variant = style % 4;
+        const look = { skin: ['#8d5524', '#c68642', '#e0ac69', '#6b4423'][variant]!, shirt: zone.color, pants: variant % 2 ? '#1c1c22' : '#2b2f3a', hair: '#141414' };
+        const view = new CharacterView(look);
+        view.setWeapon(variant === 3 ? 2 : 1);
+        this.scene.add(view.root);
+        const label = new Label(zone.gang, { color: zone.color, height: 0.28 });
+        this.scene.add(label.sprite);
+        e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null, deck: 0 };
+        this.npcs.set(id, e);
+        e.buffer.push({ t, x, z, r, a, b: 0 });
+        return;
+      }
+      const ped = id.startsWith('ped_');
+      const contact = id.startsWith('hmc_');
+      const mark = id.startsWith('hmt_');
+      const look = swat ? SWAT_OFFICER : cop ? POLICE_OFFICER : contact ? HITMAN_CONTACT : mark ? MARKS[style % MARKS.length]!.look : NPC_PALETTE[style % NPC_PALETTE.length]!;
+      const view = new CharacterView(look);
+      if (cop && !csi) view.setWeapon(swat ? 3 : 1);
+      this.scene.add(view.root);
+      const label = ped
+        ? null
+        : contact
+          ? new Label('??? · Görev Al', { color: '#ff6b77', height: 0.3 })
+          : mark
+            ? new Label(`🎯 ${MARKS[style % MARKS.length]!.name}`, { color: '#ff4655', height: 0.32 })
+            : new Label(swat ? 'SWAT' : id.startsWith('stp_') ? 'POLİS · ÇEVİRME' : csi ? 'POLİS · OLAY YERİ' : cop ? 'POLICE' : 'Customer', { color: cop ? '#7aa7ff' : '#ffd166', height: 0.3 });
+      if (label) this.scene.add(label.sprite);
+      e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null, deck: 0 };
+      this.npcs.set(id, e);
+    }
+    e.buffer.push({ t, x, z, r, a, b: 0 });
+    e.lastSeen = t;
+  }
+
+  pruneNpcs(alive: Set<string>): void {
+    for (const [id, e] of this.npcs) {
+      if (alive.has(id)) continue;
+      const leash = this.leashes.get(id);
+      if (leash) {
+        leash.removeFromParent();
+        leash.geometry.dispose();
+        this.leashes.delete(id);
+      }
+      this.scene.remove(e.view.root);
+      if (e.label) {
+        this.scene.remove(e.label.sprite);
+        e.label.dispose();
+      }
+      e.view.dispose();
+      this.npcs.delete(id);
+    }
+  }
+
+  // ------------------------------------------------------------ vehicles
+
+  upsertVehicle(v: PublicVehicle | Vehicle, kind: 'public' | 'market', listing?: MarketListing, ownerName?: string | null): void {
+    let e = this.vehicles.get(v.id);
+    if (!e) {
+      const view = createVehicleView(v);
+      // Yaw, then the pitch along the car (up and down ramps).
+      view.root.rotation.order = 'YXZ';
+      this.scene.add(view.root);
+      e = { view, lastSpeed: 0, accel: 0, label: null, data: v, kind, listing, buffer: new InterpBuffer(), driven: false, lastDriven: 0, x: v.x, z: v.z, rot: v.rotation, lights: null, roll: 0, pitch: 0, aLong: 0, prevRot: v.rotation, strip: null, lift: 0, wheelie: 0, deck: deckAt(v.x, v.z) };
+      this.vehicles.set(v.id, e);
+    } else {
+      e.view.update(v);
+      e.data = v;
+      e.kind = kind;
+      e.listing = listing;
+    }
+    if (!e.driven) {
+      // Moved somewhere new while parked (spawned, towed): guess the level from the place.
+      if (Math.hypot(e.x - v.x, e.z - v.z) > 3) e.deck = deckAt(v.x, v.z);
+      e.x = v.x;
+      e.z = v.z;
+      e.rot = v.rotation;
+    }
+    this.updateVehicleLabel(e, ownerName ?? null);
+  }
+
+  private updateVehicleLabel(e: VehEntity, ownerName: string | null): void {
+    const v = e.data;
+    let text: string | null = null;
+    let opts: ConstructorParameters<typeof Label>[1] = {};
+    if (e.kind === 'market' && e.listing) {
+      text = modelDisplayName(v.modelId);
+      opts = { sub: formatMoney(e.listing.askingPrice), bg: 'rgba(40,24,6,0.8)', subColor: '#ffc53d' };
+    } else if (v.status === 'displayed' && v.salePrice !== null) {
+      const mine = v.ownerId === this.myId();
+      text = mine ? 'YOUR LISTING' : 'FOR SALE';
+      opts = { sub: formatMoney(v.salePrice), bg: mine ? 'rgba(60,44,0,0.82)' : 'rgba(6,40,24,0.82)', color: mine ? '#ffc53d' : '#2ee59d', subColor: '#ffffff' };
+    } else if (v.status === 'world' && ownerName) {
+      text = `${ownerName}'s ${modelDisplayName(v.modelId)}`;
+      opts = { height: 0.3, bg: 'rgba(12,16,28,0.55)' };
+    }
+    if (!text) {
+      if (e.label) {
+        this.scene.remove(e.label.sprite);
+        e.label.dispose();
+        e.label = null;
+      }
+      return;
+    }
+    if (!e.label) {
+      e.label = new Label(text, opts);
+      this.scene.add(e.label.sprite);
+    } else e.label.set(text, opts);
+  }
+
+  removeVehicle(id: string): void {
+    const e = this.vehicles.get(id);
+    if (!e) return;
+    this.scene.remove(e.view.root);
+    if (e.label) {
+      this.scene.remove(e.label.sprite);
+      e.label.dispose();
+    }
+    e.view.dispose();
+    e.lights?.dispose();
+    e.strip?.dispose();
+    this.vehicles.delete(id);
+  }
+
+  /** Sync market lot vehicles with the listing set. */
+  syncMarket(listings: MarketListing[]): void {
+    const ids = new Set(listings.map((l) => l.vehicle.id));
+    for (const [id, e] of this.vehicles) if (e.kind === 'market' && !ids.has(id)) this.removeVehicle(id);
+    for (const l of listings) this.upsertVehicle(l.vehicle, 'market', l);
+  }
+
+  // ------------------------------------------------------------ per-frame
+
+  /** Seconds left of a player's enter / exit animation (0 when none). */
+  boardingLeft(id: string): number {
+    const b = this.players.get(id)?.board;
+    return b ? Math.max(0, (b.kind === 'in' ? (b.walk ?? 0.8) + BOARD_IN : BOARD_OUT) - (performance.now() - b.start) / 1000) : 0;
+  }
+
+  /** The player is busy getting in (until seated) or out (until standing beside the car): no driving / walking. */
+  boardingBusy(id: string): boolean {
+    const b = this.players.get(id)?.board;
+    if (!b) return false;
+    const t = (performance.now() - b.start) / 1000;
+    return b.kind === 'in' ? t < (b.walk ?? 0.8) + 0.55 : t < 0.8;
+  }
+
+  update(
+    dt: number,
+    now: number,
+    local: { id: string; x: number; z: number; rot: number; anim: number; driving: string | null; riding: { vehicleId: string; seat: number } | null; speed: number; steer: number; flags: number; wheelie?: number; deck?: number; charDeck?: number },
+  ): void {
+    const renderT = now - INTERP_DELAY_MS;
+    // Vehicles
+    for (const [id, e] of this.vehicles) {
+      let speed = 0;
+      let steer = 0;
+      let flags = 0;
+      if (local.driving === id) {
+        e.x = local.x;
+        e.z = local.z;
+        e.rot = local.rot;
+        speed = local.speed;
+        steer = local.steer;
+        flags = local.flags;
+        e.wheelie = local.wheelie ?? 0;
+        e.driven = true;
+      } else if (e.driven && now - e.lastDriven < 400) {
+        const s = e.buffer.sample(renderT);
+        if (s) {
+          e.x = s.x;
+          e.z = s.z;
+          e.rot = s.r;
+          speed = s.a;
+          steer = s.b;
+          flags = s.f ?? 0;
+        }
+      } else if (e.driven && local.driving !== id) {
+        e.driven = false;
+        e.wheelie = 0;
+        e.x = e.data.x;
+        e.z = e.data.z;
+        e.rot = e.data.rotation;
+      }
+      // Up on a Sanayi lift: raised, with its insides on show.
+      e.lift = liftY(e.data, this.serverNow());
+      const strip = e.data.mods.strip;
+      if (strip && !e.view.isBike) {
+        e.strip ??= new StripRig(e.view, e.data.modelId);
+        e.strip.set(strip.removed);
+      } else if (e.strip) {
+        e.strip.dispose();
+        e.strip = null;
+      }
+      if (local.driving === id) e.deck = local.deck ?? 0;
+      const y = surfaceY(e.x, e.z, e.deck) + e.lift;
+      e.view.root.position.set(e.x, y, e.z);
+      e.view.root.rotation.y = e.rot;
+      // Nose up / down the bridge ramps and the hill, leaning across its slopes.
+      const tilt = surfaceTilt(e.x, e.z, e.rot, e.deck);
+      e.view.root.rotation.x = -tilt.pitch;
+      e.view.root.rotation.z = tilt.roll;
+      e.view.animate(speed, steer, dt);
+      // Body roll (outwards in corners) and pitch (nose dives under braking, squats when
+      // accelerating), from real-scale accelerations, lagging a little like a sprung body.
+      if (!e.view.isBike && dt > 0) {
+        const yawRate = angleDiff(e.prevRot, e.rot) / dt;
+        const aLong = ((speed - e.lastSpeed) / dt) * SPEED_SCALE;
+        e.aLong += (clamp(aLong, -14, 14) - e.aLong) * Math.min(1, dt * 8);
+        const aLat = clamp(speed * SPEED_SCALE * yawRate, -14, 14);
+        const rollT = e.driven ? clamp(aLat * 0.0058, -0.075, 0.075) : 0;
+        const pitchT = e.driven ? clamp(-e.aLong * 0.0042, -0.05, 0.05) : 0;
+        e.roll += (rollT - e.roll) * Math.min(1, dt * 5);
+        e.pitch += (pitchT - e.pitch) * Math.min(1, dt * 6);
+        e.view.setMotion(e.roll, e.pitch);
+      }
+      e.prevRot = e.rot;
+      // Other drivers' backfires: a sharp lift off the throttle at speed.
+      if (local.driving !== id && e.driven && dt > 0) {
+        const a = (speed - e.lastSpeed) / dt;
+        if (e.accel > 2 && a < -1 && Math.abs(speed) > 8) {
+          const pops = calculateVehicleStats(getModel(e.data.modelId), e.data.mods.tuning).sound.pops;
+          if (Math.random() < pops) e.view.pop(pops);
+        }
+        e.accel = e.accel * 0.8 + a * 0.2;
+      }
+      e.lastSpeed = speed;
+      if (e.view instanceof BikeView) {
+        e.view.ridden = e.driven;
+        e.view.setWheelie(e.wheelie);
+      }
+      // Brake, reverse and tail lights; headlights on while someone drives it at night (or flashes).
+      e.view.setLights({ brake: e.driven && (flags & VF.BRAKE) !== 0, reverse: e.driven && (flags & VF.REVERSE) !== 0, night: e.driven ? this.night : 0 });
+      e.view.setNitro(e.driven && (flags & VF.NITRO) !== 0);
+      const mine = local.driving === id;
+      const flash = mine ? this.flash : 0;
+      if (e.driven && (this.night > 0.02 || flash > 0.02)) {
+        if (!e.lights) {
+          e.lights = new HeadlightRig(e.view.length, e.view.width);
+          e.view.root.add(e.lights.group);
+        }
+        e.lights.set(this.night, flash);
+      } else if (e.lights) {
+        e.lights.dispose();
+        e.lights = null;
+      }
+      if (e.label) {
+        e.label.sprite.visible = local.driving !== id && (this.showNames || e.kind === 'market' || e.data.status === 'displayed');
+        e.label.sprite.position.set(e.x, y + e.view.height + 0.75, e.z);
+      }
+    }
+    // Players
+    const doorWant = new Map<string, number>();
+    for (const [id, e] of this.players) {
+      let x: number, z: number, r: number, anim: number;
+      let driving: string | null;
+      const riding = id === local.id ? local.riding : e.riding;
+      if (id === local.id) {
+        x = local.x;
+        z = local.z;
+        r = local.rot;
+        anim = local.anim;
+        driving = local.driving;
+      } else {
+        const s = e.buffer.sample(renderT);
+        if (!s) {
+          e.view.root.visible = false;
+          if (e.label) e.label.sprite.visible = false;
+          continue;
+        }
+        x = s.x;
+        z = s.z;
+        r = s.r;
+        anim = s.a;
+        driving = e.driving;
+      }
+      if (!riding) this.trackBoarding(id, e, driving, now);
+      const onVeh = driving ?? riding?.vehicleId;
+      const deck = onVeh ? this.vehicles.get(onVeh)?.deck ?? 0 : id === local.id ? local.charDeck ?? 0 : e.deck;
+      const y = surfaceY(x, z, deck);
+      const puppet = this.puppets.get(id);
+      const ride = driving ? this.vehicles.get(driving)?.view : undefined;
+      const carried = riding ? this.vehicles.get(riding.vehicleId)?.view : undefined;
+      e.view.pose = 'none';
+      // Helmet on for motorcycles and quads (riding or on the back).
+      e.view.wearHelmet(ride instanceof BikeView || carried instanceof BikeView);
+      if (carried instanceof BikeView && !puppet) {
+        // Pillion: astride behind the rider (hidden for ourselves when looking down a gun's sights).
+        const mount = carried.passengerMount();
+        if (e.view.root.parent !== mount) mount.add(e.view.root);
+        e.board = null;
+        e.view.root.visible = !(id === local.id && this.hideLocalBody);
+        e.view.root.position.set(0, -0.86, 0.04);
+        e.view.root.rotation.set(0, 0, 0);
+        e.view.animate(Anim.Drive, dt);
+        const veh = this.vehicles.get(riding!.vehicleId)!;
+        if (e.label) {
+          e.label.sprite.visible = this.showNames;
+          e.label.sprite.position.set(veh.x, surfaceY(veh.x, veh.z, veh.deck) + veh.lift + carried.height + 1.3, veh.z);
+        }
+        continue;
+      }
+      if (carried && !carried.isBike && !puppet) {
+        // Passengers sit in their seat.
+        const mount = carried.passengerMount(riding!.seat);
+        if (e.view.root.parent !== mount) mount.add(e.view.root);
+        e.board = null;
+        e.view.root.visible = !(id === local.id && this.hideLocalBody);
+        e.view.root.position.set(0, 0, 0);
+        e.view.root.rotation.set(0, 0, 0);
+        e.view.pose = 'sit';
+        e.view.animate(Anim.Idle, dt);
+        const veh = this.vehicles.get(riding!.vehicleId)!;
+        if (e.label) {
+          e.label.sprite.visible = this.showNames;
+          e.label.sprite.position.set(veh.x, surfaceY(veh.x, veh.z, veh.deck) + veh.lift + carried.height + 1.3, veh.z);
+        }
+        continue;
+      }
+      if (puppet) {
+        // Cutscene.
+        this.toScene(e);
+        e.view.root.visible = true;
+        e.view.root.position.set(puppet.x, groundHeight(puppet.x, puppet.z), puppet.z);
+        e.view.root.rotation.set(0, puppet.rot, 0);
+        e.view.pose = puppet.pose;
+        e.view.animate(puppet.anim, dt);
+      } else if (e.board && this.animateBoarding(e, x, z, dt, now, doorWant)) {
+        // Getting in or out (positioned by animateBoarding).
+      } else if (ride instanceof BikeView) {
+        // Motorcycle riders sit on the bike.
+        if (e.view.root.parent !== ride.riderMount) ride.riderMount.add(e.view.root);
+        e.view.root.visible = !(id === local.id && this.hideLocalBody);
+        e.view.root.position.set(0, -0.86, 0.04);
+        e.view.root.rotation.set(0, 0, 0);
+        e.view.animate(Anim.Drive, dt);
+      } else if (ride) {
+        // Car drivers sit in the driver's seat, hands on the wheel.
+        if (e.view.root.parent !== ride.driverMount) ride.driverMount.add(e.view.root);
+        e.view.root.visible = !(id === local.id && this.hideLocalDriver);
+        e.view.root.position.set(0, 0, 0);
+        e.view.root.rotation.set(0, 0, 0);
+        e.view.pose = 'sit';
+        e.view.animate(Anim.Idle, dt);
+      } else {
+        this.toScene(e);
+        e.view.root.visible = !driving && !(id === local.id && this.hideLocalBody);
+        e.view.root.position.set(x, y, z);
+        e.view.root.rotation.set(0, r, 0);
+        e.view.animate(anim, dt);
+      }
+      if (!driving) e.foot = { x, z, rot: r };
+      if (e.label) {
+        e.label.sprite.visible = this.showNames;
+        const veh = driving ? this.vehicles.get(driving) : undefined;
+        e.label.sprite.position.set(x, y + (driving ? (veh?.view.height ?? 1.5) + 1.3 : 2.35), z);
+      }
+    }
+    // Doors: open while someone gets in or out (or a cutscene holds them).
+    for (const [id, e] of this.vehicles) e.view.setDoor(Math.max(doorWant.get(id) ?? 0, this.doors.get(id) ?? 0));
+    // NPCs
+    for (const e of this.npcs.values()) {
+      const s = e.buffer.sample(renderT);
+      if (!s) continue;
+      const y = groundHeight(s.x, s.z);
+      e.view.root.position.set(s.x, y, s.z);
+      e.view.root.rotation.y = s.r;
+      e.view.animate(s.a, dt);
+      if (e.label) e.label.sprite.position.set(s.x, y + 2.2, s.z);
+    }
+    // The K9 dogs' leashes, from the collar to the handler's hand.
+    for (const [id, leash] of this.leashes) {
+      const dog = this.npcs.get(id);
+      if (!dog) continue;
+      let handler: CharEntity | null = null;
+      let best = 3.2;
+      for (const [oid, o] of this.npcs) {
+        if (!oid.startsWith('stp_')) continue;
+        const d = o.view.root.position.distanceTo(dog.view.root.position);
+        if (d < best) {
+          best = d;
+          handler = o;
+        }
+      }
+      leash.visible = !!handler;
+      if (!handler) continue;
+      const a = (dog.view as unknown as DogView).collar(LEASH_A);
+      const h = handler.view.root;
+      LEASH_B.set(0.32, 0.86, 0.12).applyAxisAngle(UP, h.rotation.y).add(h.position);
+      const pos = leash.geometry.attributes.position as THREE.BufferAttribute;
+      pos.setXYZ(0, a.x, a.y, a.z);
+      pos.setXYZ(1, LEASH_B.x, LEASH_B.y, LEASH_B.z);
+      pos.needsUpdate = true;
+    }
+    // Contract marks: only whoever holds the contract sees the label.
+    for (const [id, e] of this.npcs) if (e.label && id.startsWith('hmt_')) e.label.sprite.visible = id === this.contractMark;
+  }
+
+  private toWorld(view: AnyVehicleView, lx: number, lz: number): { x: number; z: number } {
+    const p = view.root.localToWorld(new THREE.Vector3(lx, 0, lz));
+    return { x: p.x, z: p.z };
+  }
+
+  private toScene(e: CharEntity): void {
+    if (e.view.root.parent !== this.scene) this.scene.add(e.view.root);
+  }
+
+  /** Start an enter / exit animation when a player's vehicle changes. */
+  private trackBoarding(id: string, e: CharEntity, driving: string | null, now: number): void {
+    const prev = e.prevDriving;
+    e.prevDriving = driving;
+    if (prev === undefined || prev === driving) return;
+    const car = (vid: string | null) => {
+      const v = vid ? this.vehicles.get(vid) : undefined;
+      return v && !v.view.isBike ? v : undefined;
+    };
+    const skip = !driving && prev ? this.skipExit.delete(id) : false;
+    if (driving && !prev && car(driving)) e.board = { vehicleId: driving, kind: 'in', t: 0, start: now, from: { ...e.foot } };
+    else if (!driving && prev && car(prev) && !skip) e.board = { vehicleId: prev, kind: 'out', t: 0, start: now, from: { ...e.foot } };
+    else e.board = null;
+  }
+
+  /** Place a character getting in / out of a car. False when the animation is over. */
+  private animateBoarding(e: CharEntity, x: number, z: number, dt: number, now: number, doors: Map<string, number>): boolean {
+    const b = e.board!;
+    const veh = this.vehicles.get(b.vehicleId);
+    if (!veh) {
+      e.board = null;
+      return false;
+    }
+    const view = veh.view;
+    view.root.updateMatrixWorld(true);
+    const seat = view.driverMount.getWorldPosition(this.tmp).clone();
+    const m = view.driverMount.position;
+    const hw = view.width / 2;
+    const door = view.root.localToWorld(new THREE.Vector3(hw + 0.5, 0, m.z + 0.25));
+    if (b.kind === 'in' && !b.path) {
+      // Walk to the driver's door, around the front or back of the car when starting on the far side.
+      const local = view.root.worldToLocal(new THREE.Vector3(b.from.x, 0, b.from.z));
+      const path = [{ x: b.from.x, z: b.from.z }];
+      if (local.x < hw * 0.6) {
+        const end = (local.z >= 0 ? 1 : -1) * (view.length / 2 + 0.7);
+        if (Math.abs(local.z) < view.length / 2 + 0.7) path.push(this.toWorld(view, Math.min(local.x, -hw - 0.6), end));
+        path.push(this.toWorld(view, hw + 0.6, end));
+      }
+      path.push({ x: door.x, z: door.z });
+      b.path = path;
+      b.walk = clamp(pathLength(path) / WALK_SPEED, 0.15, 2.2);
+    }
+    const walk = b.kind === 'in' ? b.walk ?? 0.5 : 0;
+    const dur = b.kind === 'in' ? walk + BOARD_IN : BOARD_OUT;
+    b.t = (now - b.start) / 1000;
+    if (b.t >= dur) {
+      e.board = null;
+      return false;
+    }
+    const inward = veh.rot - Math.PI / 2;
+    const outward = veh.rot + Math.PI / 2;
+    const t = b.t;
+    let px: number, py: number, pz: number, rot: number;
+    let anim: number = Anim.Idle;
+    let pose: Pose = 'none';
+    let seated = false;
+    let open: number;
+    if (b.kind === 'in') {
+      // Timeline after the walk: door opens, duck in and sit (0.6 s), door shuts (0.4 s).
+      const w = t - walk;
+      open = w < 0.6 ? ease((w + 0.15) / 0.35) : 1 - ease((w - 0.6) / 0.4);
+      if (w < 0) {
+        const path = b.path!;
+        const total = pathLength(path);
+        const at = along(path, (t / walk) * total);
+        px = at.x;
+        pz = at.z;
+        py = groundHeight(px, pz);
+        rot = total > 0.3 ? lerpAngle(at.rot, inward, ease((t - walk + 0.18) / 0.18)) : inward;
+        anim = total > 0.3 ? Anim.Walk : Anim.Idle;
+      } else if (w < 0.6) {
+        const u = ease(w / 0.6);
+        px = door.x + (seat.x - door.x) * u;
+        pz = door.z + (seat.z - door.z) * u;
+        py = groundHeight(door.x, door.z) + (seat.y - groundHeight(door.x, door.z)) * u;
+        rot = lerpAngle(inward, veh.rot, u);
+        pose = u < 0.65 ? 'duck' : 'sit';
+      } else {
+        seated = true;
+        px = py = pz = rot = 0;
+      }
+    } else {
+      open = t < 0.85 ? ease(t / 0.3) : 1 - ease((t - 0.85) / 0.35);
+      if (t < 0.3) {
+        seated = true;
+        px = py = pz = rot = 0;
+      } else if (t < 0.8) {
+        const u = ease((t - 0.3) / 0.5);
+        px = seat.x + (door.x - seat.x) * u;
+        pz = seat.z + (door.z - seat.z) * u;
+        py = seat.y + (groundHeight(door.x, door.z) - seat.y) * u;
+        rot = lerpAngle(veh.rot, outward, u);
+        pose = u < 0.6 ? 'duck' : 'none';
+      } else {
+        const u = ease((t - 0.8) / 0.45);
+        px = door.x + (x - door.x) * u;
+        pz = door.z + (z - door.z) * u;
+        py = groundHeight(px, pz);
+        rot = Math.hypot(x - door.x, z - door.z) > 0.25 ? lerpAngle(outward, Math.atan2(x - door.x, z - door.z), Math.min(1, u * 3)) : outward;
+        anim = Math.hypot(x - door.x, z - door.z) > 0.25 && u < 0.95 ? Anim.Walk : Anim.Idle;
+      }
+    }
+    doors.set(b.vehicleId, Math.max(doors.get(b.vehicleId) ?? 0, clamp(open, 0, 1)));
+    if (seated) {
+      if (e.view.root.parent !== view.driverMount) view.driverMount.add(e.view.root);
+      e.view.root.visible = true;
+      e.view.root.position.set(0, 0, 0);
+      e.view.root.rotation.set(0, 0, 0);
+      e.view.pose = 'sit';
+      e.view.animate(Anim.Idle, dt);
+      return true;
+    }
+    this.toScene(e);
+    e.view.root.visible = true;
+    e.view.root.position.set(px, py, pz);
+    e.view.root.rotation.set(0, rot, 0);
+    e.view.pose = pose;
+    e.view.animate(anim, dt);
+    return true;
+  }
+
+  clear(): void {
+    for (const id of [...this.players.keys()]) this.removePlayer(id);
+    for (const id of [...this.vehicles.keys()]) this.removeVehicle(id);
+    this.pruneNpcs(new Set());
+  }
+}

@@ -1,0 +1,986 @@
+// Guns and fights: Ammu-Nation, shots, damage, health, pedestrians, police officers on foot, WASTED.
+//
+// Shots come from clients as 'fire' events (weapon, muzzle, aim). The server checks the gun, the
+// ammo and the fire rate, then traces the shot itself: the first building, car or person in the way
+// takes the damage. Everyone near sees the tracer ('combat.shot').
+//
+//  - Cars have body HP (shared/weapons.ts damageLook: glass, bumper, doors, smoke). At zero the
+//    engine blows: an explosion, and the car is a wreck (owned cars: engine and body at 0 until
+//    repaired; street cars are towed; highway traffic leaves; police cars are written off).
+//    Other players' cars and other players themselves don't take damage (no PvP in the city), but
+//    shooting at them is still a crime.
+//  - Shooting at people (pedestrians, drivers, customers) is 3 stars at once; at the police, 4.
+//  - From 3 stars, officers get out of the police cars close to you and shoot back.
+//  - Health comes back slowly out of a fight; at zero you are WASTED: you wake up at the hospital
+//    without your lockpick sets, stripped parts or stolen cars, and the police forget you.
+
+import { rayHitsHill, standHeight } from '../../../shared/farShore';
+import { bridgeByN, deckHeight, inFootprint } from '../../../shared/strait';
+import { CHAR_RADIUS } from '../../../shared/physics';
+import { HOSPITAL } from '../../../shared/compounds';
+import { LOCKPICK_ITEM, parsePartItem } from '../../../shared/theft';
+import { Anim } from '../../../shared/types';
+import { angleDiff } from '../../../shared/util';
+import { getModel, modelDisplayName } from '../../../shared/vehicles';
+import { AMMO, ARMOR_ITEM, C4_ITEM, COMBAT, STARTER_ROUNDS, WEAPONS, aimRay, ammoDef, rayBox, rayCircle, rayCylinder, rayObb, rayY, spreadAim, weapon, weaponItem, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type WeaponDef, type WeaponId } from '../../../shared/weapons';
+import { BLOCK_CENTERS, BLOCK_HALF, BUILDINGS, SIDEWALK } from '../../../shared/world';
+import { VIP_COIN } from '../../../shared/rewards';
+import { SECURITY, armorCost } from '../../../shared/security';
+import { GameError } from '../../errors';
+import { createLogger } from '../../logger';
+import * as val from '../../validate';
+import { K, type Ctx } from '../context';
+import { requireNear } from '../guards';
+import type { NpcEntity } from '../simulation';
+import type { CustomerService } from './customers';
+import type { PoliceService } from './police';
+import type { TheftService } from './theft';
+import type { VehicleService } from './vehicles';
+
+const log = createLogger('combat');
+const C = COMBAT;
+const C4 = COMBAT.c4;
+const SECURITY_ARMOR_SOAK = COMBAT.armorSoak;
+const PERSON_R = 0.38;
+const PERSON_H = 1.85;
+const SHOT_FX_RADIUS = 170;
+
+interface Health {
+  hp: number;
+  /** Body armour left (0-100). */
+  armor: number;
+  hitAt: number;
+  fromX?: number;
+  fromZ?: number;
+  sentHp: number;
+}
+
+interface Ped {
+  npc: NpcEntity;
+  hp: number;
+  /** Block loop it walks around, which way, how far along (m) and how fast. */
+  bx: number;
+  bz: number;
+  dir: 1 | -1;
+  s: number;
+  speed: number;
+  panicUntil: number;
+  deadAt: number;
+  /** A named person (a hitman mark): no replacement when they die. */
+  mark?: boolean;
+}
+
+interface Officer {
+  npc: NpcEntity;
+  hp: number;
+  target: string;
+  unitId: number;
+  fireAt: number;
+  deadAt: number;
+}
+
+/** Size of a block's sidewalk loop (half) and its length. */
+const LOOP_HALF = BLOCK_HALF + SIDEWALK / 2;
+const LOOP_LEN = LOOP_HALF * 8;
+
+function loopPoint(bx: number, bz: number, s: number): { x: number; z: number; rot: number } {
+  const h = LOOP_HALF;
+  const t = ((s % LOOP_LEN) + LOOP_LEN) % LOOP_LEN;
+  const side = Math.floor(t / (2 * h));
+  const k = t - side * 2 * h;
+  // Clockwise on the map from the north-west corner.
+  if (side === 0) return { x: bx - h + k, z: bz - h, rot: Math.PI / 2 };
+  if (side === 1) return { x: bx + h, z: bz - h + k, rot: 0 };
+  if (side === 2) return { x: bx + h - k, z: bz + h, rot: -Math.PI / 2 };
+  return { x: bx - h, z: bz + h - k, rot: Math.PI };
+}
+
+type Who = 'player' | 'ped' | 'officer' | 'customer' | 'hostile';
+type Target = { type: 'car'; id: string; who?: undefined } | { type: 'person'; id: string; who: Who } | { type: 'heli'; id: number; who?: undefined };
+
+let seq = 1;
+
+export class CombatService {
+  private health = new Map<string, Health>();
+  private equipped = new Map<string, WeaponId>();
+  private lastShot = new Map<string, number>();
+  /** Rounds fired but not yet taken out of the saved inventory (written every couple of seconds). */
+  private spent = new Map<string, Map<string, number>>();
+  /** Body HP of damaged vehicles (by obstacle id); missing = full. */
+  private carHp = new Map<string, number>();
+  /** Level-3 armour left (%) on armoured cars that took hits (none: 100). */
+  private armor = new Map<string, number>();
+  private wrecks = new Set<string>();
+  private peds = new Map<string, Ped>();
+  /** Someone on foot was killed (id of the person, who did it). */
+  readonly killListeners: ((id: string, by: string | null) => void)[] = [];
+  /** A player went down (WASTED): heists drop the loot. */
+  readonly wastedListeners: ((playerId: string) => void)[] = [];
+  /** How much of an officer's shot gets through to a player (cover at a heist door: less than 1). */
+  readonly coverFns: ((playerId: string) => number)[] = [];
+  /** A bullet hit a building's wall (building id, who fired). */
+  readonly wallHitListeners: ((buildingId: string, shooter: string) => void)[] = [];
+  /** Armed people who are nobody's business but the shooter's (gang members in a turf war, a SWAT
+   *  ambush at the docks): who they are, and a hit on one (true: it was theirs). Shooting them is
+   *  no police matter of its own (the gunfire is). */
+  readonly hostileSources: { list: () => NpcEntity[]; hit: (id: string, amount: number, by: string | null) => boolean }[] = [];
+  private officers = new Map<string, Officer>();
+  private pedRespawn: number[] = [];
+  private flushAt = 0;
+
+  constructor(
+    private readonly ctx: Ctx,
+    private readonly police: PoliceService,
+    private readonly theft: TheftService,
+    private readonly customers: CustomerService,
+    private readonly vehicles: VehicleService,
+  ) {
+    for (let i = 0; i < C.pedestrians; i++) this.spawnPed(Date.now());
+    // A gun out near a crime scene is tampering.
+    police.armedFn = (pid) => this.equipped.has(pid);
+  }
+
+  // ---------------------------------------------------------------- shop
+
+  /** Buy a gun (cash or VIP Coins) or a box of ammo at Ammu-Nation. */
+  async buy(playerId: string, params: unknown): Promise<{ item: string; money: number }> {
+    const p = val.obj(params);
+    const item = val.str(p.item, 'item', 40);
+    const gun = WEAPONS.find((w) => weaponItem(w.id) === item);
+    const box = gun ? undefined : ammoDef(item);
+    if ((!gun && !box) || gun?.contraband) throw new GameError('bad_request', 'Ammu-Nation does not sell that.');
+    return this.ctx.locks.run([K.player(playerId)], async () => {
+      requireNear(this.ctx, playerId, 'ammu');
+      const uow = this.ctx.state.begin();
+      const player = uow.player(playerId);
+      const inv = player.inventory;
+      if (gun) {
+        if ((inv[item] ?? 0) > 0) throw new GameError('conflict', 'You already own that gun.');
+        if (gun.vip !== null) {
+          const coins = inv[VIP_COIN] ?? 0;
+          if (coins < gun.vip) throw new GameError('insufficient_funds', `You need ${gun.vip} VIP Coins (you have ${coins}). They come from the daily login streak and the 3-hour playtime reward.`);
+          inv[VIP_COIN] = coins - gun.vip;
+          if (inv[VIP_COIN] === 0) delete inv[VIP_COIN];
+        } else {
+          uow.debit(player, gun.price!, 'weapon', `Ammu-Nation: ${gun.name}`);
+        }
+        inv[item] = 1;
+        inv[gun.ammo] = (inv[gun.ammo] ?? 0) + STARTER_ROUNDS;
+        uow.notify(playerId, { kind: 'success', title: `${gun.name} bought`, text: `It comes with ${STARTER_ROUNDS} rounds. Press ${gun.slot} to draw it, left click to fire, Q to put it away.` });
+      } else {
+        uow.debit(player, box!.price, 'weapon', `Ammu-Nation: ${box!.name}`);
+        inv[box!.id] = (inv[box!.id] ?? 0) + box!.rounds;
+      }
+      await uow.commit();
+      return { item, money: this.ctx.state.players.get(playerId)!.money };
+    });
+  }
+
+  /** Patch up at the hospital front desk. */
+  async heal(playerId: string): Promise<HealthView> {
+    return this.ctx.locks.run([K.player(playerId)], async () => {
+      requireNear(this.ctx, playerId, 'hospital');
+      const h = this.hp(playerId);
+      if (h.hp >= C.playerHp) throw new GameError('conflict', 'You are in perfect health.');
+      const uow = this.ctx.state.begin();
+      uow.debit(uow.player(playerId), C.healPrice, 'hospital', 'Hospital: patched up');
+      await uow.commit();
+      h.hp = C.playerHp;
+      this.sendHealth(playerId, true);
+      return this.healthView(playerId);
+    });
+  }
+
+  // ---------------------------------------------------------------- guns
+
+  /** Draw a gun (or put it away: null). */
+  equip(playerId: string, params: unknown): { weapon: WeaponId | null } {
+    const p = val.obj(params);
+    const c = this.ctx.sim.chars.get(playerId);
+    if (!c) throw new GameError('conflict', 'You are not in the world.');
+    if (p.weapon === null || p.weapon === undefined) {
+      this.equipped.delete(playerId);
+      c.weapon = 0;
+      return { weapon: null };
+    }
+    const w = weapon(String(p.weapon));
+    if (!w) throw new GameError('bad_request', 'Unknown weapon.');
+    const inv = this.ctx.state.players.get(playerId)?.inventory ?? {};
+    if ((inv[weaponItem(w.id)] ?? 0) < 1) throw new GameError('forbidden', `You don't have a ${w.name}. Ammu-Nation sells them.`);
+    this.equipped.set(playerId, w.id);
+    c.weapon = w.slot;
+    return { weapon: w.id };
+  }
+
+  /** Rounds left of a kind (inventory minus what was fired since the last save). */
+  ammoLeft(playerId: string, ammo: string): number {
+    const inv = this.ctx.state.players.get(playerId)?.inventory ?? {};
+    return (inv[ammo] ?? 0) - (this.spent.get(playerId)?.get(ammo) ?? 0);
+  }
+
+  /** A shot from a client: [weapon, x, y, z, yaw, pitch, seq]. Returns false when refused. */
+  fire(playerId: string, raw: unknown, now = Date.now()): boolean {
+    if (!Array.isArray(raw) || raw.length < 7) return false;
+    const [wid, x, y, z, yaw, pitch, n] = raw as unknown[];
+    const w = typeof wid === 'string' ? weapon(wid) : undefined;
+    if (!w || ![x, y, z, yaw, pitch, n].every((v) => typeof v === 'number' && Number.isFinite(v))) return false;
+    const c = this.ctx.sim.chars.get(playerId);
+    if (!c || c.dead) return false;
+    // From a vehicle: anyone in it, any gun: a passenger out of the window or off the back of a
+    // bike, and the driver or rider too (one hand on the wheel or the bars, the other on the gun).
+    const inside = c.ridingId ?? c.drivingId;
+    const ride = inside ? this.ctx.sim.drives.get(inside) : undefined;
+    if (inside && !ride) return false;
+    if (this.equipped.get(playerId) !== w.id) return false;
+    if (this.police.wantedOf(playerId)?.busted) return false;
+    // Fire rate (a little slack for network jitter).
+    const last = this.lastShot.get(playerId) ?? 0;
+    if (now - last < (1000 / w.rate) * 0.75) return false;
+    // From where the player stands (on a moving bike: where the bike is, give or take what the
+    // client saw a moment ago).
+    const at = ride ? ride.dyn : c;
+    const slack = ride ? 2.5 + Math.abs(ride.dyn.speed) * 0.5 : 1.6;
+    // Heights from what they stand on (a bridge deck is several metres up).
+    const base = standHeight(at.deck ?? 0, at.x, at.z);
+    if (Math.hypot((x as number) - at.x, (z as number) - at.z) > slack || (y as number) - base < 0.6 || (y as number) - base > 2.4) return false;
+    if (this.ammoLeft(playerId, w.ammo) < 1) return false;
+    this.lastShot.set(playerId, now);
+    const spent = this.spent.get(playerId) ?? new Map<string, number>();
+    spent.set(w.ammo, (spent.get(w.ammo) ?? 0) + 1);
+    this.spent.set(playerId, spent);
+    for (let i = 0; i < w.pellets; i++) {
+      const aim = spreadAim(yaw as number, pitch as number, w.spread, (n as number) * 13 + i * 7 + 1);
+      this.trace(playerId, w, aimRay(x as number, y as number, z as number, aim.yaw, aim.pitch), now, i === 0, inside, at.deck ?? 0);
+    }
+    // Every shot is heard, witnesses or not: it is reported and patrols are sent (2 stars).
+    this.police.raiseHeat(playerId, C.heatGunshot, 'gunshot');
+    this.panic(c.x, c.z, 35, now);
+    return true;
+  }
+
+  /** Follow one pellet: the first thing in its way takes the damage. */
+  private trace(shooter: string, w: WeaponDef, r: Ray2, now: number, sound: boolean, own: string | null = null, deck = 0): void {
+    let best = w.range;
+    let kind: ShotFx['hit'] = 'air';
+    let n: [number, number, number] | undefined;
+    let target: Target | null = null;
+    // The ground (or, from up on a bridge, the deck where the shot comes down on it).
+    if (r.slope < -1e-4) {
+      const b = deck ? bridgeByN(deck) : undefined;
+      if (b) {
+        const t = (r.y - deckHeight(b, r.x)) / -r.slope;
+        if (t > 0 && t < best && inFootprint(b, r.x + r.dx * t, r.z + r.dz * t, 0)) {
+          best = t;
+          kind = 'ground';
+          n = [0, 1, 0];
+        }
+      }
+      const t = r.y / -r.slope;
+      if (t < best) {
+        best = t;
+        kind = 'ground';
+        n = [0, 1, 0];
+      }
+    }
+    // The hill on the far shore (whichever way the shot goes).
+    const hill = rayHitsHill(r.x, r.y, r.z, r.dx, r.dz, r.slope, best);
+    if (hill !== null && hill < best) {
+      best = hill;
+      kind = 'ground';
+      n = [0, 1, 0];
+    }
+    // Buildings and walls.
+    let building: string | null = null;
+    for (const b of BUILDINGS) {
+      const hit = rayBox(r, b.box.minX, b.box.maxX, b.box.minZ, b.box.maxZ);
+      if (hit && hit.t < best && rayY(r, hit.t) <= b.height) {
+        best = hit.t;
+        kind = 'wall';
+        n = [hit.nx, 0, hit.nz];
+        target = null;
+        building = b.id;
+      }
+    }
+    for (const b of this.ctx.sim.collisionWorld.boxes) {
+      const hit = rayBox(r, b.minX, b.maxX, b.minZ, b.maxZ);
+      if (hit && hit.t < best && rayY(r, hit.t) <= 5) {
+        best = hit.t;
+        kind = 'wall';
+        n = [hit.nx, 0, hit.nz];
+        target = null;
+        building = null;
+      }
+    }
+    // Cars (parked and driven, street cars, police, highway traffic near players).
+    for (const v of this.ctx.sim.collisionWorld.vehicles) {
+      // Not the bike you are sitting on.
+      if (v.id === own) continue;
+      const hit = rayObb(r, v.x, v.z, v.rot, v.hl, v.hw);
+      if (!hit || hit.t >= best) continue;
+      const y = rayY(r, hit.t) - standHeight(v.deck ?? 0, v.x, v.z);
+      if (y < 0 || y > this.carHeight(v.id)) continue;
+      // A driver can't shoot their own car from inside; nor from right next to it by accident.
+      if (hit.t < 0.05) continue;
+      best = hit.t;
+      kind = 'car';
+      n = [hit.nx, 0, hit.nz];
+      target = { type: 'car', id: v.id };
+    }
+    // Police helicopters overhead.
+    for (const hz of this.police.heliTargets()) {
+      const ht = rayCylinder(r, hz.x, hz.z, 2.4, hz.y - 1.6, hz.y + 1.5);
+      if (ht === null || ht >= best || ht < 0.5) continue;
+      best = ht;
+      kind = 'car';
+      n = undefined;
+      target = { type: 'heli', id: hz.id };
+    }
+    // People.
+    const person = (id: string, x: number, z: number, who: Who, onDeck = 0) => {
+      const t = rayCircle(r, x, z, PERSON_R);
+      if (t === null || t >= best || t < 0.3) return;
+      const y = rayY(r, t) - standHeight(onDeck, x, z);
+      if (y < 0 || y > PERSON_H) return;
+      best = t;
+      kind = 'person';
+      n = undefined;
+      target = { type: 'person', id, who };
+    };
+    for (const c of this.ctx.sim.chars.values()) if (c.id !== shooter && !c.drivingId && !c.ridingId && !c.dead) person(c.id, c.x, c.z, 'player', c.deck ?? 0);
+    for (const p of this.peds.values()) if (!p.deadAt) person(p.npc.id, p.npc.x, p.npc.z, 'ped');
+    for (const o of this.officers.values()) if (!o.deadAt) person(o.npc.id, o.npc.x, o.npc.z, 'officer');
+    // Police on foot at crime scenes and checkpoints.
+    for (const src of this.police.officerSources) for (const o of src.list()) person(o.id, o.x, o.z, 'officer');
+    for (const src of this.hostileSources) for (const o of src.list()) person(o.id, o.x, o.z, 'hostile');
+    for (const npc of this.ctx.sim.npcs.values()) if (npc.id.startsWith('npc')) person(npc.id, npc.x, npc.z, 'customer');
+
+    const to: [number, number, number] = [r.x + r.dx * best, rayY(r, best), r.z + r.dz * best];
+    const fx: ShotFx = { by: shooter, weapon: w.id, from: [r.x, r.y, r.z], to, hit: kind, ...(n ? { n } : {}) };
+    const t = target as Target | null;
+    if (t?.type === 'car') fx.carId = t.id;
+    if (sound || kind !== 'air') this.broadcastShot(fx);
+    if (w.blast && kind !== 'air') {
+      this.explode(to[0], Math.max(0, to[1]), to[2], w.blast.radius, w.blast.damage, shooter, now);
+      return;
+    }
+    // The wall of a named building took the bullet (drive-by contracts).
+    if (kind === 'wall' && building) for (const l of this.wallHitListeners) l(building, shooter);
+    if (!t) return;
+    if (t.type === 'car') this.damageCar(t.id, w.damage, shooter, now);
+    else if (t.type === 'heli') {
+      this.police.raiseHeat(shooter, C.heatPolice, 'copShot');
+      this.police.damageHeli(t.id, w.damage, now);
+    } else this.damagePerson(t.id, t.who!, w.damage, shooter, r.x, r.z, now);
+  }
+
+  private carHeight(id: string): number {
+    const v = this.ctx.state.vehicles.get(id);
+    const m = v ? getModel(v.modelId) : null;
+    return m ? m.shape.rideHeight + m.shape.bodyHeight + m.shape.cabinHeight : id.startsWith('tr:') ? 3 : 1.6;
+  }
+
+  private broadcastShot(fx: ShotFx): void {
+    for (const c of this.ctx.sim.chars.values()) {
+      if (Math.hypot(c.x - fx.from[0], c.z - fx.from[2]) < SHOT_FX_RADIUS) this.ctx.hub.sendTo(c.id, 'combat.shot', fx);
+    }
+  }
+
+  // ---------------------------------------------------------------- damage
+
+  /** Who is in a car (a player driving it, a traffic or police driver). */
+  private occupied(id: string): boolean {
+    return id.startsWith('tr:') || id.startsWith('po:') || this.ctx.sim.isDriven(id);
+  }
+
+  /** Armour left (%) on a car with level-3 armour; null for a car without. */
+  armorOf(id: string): number | null {
+    const v = this.ctx.state.vehicles.get(id);
+    return v?.mods.armor ? this.armor.get(id) ?? 100 : null;
+  }
+
+  /** New or patched-up armour. */
+  resetArmor(id: string): void {
+    if (!this.armor.delete(id)) return;
+    this.ctx.hub.broadcast('combat.carHp', { id, hp: this.carHp.get(id) ?? C.vehicleHp, armor: 100 });
+  }
+
+  /** Damage a car (when it may be damaged); at zero HP the engine blows. Armour takes the hits first. */
+  damageCar(id: string, amount: number, by: string | null, now = Date.now(), kind: 'bullet' | 'blast' = 'bullet'): void {
+    if (this.wrecks.has(id)) return;
+    if (by) {
+      if (id.startsWith('po:')) this.police.raiseHeat(by, C.heatPolice, 'copShot');
+      else if (this.occupied(id) && this.ctx.sim.driverOf(id) !== by) this.police.raiseHeat(by, C.heatPerson, 'shooting');
+    }
+    const v = this.ctx.state.vehicles.get(id);
+    if (v) {
+      // Nobody else's car: no damage to other players' property.
+      if (by && v.ownerId !== by) return;
+    } else if (!id.startsWith('tr:') && !id.startsWith('po:') && !this.theft.streetCar(id)) {
+      return;
+    }
+    const armor = this.armorOf(id);
+    if (armor !== null && armor > 0) {
+      // The armour holds: the glass cracks, nothing gets through.
+      // (Snapped to zero: 36 bullets of 100/36 % each end at exactly nothing.)
+      const raw = armor - armorCost(kind, amount);
+      const left = raw < 1e-6 ? 0 : raw;
+      this.armor.set(id, left);
+      this.ctx.hub.broadcast('combat.carHp', { id, hp: this.carHp.get(id) ?? C.vehicleHp, armor: left });
+      if (left <= 0) {
+        const driver = this.ctx.sim.driverOf(id) ?? v?.ownerId;
+        if (driver) this.ctx.hub.notify(driver, { kind: 'error', title: 'ZIRH DELİNDİ!', text: 'Zırh artık dayanmıyor: kurşunlar içeri işler. Chroma Customs\'ta zırhı onarttır.' });
+      }
+      return;
+    }
+    const before = this.carHp.get(id) ?? C.vehicleHp;
+    const hp = Math.max(0, before - amount);
+    this.carHp.set(id, hp);
+    this.ctx.hub.broadcast('combat.carHp', { id, hp });
+    if (hp <= 0) void this.blowUp(id, by, now);
+  }
+
+  /** Engine blow-out: an explosion, and what's left of the car. */
+  private async blowUp(id: string, by: string | null, now: number): Promise<void> {
+    if (this.wrecks.has(id)) return;
+    this.wrecks.add(id);
+    const box = this.ctx.sim.collisionWorld.vehicles.find((b) => b.id === id);
+    if (box) this.explode(box.x, 0.8, box.z, C.explosionRadius, C.explosionDamage, by, now, id);
+    if (id.startsWith('po:')) {
+      this.police.removeUnit(Number(id.slice(3)));
+      this.forgetCar(id, 4000);
+      return;
+    }
+    if (id.startsWith('tr:')) {
+      this.forgetCar(id, 2500);
+      return;
+    }
+    if (this.theft.streetCar(id)) {
+      setTimeout(() => this.theft.wreckStreetCar(id), 6000);
+      this.forgetCar(id, 6500);
+      return;
+    }
+    const v = this.ctx.state.vehicles.get(id);
+    if (!v) return;
+    try {
+      await this.ctx.locks.run([K.vehicle(id)], async () => {
+        const driver = this.ctx.sim.driverOf(id);
+        if (driver) {
+          await this.vehicles.flushDrive(id, true);
+          this.ctx.sim.stopDriving(driver);
+        }
+        const uow = this.ctx.state.begin();
+        const veh = uow.vehicle(id);
+        veh.condition = { ...veh.condition, engine: 0, body: 0 };
+        if (veh.ownerId) uow.notify(veh.ownerId, { kind: 'warning', title: 'Engine blow-out!', text: `Your ${modelDisplayName(veh.modelId)} is a wreck. Send it to the garage (store it) and repair it at Wrench Bros.` });
+        await uow.commit();
+        this.ctx.sim.rebuildDynamic();
+      });
+    } catch (err) {
+      log.error('blow-up failed', { id, error: (err as Error).message });
+    }
+  }
+
+  /** Forget a destroyed car's damage after a while (traffic and police come back as new cars). */
+  private forgetCar(id: string, ms: number): void {
+    setTimeout(() => {
+      this.carHp.delete(id);
+      this.wrecks.delete(id);
+      this.ctx.hub.broadcast('combat.carHp', { id, hp: C.vehicleHp });
+    }, ms);
+  }
+
+  /** A blast: cars and people inside the radius take damage that falls off with distance. */
+  explode(x: number, y: number, z: number, radius: number, damage: number, by: string | null, now = Date.now(), carId?: string): void {
+    const fx: ExplosionFx = { x, y, z, radius, ...(carId ? { carId } : {}) };
+    for (const c of this.ctx.sim.chars.values()) if (Math.hypot(c.x - x, c.z - z) < SHOT_FX_RADIUS * 1.5) this.ctx.hub.sendTo(c.id, 'combat.explosion', fx);
+    const fall = (d: number) => damage * Math.max(0, 1 - d / radius);
+    for (const v of [...this.ctx.sim.collisionWorld.vehicles]) {
+      if (v.id === carId) continue;
+      const d = Math.max(0, Math.hypot(v.x - x, v.z - z) - Math.max(v.hl, v.hw) * 0.5);
+      if (d < radius) this.damageCar(v.id, fall(d), by, now, 'blast');
+    }
+    for (const p of this.peds.values()) {
+      const d = Math.hypot(p.npc.x - x, p.npc.z - z);
+      if (d < radius && !p.deadAt) this.damagePerson(p.npc.id, 'ped', fall(d), by, x, z, now);
+    }
+    // A rocket into a helicopter.
+    for (const hz of this.police.heliTargets()) {
+      const d = Math.hypot(hz.x - x, hz.y - y, hz.z - z);
+      if (d < radius + 2) {
+        if (by) this.police.raiseHeat(by, C.heatPolice, 'copShot');
+        this.police.damageHeli(hz.id, fall(Math.max(0, d - 2)), now);
+      }
+    }
+    for (const o of this.officers.values()) {
+      const d = Math.hypot(o.npc.x - x, o.npc.z - z);
+      if (d < radius && !o.deadAt) this.damagePerson(o.npc.id, 'officer', fall(d), by, x, z, now);
+    }
+    for (const src of this.police.officerSources) {
+      for (const o of src.list()) {
+        const d = Math.hypot(o.x - x, o.z - z);
+        if (d < radius) this.damagePerson(o.id, 'officer', fall(d), by, x, z, now);
+      }
+    }
+    for (const npc of [...this.ctx.sim.npcs.values()]) {
+      if (!npc.id.startsWith('npc')) continue;
+      const d = Math.hypot(npc.x - x, npc.z - z);
+      if (d < radius) this.damagePerson(npc.id, 'customer', fall(d), by, x, z, now);
+    }
+    for (const src of this.hostileSources) {
+      for (const o of src.list()) {
+        const d = Math.hypot(o.x - x, o.z - z);
+        if (d < radius) src.hit(o.id, fall(d), by);
+      }
+    }
+    // Players: only the one who set it off (no PvP), and anyone caught in a police car's blast.
+    for (const c of this.ctx.sim.chars.values()) {
+      if (by && c.id !== by) continue;
+      const d = Math.hypot(c.x - x, c.z - z);
+      if (d >= radius) continue;
+      const shielded = c.drivingId ? (this.armorOf(c.drivingId) ?? 0) > 0 : false;
+      this.hurtPlayer(c.id, fall(d) * (c.drivingId ? (shielded ? SECURITY.armorBlastShare : 0.6) : 1), x, z, now);
+    }
+    this.panic(x, z, 60, now);
+  }
+
+  private damagePerson(id: string, who: Who, amount: number, by: string | null, fromX: number, fromZ: number, now: number): void {
+    if (who === 'hostile') {
+      for (const src of this.hostileSources) if (src.hit(id, amount, by)) return;
+      return;
+    }
+    if (by) this.police.raiseHeat(by, who === 'officer' ? C.heatPolice : C.heatPerson, who === 'officer' ? 'copShot' : 'shooting');
+    if (who === 'player') return; // no PvP
+    if (who === 'customer') {
+      const npc = this.ctx.sim.npcs.get(id);
+      if (!npc) return;
+      this.customers.kill(id);
+      // Lies there a while as a pedestrian body.
+      npc.anim = Anim.Dead;
+      setTimeout(() => this.ctx.sim.npcs.delete(id), 9000);
+      return;
+    }
+    if (who === 'ped') {
+      const p = this.peds.get(id);
+      if (!p || p.deadAt) return;
+      p.hp -= amount;
+      p.panicUntil = now + 8000;
+      if (p.hp <= 0) {
+        p.deadAt = now;
+        p.npc.anim = Anim.Dead;
+        p.npc.rot = Math.atan2(p.npc.x - fromX, p.npc.z - fromZ);
+        for (const l of this.killListeners) l(id, by);
+      }
+      return;
+    }
+    if (!this.officers.has(id)) {
+      for (const src of this.police.officerSources) if (src.hit(id, amount)) return;
+      return;
+    }
+    const o = this.officers.get(id);
+    if (!o || o.deadAt) return;
+    o.hp -= amount;
+    if (o.hp <= 0) {
+      o.deadAt = now;
+      o.npc.anim = Anim.Dead;
+    }
+  }
+
+  // ---------------------------------------------------------------- health
+
+  private hp(playerId: string): Health {
+    let h = this.health.get(playerId);
+    if (!h) {
+      h = { hp: C.playerHp, armor: 0, hitAt: 0, sentHp: C.playerHp };
+      this.health.set(playerId, h);
+    }
+    return h;
+  }
+
+  healthView(playerId: string): HealthView {
+    const h = this.hp(playerId);
+    return { hp: Math.round(h.hp), max: C.playerHp, armor: Math.round(h.armor), hitAt: h.hitAt, ...(h.fromX !== undefined ? { fromX: h.fromX, fromZ: h.fromZ } : {}) };
+  }
+
+  private sendHealth(playerId: string, force = false): void {
+    const h = this.hp(playerId);
+    const hp = Math.round(h.hp);
+    if (!force && hp + Math.round(h.armor) * 1000 === h.sentHp) return;
+    h.sentHp = hp + Math.round(h.armor) * 1000;
+    this.ctx.hub.sendTo(playerId, 'combat.health', this.healthView(playerId));
+  }
+
+  /** A player gets hurt (police bullets, a blast). */
+  hurtPlayer(playerId: string, amount: number, fromX: number, fromZ: number, now = Date.now()): void {
+    const c = this.ctx.sim.chars.get(playerId);
+    if (!c || c.dead || amount <= 0) return;
+    const h = this.hp(playerId);
+    // Body armour takes most of a hit while it lasts.
+    if (h.armor > 0) {
+      const soak = Math.min(h.armor, amount * SECURITY_ARMOR_SOAK);
+      h.armor -= soak;
+      amount -= soak;
+    }
+    h.hp = Math.max(0, h.hp - amount);
+    h.hitAt = now;
+    h.fromX = fromX;
+    h.fromZ = fromZ;
+    this.sendHealth(playerId, true);
+    if (h.hp <= 0) void this.wasted(playerId);
+  }
+
+  /** Health to zero: WASTED, the hospital, and what the police take. */
+  private async wasted(playerId: string): Promise<void> {
+    const c = this.ctx.sim.chars.get(playerId);
+    if (!c || c.dead) return;
+    c.dead = true;
+    this.equipped.delete(playerId);
+    c.weapon = 0;
+    const lost: string[] = [];
+    try {
+      await this.ctx.locks.run([K.player(playerId)], async () => {
+        if (c.drivingId) {
+          const id = c.drivingId;
+          await this.ctx.locks.run([K.vehicle(id)], async () => {
+            await this.vehicles.flushDrive(id, true);
+            this.ctx.sim.stopDriving(playerId);
+          });
+        }
+        if (c.ridingId) this.ctx.sim.stopRiding(playerId);
+        this.flushAmmo(playerId);
+        const uow = this.ctx.state.begin();
+        const player = uow.player(playerId);
+        for (const [item, qty] of Object.entries(player.inventory)) {
+          if (item === LOCKPICK_ITEM || parsePartItem(item)) {
+            delete player.inventory[item];
+            lost.push(`${qty}x ${item === LOCKPICK_ITEM ? 'Lockpick & Testere Seti' : 'stripped part'}`);
+          }
+        }
+        for (const v of this.ctx.state.vehiclesOf(playerId)) {
+          if (v.status !== 'stolen' || v.mods.strip || this.ctx.sim.isDriven(v.id)) continue;
+          uow.deleteVehicle(v.id);
+          lost.push(`stolen ${modelDisplayName(v.modelId)}`);
+        }
+        await uow.commit();
+      });
+    } catch (err) {
+      log.error('wasted cleanup failed', { playerId, error: (err as Error).message });
+    }
+    for (const l of this.wastedListeners) l(playerId);
+    this.police.clearWanted(playerId);
+    for (const o of this.officers.values()) if (o.target === playerId) o.target = '';
+    this.ctx.hub.sendTo(playerId, 'combat.wasted', { lost, respawnInMs: 4500 });
+    log.info('player wasted', { playerId, lost: lost.length });
+    setTimeout(() => {
+      const ch = this.ctx.sim.chars.get(playerId);
+      if (!ch) return;
+      this.ctx.sim.teleport(playerId, HOSPITAL.respawn.x, HOSPITAL.respawn.z);
+      ch.dead = false;
+      this.hp(playerId).hp = C.playerHp;
+      this.sendHealth(playerId, true);
+      this.ctx.sim.rebuildDynamic();
+    }, 4500);
+  }
+
+  // ---------------------------------------------------------------- people in the street
+
+  private spawnPed(now: number): void {
+    const rng = this.ctx.rng;
+    const bx = BLOCK_CENTERS[Math.floor(rng() * BLOCK_CENTERS.length)]!;
+    const bz = BLOCK_CENTERS[Math.floor(rng() * BLOCK_CENTERS.length)]!;
+    const s = rng() * LOOP_LEN;
+    const at = loopPoint(bx, bz, s);
+    const id = `ped_${seq++}`;
+    const npc: NpcEntity = { id, x: at.x, z: at.z, rot: at.rot, anim: Anim.Walk, style: Math.floor(rng() * 1000) };
+    this.peds.set(id, { npc, hp: C.pedestrianHp, bx, bz, dir: rng() < 0.5 ? 1 : -1, s, speed: 1.2 + rng() * 0.6, panicUntil: 0, deadAt: 0 });
+    this.ctx.sim.npcs.set(id, npc);
+    void now;
+  }
+
+  /** A named person walking round the block nearest to a point (hitman marks). */
+  spawnMark(id: string, style: number, x: number, z: number, hp: number): void {
+    const near = (v: number) => BLOCK_CENTERS.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
+    const bx = near(x);
+    const bz = near(z);
+    const s = this.ctx.rng() * LOOP_LEN;
+    const at = loopPoint(bx, bz, s);
+    const npc: NpcEntity = { id, x: at.x, z: at.z, rot: at.rot, anim: Anim.Walk, style };
+    this.peds.set(id, { npc, hp, bx, bz, dir: this.ctx.rng() < 0.5 ? 1 : -1, s, speed: 1.1, panicUntil: 0, deadAt: 0, mark: true });
+    this.ctx.sim.npcs.set(id, npc);
+  }
+
+  /** Take a named person away (contract over). */
+  removeMark(id: string): void {
+    if (!this.peds.get(id)?.mark) return;
+    this.peds.delete(id);
+    this.ctx.sim.npcs.delete(id);
+  }
+
+  /** People near gunfire run. */
+  private panic(x: number, z: number, radius: number, now: number): void {
+    for (const p of this.peds.values()) if (!p.deadAt && Math.hypot(p.npc.x - x, p.npc.z - z) < radius) p.panicUntil = now + 7000;
+  }
+
+  // ---------------------------------------------------------------- tick
+
+  tick(dt: number, now = Date.now()): void {
+    this.tickBombs(now);
+    // Pedestrians walk round their block (run when there's shooting).
+    for (const [id, p] of this.peds) {
+      if (p.deadAt) {
+        if (now - p.deadAt > 9000) {
+          this.peds.delete(id);
+          this.ctx.sim.npcs.delete(id);
+          if (!p.mark) this.pedRespawn.push(now + C.pedRespawnSec * 1000);
+        }
+        continue;
+      }
+      const run = now < p.panicUntil;
+      p.s += p.dir * (run ? 4.2 : p.speed) * dt;
+      const at = loopPoint(p.bx, p.bz, p.s);
+      p.npc.x = at.x;
+      p.npc.z = at.z;
+      p.npc.rot = at.rot + (p.dir < 0 ? Math.PI : 0);
+      p.npc.anim = run ? Anim.Run : Anim.Walk;
+    }
+    while (this.pedRespawn.length && this.pedRespawn[0]! <= now) {
+      this.pedRespawn.shift();
+      this.spawnPed(now);
+    }
+    this.tickOfficers(dt, now);
+    // Health comes back out of a fight.
+    for (const [playerId, h] of this.health) {
+      if (!this.ctx.sim.chars.has(playerId)) {
+        this.health.delete(playerId);
+        continue;
+      }
+      if (h.hp < C.playerHp && h.hp > 0 && now - h.hitAt > C.regenDelaySec * 1000) {
+        h.hp = Math.min(C.playerHp, h.hp + C.regenPerSec * dt);
+        this.sendHealth(playerId);
+      }
+    }
+    // Wrecked cars: owned ones come back to life once repaired.
+    for (const id of this.wrecks) {
+      const v = this.ctx.state.vehicles.get(id);
+      if (v && v.condition.engine > 20) {
+        this.wrecks.delete(id);
+        this.carHp.delete(id);
+        this.ctx.hub.broadcast('combat.carHp', { id, hp: C.vehicleHp });
+      }
+    }
+    // A wreck can't be driven.
+    for (const d of this.ctx.sim.drives.values()) if (this.wrecks.has(d.vehicleId)) d.hold = true;
+    if (now > this.flushAt) {
+      this.flushAt = now + 2000;
+      for (const playerId of [...this.spent.keys()]) this.flushAmmo(playerId);
+    }
+  }
+
+  /** Officers get out of police cars near a 3-star suspect (four out of a SWAT van, with rifles
+   *  and vests), keep their distance and shoot. */
+  private tickOfficers(dt: number, now: number): void {
+    for (const c of this.ctx.sim.chars.values()) {
+      if (c.dead || this.police.starsOf(c.id) < C.officerStars) continue;
+      const pos = c.drivingId ? this.ctx.sim.drives.get(c.drivingId)?.dyn : c;
+      if (!pos) continue;
+      for (const u of this.police.unitsOf(c.id)) {
+        if (Math.abs(u.dyn.speed) > 3 || Math.hypot(u.dyn.x - pos.x, u.dyn.z - pos.z) > 32) continue;
+        const crew = [...this.officers.values()].filter((o) => o.unitId === u.id && !o.deadAt).length;
+        if (crew >= (u.swat ? 4 : 2)) continue;
+        const side = crew % 2 === 0 ? 1 : -1;
+        const back = crew >= 2 ? -1.6 : 0;
+        const id = `cop_${seq++}`;
+        const npc: NpcEntity = { id, x: u.dyn.x + Math.cos(u.dyn.rot) * 1.6 * side + Math.sin(u.dyn.rot) * back, z: u.dyn.z - Math.sin(u.dyn.rot) * 1.6 * side + Math.cos(u.dyn.rot) * back, rot: u.dyn.rot, anim: Anim.Aim, style: u.swat ? 1 : 0 };
+        this.officers.set(id, { npc, hp: u.swat ? Math.round(C.officerHp * 1.6) : C.officerHp, target: c.id, unitId: u.id, fireAt: now + 900 + this.ctx.rng() * 600, deadAt: 0 });
+        this.ctx.sim.npcs.set(id, npc);
+      }
+    }
+    for (const [id, o] of this.officers) {
+      if (o.deadAt) {
+        if (now - o.deadAt > 10_000) {
+          this.officers.delete(id);
+          this.ctx.sim.npcs.delete(id);
+        }
+        continue;
+      }
+      const t = o.target ? this.ctx.sim.chars.get(o.target) : undefined;
+      const tpos = t ? (t.drivingId ? this.ctx.sim.drives.get(t.drivingId)?.dyn : t) : undefined;
+      // Suspect gone, calmed down or far away: back to the car and off.
+      if (!t || !tpos || t.dead || this.police.starsOf(t.id) < C.officerStars || Math.hypot(tpos.x - o.npc.x, tpos.z - o.npc.z) > 120) {
+        this.officers.delete(id);
+        this.ctx.sim.npcs.delete(id);
+        continue;
+      }
+      const dx = tpos.x - o.npc.x;
+      const dz = tpos.z - o.npc.z;
+      const d = Math.hypot(dx, dz);
+      o.npc.rot += angleDiff(o.npc.rot, Math.atan2(dx, dz)) * Math.min(1, dt * 8);
+      // Close in to about 12 m, then stand and shoot.
+      if (d > 14) {
+        const step = Math.min(d - 12, 3.6 * dt);
+        o.npc.x += (dx / d) * step;
+        o.npc.z += (dz / d) * step;
+        o.npc.anim = Anim.Run;
+      } else {
+        o.npc.anim = Anim.Aim;
+      }
+      if (now >= o.fireAt && d < C.officerRange) {
+        o.fireAt = now + C.officerFireSec * 1000 * (0.8 + this.ctx.rng() * 0.4);
+        const moving = t.drivingId ? Math.abs(this.ctx.sim.drives.get(t.drivingId)?.dyn.speed ?? 0) : 0;
+        const chance = C.officerAccuracy * (1 - d / C.officerRange) * (moving > 8 ? 0.45 : 1) + 0.12;
+        const hit = this.ctx.rng() < chance;
+        const aimY = t.drivingId ? 1.0 : 1.3;
+        const jitter = hit ? 0 : (this.ctx.rng() - 0.5) * 3;
+        const to: [number, number, number] = [tpos.x + jitter, aimY + (hit ? 0 : this.ctx.rng() * 1.2), tpos.z + jitter];
+        this.broadcastShot({ by: id, weapon: 'pistol', from: [o.npc.x, 1.35, o.npc.z], to, hit: hit ? (t.drivingId ? 'car' : 'person') : 'air', ...(hit && t.drivingId ? { carId: t.drivingId } : {}) });
+        if (hit) {
+          const [lo, hi] = C.officerDamage;
+          const cover = this.coverFns.reduce((k, f) => Math.min(k, f(t.id)), 1);
+          const dmg = (lo + this.ctx.rng() * (hi - lo)) * cover;
+          if (t.drivingId) {
+            // Armour: the bullet stops in the glass or the door.
+            if (!((this.armorOf(t.drivingId) ?? 0) > 0)) this.hurtPlayer(t.id, dmg * C.inCarShare, o.npc.x, o.npc.z, now);
+            const own = this.ctx.state.vehicles.get(t.drivingId);
+            if (own) this.damageCar(t.drivingId, dmg * 0.6, own.ownerId, now);
+            // A tyre takes it (run-flats ride on).
+            if (own && !own.mods.runflat && !own.mods.blown && this.ctx.rng() < SECURITY.tyreShotChance) this.police.burstTyres(t.drivingId, t.id);
+          } else {
+            this.hurtPlayer(t.id, dmg, o.npc.x, o.npc.z, now);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Someone not a police officer shoots at a player (gang members, an ambush): the tracer for
+   * everyone near, a hit roll falling off with distance (worse at a moving car), the damage
+   * (in a car: through the glass unless it's armoured, the car takes some). True if it hit.
+   */
+  npcFire(shooterId: string, from: { x: number; z: number }, targetId: string, opts: { accuracy: number; range: number; damage: [number, number]; weapon?: WeaponId }, now = Date.now()): boolean {
+    const t = this.ctx.sim.chars.get(targetId);
+    if (!t || t.dead) return false;
+    const tpos = t.drivingId ? this.ctx.sim.drives.get(t.drivingId)?.dyn : t.ridingId ? this.ctx.sim.drives.get(t.ridingId)?.dyn : t;
+    if (!tpos) return false;
+    const d = Math.hypot(tpos.x - from.x, tpos.z - from.z);
+    if (d > opts.range) return false;
+    const vid = t.drivingId ?? t.ridingId;
+    const moving = vid ? Math.abs(this.ctx.sim.drives.get(vid)?.dyn.speed ?? 0) : 0;
+    const chance = opts.accuracy * (1 - d / opts.range) * (moving > 8 ? 0.45 : 1) + 0.08;
+    const hit = this.ctx.rng() < chance;
+    const aimY = vid ? 1.0 : 1.3;
+    const jitter = hit ? 0 : (this.ctx.rng() - 0.5) * 3;
+    const to: [number, number, number] = [tpos.x + jitter, aimY + (hit ? 0 : this.ctx.rng() * 1.2), tpos.z + jitter];
+    this.broadcastShot({ by: shooterId, weapon: opts.weapon ?? 'pistol', from: [from.x, 1.35, from.z], to, hit: hit ? (vid ? 'car' : 'person') : 'air', ...(hit && vid ? { carId: vid } : {}) });
+    if (!hit) return false;
+    const [lo, hi] = opts.damage;
+    const cover = this.coverFns.reduce((k, f) => Math.min(k, f(t.id)), 1);
+    const dmg = (lo + this.ctx.rng() * (hi - lo)) * cover;
+    if (vid) {
+      if (!((this.armorOf(vid) ?? 0) > 0)) this.hurtPlayer(t.id, dmg * C.inCarShare, from.x, from.z, now);
+      const own = this.ctx.state.vehicles.get(vid);
+      if (own) this.damageCar(vid, dmg * 0.6, own.ownerId, now);
+    } else this.hurtPlayer(t.id, dmg, from.x, from.z, now);
+    return true;
+  }
+
+  /** Put on a body armour vest from the inventory (100 armour). */
+  async wearArmor(playerId: string): Promise<HealthView> {
+    return this.ctx.locks.run([K.player(playerId)], async () => {
+      const uow = this.ctx.state.begin();
+      const inv = uow.player(playerId).inventory;
+      if ((inv[ARMOR_ITEM] ?? 0) < 1) throw new GameError('forbidden', 'Çelik yeleğin yok (limandaki silah sandıklarından çıkar).');
+      const h = this.hp(playerId);
+      if (h.armor >= 99) throw new GameError('conflict', 'Yeleğin zaten sağlam.');
+      inv[ARMOR_ITEM] = inv[ARMOR_ITEM]! - 1;
+      if (inv[ARMOR_ITEM] === 0) delete inv[ARMOR_ITEM];
+      await uow.commit();
+      h.armor = 100;
+      this.sendHealth(playerId, true);
+      return this.healthView(playerId);
+    });
+  }
+
+  private bombs = new Map<string, { x: number; z: number; at: number; by: string }>();
+
+  /** Plant a C4 charge at your feet: it goes off after a few seconds. */
+  async plantC4(playerId: string): Promise<{ id: string; at: number }> {
+    return this.ctx.locks.run([K.player(playerId)], async () => {
+      const c = this.ctx.sim.chars.get(playerId);
+      if (!c || c.dead) throw new GameError('conflict', 'Önce ayağa kalk.');
+      if (c.drivingId || c.ridingId) throw new GameError('conflict', 'C4 yaya yerleştirilir.');
+      const uow = this.ctx.state.begin();
+      const inv = uow.player(playerId).inventory;
+      if ((inv[C4_ITEM] ?? 0) < 1) throw new GameError('forbidden', 'C4 yok (limandaki silah sandıklarından çıkar).');
+      inv[C4_ITEM] = inv[C4_ITEM]! - 1;
+      if (inv[C4_ITEM] === 0) delete inv[C4_ITEM];
+      await uow.commit();
+      const id = `c4_${seq++}`;
+      const at = Date.now() + C4.fuseSec * 1000;
+      this.bombs.set(id, { x: c.x, z: c.z, at, by: playerId });
+      for (const o of this.ctx.sim.chars.values()) if (Math.hypot(o.x - c.x, o.z - c.z) < 200) this.ctx.hub.sendTo(o.id, 'combat.c4', { id, x: c.x, z: c.z, at });
+      this.ctx.sim.markInteract(playerId);
+      return { id, at };
+    });
+  }
+
+  /** Charges whose fuse has burnt down. */
+  private tickBombs(now: number): void {
+    for (const [id, b] of this.bombs) {
+      if (now < b.at) continue;
+      this.bombs.delete(id);
+      this.explode(b.x, 0.3, b.z, C4.radius, C4.damage, b.by, now);
+    }
+  }
+
+  /** Take fired rounds out of the saved inventory. */
+  private flushAmmo(playerId: string): void {
+    const spent = this.spent.get(playerId);
+    if (!spent || spent.size === 0) return;
+    this.spent.delete(playerId);
+    void this.ctx.locks
+      .run([K.player(playerId)], async () => {
+        if (!this.ctx.state.players.has(playerId)) return;
+        const uow = this.ctx.state.begin();
+        const inv = uow.player(playerId).inventory;
+        for (const [ammo, n] of spent) {
+          const left = (inv[ammo] ?? 0) - n;
+          if (left > 0) inv[ammo] = left;
+          else delete inv[ammo];
+        }
+        await uow.commit();
+      })
+      .catch((err) => log.error('ammo flush failed', { playerId, error: (err as Error).message }));
+  }
+
+  /** State for a player who just connected. */
+  welcome(playerId: string): void {
+    this.sendHealth(playerId, true);
+    for (const [id, hp] of this.carHp) this.ctx.hub.sendTo(playerId, 'combat.carHp', { id, hp });
+    for (const [id, armor] of this.armor) this.ctx.hub.sendTo(playerId, 'combat.carHp', { id, hp: this.carHp.get(id) ?? C.vehicleHp, armor });
+  }
+
+  forget(playerId: string): void {
+    this.flushAmmo(playerId);
+    this.equipped.delete(playerId);
+    this.lastShot.delete(playerId);
+    this.health.delete(playerId);
+    for (const [id, o] of this.officers) {
+      if (o.target !== playerId) continue;
+      this.officers.delete(id);
+      this.ctx.sim.npcs.delete(id);
+    }
+  }
+
+  /** Body HP of a car (tests, HUD). */
+  carHpOf(id: string): number {
+    return this.carHp.get(id) ?? C.vehicleHp;
+  }
+
+  /** Every shop item (panel). */
+  static catalogue() {
+    return { weapons: WEAPONS, ammo: AMMO };
+  }
+
+  /** Characters stand this far apart; used to keep officers off the player. */
+  static readonly reach = CHAR_RADIUS;
+}

@@ -1,0 +1,79 @@
+// Footprints of the places out in the green belt between the city and the highway (no imports, so
+// highway.ts can keep its belt trees out of them): the hospital to the north, where players wake up
+// after being WASTED, the Moto Gear helmet shop beside it, the Ammu-Nation gun shop to the east,
+// and the police stations.
+
+export const HOSPITAL = {
+  box: { minX: -54, maxX: -10, minZ: -208, maxZ: -184 },
+  /** Where a wasted player walks out (in front of the doors, facing the city). */
+  respawn: { x: -32, z: -176 },
+};
+
+export const AMMU_NATION = {
+  // Clear of the east overpass's embankment (z ≈ -30).
+  box: { minX: 178, maxX: 202, minZ: -112, maxZ: -84 },
+  door: { x: 174, z: -98 },
+};
+
+/** Motorcycle helmets and visors, east of the hospital (clear of the north connector road at x 44). */
+export const MOTO_GEAR = {
+  box: { minX: 8, maxX: 34, minZ: -206, maxZ: -188 },
+  door: { x: 21, z: -182 },
+};
+
+/**
+ * The police stations (karakol) the patrol cars set off from: one in the south-west of the green
+ * belt facing the city's south road, one on the far shore facing the VIP Otoban. `bay` is where a
+ * car leaves from (the forecourt, facing the road).
+ */
+export interface PoliceStation {
+  id: string;
+  name: string;
+  box: { minX: number; maxX: number; minZ: number; maxZ: number };
+  facing: 'north' | 'south' | 'east' | 'west';
+  bay: { x: number; z: number; rot: number };
+}
+
+export const POLICE_STATIONS: PoliceStation[] = [
+  { id: 'merkez', name: 'Merkez Karakolu', box: { minX: -134, maxX: -96, minZ: 176, maxZ: 200 }, facing: 'north', bay: { x: -115, z: 166, rot: Math.PI } },
+  { id: 'kiyi', name: 'Karşı Kıyı Karakolu', box: { minX: 600, maxX: 640, minZ: 62, maxZ: 88 }, facing: 'east', bay: { x: 651, z: 75, rot: Math.PI / 2 } },
+];
+
+/**
+ * Two villas in the south of the green belt, between the city's south road and the highway (night
+ * burglary targets, shared/burglary.ts): a two-storey house each in a walled garden, the front door
+ * on the north side facing the city.
+ */
+export interface Villa {
+  id: string;
+  name: string;
+  /** The house (solid). */
+  box: { minX: number; maxX: number; minZ: number; maxZ: number };
+  /** The garden round it (a low wall with a gap at the front gate). */
+  garden: { minX: number; maxX: number; minZ: number; maxZ: number };
+  door: { x: number; z: number };
+}
+
+export const VILLAS: Villa[] = [
+  { id: 'villa_lale', name: 'Villa Lale', box: { minX: -32, maxX: -8, minZ: 172, maxZ: 192 }, garden: { minX: -36, maxX: -4, minZ: 165, maxZ: 198 }, door: { x: -20, z: 172 } },
+  { id: 'villa_manolya', name: 'Villa Manolya', box: { minX: 15, maxX: 39, minZ: 172, maxZ: 192 }, garden: { minX: 11, maxX: 43, minZ: 165, maxZ: 198 }, door: { x: 27, z: 172 } },
+];
+
+/** Inside one of the compounds (trees stay out). */
+export function inCompound(x: number, z: number, margin = 0): boolean {
+  return [HOSPITAL.box, AMMU_NATION.box, MOTO_GEAR.box, POLICE_STATIONS[0]!.box, ...VILLAS.map((v) => v.garden)].some((b) => x > b.minX - margin && x < b.maxX + margin && z > b.minZ - margin && z < b.maxZ + margin);
+}
+
+/** The villas' colliders: the house and the garden wall (0.4 m thick, a 4 m gate at the front). */
+export const VILLA_BOXES: { minX: number; maxX: number; minZ: number; maxZ: number }[] = VILLAS.flatMap((v) => {
+  const g = v.garden;
+  const t = 0.4;
+  return [
+    v.box,
+    { minX: g.minX, maxX: v.door.x - 2, minZ: g.minZ, maxZ: g.minZ + t },
+    { minX: v.door.x + 2, maxX: g.maxX, minZ: g.minZ, maxZ: g.minZ + t },
+    { minX: g.minX, maxX: g.maxX, minZ: g.maxZ - t, maxZ: g.maxZ },
+    { minX: g.minX, maxX: g.minX + t, minZ: g.minZ, maxZ: g.maxZ },
+    { minX: g.maxX - t, maxX: g.maxX, minZ: g.minZ, maxZ: g.maxZ },
+  ];
+});
