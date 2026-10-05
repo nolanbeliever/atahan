@@ -315,6 +315,29 @@ Values are in `ECONOMY.gangs` (`shared/gangs.ts` for the zones, hangouts and roa
   `defendWaves` 1 wave; beaten off: kept. Not there in time, or the defence lost: the zone goes back to the gang.
 - Who holds what, the cash boxes and the pay choice are kept in the world state (`gangs`).
 
+## The docks at night (Liman)
+
+Values are in `ECONOMY.docks` (`shared/docks.ts`, `server/game/services/docks.ts`); the new gear in `ECONOMY.combat`.
+
+- Six robbable containers (MSKU-101, TGHU-214, CMAU-305, HLXU-422, MSCU-517, OOLU-608) between `fromHour` 23:00 and
+  `toHour` 05:00. The grinder has `cutSec` 45 s; the server accepts the cut after at least `cutMinSec` 6 s. A done
+  container stays open (empty) for `cooldownSec` 15 minutes.
+- Loot (`lootOdds`): a hypercar 20% (Bugatti Chiron / Lamborghini Aventador / Ferrari SF90, stolen), an arms crate 40%
+  (Micro-Uzi, sniper rifle, 128 Uzi rounds, 20 sniper rounds, 2 C4, 2 body armour vests), goods 40% (`lootGrams` 120 g).
+  +180 XP. Micro-Uzi: 12 damage, 12 rounds/s, 50 m (Uzi magazines 64 rounds $900 at Ammu-Nation once you own one).
+  Sniper: 95 damage, 220 m, 0.7 shots/s, a 6x scope (.308 rounds, 10 for $1,500). Neither is sold.
+- C4 (`combat.c4`): fuse 4 s, 8 m blast, 260 damage. Body armour (`combat.armorSoak`): 100 armour taking 70% of
+  each hit until it's gone.
+- Bulk imports (`imports`): hypercar $250,000 (yours, not stolen), arms crate $120,000, goods 500 g (`bulkGrams`)
+  $100,000; the ship takes `shipSec` 45 s; one order at a time. Goods only by flatbed (Granforge Hauler): crane
+  `craneSec` 4 s, then the depot (Sanayi loading bay, 9 m) for the goods. The truck wrecked or towed: the load is lost.
+- The trap (`snitch` 25% of cuts and of orders, sprung as you go in for the order): the radio warns, `warnSec` 5 s
+  later heat `ambushHeat` 380 (4 stars) and a pursuit; barricades across the west gate and the north gate (docks road),
+  four SWAT vans (one per gate gives chase), `swat` 6 officers in cover (110 HP, 8-14 damage, 60 m,
+  24% accuracy; they open fire `swatCoverSec` 4 s after taking cover). A block goes over
+  when a vehicle over `ramMass` 2,000 kg hits it above `ramKmh` 30 km/h, or anything above `ramFastKmh` 95 km/h. The
+  trap clears after `ambushSec` 3 minutes, an escape, an arrest or going down.
+
 ## Telegram dealing
 
 Values are in `ECONOMY.deals` (`shared/telegram.ts`). The phone (**Y**, or 📱 in the dock) has Telegram:

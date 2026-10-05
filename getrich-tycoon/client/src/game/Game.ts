@@ -31,7 +31,7 @@ import { AIR_LEVELS, hasAirRide } from '../../../shared/modificationsData';
 import { NITRO_ITEM } from '../../../shared/rewards';
 import { cameraSeeing } from '../../../shared/cctv';
 import { RACE, raceRoute, type StreetRaceView } from '../../../shared/streetRace';
-import { recoilKick, type WeaponDef } from '../../../shared/weapons';
+import { C4_ITEM, recoilKick, type WeaponDef } from '../../../shared/weapons';
 import { confetti } from '../ui/confetti';
 import { Anim, VF, type Auction, type PlayerSettings, type Snapshot } from '../../../shared/types';
 import { findShowroom, type TestDriveEnd } from '../../../shared/showrooms';
@@ -90,6 +90,7 @@ import { CharacterView } from '../render/Character';
 import { TheftClient } from './Theft';
 import { BurglaryClient } from './Burglary';
 import { GangClient } from './Gangs';
+import { DocksClient } from './Docks';
 import { VillasView } from '../render/Villas';
 import { TrafficClient } from './Traffic';
 
@@ -108,6 +109,8 @@ const COCKPIT_FOV = 74;
 const CHASE_FOV = 62;
 /** Looking down the sights: a touch narrower than the chase view. */
 const SIGHTS_FOV = 56;
+/** Through the sniper rifle's 6x scope. */
+const SNIPER_FOV = 14;
 /** Eye height on foot (m). */
 const EYE_HEIGHT = 1.62;
 
@@ -147,6 +150,7 @@ export class Game {
   readonly theft: TheftClient;
   readonly burglary: BurglaryClient;
   readonly gangs: GangClient;
+  readonly docks: DocksClient;
   private villas: VillasView;
   /** Hands busy (lockpicking, working on a car): the character plays its work animation. */
   working = false;
@@ -271,6 +275,7 @@ export class Game {
     this.net = new Network(token);
     this.burglary = new BurglaryClient(this);
     this.gangs = new GangClient(this);
+    this.docks = new DocksClient(this);
     this.rebuildBoxes();
     this.bindNetwork();
     this.bindStore();
@@ -484,6 +489,7 @@ export class Game {
     net.on('race.checkpoint', () => this.audio.play('coin'));
     net.on('combat.shot', (sh) => this.combat.onShot(sh));
     net.on('combat.explosion', (e) => this.combat.onExplosion(e));
+    net.on('combat.c4', (d) => this.combat.onC4(d));
     net.on('combat.carHp', (d) => this.combat.onCarHp(d.id, d.hp, d.armor));
     net.on('combat.health', (v) => this.combat.onHealth(v));
     net.on('combat.wasted', (d) => this.combat.onWasted(d.lost, d.respawnInMs));
@@ -655,10 +661,12 @@ export class Game {
     }
   }
 
-  private rebuildBoxes(): void {
+  rebuildBoxes(): void {
     const levels = new Map<string, number>();
     for (const d of this.store.dealerships.values()) levels.set(d.plotId, d.level);
     this.boxes = worldBoxes(levels);
+    // The police's barricades at the docks while a trap is sprung.
+    if (this.docks) this.boxes.push(...this.docks.barricadeBoxes());
     this.world = { boxes: this.boxes, circles: STATIC_CIRCLES, dynamic: [], vehicles: this.dynamic, grip: this.world.grip };
   }
 
@@ -969,7 +977,7 @@ export class Game {
     });
 
     const camera = this.renderer.camera;
-    const fov = (cockpit && !this.busted) || this.dealScene ? COCKPIT_FOV : fps ? SIGHTS_FOV : CHASE_FOV;
+    const fov = (cockpit && !this.busted) || this.dealScene ? COCKPIT_FOV : fps ? (this.combat.equipped?.id === 'sniper' ? SNIPER_FOV : SIGHTS_FOV) : CHASE_FOV;
     // A nitrous shot widens the view a little (speed rush).
     this.fovKick += ((this.nitroLeft() > 0 ? 9 : 0) - this.fovKick) * Math.min(1, dt * 4);
     if (this.fovKick < 0.05) this.fovKick = 0;
@@ -1065,6 +1073,7 @@ export class Game {
     this.trafficStops.update(dt, this.night);
     this.burglary.update(dt, rx, rz, this.night);
     this.gangs.update(dt);
+    this.docks.update(dt);
     this.villas.update(this.night);
     CharacterView.night = this.night;
     this.ui?.scanner.update(dt, now);
@@ -1430,6 +1439,11 @@ export class Game {
       if (rv?.phase === 'open' && start && !this.race.joined && Math.hypot(start.x - x, start.z - z) <= RACE.joinRadius) {
         secondary = { id: `race-${rv.id}`, label: `Sokak yarışına katıl (1.'ye ${formatMoney(rv.prize)})`, action: () => void this.joinRace() };
       }
+      // The docks: my flatbed by my goods container (the crane), or loaded at the depot.
+      if (v && this.dyn) {
+        const dk = this.docks.drivingAction(v.id, v.modelId, this.dyn.x, this.dyn.z, this.dyn.speed);
+        if (dk) secondary = dk;
+      }
       // A stolen car lined up between a Sanayi lift's posts: F puts it up (exit moves to G).
       if (v?.status === 'stolen' && !isLifted(v.mods) && this.dyn) {
         const bay = this.theft.bayFor(this.dyn.x, this.dyn.z, this.dyn.rot);
@@ -1519,6 +1533,7 @@ export class Game {
       // Night burglaries: the locked doors outside, the loot / safe / way out inside.
       this.burglary.interactions(x, z, consider);
       this.gangs.interactions(x, z, consider);
+      this.docks.interactions(x, z, consider);
       // Lockpicking a parked car.
       const street = this.theft.nearestCar(x, z);
       if (street) consider(street.d, this.lockpickInteraction(street.car));
@@ -1627,6 +1642,11 @@ export class Game {
       void this.flipPlate();
       return;
     }
+    // X on foot: plant a C4 charge (from the docks' arms crates).
+    if (code === 'KeyX' && !this.driving && !this.riding) {
+      void this.plantC4();
+      return;
+    }
     if (this.combat.onKey(code)) return;
     const hot: Record<string, Parameters<UI['open']>[0]> = {
       KeyB: 'market',
@@ -1646,6 +1666,20 @@ export class Game {
     else if (code === 'KeyG') this.interactSecondary();
     else if (code === 'KeyC') this.toggleCockpit();
     else if (code === 'KeyL') this.ui.missions.toggle();
+  }
+
+  /** Plant a C4 charge at my feet (it goes off a few seconds later). */
+  private async plantC4(): Promise<void> {
+    if ((this.store.me?.inventory[C4_ITEM] ?? 0) <= 0) {
+      this.ui?.toast({ kind: 'info', title: 'C4 yok', text: 'C4, limandaki konteynerlerin silah sandıklarından çıkar.' });
+      return;
+    }
+    try {
+      await this.net.rpc('combat.c4', {});
+      this.ui?.toast({ kind: 'warning', title: '💣 C4 kuruldu!', text: `${ECONOMY.combat.c4.fuseSec} saniye: uzaklaş!` });
+    } catch (err) {
+      this.ui?.error(err);
+    }
   }
 
   private onRace(r: StreetRaceView | null): void {

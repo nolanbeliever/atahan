@@ -4,6 +4,7 @@
 
 import { ECONOMY } from '../../../../shared/economy.config';
 import { DEALS, dropPrice, findDrop, type DealOrder, type TgMessage } from '../../../../shared/telegram';
+import { IMPORTS, containerDoor, findContainer } from '../../../../shared/docks';
 import { formatMoney } from '../../../../shared/util';
 import { getModel } from '../../../../shared/vehicles';
 import { h, type Child } from '../dom';
@@ -89,10 +90,12 @@ const picture = (color: string, sticker: string) => {
   return pics.get(key)!;
 };
 
+const DOCKS_CFG = ECONOMY.docks;
+
 export class PhonePanel extends Panel {
   readonly name = 'phone';
   override size = 'medium' as const;
-  private tab: 'supplier' | 'channel' = 'supplier';
+  private tab: 'supplier' | 'channel' | 'import' = 'supplier';
   private timer: number | null = null;
 
   title() {
@@ -108,6 +111,14 @@ export class PhonePanel extends Panel {
 
   override init(): void {
     if (this.arg.tab === 'channel') this.tab = 'channel';
+    if (this.arg.tab === 'import') this.tab = 'import';
+    void this.net
+      .rpc('docks.orders', {})
+      .then((d) => {
+        this.game.docks.orders = d;
+        this.refresh();
+      })
+      .catch(() => undefined);
     this.listen(this.store.on('tg', () => this.refresh()));
     void this.net
       .rpc('tg.read', {})
@@ -132,11 +143,61 @@ export class PhonePanel extends Panel {
       { class: 'tg-tabs' },
       h('button', { class: `tg-tab ${this.tab === 'supplier' ? 'on' : ''}`, 'data-testid': 'tg-tab-supplier', onclick: () => ((this.tab = 'supplier'), this.refresh()) }, '💬 Tedarikçi'),
       h('button', { class: `tg-tab ${this.tab === 'channel' ? 'on' : ''}`, 'data-testid': 'tg-tab-channel', onclick: () => ((this.tab = 'channel'), this.refresh()) }, `📢 Kanalım${open ? ` (${open})` : ''}`),
+      h('button', { class: `tg-tab ${this.tab === 'import' ? 'on' : ''}`, 'data-testid': 'tg-tab-import', onclick: () => ((this.tab = 'import'), this.refresh()) }, '📦 Toplu İthalat'),
     );
+    if (this.tab === 'import') return h('div', { class: 'tg-phone', 'data-testid': 'phone-panel' }, tabs, this.importChat(), this.importBar());
     const msgs = s.messages.filter((m) => m.chat === this.tab);
     const chat = h('div', { class: 'tg-chat', 'data-testid': 'tg-chat' }, msgs.map((m) => this.bubble(m)));
     requestAnimationFrame(() => (chat.scrollTop = chat.scrollHeight));
     return h('div', { class: 'tg-phone', 'data-testid': 'phone-panel' }, tabs, chat, this.tab === 'supplier' ? this.supplierBar() : this.channelBar(s.orders));
+  }
+
+  /** Toplu İthalat (Bulk Logistics): the docks contact's messages (the container number and place). */
+  private importChat(): Child {
+    const d = this.game.docks.orders;
+    const pos = this.ui.game.localPosition();
+    const chat = h(
+      'div',
+      { class: 'tg-chat', 'data-testid': 'import-chat' },
+      h('div', { class: 'tg-msg them' }, h('div', { class: 'tg-name' }, '@liman_baglanti'), h('div', null, 'Toplu ithalat: gemiyle gelir, konteyner numarasını buradan yazarım. Biri öterse liman kapanır; dikkatli ol.')),
+      d.messages.map((m) => {
+        const k = m.containerId ? findContainer(m.containerId) : undefined;
+        const door = k ? containerDoor(k) : null;
+        return h(
+          'div',
+          { class: 'tg-msg them' },
+          h('div', { class: 'tg-name' }, '@liman_baglanti'),
+          h('div', null, m.text),
+          door ? h('div', { class: 'tg-pin' }, `📍 ${k!.id} · ${Math.round(Math.hypot(door.x - pos.x, door.z - pos.z))} m (haritada)`) : null,
+          h('div', { class: 'tg-time' }, new Date(m.at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })),
+        );
+      }),
+    );
+    requestAnimationFrame(() => (chat.scrollTop = chat.scrollHeight));
+    return chat;
+  }
+
+  private importBar(): Child {
+    const money = this.store.me?.money ?? 0;
+    const pending = this.game.docks.orders.orders.find((o) => o.status !== 'done');
+    if (pending) {
+      const st = pending.status === 'ship' ? `🚢 Gemi yolda: ${mmss(Math.max(0, (pending.arriveAt - this.store.serverNow()) / 1000))}` : pending.status === 'ready' ? `📦 ${pending.containerId} limanda seni bekliyor` : '🚚 Kamyonunda: depoya götür';
+      return h('div', { class: 'tg-bar' }, h('div', { class: 'tiny' }, h('b', null, pending.name), ` · ${st}`));
+    }
+    return h(
+      'div',
+      { class: 'tg-bar tg-orders' },
+      IMPORTS.map((i) =>
+        h(
+          'div',
+          { class: 'tg-order', 'data-testid': `import-${i.id}` },
+          h('div', null, h('b', null, i.name), ` · ${formatMoney(i.price)}`),
+          h('div', { class: 'tiny muted' }, i.text),
+          h('button', { class: 'btn small primary', disabled: this.busy || money < i.price, onclick: () => void this.act(() => this.game.docks.order(i.id)) }, 'Sipariş ver'),
+        ),
+      ),
+      h('div', { class: 'tiny muted' }, `Nakit ödenir. %${Math.round(DOCKS_CFG.snitch * 100)} ihtimalle biri öter: liman kuşatılır.`),
+    );
   }
 
   private bubble(m: TgMessage): Child {

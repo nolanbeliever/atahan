@@ -3,7 +3,7 @@
 
 import { KMH_PER_MS } from '../../shared/drivetrain';
 import { ECONOMY } from '../../shared/economy.config';
-import { MARKET_LOT_SLOTS, INTERACTABLES, SERVICE_INTERACT_SLACK, type Interactable } from '../../shared/world';
+import { MARKET_LOT_SLOTS, INTERACTABLES, SERVICE_INTERACT_SLACK, type AABB, type Interactable } from '../../shared/world';
 import { worldBoxes, vehicleObstacles, STATIC_CIRCLES, type ObstacleVehicle } from '../../shared/collision';
 import {
   CHAR_RADIUS,
@@ -123,11 +123,22 @@ export class Simulation {
     this.rebuildStatic();
   }
 
-  /** Recompute building colliders (after a dealership purchase/upgrade). */
+  /** Solid boxes put up for a while (the police's barricades at the docks), by owner. */
+  private extraBoxes = new Map<string, AABB[]>();
+
+  /** Recompute building colliders (after a dealership purchase/upgrade, a barricade up or down). */
   rebuildStatic(): void {
     const levels = new Map<string, number>();
     for (const d of this.state.dealerships.values()) levels.set(d.plotId, d.level);
-    this.world = { boxes: worldBoxes(levels), circles: STATIC_CIRCLES, dynamic: [], vehicles: this.dynamic, grip: this.world.grip };
+    const boxes = worldBoxes(levels);
+    for (const extra of this.extraBoxes.values()) boxes.push(...extra);
+    this.world = { boxes, circles: STATIC_CIRCLES, dynamic: [], vehicles: this.dynamic, grip: this.world.grip };
+  }
+
+  setExtraBoxes(owner: string, boxes: AABB[]): void {
+    if (boxes.length === 0) this.extraBoxes.delete(owner);
+    else this.extraBoxes.set(owner, boxes);
+    this.rebuildStatic();
   }
 
   /** Recompute vehicle obstacles (called every tick). Passengers move with their vehicle even

@@ -17,6 +17,8 @@ const GUN_SVG: Record<string, string> = {
   rifle: '<svg viewBox="0 0 64 32"><path fill="currentColor" d="M2 11h40v6H2zM42 10h10l10 4v6l-14 2-4-6zM22 17h6l-2 12h-6z"/></svg>',
   gold_deagle: '<svg viewBox="0 0 64 32"><path fill="currentColor" d="M4 7h44l5 4v6H26l-5 13H10l4-13H4z"/></svg>',
   laser_rpg: '<svg viewBox="0 0 64 32"><rect x="4" y="11" width="50" height="9" rx="2" fill="currentColor"/><path fill="currentColor" d="M54 9l8 2v10l-8 2zM22 20h6v8h-6z"/></svg>',
+  uzi: '<svg viewBox="0 0 64 32"><path fill="currentColor" d="M10 9h34v8H10zM44 11h10v4H44zM22 17h7l-2 13h-6z"/></svg>',
+  sniper: '<svg viewBox="0 0 64 32"><path fill="currentColor" d="M2 14h52v4H2zM18 8h20v5H18zM40 13h14l8 3-3 6H44zM10 18h8l-3 8H8z"/></svg>',
   minigun: '<svg viewBox="0 0 64 32"><rect x="2" y="8" width="44" height="3" fill="currentColor"/><rect x="2" y="13" width="44" height="3" fill="currentColor"/><rect x="2" y="18" width="44" height="3" fill="currentColor"/><rect x="40" y="6" width="18" height="18" rx="3" fill="currentColor"/></svg>',
 };
 
@@ -45,7 +47,7 @@ export class AmmuPanel extends Panel {
     const inv = this.store.me?.inventory ?? {};
     const money = this.store.me?.money ?? 0;
     const coins = inv[VIP_COIN] ?? 0;
-    const cards = WEAPONS.map((w) => {
+    const cards = WEAPONS.filter((w) => !w.contraband || (inv[weaponItem(w.id)] ?? 0) > 0).map((w) => {
       const owned = (inv[weaponItem(w.id)] ?? 0) > 0;
       const ammo = inv[w.ammo] ?? 0;
       const box = ammoDef(w.ammo)!;
@@ -76,7 +78,7 @@ export class AmmuPanel extends Panel {
     return h(
       'div',
       { class: 'col' },
-      h('div', { class: 'tiny muted' }, 'Draw a gun with its number key (1-6), aim with the mouse, left click to fire, Q to put it away. Shooting at people brings 3 police stars at once; from 3 stars officers get out and shoot back. Other players and their cars are safe: no PvP in the city.'),
+      h('div', { class: 'tiny muted' }, 'Draw a gun with its number key (1-8), aim with the mouse, left click to fire, Q to put it away. Shooting at people brings 3 police stars at once; from 3 stars officers get out and shoot back. Other players and their cars are safe: no PvP in the city.'),
       h('div', { class: 'gun-grid' }, cards),
       h('div', { class: 'tiny muted' }, `Premium guns are paid with VIP Coins only: 10 for a 7-day login streak, 5 for each 3-hour playtime reward. There is no real-money shop.`),
       h('div', { class: 'section-title' }, 'Ammo boxes'),

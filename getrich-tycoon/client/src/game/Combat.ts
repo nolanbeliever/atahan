@@ -8,6 +8,7 @@ import { getModel } from '../../../shared/vehicles';
 import { BUILDINGS } from '../../../shared/world';
 import { COMBAT, damageLook, rayBox, rayCircle, rayCylinder, rayObb, rayY, weapon, ownedWeapons, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type VehicleDamageLook, type WeaponDef } from '../../../shared/weapons';
 import { CombatFx } from '../render/CombatFx';
+import { groundHeight } from '../render/City';
 import type { AnyVehicleView } from '../render/VehicleMesh';
 import type { Game } from './Game';
 
@@ -43,14 +44,14 @@ export class CombatClient {
       if (this.equipped) void this.equip(null);
       return !!this.equipped;
     }
-    const m = /^Digit([1-6])$/.exec(code);
+    const m = /^Digit([1-8])$/.exec(code);
     if (!m) return false;
     const slot = Number(m[1]);
     const inv = this.game.store.me?.inventory ?? {};
     const w = ownedWeapons(inv).find((x) => x.slot === slot);
     if (!w) {
-      const any = weapon(['pistol', 'shotgun', 'rifle', 'gold_deagle', 'laser_rpg', 'minigun'][slot - 1]!);
-      this.game.ui?.toast({ kind: 'info', title: `No ${any?.name ?? 'gun'}`, text: 'Ammu-Nation (east of the city, past the outer road) sells guns and ammo.' });
+      const any = weapon(['pistol', 'shotgun', 'rifle', 'gold_deagle', 'laser_rpg', 'minigun', 'uzi', 'sniper'][slot - 1]!);
+      this.game.ui?.toast({ kind: 'info', title: `No ${any?.name ?? 'gun'}`, text: any?.contraband ? 'Kaçak silah: Ammu-Nation satmaz. Limandaki konteynerlerin silah sandıklarından çıkar.' : 'Ammu-Nation (east of the city, past the outer road) sells guns and ammo.' });
       return true;
     }
     void this.equip(this.equipped?.id === w.id ? null : w);
@@ -180,8 +181,43 @@ export class CombatClient {
 
   // ---------------------------------------------------------------- frame
 
+  /** C4 charges ticking on the ground: a little block with a blinking red light, beeping faster. */
+  private bombs = new Map<string, { mesh: THREE.Group; led: THREE.MeshBasicMaterial; at: number; beepAt: number; x: number; z: number }>();
+
+  onC4(d: { id: string; x: number; z: number; at: number }): void {
+    const g = new THREE.Group();
+    g.position.set(d.x, groundHeight(d.x, d.z) + 0.06, d.z);
+    const block = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.22), new THREE.MeshStandardMaterial({ color: '#c8b98a', roughness: 0.8 }));
+    const tape = new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.125, 0.04), new THREE.MeshStandardMaterial({ color: '#202020' }));
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.08), new THREE.MeshStandardMaterial({ color: '#111' }));
+    box.position.y = 0.08;
+    const led = new THREE.MeshBasicMaterial({ color: '#ff2020', toneMapped: false });
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), led);
+    dot.position.set(0.03, 0.11, 0);
+    g.add(block, tape, box, dot);
+    this.game.renderer.scene.add(g);
+    this.bombs.set(d.id, { mesh: g, led, at: d.at, beepAt: 0, x: d.x, z: d.z });
+  }
+
   update(dt: number): void {
     this.fx.update(dt);
+    const now = this.game.store.serverNow();
+    for (const [id, b] of this.bombs) {
+      const left = b.at - now;
+      if (left <= 0) {
+        b.mesh.removeFromParent();
+        this.bombs.delete(id);
+        continue;
+      }
+      // Beeps closer together as the fuse burns down.
+      const gap = Math.max(120, Math.min(1000, left / 4));
+      b.led.color.set(now % gap < gap / 2 ? '#ff2020' : '#300000');
+      if (now >= b.beepAt) {
+        b.beepAt = now + gap;
+        const me = this.game.localPosition();
+        if (Math.hypot(me.x - b.x, me.z - b.z) < 40) this.game.audio.play('beep');
+      }
+    }
     this.cooldown -= dt;
     const w = this.equipped;
     const input = this.game.input;

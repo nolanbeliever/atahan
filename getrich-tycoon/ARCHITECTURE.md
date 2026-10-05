@@ -137,7 +137,14 @@
     `gang.cars` five times a second; waves, capture, protection money, retaliation, all saved in the world state
     `gangs`; the client draws the cars and the hangouts' neon and flags in `render/GangView.ts`, the zones and dominance
     bars on the maps in `ui/Minimap.ts`, the banner / war card / attack alert in `ui/GangHud.ts`, the cash box in the
-    Emlak Dünyası panel).
+    Emlak Dünyası panel),
+    `docks.ts`: the docks at night (shared/docks.ts containers are `STATIC_BOXES`; the cut session with a minimum time,
+    the loot, import orders and the crane / depot, the trap: barricades through `Simulation.setExtraBoxes('docks')`
+    (the client adds them to its own boxes from `docks.state`), SWAT vans via `PoliceService.standingUnit` +
+    `engageWith`, SWAT officers `cop_dk*` fed to combat as `officerSources` and shooting with `npcFire`, ramming checked
+    per tick; the client draws containers, sparks, crane, loads, barricades and floodlights in `render/Docks.ts`, the
+    grinder mini-game is `ui/panels/grinder.ts`, the phone's Toplu İthalat tab in `ui/panels/phone.ts`; C4 and body
+    armour are in `combat.ts` (`plantC4`, `wearArmor`, the armour soak in `hurtPlayer`)).
   - `game/traffic.ts` is the traffic driver model (IDM car following + MOBIL-style lane changes with indicators, keep-right,
     yielding; players, walkers and parked cars are obstacles).
   - Newer services: `rewards.ts` (streak and playtime, state in `player_rewards`, claims paid in one transaction),

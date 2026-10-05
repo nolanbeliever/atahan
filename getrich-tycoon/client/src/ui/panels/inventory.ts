@@ -11,6 +11,7 @@ import { moneyInput, statusPill, vehicleCard, vehicleTitle } from '../widgets';
 import { LOCKPICK_ITEM, stripPart } from '../../../../shared/theft';
 import { lootItems, moneyRange, strippedParts } from './theft';
 import { LOOT_LABELS } from '../../../../shared/burglary';
+import { ARMOR_ITEM, C4_ITEM } from '../../../../shared/weapons';
 import { ECU_COUPON_ITEM, NEON_SPECIAL_ITEM, NITRO_ITEM, PAWN_BONUS_ITEM, REWARD_ITEM_LABELS, RIM_COUPON, VIP_COIN } from '../../../../shared/rewards';
 
 /** What each reward item does (inventory). */
@@ -74,6 +75,16 @@ export class InventoryPanel extends Panel {
           stolen.map((r) =>
             h('tr', { 'data-part': r.part }, h('td', null, `Sökülmüş Parça: ${stripPart(r.part)!.labelTr}`), h('td', { class: 'muted' }, `Pawn Shop pays ${moneyRange(r.min, r.max)}`), h('td', { class: 'mono' }, String(r.count))),
           ),
+          (inv[ARMOR_ITEM] ?? 0) > 0
+            ? h(
+                'tr',
+                { 'data-item': ARMOR_ITEM },
+                h('td', null, '🦺 Çelik Yelek'),
+                h('td', { class: 'muted' }, h('span', null, '100 zırh: her vuruşun %70\'ini o yer. '), h('button', { class: 'btn small primary', 'data-testid': 'wear-armor', disabled: this.busy, onclick: () => void this.act(() => this.net.rpc('combat.armor', {}), () => this.game.audio.play('door')) }, 'Giy')),
+                h('td', { class: 'mono' }, String(inv[ARMOR_ITEM])),
+              )
+            : null,
+          (inv[C4_ITEM] ?? 0) > 0 ? h('tr', { 'data-item': C4_ITEM }, h('td', null, '💣 C4 Patlayıcı'), h('td', { class: 'muted' }, 'Yayayken X: ayağının dibine kurulur, 4 sn sonra patlar.'), h('td', { class: 'mono' }, String(inv[C4_ITEM]))) : null,
           lootItems(inv).map((r) =>
             h('tr', { 'data-loot': r.id }, h('td', null, `${LOOT_LABELS[r.id].icon} ${LOOT_LABELS[r.id].tr}`), h('td', { class: 'muted' }, `Gece soygunu malı · Pawn Shop pays ${moneyRange(r.min, r.max)}`), h('td', { class: 'mono' }, String(r.count))),
           ),

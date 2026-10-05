@@ -22,7 +22,7 @@ import { LOCKPICK_ITEM, parsePartItem } from '../../../shared/theft';
 import { Anim } from '../../../shared/types';
 import { angleDiff } from '../../../shared/util';
 import { getModel, modelDisplayName } from '../../../shared/vehicles';
-import { AMMO, COMBAT, STARTER_ROUNDS, WEAPONS, aimRay, ammoDef, rayBox, rayCircle, rayCylinder, rayObb, rayY, spreadAim, weapon, weaponItem, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type WeaponDef, type WeaponId } from '../../../shared/weapons';
+import { AMMO, ARMOR_ITEM, C4_ITEM, COMBAT, STARTER_ROUNDS, WEAPONS, aimRay, ammoDef, rayBox, rayCircle, rayCylinder, rayObb, rayY, spreadAim, weapon, weaponItem, type ExplosionFx, type HealthView, type Ray2, type ShotFx, type WeaponDef, type WeaponId } from '../../../shared/weapons';
 import { BLOCK_CENTERS, BLOCK_HALF, BUILDINGS, SIDEWALK } from '../../../shared/world';
 import { VIP_COIN } from '../../../shared/rewards';
 import { SECURITY, armorCost } from '../../../shared/security';
@@ -39,12 +39,16 @@ import type { VehicleService } from './vehicles';
 
 const log = createLogger('combat');
 const C = COMBAT;
+const C4 = COMBAT.c4;
+const SECURITY_ARMOR_SOAK = COMBAT.armorSoak;
 const PERSON_R = 0.38;
 const PERSON_H = 1.85;
 const SHOT_FX_RADIUS = 170;
 
 interface Health {
   hp: number;
+  /** Body armour left (0-100). */
+  armor: number;
   hitAt: number;
   fromX?: number;
   fromZ?: number;
@@ -144,7 +148,7 @@ export class CombatService {
     const item = val.str(p.item, 'item', 40);
     const gun = WEAPONS.find((w) => weaponItem(w.id) === item);
     const box = gun ? undefined : ammoDef(item);
-    if (!gun && !box) throw new GameError('bad_request', 'Ammu-Nation does not sell that.');
+    if ((!gun && !box) || gun?.contraband) throw new GameError('bad_request', 'Ammu-Nation does not sell that.');
     return this.ctx.locks.run([K.player(playerId)], async () => {
       requireNear(this.ctx, playerId, 'ammu');
       const uow = this.ctx.state.begin();
@@ -586,7 +590,7 @@ export class CombatService {
   private hp(playerId: string): Health {
     let h = this.health.get(playerId);
     if (!h) {
-      h = { hp: C.playerHp, hitAt: 0, sentHp: C.playerHp };
+      h = { hp: C.playerHp, armor: 0, hitAt: 0, sentHp: C.playerHp };
       this.health.set(playerId, h);
     }
     return h;
@@ -594,14 +598,14 @@ export class CombatService {
 
   healthView(playerId: string): HealthView {
     const h = this.hp(playerId);
-    return { hp: Math.round(h.hp), max: C.playerHp, hitAt: h.hitAt, ...(h.fromX !== undefined ? { fromX: h.fromX, fromZ: h.fromZ } : {}) };
+    return { hp: Math.round(h.hp), max: C.playerHp, armor: Math.round(h.armor), hitAt: h.hitAt, ...(h.fromX !== undefined ? { fromX: h.fromX, fromZ: h.fromZ } : {}) };
   }
 
   private sendHealth(playerId: string, force = false): void {
     const h = this.hp(playerId);
     const hp = Math.round(h.hp);
-    if (!force && hp === h.sentHp) return;
-    h.sentHp = hp;
+    if (!force && hp + Math.round(h.armor) * 1000 === h.sentHp) return;
+    h.sentHp = hp + Math.round(h.armor) * 1000;
     this.ctx.hub.sendTo(playerId, 'combat.health', this.healthView(playerId));
   }
 
@@ -610,6 +614,12 @@ export class CombatService {
     const c = this.ctx.sim.chars.get(playerId);
     if (!c || c.dead || amount <= 0) return;
     const h = this.hp(playerId);
+    // Body armour takes most of a hit while it lasts.
+    if (h.armor > 0) {
+      const soak = Math.min(h.armor, amount * SECURITY_ARMOR_SOAK);
+      h.armor -= soak;
+      amount -= soak;
+    }
     h.hp = Math.max(0, h.hp - amount);
     h.hitAt = now;
     h.fromX = fromX;
@@ -713,6 +723,7 @@ export class CombatService {
   // ---------------------------------------------------------------- tick
 
   tick(dt: number, now = Date.now()): void {
+    this.tickBombs(now);
     // Pedestrians walk round their block (run when there's shooting).
     for (const [id, p] of this.peds) {
       if (p.deadAt) {
@@ -870,6 +881,55 @@ export class CombatService {
       if (own) this.damageCar(vid, dmg * 0.6, own.ownerId, now);
     } else this.hurtPlayer(t.id, dmg, from.x, from.z, now);
     return true;
+  }
+
+  /** Put on a body armour vest from the inventory (100 armour). */
+  async wearArmor(playerId: string): Promise<HealthView> {
+    return this.ctx.locks.run([K.player(playerId)], async () => {
+      const uow = this.ctx.state.begin();
+      const inv = uow.player(playerId).inventory;
+      if ((inv[ARMOR_ITEM] ?? 0) < 1) throw new GameError('forbidden', 'Çelik yeleğin yok (limandaki silah sandıklarından çıkar).');
+      const h = this.hp(playerId);
+      if (h.armor >= 99) throw new GameError('conflict', 'Yeleğin zaten sağlam.');
+      inv[ARMOR_ITEM] = inv[ARMOR_ITEM]! - 1;
+      if (inv[ARMOR_ITEM] === 0) delete inv[ARMOR_ITEM];
+      await uow.commit();
+      h.armor = 100;
+      this.sendHealth(playerId, true);
+      return this.healthView(playerId);
+    });
+  }
+
+  private bombs = new Map<string, { x: number; z: number; at: number; by: string }>();
+
+  /** Plant a C4 charge at your feet: it goes off after a few seconds. */
+  async plantC4(playerId: string): Promise<{ id: string; at: number }> {
+    return this.ctx.locks.run([K.player(playerId)], async () => {
+      const c = this.ctx.sim.chars.get(playerId);
+      if (!c || c.dead) throw new GameError('conflict', 'Önce ayağa kalk.');
+      if (c.drivingId || c.ridingId) throw new GameError('conflict', 'C4 yaya yerleştirilir.');
+      const uow = this.ctx.state.begin();
+      const inv = uow.player(playerId).inventory;
+      if ((inv[C4_ITEM] ?? 0) < 1) throw new GameError('forbidden', 'C4 yok (limandaki silah sandıklarından çıkar).');
+      inv[C4_ITEM] = inv[C4_ITEM]! - 1;
+      if (inv[C4_ITEM] === 0) delete inv[C4_ITEM];
+      await uow.commit();
+      const id = `c4_${seq++}`;
+      const at = Date.now() + C4.fuseSec * 1000;
+      this.bombs.set(id, { x: c.x, z: c.z, at, by: playerId });
+      for (const o of this.ctx.sim.chars.values()) if (Math.hypot(o.x - c.x, o.z - c.z) < 200) this.ctx.hub.sendTo(o.id, 'combat.c4', { id, x: c.x, z: c.z, at });
+      this.ctx.sim.markInteract(playerId);
+      return { id, at };
+    });
+  }
+
+  /** Charges whose fuse has burnt down. */
+  private tickBombs(now: number): void {
+    for (const [id, b] of this.bombs) {
+      if (now < b.at) continue;
+      this.bombs.delete(id);
+      this.explode(b.x, 0.3, b.z, C4.radius, C4.damage, b.by, now);
+    }
   }
 
   /** Take fired rounds out of the saved inventory. */

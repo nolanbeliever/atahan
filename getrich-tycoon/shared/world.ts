@@ -9,6 +9,7 @@ import { FAR_BOXES, FAR_CIRCLES, HILL_TREES } from './farShore';
 import { AMMU_NATION, HOSPITAL, MOTO_GEAR, POLICE_STATIONS, VILLA_BOXES } from './compounds';
 import { HITMAN_ALLEY } from './hitman';
 import { GANG_VENUE_BOXES } from './gangs';
+import { DOCK_CONTAINER_BOXES } from './docks';
 import { dealershipLevel } from './economy.config';
 import { DRAG_BOXES, DRAG_STRIP, JUNCTIONS, highwayCircles } from './highway';
 import { SHOWROOMS, SHOWROOM_BOXES, SHOWROOM_CIRCLES, SHOWROOM_DOOR_RADIUS, type ShowroomId } from './showrooms';
@@ -417,7 +418,7 @@ export const CITY_LAMPS: [number, number, number][] = (() => {
 })();
 
 /** All static colliders (buildings) - dealership buildings are added dynamically. */
-export const STATIC_BOXES: AABB[] = [...BUILDINGS.map((b) => b.box), ...DRAG_BOXES, ...SANAYI_BOXES, ...FAR_BOXES, ...SHOWROOM_BOXES, ...TOLL_BOXES, ...VILLA_BOXES];
+export const STATIC_BOXES: AABB[] = [...BUILDINGS.map((b) => b.box), ...DRAG_BOXES, ...SANAYI_BOXES, ...FAR_BOXES, ...SHOWROOM_BOXES, ...TOLL_BOXES, ...VILLA_BOXES, ...DOCK_CONTAINER_BOXES];
 
 export function findInteractable(id: string): Interactable | undefined {
   return INTERACTABLES.find((i) => i.id === id);

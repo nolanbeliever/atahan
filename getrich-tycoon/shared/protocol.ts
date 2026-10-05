@@ -8,6 +8,7 @@ import type { BustedEvent, CrimeSceneView, RadioLine, WantedState } from './poli
 import type { StopState, StopView } from './trafficStops';
 import type { BurglaryResult, BurglaryState, BurglaryTargetView, LootItemId } from './burglary';
 import type { GangCarView, GangMine, GangZoneId, GangZoneView, TurfWarView } from './gangs';
+import type { ContainerLoot, DocksState, ImportId, ImportOrderView } from './docks';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { ShowroomId, ShowroomInfo, TestDriveEnd, TestDriveView } from './showrooms';
@@ -53,6 +54,12 @@ import type {
 export const PROTOCOL_VERSION = 1;
 
 type Empty = Record<string, never>;
+
+/** My import orders and the messages from the docks contact. */
+export interface DocksOrders {
+  orders: ImportOrderView[];
+  messages: { at: number; text: string; containerId?: string }[];
+}
 
 export interface PrivateState {
   player: PlayerPrivate;
@@ -140,6 +147,15 @@ export interface RpcMethods {
   'gang.status': { params: Empty; result: { zones: GangZoneView[]; mine: GangMine; war: TurfWarView | null } };
   'gang.mode': { params: { mode: 'bank' | 'cash' }; result: GangMine };
   'gang.collect': { params: Empty; result: GangMine & { amount: number } };
+  /** The docks: start cutting (or open my import), the grinder is through, give up; bulk imports
+   *  (order, list), the crane loading my goods container onto my flatbed, unloading at the depot. */
+  'docks.start': { params: { containerId: string }; result: { containerId: string; mode: 'cut' | 'open'; cutSec: number; minSec: number } };
+  'docks.finish': { params: { containerId: string }; result: { loot: ContainerLoot; text: string } };
+  'docks.cancel': { params: { containerId: string }; result: { ok: true } };
+  'docks.order': { params: { kind: ImportId }; result: DocksOrders };
+  'docks.orders': { params: Empty; result: DocksOrders };
+  'docks.crane': { params: Empty; result: DocksOrders };
+  'docks.unload': { params: Empty; result: DocksOrders };
   /** Sanayi: put the stolen car you are driving up on the lift in this bay; strip a part. */
   'sanayi.lift': { params: { vehicleId: string }; result: { vehicle: Vehicle } };
   'sanayi.strip': { params: { vehicleId: string; part: StripPart }; result: StripResult };
@@ -147,6 +163,9 @@ export interface RpcMethods {
   'hospital.heal': { params: Empty; result: HealthView };
   'weapon.equip': { params: { weapon: WeaponId | null }; result: { weapon: WeaponId | null } };
   'combat.health': { params: Empty; result: HealthView };
+  /** Smuggled gear: put on a body armour vest; plant a C4 charge at your feet. */
+  'combat.armor': { params: Empty; result: HealthView };
+  'combat.c4': { params: Empty; result: { id: string; at: number } };
   'hitman.take': { params: Empty; result: { contract: ContractView } };
   'hitman.info': { params: Empty; result: { contract: ContractView | null } };
   'hitman.drop': { params: Empty; result: { ok: true } };
@@ -330,6 +349,8 @@ export interface ServerToClientEvents {
   /** A car's body HP, and its armour (%) when it has level-3 armour. */
   'combat.carHp': (d: { id: string; hp: number; armor?: number }) => void;
   'combat.health': (d: HealthView) => void;
+  /** A C4 charge planted nearby: it goes off at `at`. */
+  'combat.c4': (d: { id: string; x: number; z: number; at: number }) => void;
   'combat.wasted': (d: { lost: string[]; respawnInMs: number }) => void;
   /** The street race (null: none open). */
   'race.update': (d: StreetRaceView | null) => void;
@@ -372,6 +393,18 @@ export interface ServerToClientEvents {
   'gang.alert': (d: { zone: GangZoneId; until: number; text: string } | null) => void;
   /** My zones, the cash box at Emlak Dünyası, how it pays. */
   'gang.mine': (d: GangMine) => void;
+  /** The docks: containers (green / open / being cut), the trap (floodlights, barricades). */
+  'docks.state': (d: DocksState) => void;
+  /** My import orders and the messages about them (the phone). */
+  'docks.orders': (d: DocksOrders) => void;
+  /** Containers riding on trucks. */
+  'docks.loads': (d: { vehicleId: string; color: string }[]) => void;
+  /** The crane lifting a container onto a truck; a container's doors swinging open. */
+  'docks.crane': (d: { containerId: string; vehicleId: string; sec: number }) => void;
+  'docks.opened': (d: { id: string; loot: ContainerLoot }) => void;
+  /** The radio before the trap springs; a barricade block knocked aside. */
+  'docks.warn': (d: { text: string; at: number }) => void;
+  'docks.ram': (d: { id: string; x: number; z: number; dir: number }) => void;
   'police.busted': (d: BustedEvent) => void;
   'police.escaped': (d: { reward: number; xp: number; cars: number }) => void;
   /** Street-parked cars changed (one was stolen, a new one parked, an alarm started). */

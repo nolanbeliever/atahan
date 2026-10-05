@@ -92,7 +92,8 @@ export type Sfx =
   | 'glass'
   | 'thud'
   | 'beep'
-  | 'grab';
+  | 'grab'
+  | 'creak';
 
 export class AudioSystem {
   private ctx: AudioContext | null = null;
@@ -613,6 +614,15 @@ export class AudioSystem {
         return this.tone([70, 55], 0.22, 'sine', 0.18, undefined, 0.1);
       case 'beep':
         return this.tone([1760], 0.06, 'square', 0.018);
+      // A container's heavy steel doors grinding open on dry hinges, then the clang.
+      case 'creak':
+        if (this.ctx && this.noiseBuf) {
+          const t = this.ctx.currentTime;
+          for (let i = 0; i < 10; i++) this.burst(t + i * 0.09, 0.12, 'bandpass', 300 + i * 25 + Math.random() * 60, 0.22);
+          this.burst(t + 1.05, 0.4, 'lowpass', 160, 0.8);
+          this.burst(t + 1.06, 0.25, 'bandpass', 900, 0.3);
+        }
+        return this.tone([92, 88, 84, 80, 70], 0.2, 'sawtooth', 0.03, undefined, 0.02);
       case 'grab':
         if (this.ctx && this.noiseBuf) this.burst(this.ctx.currentTime, 0.14, 'bandpass', 1500, 0.18);
         return this.tone([660, 990], 0.06, 'triangle', 0.04, undefined, 0.05);

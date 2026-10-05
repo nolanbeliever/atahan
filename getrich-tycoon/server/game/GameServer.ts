@@ -55,6 +55,7 @@ import { CombatService } from './services/combat';
 import { TrafficStopService } from './services/trafficStops';
 import { BurglaryService } from './services/burglary';
 import { GangService } from './services/gangs';
+import { DocksService } from './services/docks';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
 import { HighwayService } from './services/highway';
@@ -123,6 +124,7 @@ export class GameServer implements Hub {
   readonly stops: TrafficStopService;
   readonly burglary: BurglaryService;
   readonly gangs: GangService;
+  readonly docks: DocksService;
   readonly theft: TheftService;
   private tickCount = 0;
   private sessions = new Map<string, Session>();
@@ -181,6 +183,7 @@ export class GameServer implements Hub {
     this.stops = new TrafficStopService(this.ctx, this.police, cfg.env !== 'test');
     this.burglary = new BurglaryService(this.ctx, this.police, this.combat, this.crime);
     this.gangs = new GangService(this.ctx, this.combat);
+    this.docks = new DocksService(this.ctx, this.police, this.combat, this.theft);
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -238,6 +241,8 @@ export class GameServer implements Hub {
       'hospital.heal': (pid) => this.combat.heal(pid),
       'weapon.equip': (pid, p) => this.combat.equip(pid, p),
       'combat.health': (pid) => this.combat.healthView(pid),
+      'combat.armor': (pid) => this.combat.wearArmor(pid),
+      'combat.c4': (pid) => this.combat.plantC4(pid),
       'hitman.take': (pid) => this.hitman.take(pid),
       'hitman.info': (pid) => ({ contract: this.hitman.current(pid) }),
       'hitman.drop': (pid) => (this.hitman.drop(pid), { ok: true as const }),
@@ -283,6 +288,13 @@ export class GameServer implements Hub {
       'gang.status': (pid) => this.gangs.status(pid),
       'gang.mode': (pid, p) => this.gangs.setMode(pid, p),
       'gang.collect': (pid) => this.gangs.collect(pid),
+      'docks.start': (pid, p) => this.docks.start(pid, p),
+      'docks.finish': (pid, p) => this.docks.finish(pid, p),
+      'docks.cancel': (pid, p) => this.docks.cancel(pid, p),
+      'docks.order': (pid, p) => this.docks.order(pid, p),
+      'docks.orders': (pid) => this.docks.orderViews(pid),
+      'docks.crane': (pid) => this.docks.crane(pid),
+      'docks.unload': (pid) => this.docks.unload(pid),
       'missions.list': (pid) => this.missions.list(pid),
       'rewards.info': (pid) => this.rewards.view(pid),
       'rewards.daily': (pid) => this.rewards.claimDaily(pid),
@@ -482,6 +494,7 @@ export class GameServer implements Hub {
     this.stops.welcome(playerId);
     this.burglary.welcome(playerId);
     this.gangs.welcome(playerId);
+    this.docks.welcome(playerId);
     for (const m of this.chat.history) socket.emit('chat', m);
     log.info('player connected', { playerId, name: record.name, online: this.sessions.size });
 
@@ -504,6 +517,7 @@ export class GameServer implements Hub {
     this.stops.forget(playerId);
     this.burglary.forget(playerId);
     this.gangs.forget(playerId);
+    this.docks.forget(playerId);
     this.theft.forget(playerId);
     this.pursuit.forget(playerId);
     this.streetRace.forget(playerId);
@@ -739,6 +753,7 @@ export class GameServer implements Hub {
     this.stops.tick(dt, now);
     this.burglary.tick(dt, now);
     this.gangs.tick(dt, now);
+    this.docks.tick(dt, now);
     this.pursuit.tick(dt, now);
     this.streetRace.tick(dt, now);
     this.combat.tick(dt, now);

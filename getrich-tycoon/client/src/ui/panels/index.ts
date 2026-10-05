@@ -10,6 +10,7 @@ import { TuningGaragePanel } from './garage';
 import { BankPanel, FuelPanel, PartsPanel, RepairPanel, WashPanel } from './services';
 import { EngineBayPanel } from './engineBay';
 import { LockpickPanel } from './lockpick';
+import { GrinderPanel } from './grinder';
 import { PawnPanel, SanayiPanel } from './theft';
 import { RewardsPanel } from './rewards';
 import { AmmuPanel, HospitalPanel } from './combat';
@@ -44,6 +45,7 @@ const PANELS = {
   pawn: PawnPanel,
   sanayi: SanayiPanel,
   lockpick: LockpickPanel,
+  grinder: GrinderPanel,
   engineBay: EngineBayPanel,
   rewards: RewardsPanel,
   ammu: AmmuPanel,

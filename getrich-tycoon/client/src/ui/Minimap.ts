@@ -8,6 +8,7 @@ import { HEISTS } from '../../../shared/heists';
 import { BURGLARY_TARGETS } from '../../../shared/burglary';
 import { VILLAS } from '../../../shared/compounds';
 import { GANG_ZONES, PLAYER_ZONE_COLOR } from '../../../shared/gangs';
+import { DEPOT, DOCK_CONTAINERS, containerDoor, gateBarricades } from '../../../shared/docks';
 import { POLICE_STATIONS } from '../../../shared/police';
 import { findDrop } from '../../../shared/telegram';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
@@ -323,6 +324,24 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   for (const hs of HEISTS) {
     const alarm = game.heistAlarms.has(hs.id);
     badge(g, tx(hs.door.x), tz(hs.door.z), Math.max(6, 2.8 * s), alarm && ring ? '#ff3b47' : '#b8901e', '💰', turn);
+  }
+  // The docks: the robbable containers (green: can be cut now), my import's container, the depot
+  // while I carry a load, the trap's barricades.
+  for (const k of DOCK_CONTAINERS) {
+    const v = game.docks.state?.containers.find((c) => c.id === k.id);
+    const mine = game.docks.orders.orders.some((o) => o.containerId === k.id && o.status === 'ready');
+    g.fillStyle = mine ? '#ffb020' : v?.open ? '#555b63' : v?.ready ? '#2ee59d' : '#ff3040';
+    g.fillRect(tx(k.box.minX), tz(k.box.minZ), Math.max(3, (k.box.maxX - k.box.minX) * s), Math.max(2, (k.box.maxZ - k.box.minZ) * s));
+    if (mine) {
+      const d = containerDoor(k);
+      badge(g, tx(d.x), tz(d.z), Math.max(8, 3.4 * s), '#ffb020', '📦', turn);
+    }
+  }
+  if (game.docks.orders.orders.some((o) => o.status === 'loaded')) badge(g, tx(DEPOT.x), tz(DEPOT.z), Math.max(9, 4 * s), '#ffb020', '🏭', turn);
+  const trap = game.docks.state?.ambush;
+  if (trap) {
+    g.fillStyle = '#ff2030';
+    for (const b of gateBarricades()) if (trap.barricades.includes(b.id)) g.fillRect(tx(b.x) - 2, tz(b.z) - 2, 4, 4);
   }
   // The gangs' hangouts (a flag in the holder's colour).
   for (const z of GANG_ZONES) {

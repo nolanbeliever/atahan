@@ -791,6 +791,47 @@ export const ECONOMY = {
   },
 
   /**
+   * The docks at night (shared/docks.ts): containers can be cut open between `fromHour` and
+   * `toHour`; the grinder takes at least `cutMinSec` of cutting (the mini-game lasts up to `cutSec`);
+   * a done container is shut until `cooldownSec` later. What's inside (`lootOdds`: hypercar, arms
+   * crate, bulk goods) and what an arms crate holds. Bulk imports (`imports`, $) arrive after
+   * `shipSec`; bulk goods are `bulkGrams` grams. `snitch` of cuts and orders are a trap: the radio
+   * warns `warnSec` before it's sprung, `ambushHeat` (4 stars), `swat` officers in cover, the trap
+   * lasts `ambushSec`; a barricade block goes over when something heavier than `ramMass` kg hits it
+   * above `ramKmh`, or anything above `ramFastKmh`. The crane takes `craneSec` to load a truck.
+   */
+  docks: {
+    fromHour: 23,
+    toHour: 5,
+    cutSec: 45,
+    cutMinSec: 6,
+    cooldownSec: 900,
+    lootOdds: { car: 0.2, arms: 0.4, goods: 0.4 },
+    arms: { uzi: 1, sniper: 1, ammo_smg: 128, ammo_sniper: 20, c4: 2, body_armor: 2 },
+    lootGrams: 120,
+    imports: { hypercar: 250_000, arms: 120_000, goods: 100_000 },
+    shipSec: 45,
+    bulkGrams: 500,
+    snitch: 0.25,
+    warnSec: 5,
+    ambushHeat: 380,
+    ambushSec: 180,
+    swat: 6,
+    swatHp: 110,
+    swatDamage: [8, 14] as [number, number],
+    swatRange: 60,
+    swatAccuracy: 0.24,
+    swatFireSec: 1.4,
+    /** Seconds the SWAT officers take to get into cover before they open fire. */
+    swatCoverSec: 4,
+    ramMass: 2_000,
+    ramKmh: 30,
+    ramFastKmh: 95,
+    craneSec: 4,
+    xp: 180,
+  },
+
+  /**
    * Telegram dealing (shared/telegram.ts). The supplier: `grams` for `buyPrice` (clean money), the
    * car waits `pickupSec`. Your channel: a new order every `orderEvery` s (up to `maxOrders`),
    * `orderGrams` grams at `perGram` dollars a gram (dirty money); a dead drop pays `dropShare` of
@@ -987,6 +1028,10 @@ export const ECONOMY = {
     vehicleHp: 100,
     explosionRadius: 6,
     explosionDamage: 90,
+    /** Smuggled gear from the docks' arms crates: a C4 charge (fuse, blast) and a body armour vest
+     *  (100 armour; it takes `armorSoak` of each hit while it lasts). */
+    c4: { fuseSec: 4, radius: 8, damage: 260 },
+    armorSoak: 0.7,
     /** Ambient pedestrians on the sidewalks and their health. */
     pedestrians: 14,
     pedestrianHp: 35,

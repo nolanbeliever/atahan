@@ -9,6 +9,8 @@ export class CombatHud {
   readonly gun: HTMLElement;
   readonly overlay: HTMLElement;
   private hpFill: HTMLElement;
+  private armorFill: HTMLElement;
+  private armorBar: HTMLElement;
   private hpText: HTMLElement;
   private gunName: HTMLElement;
   private gunAmmo: HTMLElement;
@@ -18,10 +20,12 @@ export class CombatHud {
   constructor() {
     this.hpFill = h('div', { class: 'hp-fill' });
     this.hpText = h('div', { class: 'hp-text mono', 'data-testid': 'hp-text' }, `${COMBAT.playerHp}`);
-    this.health = h('div', { class: 'hp-bar', 'data-testid': 'hp-bar', title: 'Health' }, h('span', { class: 'hp-heart' }, '❤'), h('div', { class: 'hp-track' }, this.hpFill), this.hpText);
+    this.armorFill = h('div', { class: 'armor-fill' });
+    this.armorBar = h('div', { class: 'armor-track', title: 'Çelik yelek', 'data-testid': 'armor-bar' }, this.armorFill);
+    this.health = h('div', { class: 'hp-bar', 'data-testid': 'hp-bar', title: 'Health' }, h('span', { class: 'hp-heart' }, '❤'), h('div', { class: 'hp-track' }, this.hpFill, this.armorBar), this.hpText);
     this.gunName = h('div', { class: 'gun-hud-name' });
     this.gunAmmo = h('div', { class: 'gun-hud-ammo mono', 'data-testid': 'gun-ammo' });
-    this.gun = h('div', { class: 'gun-hud', 'data-testid': 'gun-hud' }, this.gunName, this.gunAmmo, h('div', { class: 'gun-hud-keys' }, '1-6 gun · Q away · click fire · nişan: gez-arpacık'));
+    this.gun = h('div', { class: 'gun-hud', 'data-testid': 'gun-hud' }, this.gunName, this.gunAmmo, h('div', { class: 'gun-hud-keys' }, '1-8 gun · Q away · click fire · nişan: gez-arpacık'));
     this.arrow = h('div', { class: 'hurt-arrow' });
     this.overlay = h('div', { class: 'hurt-overlay' }, this.arrow);
     this.setHealth({ hp: COMBAT.playerHp, max: COMBAT.playerHp, hitAt: 0 });
@@ -31,7 +35,9 @@ export class CombatHud {
     const k = Math.max(0, Math.min(1, v.hp / v.max));
     this.hpFill.style.width = `${k * 100}%`;
     this.hpFill.style.background = k < 0.3 ? '#ff3b47' : k < 0.6 ? '#ffb547' : '#2ee59d';
-    this.hpText.textContent = String(v.hp);
+    this.hpText.textContent = v.armor ? `${v.hp} · 🦺${v.armor}` : String(v.hp);
+    this.armorBar.style.display = v.armor ? '' : 'none';
+    this.armorFill.style.width = `${Math.max(0, Math.min(100, v.armor ?? 0))}%`;
     this.health.classList.toggle('low', k < 0.3);
   }
 

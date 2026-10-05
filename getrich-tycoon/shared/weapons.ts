@@ -11,11 +11,13 @@
 
 import { ECONOMY } from './economy.config';
 
-export type WeaponId = 'pistol' | 'shotgun' | 'rifle' | 'gold_deagle' | 'laser_rpg' | 'minigun';
-export type AmmoId = 'ammo_pistol' | 'ammo_shells' | 'ammo_rifle' | 'ammo_deagle' | 'ammo_rocket' | 'ammo_minigun';
+export type WeaponId = 'pistol' | 'shotgun' | 'rifle' | 'gold_deagle' | 'laser_rpg' | 'minigun' | 'uzi' | 'sniper';
+export type AmmoId = 'ammo_pistol' | 'ammo_shells' | 'ammo_rifle' | 'ammo_deagle' | 'ammo_rocket' | 'ammo_minigun' | 'ammo_smg' | 'ammo_sniper';
 export type ShotSound = 'pistol' | 'shotgun' | 'rifle' | 'deagle' | 'rpg' | 'minigun';
 
 export interface WeaponDef {
+  /** Not sold anywhere: only found in the docks' smuggled arms crates (shared/docks.ts). */
+  contraband?: boolean;
   id: WeaponId;
   name: string;
   /** Number key that selects it. */
@@ -82,6 +84,46 @@ export const WEAPONS: WeaponDef[] = [
     description: 'Premium. A red laser shows where the rocket lands. Cars do not survive it.',
     recoil: { kick: 0.09, side: 0.01, shove: 0.13, recover: 2.2, climb: 1 },
   },
+  {
+    id: 'uzi',
+    name: 'Micro-Uzi',
+    slot: 7,
+    price: null,
+    vip: null,
+    contraband: true,
+    ammo: 'ammo_smg',
+    rate: 12,
+    pellets: 1,
+    damage: 12,
+    range: 50,
+    spread: 0.04,
+    auto: true,
+    sound: 'rifle',
+    tracer: '#ffe08a',
+    color: '#26282d',
+    description: 'Kaçak. A machine pistol: one hand, a hail of 9 mm. Fires from a car window too.',
+    recoil: { kick: 0.012, side: 0.02, shove: 0.016, recover: 4, climb: 1.4 },
+  },
+  {
+    id: 'sniper',
+    name: 'Sniper Rifle',
+    slot: 8,
+    price: null,
+    vip: null,
+    contraband: true,
+    ammo: 'ammo_sniper',
+    rate: 0.7,
+    pellets: 1,
+    damage: 95,
+    range: 220,
+    spread: 0.001,
+    auto: false,
+    sound: 'deagle',
+    tracer: '#cfe8ff',
+    color: '#2f3a2c',
+    description: 'Kaçak. Bolt action with a 6x scope: one shot, one hit, from very far away.',
+    recoil: { kick: 0.14, side: 0.006, shove: 0.12, recover: 1.8, climb: 1 },
+  },
   { id: 'minigun', name: 'Minigun', slot: 6, price: null, vip: 45, ammo: 'ammo_minigun', rate: 16, pellets: 1, damage: 13, range: 85, spread: 0.035, auto: true, sound: 'minigun', tracer: '#ffb347', color: '#555b63', description: 'Premium. Six barrels, sixteen rounds a second.', recoil: { kick: 0.006, side: 0.009, shove: 0.012, recover: 4, climb: 1.5 } },
 ];
 
@@ -101,6 +143,8 @@ export const AMMO: AmmoDef[] = [
   { id: 'ammo_deagle', name: '.50 AE box', rounds: 21, price: 900, weapon: 'gold_deagle' },
   { id: 'ammo_rocket', name: 'Rockets', rounds: 3, price: 2_500, weapon: 'laser_rpg' },
   { id: 'ammo_minigun', name: 'Minigun belt', rounds: 400, price: 1_800, weapon: 'minigun' },
+  { id: 'ammo_smg', name: 'Uzi magazines', rounds: 64, price: 900, weapon: 'uzi' },
+  { id: 'ammo_sniper', name: '.308 rounds', rounds: 10, price: 1_500, weapon: 'sniper' },
 ];
 
 export function weapon(id: string): WeaponDef | undefined {
@@ -269,6 +313,10 @@ export function spreadAim(yaw: number, pitch: number, spread: number, seed: numb
 
 export const COMBAT = ECONOMY.combat;
 
+/** Smuggled gear (the docks' arms crates): a body armour vest and a C4 charge. */
+export const ARMOR_ITEM = 'body_armor';
+export const C4_ITEM = 'c4';
+
 /** Guns you can fire one-handed while riding a motorcycle or quad (the pistols). */
 export function oneHanded(w: WeaponDef): boolean {
   return w.id === 'pistol' || w.id === 'gold_deagle';
@@ -316,6 +364,8 @@ export interface ExplosionFx {
 export interface HealthView {
   hp: number;
   max: number;
+  /** Body armour left (0-100): it takes most of a hit while it lasts. */
+  armor?: number;
   /** Last damage (server ms) and from where (for the red hit marker). */
   hitAt: number;
   fromX?: number;

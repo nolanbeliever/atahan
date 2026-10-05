@@ -132,6 +132,19 @@ function gunModel(slot: number): THREE.Group {
       add(dark, 0.14, 0.14, 0.3, 0, 0.04, 0.0);
       break;
     }
+    case 7:
+      // Micro-Uzi: a short boxy body, the magazine down through the grip.
+      add(gunMat('#26282d', 0.4), 0.05, 0.07, 0.24, 0, 0.02, 0.08);
+      add(dark, 0.025, 0.025, 0.08, 0, 0.03, 0.24);
+      add(gunMat('#1b1c20', 0.3), 0.035, 0.16, 0.04, 0, -0.08, 0.04);
+      break;
+    case 8:
+      // Sniper rifle: a long barrel, a scope on top, a stock.
+      add(gunMat('#2f3a2c', 0.2), 0.055, 0.075, 0.6, 0, 0.02, 0.1);
+      add(dark, 0.025, 0.025, 0.5, 0, 0.04, 0.62);
+      add(dark, 0.045, 0.045, 0.26, 0, 0.1, 0.1);
+      add(gunMat('#2f3a2c', 0.2), 0.05, 0.1, 0.24, 0, -0.02, -0.28);
+      break;
     default:
       break;
   }

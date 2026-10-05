@@ -191,11 +191,41 @@ function minigun(k: Kit): Built {
 /** How far each gun sits out along the sight line (m): arm's length for a pistol, the cheek on the
  *  stock for long guns. Moving a gun along the line through the screen's middle keeps its sights
  *  lined up. */
-const REACH: Record<number, number> = { 1: 0.2, 2: 0.16, 3: 0.17, 4: 0.17, 5: 0.08, 6: 0 };
+const REACH: Record<number, number> = { 1: 0.2, 2: 0.16, 3: 0.17, 4: 0.17, 5: 0.08, 6: 0, 7: 0.18, 8: 0.12 };
+
+/** Micro-Uzi: a stubby body with a top sight, the magazine in the grip, one hand on it. */
+function uzi(k: Kit): Built {
+  const steel = mat('#232529', 0.4, 0.5);
+  k.box(steel, 0.045, 0.06, 0.24, 0, -0.04, -0.34);
+  k.tube(steel, 0.009, 0.08, 0, -0.03, -0.5);
+  k.box(mat('#111214', 0.2, 0.5), 0.004, 0.012, 0.006, 0, -0.006, -0.44);
+  for (const x of [-0.009, 0.009]) k.box(steel, 0.005, 0.01, 0.01, x, -0.006, -0.25);
+  k.box(mat('#18191c', 0.3, 0.6), 0.03, 0.13, 0.04, 0, -0.12, -0.3, -0.12);
+  k.hand(v(0.004, -0.12, -0.3), 1);
+  k.hand(v(-0.02, -0.07, -0.42), -1, 0.9);
+  return { group: k.group, muzzle: v(0, -0.03, -0.55), pivot: v(0, -0.1, -0.3), slide: null, slideTravel: 0, spin: null };
+}
+
+/** Sniper rifle: a long barrel, the scope's eyepiece right on the sight line. */
+function sniper(k: Kit): Built {
+  const steel = mat('#262a24', 0.3, 0.55);
+  const olive = mat('#2f3a2c', 0.1, 0.7);
+  k.box(olive, 0.05, 0.06, 0.4, 0, -0.07, -0.34);
+  k.tube(steel, 0.008, 0.62, 0, -0.06, -0.85);
+  // The scope: a tube along the sight line, lenses at both ends.
+  k.tube(mat('#121315', 0.3, 0.4), 0.018, 0.3, 0, 0, -0.34);
+  const lens = new THREE.Mesh(new THREE.CircleGeometry(0.016, 20), new THREE.MeshBasicMaterial({ color: '#2b5f8a', transparent: true, opacity: 0.55 }));
+  lens.position.set(0, 0, -0.19);
+  k.group.add(lens);
+  k.box(olive, 0.04, 0.09, 0.2, 0, -0.08, -0.07, 0.15);
+  k.hand(v(0.008, -0.11, -0.2), 1);
+  k.hand(v(-0.01, -0.09, -0.5), -1, 1.05);
+  return { group: k.group, muzzle: v(0, -0.06, -1.16), pivot: v(0, -0.09, -0.15), slide: null, slideTravel: 0, spin: null };
+}
 
 function build(slot: number, skin: string, sleeve: string): Built {
   const k = new Kit(skin, sleeve);
-  const b = slot === 2 ? shotgun(k) : slot === 3 ? rifle(k) : slot === 4 ? pistol(k, true) : slot === 5 ? rpg(k) : slot === 6 ? minigun(k) : pistol(k, false);
+  const b = slot === 2 ? shotgun(k) : slot === 3 ? rifle(k) : slot === 4 ? pistol(k, true) : slot === 5 ? rpg(k) : slot === 6 ? minigun(k) : slot === 7 ? uzi(k) : slot === 8 ? sniper(k) : pistol(k, false);
   const shift = new THREE.Vector3(0, 0, -(REACH[slot] ?? 0));
   b.group.position.copy(shift);
   b.muzzle.add(shift);

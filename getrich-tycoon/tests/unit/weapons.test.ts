@@ -12,7 +12,12 @@ describe('Ammu-Nation catalogue', () => {
       expect(weapon(id)!.price, id).toBeNull();
       expect(weapon(id)!.vip, id).toBeGreaterThan(0);
     }
-    expect(new Set(WEAPONS.map((w) => w.slot))).toEqual(new Set([1, 2, 3, 4, 5, 6]));
+    expect(new Set(WEAPONS.map((w) => w.slot))).toEqual(new Set([1, 2, 3, 4, 5, 6, 7, 8]));
+    // The docks' contraband (Micro-Uzi, sniper rifle) is not for sale.
+    for (const id of ['uzi', 'sniper']) {
+      expect(weapon(id)!.price, id).toBeNull();
+      expect(weapon(id)!.contraband, id).toBe(true);
+    }
     for (const w of WEAPONS) expect(ammoDef(w.ammo)?.weapon, w.id).toBe(w.id);
     expect(AMMO.every((a) => a.price > 0 && a.rounds > 0)).toBe(true);
     expect(weapon('laser_rpg')!.blast).toBeDefined();
