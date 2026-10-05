@@ -79,6 +79,8 @@ export interface VehicleMods {
   stashGrams?: number;
   runflat?: boolean;
   armor?: boolean;
+  /** Police scanner / radar jammer (Chroma Customs): the live police response countdown. */
+  scanner?: boolean;
 }
 
 export interface StripState {
@@ -350,6 +352,11 @@ export const Anim = {
   Dead: 5,
   /** Gun up, aiming. */
   Aim: 6,
+  /** Police at a crime scene: walking / standing with a torch out, and down on one knee
+   *  photographing the evidence. */
+  TorchWalk: 7,
+  TorchIdle: 8,
+  Kneel: 9,
 } as const;
 export type AnimState = (typeof Anim)[keyof typeof Anim];
 

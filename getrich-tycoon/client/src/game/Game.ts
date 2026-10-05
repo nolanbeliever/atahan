@@ -56,6 +56,7 @@ import { ShowroomsView } from '../render/Showrooms';
 import { TollsView } from '../render/Tolls';
 import { AlleysView } from '../render/Alleys';
 import { HeistsView } from '../render/Heists';
+import { PoliceStationsView } from '../render/PoliceStations';
 import { DealCarsView } from '../render/DealCars';
 import { RepairCarsView } from '../render/RepairCars';
 import { JOB_BOARD, MECH, TASK_LABEL, taskPoint, type MechanicView, type RepairTask } from '../../../shared/mechanic';
@@ -83,6 +84,8 @@ import { EntityViews, LIFT_DELAY } from './EntityViews';
 import { Input } from './Input';
 import { BustedCutscene } from './Busted';
 import { PoliceClient } from './Police';
+import { CrimeScenes } from '../render/CrimeScene';
+import { CharacterView } from '../render/Character';
 import { TheftClient } from './Theft';
 import { TrafficClient } from './Traffic';
 
@@ -115,6 +118,7 @@ export class Game {
   readonly tolls = new TollsView();
   readonly alleys = new AlleysView();
   readonly heistsView = new HeistsView();
+  readonly stationsView = new PoliceStationsView();
   /** Telegram deal cars, and the cockpit handover going on (null: none). */
   readonly dealCars = new DealCarsView(() => this.store.playerId);
   readonly repairCars = new RepairCarsView(() => this.store.playerId);
@@ -152,6 +156,8 @@ export class Game {
   readonly effects: Effects;
   readonly entities: EntityViews;
   readonly police: PoliceClient;
+  /** Taped-off crime scenes (cones, tape, flares, evidence). */
+  readonly crimeScenes: CrimeScenes;
   private rain = new Rain();
   /** Rain now (0-1) and how wet the roads are. */
   weather = { rain: 0, wet: 0 };
@@ -231,13 +237,14 @@ export class Game {
     this.renderer = new Renderer(container);
     const pmrem = new THREE.PMREMGenerator(this.renderer.renderer);
     this.renderer.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.alleys.group, this.heistsView.group, this.dealCars.group, this.repairCars.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
+    this.renderer.scene.add(this.city.group, this.dealerships.group, this.highway.group, this.strait.group, this.farShore.group, this.showrooms.group, this.tolls.group, this.alleys.group, this.heistsView.group, this.stationsView.group, this.dealCars.group, this.repairCars.group, this.trafficView.group, this.sanayi.group, this.cctv.group, this.race.group);
     this.effects = new Effects(this.renderer.scene);
     this.combat = new CombatClient(this);
     this.gunView = new GunView(this.renderer.scene);
     this.combat.onChange = () => this.updateGunHud();
     this.entities = new EntityViews(this.renderer.scene, () => this.store.playerId);
     this.police = new PoliceClient(this.renderer.scene);
+    this.crimeScenes = new CrimeScenes(this.renderer.scene);
     this.entities.serverNow = () => this.store.serverNow();
     this.theft = new TheftClient(this);
     this.renderer.scene.add(this.theft.group);
@@ -300,6 +307,7 @@ export class Game {
       void this.refreshAuctions();
       this.endBusted();
       this.police.clear();
+      this.crimeScenes.clear();
       this.ui?.pursuit.set(null);
       void this.net
         .rpc('missions.list', {})
@@ -507,8 +515,16 @@ export class Game {
       if (w.stars > this.wanted.stars) this.audio.play(w.stars >= 2 ? 'foul' : 'notify');
       this.wanted = w;
       this.ui?.wanted.set(w);
+      this.ui?.scanner.set(w);
     });
     net.on('police.busted', (e) => this.startBusted(e));
+    // The police radio (calls, units on the way, a chase, called off) and the crime scenes.
+    net.on('police.radio', (d) => {
+      this.ui?.scanner.radio(d, Math.min(9, 1.2 + d.text.length * 0.062));
+      this.audio.radio(d.text, d.tone === 'alert' || d.tone === 'call');
+    });
+    net.on('police.scene', (v) => this.crimeScenes.apply(v));
+    net.on('police.sceneEnd', (d) => this.crimeScenes.remove(d.id));
     net.on('police.spiked', (e) => {
       // Bang-bang: the tyres go, sparks fly.
       const me = this.localPosition();
@@ -1015,6 +1031,9 @@ export class Game {
     // Police cars, their sirens, and the rain.
     this.police.night = this.night;
     this.police.update(dt, now);
+    this.crimeScenes.update(dt, this.night);
+    CharacterView.night = this.night;
+    this.ui?.scanner.update(dt, now);
     this.audio.siren(Math.min(this.police.nearestSiren(rx, rz), this.dealScene?.sirenDistance ?? Infinity));
     this.audio.rotor(this.police.nearestHeli(rx, rz));
     this.audio.rain(this.weather.rain);
@@ -1034,6 +1053,7 @@ export class Game {
     this.showrooms.update(dt, rx, rz);
     this.tolls.update(dt);
     this.heistsView.update(dt);
+    this.stationsView.update(dt);
     this.dealCars.update(dt);
     this.repairCars.update(dt, this.store.serverNow(), (at, level, step) => this.combat.fx.smoke(at, level, false, step));
     // Car theft: street cars and alarms, the work on lifted cars, the lifts' arms.
@@ -1127,6 +1147,7 @@ export class Game {
     this.tolls.setNight(night);
     this.alleys.setNight(night);
     this.heistsView.setNight(night);
+    this.stationsView.setNight(night);
     this.trafficView.setNight(night);
     this.entities.night = night;
   }

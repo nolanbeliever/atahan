@@ -1,16 +1,27 @@
-// Wanted level and police pursuits.
+// Wanted level, police response and pursuits.
 //
-// Reckless driving builds heat: near misses above 180 km/h, crashing into traffic, ramming a police
-// car. Heat becomes 1-5 stars; from 2 stars police interceptors (real physics cars, same collision
-// boxes as everyone) spawn behind the player and chase them: along the highway lanes, and through
-// the city on the road grid (line of sight or a route over the junctions). Police only know where
-// you are while one of them can actually see you (shared/sight.ts: a cone ahead of the car, the
-// line to you clear of buildings and piers) or right after an offence is reported; otherwise they
-// drive to where you were last seen and search round it (yellow lights). Out of sight for 45 s
-// (a glimpse doesn't count: a car has to keep you in sight for 2 s) is an escape (cash + XP).
-// A police car right beside you while you are (nearly) stopped
-// for 3 s is an arrest: a fixed $3,000 fine (cash, then bank), the car is towed to your
-// garage, and you walk out of the nearest garage after a short cutscene.
+// Offences build heat: reckless driving (near misses above 180 km/h, crashing into traffic,
+// ramming a police car), gunshots, heists, a car alarm, a deal gone wrong... Heat becomes 1-5
+// stars. Nobody appears at your side: the offence is REPORTED (police.radio, the yellow "POLİS
+// İHBAR EDİLDİ" banner, a red ring on the map) and the police set off from the nearest station
+// (shared/compounds.ts POLICE_STATIONS), or from the nearest patrol out on the roads when the
+// station is too far, and drive to the scene for real with their sirens on (ECONOMY.police.
+// response: 1 star one car in 45-60 s, 2 stars two cars in 30-40 s, 3+ a SWAT van, patrol cars and
+// the helicopter in 15-20 s). That is the escape window: finish the job and get away before they
+// get there. Units on the way that keep you in sight for 2 s turn it into a pursuit; on the scene
+// they look round; nobody there and the wanted level is gone (a crime gets a taped-off crime
+// scene, crimeScene.ts; the cars of a traffic call drive back to the station).
+//
+// A pursuit: real physics police cars (same collision boxes as everyone) chase the player along
+// the highway lanes and through the city on the road grid (line of sight or a route over the
+// junctions). Police only know where you are while one of them can actually see you
+// (shared/sight.ts: a cone ahead of the car, the line to you clear of buildings and piers) or right
+// after an offence is reported; otherwise they drive to where you were last seen and search round
+// it (yellow lights). Out of sight for 45 s (a glimpse doesn't count: a car has to keep you in
+// sight for 2 s) is an escape (cash + XP). Missing cars join from the nearest patrol. A police car
+// right beside you while you are (nearly) stopped for 3 s is an arrest: a fixed $3,000 fine (cash,
+// then bank), the car is towed to your garage, and you walk out of the nearest garage after a
+// short cutscene. Cars that are done drive back to the station with their lights off.
 
 import { ALLEYS, BOLLARDS, alleyAt, alleyBox, alleyMouths } from '../../../shared/alleys';
 import { KMH_PER_MS } from '../../../shared/drivetrain';
@@ -18,19 +29,21 @@ import { ECONOMY } from '../../../shared/economy.config';
 import { CARRIAGEWAY_EDGE, laneOffset, offsetToLane, pathPoint, pathYaw, projectToHighway, travelDir, wrapS, type Carriageway } from '../../../shared/highway';
 import { obbDistance } from '../../../shared/obb';
 import { KEY, newVehicleDyn, stepVehicle, vehicleBox, vehicleParams, type VehicleDyn, type VehicleParams } from '../../../shared/physics';
-import { PF, type BustedEvent, type PoliceSnap, type WantedState } from '../../../shared/police';
+import { OFFENCES, PF, POLICE_STATIONS, radioCall, type BustedEvent, type OffenceId, type PoliceCall, type PoliceSnap, type RadioLine, type WantedState } from '../../../shared/police';
 import { angleDiff } from '../../../shared/util';
 import { isCovered, onSpikes, spikePlacement, tyrePoints, type HeliSnap, type SpikeSnap, type SpikeStrip } from '../../../shared/policeGear';
 import { POLICE_MODEL, modelDisplayName, type VehicleModel } from '../../../shared/vehicles';
 import { crossesWall } from '../../../shared/farShore';
 import { NAV_EDGES, NAV_NODES, navRoadPoints } from '../../../shared/roadGraph';
-import { bridgeByN, bridgeEnds, crossesWater, BRIDGE_HALF } from '../../../shared/strait';
+import { bridgeByN, bridgeEnds, crossesWater, BRIDGE_HALF, WATER } from '../../../shared/strait';
 import { DOCK_FENCES } from '../../../shared/farShore';
 import { policeSees, type SightWorld } from '../../../shared/sight';
 import { checkpointPlan, TOLL_BOXES, type CheckpointPlan } from '../../../shared/tolls';
 import { INTERACTABLES, type AABB } from '../../../shared/world';
 import { createLogger } from '../../logger';
 import { K, type Ctx } from '../context';
+import { CrimeScenes, type CrimeScene } from './crimeScene';
+import type { PoliceStation } from '../../../shared/compounds';
 import type { VehicleService } from './vehicles';
 
 const log = createLogger('police');
@@ -67,9 +80,21 @@ interface Target {
   deck: number;
 }
 
-interface Unit {
+/** What a police car is doing: after the wanted player (or searching for them), on its way to a
+ *  reported scene, parked at a crime scene, or driving back to the station. */
+export type UnitMode = 'chase' | 'respond' | 'scene' | 'return';
+
+export interface Unit {
   id: number;
   dyn: VehicleDyn;
+  mode: UnitMode;
+  /** A SWAT van (from 3 stars: more officers, rifles). */
+  swat: boolean;
+  /** The station it goes back to, and when it is taken off the roads on the way (service clock s). */
+  home: { x: number; z: number };
+  goneAt: number;
+  /** Parked until then (s), then off (a stop warning at a crime scene, officers getting in). */
+  holdUntil: number;
   /** Seconds it has been stuck (throttle on, not moving). */
   stuck: number;
   /** Reversing out of a jam until this time (s of the service clock). */
@@ -133,9 +158,48 @@ interface Heli {
   downAt: number;
 }
 
+/** A police call: an offence reported, units on their way to the scene. */
+interface Call {
+  what: OffenceId;
+  x: number;
+  z: number;
+  deck: number;
+  /** When the first car is due on the scene (service clock s), and the estimate when it went out. */
+  arriveAt: number;
+  eta0: number;
+  /** Got there (service clock s): looking round for the suspect until scanSec later. */
+  arrivedAt: number | null;
+  heli: boolean;
+}
+
+/** A car about to set off (from a station or a patrol out on the roads). */
+interface Departure {
+  at: number;
+  x: number;
+  z: number;
+  rot: number;
+  deck: number;
+  swat: boolean;
+  /** Seconds it should take to the scene (the scanner's countdown before it leaves). */
+  travel: number;
+  home: { x: number; z: number };
+  /** From a station's forecourt (waits for the bay to be free). */
+  station: boolean;
+}
+
 interface Wanted {
   heat: number;
   lastOffence: number;
+  /** The police have seen you: a pursuit (until then they only head for the reported scene). */
+  engaged: boolean;
+  /** The call the units are answering (not engaged). */
+  call: Call | null;
+  /** Cars about to set off. */
+  pending: Departure[];
+  /** When the helicopter takes off for this player (service clock s; Infinity: not called). */
+  heliAt: number;
+  /** Last call read out on the radio (service clock s). */
+  radioAt: number;
   /** Seconds out of police sight without being spotted (the hidden countdown). */
   hiddenT: number;
   /** An offence was just reported: the police know where you are until then (ms). */
@@ -184,6 +248,9 @@ const GARAGES = INTERACTABLES.filter((i) => i.kind === 'repair' || i.kind === 'c
 
 let nextUnitId = 1;
 
+/** How far from a reported scene the helicopter takes off (m): out of sight until it gets there. */
+const HELI_CALL_DIST = 430;
+
 /** The pursuit car: the interceptor's body with the chase toned down (ECONOMY.police.chase). */
 const CH = ECONOMY.police.chase;
 export const PURSUIT_MODEL: VehicleModel = {
@@ -227,18 +294,32 @@ export class PoliceService {
   private lastDeck = new Map<string, number>();
   /** Checkpoint news: set up for a driver, rammed through (the toll history listens). */
   readonly checkpointListeners: ((playerId: string, e: { kind: 'checkpoint' | 'breakthrough'; name: string; reward: number }) => void)[] = [];
+  /** Taped-off crime scenes and the cars driving back to the station. */
+  readonly scenes: CrimeScenes;
+  private returning: Unit[] = [];
+  /** When each station's forecourt is free for the next car (service clock s). */
+  private bayFreeAt = new Map<string, number>();
+  /** Is a player holding a gun (combat sets it; crime scenes care)? */
+  armedFn: (playerId: string) => boolean = () => false;
 
   constructor(
     private readonly ctx: Ctx,
     private readonly vehicles: VehicleService,
-  ) {}
+  ) {
+    this.scenes = new CrimeScenes(ctx, {
+      tamper: (pid, scene, reason) => this.tamper(pid, scene, reason),
+      done: (units) => this.sendHome(units),
+      armed: (pid) => this.armedFn(pid),
+      wanted: (pid) => this.starsOf(pid) > 0 || !!this.wanted.get(pid)?.busted,
+    });
+  }
 
   // ---------------------------------------------------------------- offences
 
   private get(playerId: string): Wanted {
     let w = this.wanted.get(playerId);
     if (!w) {
-      w = { heat: 0, lastOffence: 0, hiddenT: 0, dispatchUntil: 0, knows: true, lastKnown: null, seen: 0, heliSeeT: 0, sightAt: 0, nextSpawnAt: 0, inAlley: null, crashNoteAt: 0, bustT: 0, units: [], pursued: false, seenHitAt: Date.now(), busted: null, sent: '', sentAt: 0, chasers: new Set() };
+      w = { heat: 0, lastOffence: 0, engaged: false, call: null, pending: [], heliAt: Infinity, radioAt: -Infinity, hiddenT: 0, dispatchUntil: 0, knows: false, lastKnown: null, seen: 0, heliSeeT: 0, sightAt: 0, nextSpawnAt: 0, inAlley: null, crashNoteAt: 0, bustT: 0, units: [], pursued: false, seenHitAt: Date.now(), busted: null, sent: '', sentAt: 0, chasers: new Set() };
       this.wanted.set(playerId, w);
     }
     return w;
@@ -257,44 +338,212 @@ export class PoliceService {
   }
 
   /** Add heat for an offence (also used by tests). Everyone in the same car shares it. */
-  addHeat(playerId: string, amount: number): void {
+  addHeat(playerId: string, amount: number, what: OffenceId = 'reckless'): void {
     for (const id of this.crew(playerId)) {
       const w = this.get(id);
       if (w.busted) continue;
       w.heat = Math.min(ECONOMY.police.maxHeat, w.heat + amount);
-      this.reported(w);
+      this.reported(id, w, what);
     }
-  }
-
-  /** Police cars come only after `sec` (a heist alarm: they know, and they're on their way). */
-  holdUnits(playerId: string, sec: number): void {
-    const w = this.wanted.get(playerId);
-    if (w) w.nextSpawnAt = Math.max(w.nextSpawnAt, this.time + sec);
   }
 
   /** Raise the heat to at least this much (e.g. a car alarm: straight to 2 stars). Shared with
    *  everyone in the same car. */
-  raiseHeat(playerId: string, atLeast: number): void {
+  raiseHeat(playerId: string, atLeast: number, what: OffenceId = 'gunshot'): void {
     for (const id of this.crew(playerId)) {
       const w = this.get(id);
       if (w.busted) continue;
       w.heat = Math.min(ECONOMY.police.maxHeat, Math.max(w.heat, atLeast));
-      this.reported(w);
+      this.reported(id, w, what);
     }
   }
 
-  /** An offence is reported: the police get your position for a few seconds and the hidden
-   *  countdown starts over. */
-  private reported(w: Wanted): void {
+  /**
+   * An offence is reported. In a pursuit the police get your position for a few seconds and the
+   * hidden countdown starts over. Otherwise it is a call: the units set off for where it happened
+   * (or the officers of a crime scene close by come straight over).
+   */
+  private reported(playerId: string, w: Wanted, what: OffenceId): void {
     const now = Date.now();
     w.lastOffence = now;
-    w.dispatchUntil = now + ECONOMY.police.sight.dispatchSec * 1000;
     w.hiddenT = 0;
+    const stars = starsFor(w.heat);
+    const R = ECONOMY.police.response;
+    if (w.engaged) {
+      w.dispatchUntil = now + ECONOMY.police.sight.dispatchSec * 1000;
+      if (stars >= R.heliStars && w.heliAt === Infinity) w.heliAt = this.time + 6;
+      return;
+    }
+    const me = this.target(playerId);
+    if (!me) return;
+    // A taped-off scene close by: its officers are right there.
+    const scene = this.scenes.near(me.x, me.z, ECONOMY.police.scene.respondDist);
+    if (scene && what !== 'tamper') {
+      const u = this.scenes.take(scene, me, 2.5, null, now);
+      if (u) {
+        this.engage(playerId, w, 'Olay yerindeki ekip müdahale ediyor!');
+        this.join(w, u, 2.5);
+        return;
+      }
+    }
+    this.dispatch(playerId, w, what, me);
+  }
+
+  /** Send (or update) the police call for an offence at the player's position. */
+  private dispatch(playerId: string, w: Wanted, what: OffenceId, at: { x: number; z: number; deck: number }): void {
+    const R = ECONOMY.police.response;
+    const stars = starsFor(w.heat);
+    if (stars === 0) return;
+    const [lo, hi] = R.etaSec[stars] ?? R.etaSec[R.etaSec.length - 1]!;
+    const eta = lo + this.rng() * (hi - lo);
+    const prev = w.call;
+    let fresh = !prev;
+    if (prev) {
+      // A new report: the scene moves to it. More stars or somewhere else: a new estimate (it
+      // never gets later for the same place).
+      const moved = Math.hypot(prev.x - at.x, prev.z - at.z) > 60 || prev.deck !== at.deck;
+      // Reported right where the police already are: they go after the suspect.
+      if (!moved && prev.arrivedAt !== null) {
+        this.engage(playerId, w, 'Şüpheli olay yerinde! Takibe başlıyoruz!');
+        return;
+      }
+      const left = prev.arriveAt - this.time;
+      const sooner = this.time + Math.min(left, eta);
+      prev.arriveAt = moved ? this.time + eta : Math.max(this.time + 1, sooner);
+      if (moved || prev.arrivedAt !== null) {
+        fresh = true;
+        prev.eta0 = Math.round(prev.arriveAt - this.time);
+        prev.arrivedAt = null;
+        // Whoever is on the scene goes on to the new one.
+        for (const u of w.units) if (u.mode === 'respond') u.parked = false;
+      }
+      Object.assign(prev, { what: moved || OFFENCES[what].kind === 'crime' ? what : prev.what, x: at.x, z: at.z, deck: at.deck });
+    } else {
+      w.call = { what, x: at.x, z: at.z, deck: at.deck, arriveAt: this.time + eta, eta0: Math.round(eta), arrivedAt: null, heli: false };
+    }
+    const call = w.call!;
+    // Enough cars on the way for the stars (SWAT vans first from 3 stars).
+    const want = R.cars[stars] ?? R.cars[R.cars.length - 1]!;
+    const swatWant = R.swat[stars] ?? 0;
+    let have = w.units.length + w.pending.length;
+    let swat = w.units.filter((u) => u.swat).length + w.pending.filter((p) => p.swat).length;
+    const upgrade = have < want;
+    while (have < want) {
+      const d = this.plan(call, have, swat < swatWant);
+      if (!d) break;
+      w.pending.push(d);
+      if (d.swat) swat++;
+      have++;
+    }
+    if (stars >= R.heliStars && w.heliAt === Infinity) {
+      // It takes off far enough away to get there with the cars (fast while far, then slower).
+      call.heli = true;
+      const hc = ECONOMY.police.heli;
+      w.heliAt = Math.max(this.time, call.arriveAt - ((HELI_CALL_DIST - 60) / (hc.speed * 1.8) + 60 / hc.speed));
+    }
+    if (!fresh && !upgrade) return;
+    const left = Math.max(1, Math.round(call.arriveAt - this.time));
+    // (Not more than one call on the radio every few seconds: a string of camera sightings.)
+    if (!upgrade && this.time - w.radioAt < 3) return;
+    w.radioAt = this.time;
+    this.radio(playerId, { tone: 'call', text: radioCall(call.what, call.x, call.z, call.deck), eta: left });
+    log.info('police called', { playerId, what: call.what, stars, eta: left, cars: have });
+  }
+
+  /**
+   * Where a car answering a call sets off from: the nearest station when it can make it in time
+   * (it leaves when it has to), otherwise the nearest patrol out on the roads (it leaves now).
+   */
+  private plan(call: Call, index: number, swat: boolean): Departure | null {
+    const R = ECONOMY.police.response;
+    const st = nearestStation(call.x, call.z);
+    const home = { x: st.bay.x, z: st.bay.z };
+    const left = Math.max(2, call.arriveAt - this.time);
+    const onHighway = !call.deck && Math.abs(projectToHighway(call.x, call.z).offset) < CARRIAGEWAY_EDGE;
+    const fromStation = Math.hypot(st.bay.x - call.x, st.bay.z - call.z) * R.roadFactor / R.cruise;
+    if (!onHighway && !call.deck && fromStation <= left - 1.5) {
+      // Out of the station's forecourt one after the other.
+      const free = this.bayFreeAt.get(st.id) ?? 0;
+      const at = Math.max(this.time + 1.5, call.arriveAt - fromStation, free);
+      this.bayFreeAt.set(st.id, at + 2.5);
+      return { at, x: st.bay.x, z: st.bay.z, rot: st.bay.rot, deck: 0, swat, travel: fromStation, home, station: true };
+    }
+    // A patrol far enough away to get there about on time, on the station's side of the scene.
+    const dist = Math.max(70, Math.min(420, ((left - 1) * R.cruise) / R.roadFactor));
+    const towards = Math.atan2(call.x - st.bay.x, call.z - st.bay.z);
+    const u = this.spawn({ x: call.x, z: call.z, rot: towards, deck: call.deck }, index, dist);
+    if (!u) return null;
+    const travel = (Math.hypot(u.dyn.x - call.x, u.dyn.z - call.z) * R.roadFactor) / R.cruise;
+    return { at: this.time + 1 + index * 0.8, x: u.dyn.x, z: u.dyn.z, rot: u.dyn.rot, deck: u.dyn.deck ?? 0, swat, travel, home, station: false };
+  }
+
+  /** The police have seen the player: a pursuit. Every car on the way goes after them. */
+  private engage(playerId: string, w: Wanted, why: string, notify = true): void {
+    if (w.engaged) return;
+    const now = Date.now();
+    w.engaged = true;
+    w.pursued = true;
+    w.call = null;
+    w.hiddenT = 0;
+    w.dispatchUntil = now + ECONOMY.police.sight.dispatchSec * 1000;
+    for (const u of w.units) {
+      u.mode = 'chase';
+      if (u.holdUntil <= this.time) u.parked = false;
+    }
+    // Cars still waiting to set off for the scene stand down: the nearest patrols join the chase
+    // instead, one after the other.
+    w.pending = w.pending.filter((p) => !p.station && p.at <= this.time + 2);
+    w.nextSpawnAt = Math.min(w.nextSpawnAt, this.time + 0.5);
+    if (starsFor(w.heat) >= ECONOMY.police.response.heliStars) w.heliAt = Math.min(w.heliAt, this.time + 6);
+    this.radio(playerId, { tone: 'alert', text: why });
+    if (notify) this.ctx.hub.notify(playerId, { kind: 'warning', title: '🚨 POLİS SENİ GÖRDÜ!', text: 'Takip başladı: görüş alanlarından çık ve 45 sn saklan, ya da yakalanırsın.' });
+    log.info('pursuit', { playerId, why });
+  }
+
+  /** A car joins a player's pursuit (from a crime scene), waiting `holdSec` before it moves. */
+  private join(w: Wanted, u: Unit, holdSec: number): void {
+    u.mode = 'chase';
+    u.parked = true;
+    u.holdUntil = this.time + holdSec;
+    u.goneAt = Infinity;
+    w.units.push(u);
+    w.chasers.add(u.id);
+  }
+
+  /** Straight into a pursuit, as if a car had just spotted the player (tests, events). */
+  engageNow(playerId: string): void {
+    const w = this.wanted.get(playerId);
+    if (w && !w.busted && starsFor(w.heat) > 0) this.engage(playerId, w, 'Şüpheli görüldü, takip başladı!');
+  }
+
+  /** Somebody tampered with a crime scene: 1 star, a stop warning, and the nearest car waits a
+   *  few seconds for them to give up before it gives chase. */
+  private tamper(playerId: string, scene: CrimeScene, reason: string): void {
+    const S = ECONOMY.police.scene;
+    const now = Date.now();
+    for (const id of this.crew(playerId)) {
+      const w = this.get(id);
+      if (w.busted) continue;
+      w.heat = Math.min(ECONOMY.police.maxHeat, Math.max(w.heat, S.tamperHeat));
+      w.lastOffence = now;
+      this.engage(id, w, 'Olay yeri ihlali! DUR, POLİS!', false);
+    }
+    const me = this.target(playerId);
+    const w = this.wanted.get(playerId);
+    const u = me && w ? this.scenes.take(scene, me, S.warnSec, playerId, now) : null;
+    if (u && w) this.join(w, u, S.warnSec);
+    for (const id of this.crew(playerId)) this.ctx.hub.notify(id, { kind: 'error', title: '🚧 OLAY YERİ İHLALİ!', text: `${reason} "DUR! POLİS!" Olduğun yerde kal ya da kaç: 1 yıldız aranıyorsun.` });
+    log.info('crime scene tampered', { playerId, scene: scene.id, reason });
+  }
+
+  /** A line on the radio for a player (their scanner panel shows it, the radio voice reads it). */
+  private radio(playerId: string, line: RadioLine): void {
+    this.ctx.hub.sendTo(playerId, 'police.radio', line);
   }
 
   /** A near miss at speed (from the highway service). */
   onNearMiss(playerId: string, kmh: number): void {
-    if (kmh >= ECONOMY.police.fastNearMissKmh) this.addHeat(playerId, ECONOMY.police.heatNearMissFast);
+    if (kmh >= ECONOMY.police.fastNearMissKmh) this.addHeat(playerId, ECONOMY.police.heatNearMissFast, 'reckless');
   }
 
   /** Wanted stars of a player (0: none). */
@@ -303,14 +552,26 @@ export class PoliceService {
     return w && !w.busted ? starsFor(w.heat) : 0;
   }
 
-  /** The police cars after a player (combat: officers get out of them). */
-  unitsOf(playerId: string): readonly { id: number; dyn: VehicleDyn }[] {
-    return this.wanted.get(playerId)?.units ?? [];
+  /** The police cars after a player in a pursuit (combat: officers get out of them). */
+  unitsOf(playerId: string): readonly { id: number; dyn: VehicleDyn; swat: boolean }[] {
+    const w = this.wanted.get(playerId);
+    return w?.engaged ? w.units : [];
+  }
+
+  /** When the first police car is due at the player's reported scene (ms; null: no call out). */
+  arrivalOf(playerId: string, now = Date.now()): number | null {
+    const c = this.wanted.get(playerId)?.call;
+    return c && c.arrivedAt === null ? now + Math.max(0, c.arriveAt - this.time) * 1000 : null;
   }
 
   /** A police car destroyed (it is replaced later while the pursuit goes on). */
   removeUnit(unitId: number): void {
     for (const w of this.wanted.values()) w.units = w.units.filter((u) => u.id !== unitId);
+    this.returning = this.returning.filter((u) => u.id !== unitId);
+    for (const g of this.scenes.unitGroups()) {
+      const i = g.findIndex((u) => u.id === unitId);
+      if (i >= 0) g.splice(i, 1);
+    }
     this.publishObstacles();
   }
 
@@ -319,13 +580,18 @@ export class PoliceService {
     if (!this.wanted.has(playerId)) return;
     const w = this.wanted.get(playerId)!;
     w.heat = 0;
+    w.bustT = 0;
+    w.engaged = false;
+    w.call = null;
+    w.pending = [];
+    this.sendHome(w.units);
     w.units = [];
     this.send(playerId, w, true);
     this.wanted.delete(playerId);
     this.publishObstacles();
   }
 
-  /** Distance from a point to the player's nearest pursuing police car (Infinity: none). */
+  /** Distance from a point to the player's nearest police car (Infinity: none). */
   nearestUnit(playerId: string, x: number, z: number): number {
     const w = this.wanted.get(playerId);
     let best = Infinity;
@@ -338,11 +604,30 @@ export class PoliceService {
   }
 
   forget(playerId: string): void {
+    const w = this.wanted.get(playerId);
+    if (w) this.sendHome(w.units);
     this.wanted.delete(playerId);
     this.closeCheckpoint(playerId);
     this.lastDeck.delete(playerId);
     this.checkpointAt.delete(playerId);
+    this.scenes.forget(playerId);
     this.publishObstacles();
+  }
+
+  /** Cars that are done drive back to the station, lights off. */
+  private sendHome(units: readonly Unit[]): void {
+    const R = ECONOMY.police.response;
+    for (const u of units) {
+      if (this.returning.includes(u)) continue;
+      u.mode = 'return';
+      u.parked = false;
+      u.holdUntil = 0;
+      u.searching = false;
+      u.followIn = null;
+      u.goneAt = this.time + R.returnSec;
+      u.waypoint = null;
+      this.returning.push(u);
+    }
   }
 
   // ---------------------------------------------------------------- tick
@@ -350,19 +635,21 @@ export class PoliceService {
   tick(dt: number, now = Date.now()): void {
     this.time += dt;
     const cfg = ECONOMY.police;
+    const R = cfg.response;
     // Crashes into traffic / police count as offences.
     for (const d of this.ctx.sim.drives.values()) {
       if (!d.lastHitId || d.lastHitAt <= 0) continue;
       const w = this.wanted.get(d.playerId);
       const seen = w?.seenHitAt ?? 0;
       if (d.lastHitAt <= seen) continue;
-      if (d.lastHitId.startsWith('tr:')) this.addHeat(d.playerId, cfg.heatTrafficCrash);
-      else if (d.lastHitId.startsWith('po:')) this.addHeat(d.playerId, cfg.heatHitPolice);
+      if (d.lastHitId.startsWith('tr:')) this.addHeat(d.playerId, cfg.heatTrafficCrash, 'crash');
+      else if (d.lastHitId.startsWith('po:')) this.addHeat(d.playerId, cfg.heatHitPolice, 'copRam');
       else continue;
       this.get(d.playerId).seenHitAt = d.lastHitAt;
     }
     for (const [playerId, w] of this.wanted) {
       if (!this.ctx.sim.chars.has(playerId)) {
+        this.sendHome(w.units);
         this.wanted.delete(playerId);
         continue;
       }
@@ -372,53 +659,82 @@ export class PoliceService {
       }
       const stars = starsFor(w.heat);
       if (stars === 0) {
-        if (w.units.length === 0) this.wanted.delete(playerId);
-        else w.units = [];
+        this.sendHome(w.units);
+        w.units = [];
         this.send(playerId, w, true);
+        this.wanted.delete(playerId);
         continue;
       }
       const me = this.target(playerId);
       if (!me) continue;
-      this.watchBridges(playerId, stars, me, now);
+      if (w.engaged) this.watchBridges(playerId, stars, me, now);
       // Into a back alley: the cars right behind follow straight in (and meet the bollards); the
       // others go round to the far end.
       const alley = me.deck ? undefined : alleyAt(me.x, me.z);
       if (alley && w.inAlley !== alley.id) for (const u of w.units) if (Math.hypot(u.dyn.x - me.x, u.dyn.z - me.z) < 40) u.followIn = alley.id;
       if (!alley) for (const u of w.units) u.followIn = null;
       w.inAlley = alley?.id ?? null;
+      // Cars setting off (a station's forecourt has to be clear first).
+      for (const d of [...w.pending]) {
+        if (this.time < d.at) continue;
+        if (d.station && this.bayBusy(d.x, d.z)) {
+          d.at = this.time + 0.5;
+          continue;
+        }
+        w.pending = w.pending.filter((x) => x !== d);
+        const u = this.unitAt(d.x, d.z, d.rot, d.deck, w.units.length, d.swat, d.home, w.engaged ? 'chase' : 'respond');
+        if (d.station) u.dyn.speed = 12 / KMH_PER_MS;
+        w.units.push(u);
+        w.chasers.add(u.id);
+      }
       // From 3 stars the helicopter comes (it looks from above first).
-      this.flyHeli(playerId, stars, me, dt, now);
+      this.flyHeli(playerId, w, stars, me, dt, now);
       // Who can see the player? (Every car on the radio hears it.)
       const spotted = this.look(playerId, w, me, dt, now);
-      // Spawn / retire police cars to match the wanted level: one at a time, a few seconds apart,
-      // from behind the player while the police know where they are, near the last sighting otherwise.
-      const want = stars >= cfg.pursuitStars ? cfg.unitsByStars[stars] ?? 0 : 0;
-      if (w.units.length < want && this.time >= w.nextSpawnAt) {
-        const u = this.spawn(this.anchor(w, me), w.units.length);
-        if (u) {
-          w.units.push(u);
-          w.chasers.add(u.id);
-          w.pursued = true;
-          w.nextSpawnAt = this.time + cfg.sight.spawnGapSec;
+      if (!w.engaged) {
+        // A car or the helicopter kept them in sight: a pursuit (at 1 star only near the scene).
+        const best = Math.max(0, ...w.units.map((u) => u.seeT));
+        const near = !w.call || Math.hypot(me.x - w.call.x, me.z - w.call.z) <= R.oneStarRadius;
+        if ((best >= cfg.sight.spotSec || w.heliSeeT >= cfg.sight.spotSec) && (stars >= 2 || near)) {
+          this.engage(playerId, w, w.heliSeeT >= cfg.sight.spotSec && best < cfg.sight.spotSec ? 'Hava 1: şüpheli görüldü, yerini bildiriyorum!' : 'Şüpheli görüldü! Tüm ekipler takibe!');
         }
       }
-      if (w.units.length > want) w.units.length = want;
+      // A pursuit short of cars: reinforcements from the nearest patrol, one at a time.
+      if (w.engaged) {
+        const want = R.cars[stars] ?? R.cars[R.cars.length - 1]!;
+        if (w.units.length + w.pending.length < want && this.time >= w.nextSpawnAt) {
+          const u = this.spawn(this.anchor(w, me), w.units.length);
+          if (u) {
+            const swat = w.units.filter((x) => x.swat).length + w.pending.filter((x) => x.swat).length < (R.swat[stars] ?? 0);
+            const st = nearestStation(u.dyn.x, u.dyn.z);
+            w.pending.push({ at: this.time + 1, x: u.dyn.x, z: u.dyn.z, rot: u.dyn.rot, deck: u.dyn.deck ?? 0, swat, travel: 0, home: { x: st.bay.x, z: st.bay.z }, station: false });
+            w.nextSpawnAt = this.time + cfg.sight.spawnGapSec;
+          }
+        }
+      }
       // Drive them.
       let nearestSame = Infinity;
       let nearestGap = Infinity;
       const myBox = vehicleBox('me', me.x, me.z, me.rot, me.hl, me.hw);
       for (const u of w.units) {
-        this.drive(playerId, u, w, me, dt);
+        this.drive(u, dt, w, me, playerId);
         const dist = Math.hypot(u.dyn.x - me.x, u.dyn.z - me.z);
+        // On the scene of a call.
+        if (w.call && u.mode === 'respond' && w.call.arrivedAt === null && (u.dyn.deck ?? 0) === w.call.deck && Math.hypot(u.dyn.x - w.call.x, u.dyn.z - w.call.z) < R.arriveDist) {
+          w.call.arrivedAt = this.time;
+          this.radio(playerId, { tone: 'info', text: `Ekipler olay yerinde. Şüpheli aranıyor...` });
+        }
+        if (u.mode !== 'chase') continue;
         // Only a car on the same level can stop you (not one on the highway under a bridge).
         const same = (u.dyn.deck ?? 0) === me.deck;
         if (same) nearestSame = Math.min(nearestSame, dist);
         if (same && dist < 12) nearestGap = Math.min(nearestGap, obbDistance(myBox, vehicleBox('u', u.dyn.x, u.dyn.z, u.dyn.rot, this.params.halfLength, this.params.halfWidth)));
-        // Hopelessly stuck, or (only while they know where you are) lost far behind: a fresh car
-        // comes from behind you. While searching they don't magically catch up.
+        // Hopelessly stuck, or (only while they know where you are) lost far behind: it gives up
+        // and a car from the nearest patrol takes its place. While searching they don't magically
+        // catch up.
         if (u.stuck > CH.stuckSec || (w.knows && dist > CH.respawnDist)) {
           const fresh = this.spawn(this.anchor(w, me), u.side > 0 ? 0 : 1);
-          if (fresh) Object.assign(u, fresh, { id: u.id, leadK: u.leadK });
+          if (fresh) Object.assign(u, fresh, { id: u.id, leadK: u.leadK, swat: u.swat, home: u.home, mode: u.mode });
         }
       }
       // The cars at a checkpoint can stop you too.
@@ -428,35 +744,90 @@ export class PoliceService {
         nearestSame = Math.min(nearestSame, dist);
         if (dist < 12) nearestGap = Math.min(nearestGap, obbDistance(myBox, vehicleBox('u', u.dyn.x, u.dyn.z, u.dyn.rot, this.params.halfLength, this.params.halfWidth)));
       }
-      // From 3 stars a spike strip goes down across the road ahead of a wanted driver.
-      this.throwSpikes(playerId, stars, me, now);
-      // Escape: out of sight for hiddenSec (pursuit), or no new offence for calmSec (1 star).
-      if (stars >= cfg.pursuitStars) {
+      if (w.engaged) {
+        // From 3 stars a spike strip goes down across the road ahead of a wanted driver.
+        this.throwSpikes(playerId, stars, me, now);
+        // Escape: out of sight for hiddenSec.
         w.hiddenT = spotted ? 0 : w.hiddenT + dt;
         if (w.hiddenT >= cfg.sight.hiddenSec) {
           void this.escaped(playerId, w);
           continue;
         }
-      } else if (now - w.lastOffence > cfg.calmSec * 1000) {
-        w.heat = 0;
-        this.send(playerId, w, true);
-        this.wanted.delete(playerId);
-        continue;
-      }
-      // Arrest: a police car right beside you while you're (nearly) stopped.
-      const slow = Math.abs(me.speed) * KMH_PER_MS < cfg.bustKmh;
-      const close = me.onFoot ? nearestSame < 6 : nearestGap < cfg.bustGap;
-      w.bustT = slow && close ? w.bustT + dt : Math.max(0, w.bustT - dt * 0.5);
-      if (w.bustT >= cfg.bustSec) {
-        void this.bust(playerId, w, me);
-        continue;
+        // Arrest: a police car right beside you while you're (nearly) stopped.
+        const slow = Math.abs(me.speed) * KMH_PER_MS < cfg.bustKmh;
+        const close = me.onFoot ? nearestSame < 6 : nearestGap < cfg.bustGap;
+        w.bustT = slow && close ? w.bustT + dt : Math.max(0, w.bustT - dt * 0.5);
+        if (w.bustT >= cfg.bustSec) {
+          void this.bust(playerId, w, me);
+          continue;
+        }
+      } else if (w.call) {
+        // On the scene and nobody there after a look round; or the cars never made it.
+        const c = w.call;
+        const over = c.arrivedAt !== null ? this.time >= c.arrivedAt + R.scanSec : this.time > c.arriveAt + R.lateSec || (w.units.length === 0 && w.pending.length === 0 && this.time > c.arriveAt);
+        if (over) {
+          this.calledOff(playerId, w);
+          continue;
+        }
+      } else {
+        // Wanted with no call and no pursuit (it shouldn't happen): a call for where they are.
+        this.dispatch(playerId, w, 'reckless', me);
       }
       this.send(playerId, w);
     }
     this.tickCheckpoints(dt, now);
+    this.tickReturning(dt);
+    this.scenes.tick(dt, now);
     this.checkSpikes(now);
     this.tickHelis(dt, now);
     this.publishObstacles();
+  }
+
+  /** Somebody (a car) right on a station's forecourt. */
+  private bayBusy(x: number, z: number): boolean {
+    for (const v of this.ctx.sim.collisionWorld.vehicles) if (Math.hypot(v.x - x, v.z - z) < 6) return true;
+    return false;
+  }
+
+  /**
+   * The police got to the scene and the suspect was nowhere to be seen (or they never got
+   * there): the wanted level is gone. A crime gets a crime scene with the cars that got there;
+   * the rest drive back to the station.
+   */
+  private calledOff(playerId: string, w: Wanted): void {
+    const c = w.call!;
+    const R = ECONOMY.police.response;
+    this.wanted.delete(playerId);
+    this.closeCheckpoint(playerId);
+    const there = w.units.filter((u) => (u.dyn.deck ?? 0) === c.deck && Math.hypot(u.dyn.x - c.x, u.dyn.z - c.z) < R.arriveDist + 20);
+    const crime = OFFENCES[c.what].kind === 'crime' && c.arrivedAt !== null && there.length > 0;
+    if (crime) this.scenes.open(there, c.x, c.z, c.deck, c.what);
+    this.sendHome(crime ? w.units.filter((u) => !there.includes(u)) : w.units);
+    w.units = [];
+    this.ctx.hub.sendTo(playerId, 'police.wanted', { stars: 0, units: 0, escapeLeft: null, bust: 0 });
+    this.radio(playerId, { tone: 'clear', text: crime ? 'Şüpheli olay yerinde yok. Olay yeri inceleme başlatılıyor, alan şeritle kapatılıyor.' : c.arrivedAt !== null ? 'Şüpheli bölgeden uzaklaşmış. Ekipler devriyeye dönüyor.' : 'Çağrı iptal, ekipler devriyeye dönüyor.' });
+    this.ctx.hub.notify(playerId, { kind: 'success', title: 'Polis seni bulamadı!', text: c.arrivedAt !== null ? 'Olay yerine geldiler ama çoktan gitmiştin: aranma kalktı.' : 'Ekipler yetişemedi: aranma kalktı.' });
+    for (const l of this.clearedListeners) l(playerId);
+    this.publishObstacles();
+    log.info('call closed', { playerId, what: c.what, arrived: c.arrivedAt !== null, scene: crime });
+  }
+
+  /** Cars on their way back to the station: gone there, after a while, or out of everyone's sight. */
+  private tickReturning(dt: number): void {
+    if (this.returning.length === 0) return;
+    this.returning = this.returning.filter((u) => {
+      const home = Math.hypot(u.home.x - u.dyn.x, u.home.z - u.dyn.z) < 10;
+      let watched = false;
+      for (const c of this.ctx.sim.chars.values()) {
+        if (Math.hypot(c.x - u.dyn.x, c.z - u.dyn.z) < 330) {
+          watched = true;
+          break;
+        }
+      }
+      if (home || !watched || this.time >= u.goneAt) return false;
+      this.drive(u, dt, null, null, null);
+      return true;
+    });
   }
 
   // ---------------------------------------------------------------- line of sight
@@ -531,10 +902,12 @@ export class PoliceService {
   openCheckpoint(playerId: string, plan: CheckpointPlan, name: string, now = Date.now()): void {
     const cc = ECONOMY.tolls.checkpoint;
     this.closeCheckpoint(playerId);
+    const st = nearestStation(plan.x, plan.z);
     const units: Unit[] = plan.cars.map((c, i) => {
-      const dyn = newVehicleDyn(c.x, c.z, c.rot);
-      dyn.deck = plan.n;
-      return { id: nextUnitId++, dyn, stuck: 0, reverseUntil: 0, waypoint: null, replanAt: 0, side: i % 2 ? 1 : -1, parked: true, sees: false, seeT: 0, searching: false, searchAt: null, searchUntil: 0, leadK: 1, followIn: null, crashUntil: 0 };
+      const u = this.unitAt(c.x, c.z, c.rot, plan.n, i + 1, false, { x: st.bay.x, z: st.bay.z }, 'chase');
+      u.parked = true;
+      u.leadK = 1;
+      return u;
     });
     const spikeId = this.addSpikes({ ...plan.spikes, deck: plan.n }, now);
     const until = now + cc.lifeSec * 1000;
@@ -619,7 +992,12 @@ export class PoliceService {
 
   // ---------------------------------------------------------------- helicopter
 
-  private flyHeli(playerId: string, stars: number, me: { x: number; z: number; deck: number }, dt: number, now: number): void {
+  /**
+   * The helicopter: called with the cars from 3 stars, it takes off from the station's side and
+   * flies to the scene (or to the pursuit). It only tracks the player once it has actually seen
+   * them from above (not under cover, within its sight).
+   */
+  private flyHeli(playerId: string, w: Wanted, stars: number, me: { x: number; z: number; deck: number }, dt: number, now: number): void {
     const hc = ECONOMY.police.heli;
     let h = this.helis.get(playerId);
     if (stars < hc.stars) {
@@ -628,10 +1006,17 @@ export class PoliceService {
     }
     if (!h) {
       if (now - (this.heliGone.get(playerId) ?? -Infinity) < hc.respawnSec * 1000) return;
-      const a = (this.time * 1.7 + playerId.length) % (Math.PI * 2);
-      h = { id: this.heliSeq++, player: playerId, x: me.x + Math.cos(a) * hc.spawnDist, y: hc.altitude, z: me.z + Math.sin(a) * hc.spawnDist, yaw: 0, hp: hc.hp, orbitA: a, lastX: me.x, lastZ: me.z, lostT: 0, sees: true, visible: false, aimX: me.x, aimZ: me.z, downAt: 0 };
+      if (this.time < w.heliAt) return;
+      // Where it flies to first: the reported scene, or the player in a pursuit.
+      const call = !w.engaged && w.call;
+      const to = call || me;
+      const dist = call ? HELI_CALL_DIST : hc.spawnDist;
+      const st = nearestStation(to.x, to.z);
+      const a = Math.atan2(st.bay.x - to.x, st.bay.z - to.z);
+      h = { id: this.heliSeq++, player: playerId, x: to.x + Math.sin(a) * dist, y: hc.altitude, z: to.z + Math.cos(a) * dist, yaw: a + Math.PI, hp: hc.hp, orbitA: Math.atan2(Math.cos(a), Math.sin(a)), lastX: to.x, lastZ: to.z, lostT: hc.lostSec, sees: false, visible: false, aimX: to.x, aimZ: to.z, downAt: 0 };
       this.helis.set(playerId, h);
-      for (const p of this.crew(playerId)) this.ctx.hub.notify(p, { kind: 'warning', title: '🚁 Polis helikopteri!', text: 'Helikopter seni yukarıdan izliyor ve yerini ekiplere bildiriyor. Köprü altına, tünele ya da kapalı bir alana gir!' });
+      this.radio(playerId, { tone: 'info', text: 'Hava 1 havalandı, bölgeye yönleniyor.' });
+      for (const p of this.crew(playerId)) this.ctx.hub.notify(p, { kind: 'warning', title: '🚁 Polis helikopteri yolda!', text: 'Helikopter bölgeye geliyor: seni yukarıdan görürse yerini ekiplere bildirir. Köprü altına, tünele ya da kapalı bir alana gir!' });
     }
     if (h.downAt) return;
     const dist = Math.hypot(h.x - me.x, h.z - me.z);
@@ -644,8 +1029,8 @@ export class PoliceService {
     const was = h.sees;
     h.sees = h.lostT < hc.lostSec;
     if (was && !h.sees) for (const p of this.crew(playerId)) this.ctx.hub.notify(p, { kind: 'success', title: 'Helikopter izini kaybetti', text: 'Seni göremiyor: şimdi ekiplerden de kurtul.' });
-    else if (!was && h.visible) for (const p of this.crew(playerId)) this.ctx.hub.notify(p, { kind: 'warning', title: '🚁 Helikopter seni yine buldu', text: 'Projektör üzerinde!' });
-    // Circle where it last saw you, catching up fast when far away.
+    else if (!was && h.visible) for (const p of this.crew(playerId)) this.ctx.hub.notify(p, { kind: 'warning', title: '🚁 Helikopter seni buldu', text: 'Projektör üzerinde!' });
+    // Circle where it last saw you (or the scene), catching up fast when far away.
     h.orbitA += dt * (hc.speed / hc.orbit) * 0.35;
     const tx = h.lastX + Math.cos(h.orbitA) * hc.orbit;
     const tz = h.lastZ + Math.sin(h.orbitA) * hc.orbit;
@@ -838,8 +1223,12 @@ export class PoliceService {
 
   // ---------------------------------------------------------------- spawning
 
-  /** A police car some way behind the player (ECONOMY.police.chase.spawnDist), on the same road (or the same bridge). */
-  private spawn(me: { x: number; z: number; rot: number; deck: number }, index: number): Unit | null {
+  /**
+   * A patrol car out on the roads some way from a point (`dist` m; behind the player, who is
+   * heading `rot`): on the same highway carriageway, the same bridge, or a road point on their side
+   * of the water.
+   */
+  private spawn(me: { x: number; z: number; rot: number; deck: number }, index: number, dist: number = CH.spawnDist): Unit | null {
     const side = index % 2 === 0 ? 1 : -1;
     const hp = projectToHighway(me.x, me.z);
     let x: number;
@@ -850,14 +1239,14 @@ export class PoliceService {
     if (bridge) {
       // Up on the bridge behind the player.
       const dir = Math.sin(me.rot) >= 0 ? 1 : -1;
-      x = Math.max(bridge.x0 + 2, Math.min(bridge.x1 - 2, me.x - dir * (CH.spawnDist - 15 + index * 14)));
+      x = Math.max(bridge.x0 + 2, Math.min(bridge.x1 - 2, me.x - dir * (dist - 15 + index * 14)));
       z = bridge.z + (index % 2 ? 4 : -4);
       rot = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       deck = bridge.n;
     } else if (Math.abs(hp.offset) < CARRIAGEWAY_EDGE) {
       const cw: Carriageway = hp.offset < 0 ? 0 : 1;
       const lane = Math.max(0, Math.min(3, Math.round(offsetToLane(hp.offset)) + (index % 2 ? 1 : -1)));
-      const s = wrapS(hp.s - travelDir(cw) * (CH.spawnDist + index * 14));
+      const s = wrapS(hp.s - travelDir(cw) * (dist + index * 14));
       const p = pathPoint(s, laneOffset(cw, lane));
       x = p.x;
       z = p.z;
@@ -869,9 +1258,9 @@ export class PoliceService {
       let best: { x: number; z: number; score: number } | null = null;
       for (const p of ROAD_POINTS) {
         const d = Math.hypot(p.x - me.x, p.z - me.z);
-        if (d < CH.spawnDist - 45 || d > CH.spawnDist + 55 || crossesWater(p.x, p.z, me.x, me.z)) continue;
+        if (d < dist - 45 || d > dist + 55 || crossesWater(p.x, p.z, me.x, me.z)) continue;
         const behind = -((p.x - me.x) * fx + (p.z - me.z) * fz) / d;
-        const score = Math.abs(d - CH.spawnDist) - behind * 40 + ((index * 17 + Math.round(p.x + p.z)) % 7 + 7) % 7;
+        const score = Math.abs(d - dist) - behind * 40 + ((index * 17 + Math.round(p.x + p.z)) % 7 + 7) % 7;
         if (!best || score < best.score) best = { x: p.x, z: p.z, score };
       }
       if (!best) return null;
@@ -879,42 +1268,68 @@ export class PoliceService {
       z = best.z;
       rot = Math.atan2(me.x - x, me.z - z);
     }
+    const st = nearestStation(x, z);
+    const u = this.unitAt(x, z, rot, deck, index, false, { x: st.bay.x, z: st.bay.z }, 'chase');
+    // Out on patrol: already at speed.
+    u.dyn.speed = 80 / KMH_PER_MS;
+    u.dyn.gear = 3;
+    u.side = side;
+    return u;
+  }
+
+  /** A police car standing at a point. */
+  private unitAt(x: number, z: number, rot: number, deck: number, index: number, swat: boolean, home: { x: number; z: number }, mode: UnitMode): Unit {
     const dyn = newVehicleDyn(x, z, rot);
     dyn.deck = deck;
-    // Arrive at speed.
-    dyn.speed = 80 / KMH_PER_MS;
-    dyn.gear = 3;
-    return { id: nextUnitId++, dyn, stuck: 0, reverseUntil: 0, waypoint: null, replanAt: 0, side, parked: false, sees: false, seeT: 0, searching: false, searchAt: null, searchUntil: 0, leadK: LEAD_K[index % LEAD_K.length]!, followIn: null, crashUntil: 0 };
+    return { id: nextUnitId++, dyn, mode, swat, home, goneAt: Infinity, holdUntil: 0, stuck: 0, reverseUntil: 0, waypoint: null, replanAt: 0, side: index % 2 === 0 ? 1 : -1, parked: false, sees: false, seeT: 0, searching: false, searchAt: null, searchUntil: 0, leadK: LEAD_K[index % LEAD_K.length]!, followIn: null, crashUntil: 0 };
   }
 
   // ---------------------------------------------------------------- driving
 
   /**
-   * One police car's driving for a tick. While the police know where the player is it chases them
-   * (aiming a little ahead, alongside when close, to box them in); otherwise it searches: first to
-   * where they were last seen (and a little further the way they were going), then from road point
-   * to road point round there, slower, with its lights yellow. Cars keep their distance from each
-   * other instead of driving nose to tail.
+   * One police car's driving for a tick. Chasing: while the police know where the player is it goes
+   * after them (aiming a little ahead, alongside when close, to box them in); otherwise it
+   * searches: first to where they were last seen (and a little further the way they were going),
+   * then from road point to road point round there, slower, with its lights yellow. Answering a
+   * call: flat out to the reported scene with the siren on, slowing down to stop there. Going home:
+   * back to the station at a calm pace, lights off. Cars keep their distance from each other
+   * instead of driving nose to tail.
    */
-  private drive(playerId: string, u: Unit, w: Wanted, me: Target, dt: number): void {
+  private drive(u: Unit, dt: number, w: Wanted | null, me: Target | null, playerId: string | null): void {
+    if (u.parked && u.holdUntil > 0 && this.time >= u.holdUntil) {
+      u.parked = false;
+      u.holdUntil = 0;
+    }
     if (u.parked || this.time < u.crashUntil) {
       stepVehicle(u.dyn, { keys: KEY.BRAKE, dt }, this.params, this.ctx.sim.collisionWorld, `po:${u.id}`);
       return;
     }
     const sc = ECONOMY.police.sight;
-    u.searching = !w.knows && !!w.lastKnown;
     let goal: { x: number; z: number; deck: number; vx: number; vz: number; rot: number; hw: number };
-    if (u.searching) {
-      if (!u.searchAt || this.time >= u.searchUntil || Math.hypot(u.searchAt.x - u.dyn.x, u.searchAt.z - u.dyn.z) < 12) {
-        u.searchAt = this.searchPoint(u, w.lastKnown!);
-        u.searchUntil = this.time + 14;
-      }
-      goal = { ...u.searchAt, vx: 0, vz: 0, rot: u.dyn.rot, hw: 0 };
+    let chase = false;
+    let urgent = false;
+    if (u.mode === 'respond' && w?.call) {
+      const c = w.call;
+      goal = { x: c.x, z: c.z, deck: c.deck, vx: 0, vz: 0, rot: u.dyn.rot, hw: 0 };
+      urgent = true;
+      u.searching = false;
+    } else if (u.mode === 'return' || !w || !me) {
+      goal = { x: u.home.x, z: u.home.z, deck: 0, vx: 0, vz: 0, rot: u.dyn.rot, hw: 0 };
+      u.searching = false;
     } else {
-      u.searchAt = null;
-      goal = me;
+      u.searching = !w.knows && !!w.lastKnown;
+      if (u.searching) {
+        if (!u.searchAt || this.time >= u.searchUntil || Math.hypot(u.searchAt.x - u.dyn.x, u.searchAt.z - u.dyn.z) < 12) {
+          u.searchAt = this.searchPoint(u, w.lastKnown!);
+          u.searchUntil = this.time + 14;
+        }
+        goal = { ...u.searchAt, vx: 0, vz: 0, rot: u.dyn.rot, hw: 0 };
+      } else {
+        u.searchAt = null;
+        goal = me;
+      }
+      chase = !u.searching;
     }
-    const chase = !u.searching;
     // The player in a back alley: straight in after them only if it was right behind them,
     // otherwise round to the end they are heading for (the nearer one if they stopped).
     let direct = false;
@@ -989,11 +1404,13 @@ export class PoliceService {
       const kmh = u.dyn.speed * KMH_PER_MS;
       const tooFast = chase && dist < 16 && u.dyn.speed > Math.hypot(goal.vx, goal.vz) + 3;
       const sharp = Math.abs(turn) > 1.1 && u.dyn.speed > 11;
-      // Searching: a slow patrol, not a race.
-      const slowDown = !chase && kmh > sc.searchKmh + 12;
-      const coast = !chase && kmh > sc.searchKmh;
+      // Searching or going home: a slow drive, not a race. Answering a call: flat out, braking to
+      // stop at the scene.
+      const calm = !chase && !urgent;
+      const slowDown = (calm && kmh > sc.searchKmh + 12) || (urgent && u.dyn.speed > Math.sqrt(8 * Math.max(0, dist - 7)) + 1.5);
+      const coast = calm && kmh > sc.searchKmh;
       // Keep a gap to the police car ahead (not while boxing the player in).
-      const gap = dist > 25 ? this.gapAhead(u, w) : Infinity;
+      const gap = dist > 25 && w ? this.gapAhead(u, w) : Infinity;
       const tailgating = gap < sc.spacing;
       if (tooFast || sharp || slowDown || (tailgating && gap < sc.spacing * 0.5 && u.dyn.speed > 4)) keys |= KEY.BACK;
       else if (!coast && !tailgating) keys |= KEY.FORWARD;
@@ -1005,20 +1422,26 @@ export class PoliceService {
         u.stuck += 0.5;
       }
     }
+    // At the scene of a call (or right behind a car already there): stop, and park with the
+    // lights on.
+    const stopping = urgent && (dist < 13 || (w !== null && w.units.some((o) => o !== u && o.parked && o.mode === 'respond' && Math.hypot(o.dyn.x - u.dyn.x, o.dyn.z - u.dyn.z) < 9)));
+    if (stopping) keys = KEY.BRAKE;
     const v0 = Math.abs(u.dyn.speed);
     stepVehicle(u.dyn, { keys, dt }, this.params, this.ctx.sim.collisionWorld, `po:${u.id}`);
+    if (stopping && Math.abs(u.dyn.speed) < 1) u.parked = true;
     // Into the bollards at speed: a crash.
     if (v0 * KMH_PER_MS > 35 && Math.abs(u.dyn.speed) < v0 * 0.55 && BOLLARDS.some((b) => Math.hypot(b.x - u.dyn.x, b.z - u.dyn.z) < this.params.halfLength + 1)) this.crash(playerId, u, w, v0);
   }
 
   /** A police car hit the bollards at the end of a back alley: it sits there a few seconds, then
    *  goes round. */
-  private crash(playerId: string, u: Unit, w: Wanted, speed: number): void {
+  private crash(playerId: string | null, u: Unit, w: Wanted | null, speed: number): void {
     u.crashUntil = this.time + ECONOMY.police.alleys.crashSec;
     u.followIn = null;
     u.stuck = 0;
     u.reverseUntil = 0;
     this.ctx.hub.broadcast('police.crash', { x: u.dyn.x, z: u.dyn.z, kmh: Math.round(speed * KMH_PER_MS) });
+    if (!playerId || !w) return;
     const now = Date.now();
     if (now - w.crashNoteAt < 5000) return;
     w.crashNoteAt = now;
@@ -1125,10 +1548,14 @@ export class PoliceService {
 
   private async escaped(playerId: string, w: Wanted): Promise<void> {
     const cfg = ECONOMY.police;
-    // The wanted level is wiped clean: no stars, no cars, no checkpoint waiting at the bridge.
+    // The wanted level is wiped clean: no stars, no checkpoint waiting at the bridge; the cars
+    // give up and drive back to the station.
     this.wanted.delete(playerId);
     this.closeCheckpoint(playerId);
+    this.sendHome(w.units);
+    w.units = [];
     this.publishObstacles();
+    this.radio(playerId, { tone: 'clear', text: 'Şüpheli gözden kayboldu. Takip bırakılıyor, ekipler karakola dönüyor.' });
     this.ctx.hub.sendTo(playerId, 'police.wanted', { stars: 0, units: 0, escapeLeft: null, bust: 0 });
     for (const l of this.clearedListeners) l(playerId);
     if (!w.pursued) return;
@@ -1156,7 +1583,9 @@ export class PoliceService {
     // The nearest police car pulls up beside the player; the others leave.
     let nearest: Unit | null = null;
     for (const u of w.units) if (!nearest || Math.hypot(u.dyn.x - me.x, u.dyn.z - me.z) < Math.hypot(nearest.dyn.x - me.x, nearest.dyn.z - me.z)) nearest = u;
+    this.sendHome(w.units.filter((u) => u !== nearest));
     w.units = nearest ? [nearest] : [];
+    w.pending = [];
     if (nearest) {
       // Stopped alongside on the driver's (left) side, a little ahead, leaving room for the door.
       const rx = Math.cos(me.rot);
@@ -1210,6 +1639,8 @@ export class PoliceService {
   private async release(playerId: string, w: Wanted): Promise<void> {
     const ev = w.busted?.event;
     this.wanted.delete(playerId);
+    this.sendHome(w.units);
+    w.units = [];
     this.publishObstacles();
     if (!ev) return;
     try {
@@ -1253,11 +1684,15 @@ export class PoliceService {
   private send(playerId: string, w: Wanted, force = false): void {
     const cfg = ECONOMY.police;
     const stars = starsFor(w.heat);
-    const escapeLeft = stars >= cfg.pursuitStars && w.hiddenT > 0.4 ? Math.max(0, Math.ceil(cfg.sight.hiddenSec - w.hiddenT)) : null;
+    const escapeLeft = w.engaged && w.hiddenT > 0.4 ? Math.max(0, Math.ceil(cfg.sight.hiddenSec - w.hiddenT)) : null;
     const h = this.helis.get(playerId);
-    const state: WantedState = { stars, units: w.units.length, escapeLeft, bust: Math.round(Math.min(1, w.bustT / cfg.bustSec) * 10) / 10, heli: h && !h.downAt ? (h.sees ? 'seen' : 'lost') : null };
+    const state: WantedState = { stars, units: w.units.length + w.pending.length, escapeLeft, bust: Math.round(Math.min(1, w.bustT / cfg.bustSec) * 10) / 10, heli: h && !h.downAt ? (h.sees ? 'seen' : 'lost') : null };
     if (w.seen > 0) state.seen = Math.round(w.seen * 10) / 10;
     if (w.units.some((u) => u.searching)) state.search = true;
+    if (w.engaged) state.engaged = true;
+    const scanner = this.hasScanner(playerId);
+    if (scanner) state.scanner = true;
+    if (!w.engaged && w.call) state.call = this.callView(w, w.call, scanner);
     const key = JSON.stringify(state);
     const now = Date.now();
     if (!force && (key === w.sent || now - w.sentAt < 200)) return;
@@ -1266,15 +1701,58 @@ export class PoliceService {
     this.ctx.hub.sendTo(playerId, 'police.wanted', state);
   }
 
+  /** The call as the player sees it; with the scanner, the live countdown and the units on the way. */
+  private callView(w: Wanted, c: Call, scanner: boolean): PoliceCall {
+    const v: PoliceCall = { x: Math.round(c.x), z: Math.round(c.z), r: 40, what: OFFENCES[c.what].radio, eta0: c.eta0, cars: w.units.length + w.pending.length, swat: w.units.filter((u) => u.swat).length + w.pending.filter((p) => p.swat).length, heli: c.heli, arrived: c.arrivedAt !== null };
+    if (!scanner) return v;
+    v.eta = c.arrivedAt !== null ? 0 : Math.max(0, Math.ceil(this.liveEta(w, c)));
+    v.units = w.units.map((u) => [Math.round(u.dyn.x / 4) * 4, Math.round(u.dyn.z / 4) * 4]);
+    return v;
+  }
+
+  /** Seconds until the first car is on the scene: from where the cars are now (and when the ones
+   *  still at the station or on patrol set off). */
+  private liveEta(w: Wanted, c: Call): number {
+    const R = ECONOMY.police.response;
+    let best = Infinity;
+    for (const u of w.units) {
+      if (u.mode !== 'respond') continue;
+      const d = Math.max(0, Math.hypot(u.dyn.x - c.x, u.dyn.z - c.z) - R.arriveDist * 0.5);
+      best = Math.min(best, (d * R.roadFactor) / R.cruise);
+    }
+    for (const p of w.pending) best = Math.min(best, Math.max(0, p.at - this.time) + p.travel);
+    return best === Infinity ? Math.max(0, c.arriveAt - this.time) : best;
+  }
+
+  /** Listening in on the police radio: in (or right beside) a car with the scanner fitted. */
+  hasScanner(playerId: string): boolean {
+    const c = this.ctx.sim.chars.get(playerId);
+    if (!c) return false;
+    const inside = c.drivingId ?? c.ridingId;
+    if (inside && this.ctx.state.vehicles.get(inside)?.mods.scanner) return true;
+    const range = ECONOMY.security.scannerRange;
+    for (const v of this.ctx.state.vehicles.values()) {
+      if (v.ownerId !== playerId || v.status !== 'world' || !v.mods.scanner) continue;
+      const d = this.ctx.sim.drives.get(v.id)?.dyn;
+      if (Math.hypot((d?.x ?? v.x) - c.x, (d?.z ?? v.z) - c.z) <= range) return true;
+    }
+    return false;
+  }
+
+  /** Every police car out there: pursuits and calls, checkpoints, crime scenes, going home. */
+  private *allUnits(): Generator<Unit> {
+    for (const w of this.wanted.values()) yield* w.units;
+    for (const c of this.checkpoints.values()) yield* c.units;
+    for (const g of this.scenes.unitGroups()) yield* g;
+    yield* this.returning;
+  }
+
   /** Police cars are obstacles for everyone (and traffic brakes for them). */
   private publishObstacles(): void {
     const list = [];
-    const groups = [...[...this.wanted.values()].map((w) => w.units), ...[...this.checkpoints.values()].map((c) => c.units)];
-    for (const units of groups) {
-      for (const u of units) {
-        const h = u.dyn.speed >= 0 ? u.dyn.rot + u.dyn.slip : u.dyn.rot;
-        list.push({ id: `po:${u.id}`, modelId: POLICE_MODEL.id, x: u.dyn.x, z: u.dyn.z, rot: u.dyn.rot, vx: Math.sin(h) * u.dyn.speed, vz: Math.cos(h) * u.dyn.speed, deck: u.dyn.deck ?? 0 });
-      }
+    for (const u of this.allUnits()) {
+      const h = u.dyn.speed >= 0 ? u.dyn.rot + u.dyn.slip : u.dyn.rot;
+      list.push({ id: `po:${u.id}`, modelId: POLICE_MODEL.id, x: u.dyn.x, z: u.dyn.z, rot: u.dyn.rot, vx: Math.sin(h) * u.dyn.speed, vz: Math.cos(h) * u.dyn.speed, deck: u.dyn.deck ?? 0 });
     }
     this.ctx.sim.setExtraObstacles('police', list);
   }
@@ -1283,23 +1761,31 @@ export class PoliceService {
   snapshot(x: number, z: number, radius: number): PoliceSnap[] {
     const out: PoliceSnap[] = [];
     const r2 = radius * radius;
-    const groups = [...[...this.wanted.values()].map((w) => w.units), ...[...this.checkpoints.values()].map((c) => c.units)];
-    for (const units of groups) {
-      for (const u of units) {
-        const d = u.dyn;
-        if ((d.x - x) ** 2 + (d.z - z) ** 2 > r2) continue;
-        const snap: PoliceSnap = [u.id, Math.round(d.x * 100) / 100, Math.round(d.z * 100) / 100, Math.round(d.rot * 1000) / 1000, Math.round(d.speed * 100) / 100, Math.round(d.steer * 1000) / 1000, (u.searching ? PF.SEARCH : PF.SIREN) | (d.brk > 0.1 ? PF.BRAKE : 0)];
-        if (d.deck) snap.push(d.deck);
-        out.push(snap);
-      }
+    for (const u of this.allUnits()) {
+      const d = u.dyn;
+      if ((d.x - x) ** 2 + (d.z - z) ** 2 > r2) continue;
+      const lights = u.mode === 'return' ? 0 : u.mode === 'scene' ? PF.SIREN | PF.QUIET : u.searching ? PF.SEARCH : PF.SIREN;
+      const snap: PoliceSnap = [u.id, Math.round(d.x * 100) / 100, Math.round(d.z * 100) / 100, Math.round(d.rot * 1000) / 1000, Math.round(d.speed * 100) / 100, Math.round(d.steer * 1000) / 1000, lights | (d.brk > 0.1 ? PF.BRAKE : 0) | (u.swat ? PF.SWAT : 0)];
+      if (d.deck) snap.push(d.deck);
+      out.push(snap);
     }
     return out;
   }
 
-  /** Any police car, spike strip or helicopter in the world (tick fast path). */
+  /** Any police car, spike strip, helicopter or crime scene in the world (tick fast path). */
   get active(): boolean {
-    return this.wanted.size > 0 || this.spikes.size > 0 || this.helis.size > 0;
+    return this.wanted.size > 0 || this.spikes.size > 0 || this.helis.size > 0 || this.scenes.size > 0 || this.returning.length > 0 || this.checkpoints.size > 0;
   }
+}
+
+/** The station nearest a point, on its side of the water (on a bridge: the nearer one). */
+export function nearestStation(x: number, z: number): PoliceStation {
+  const far = x > (WATER.west + WATER.east) / 2;
+  return POLICE_STATIONS.reduce((a, b) => {
+    const side = (st: PoliceStation) => (st.bay.x > (WATER.west + WATER.east) / 2) === far;
+    if (side(a) !== side(b)) return side(a) ? a : b;
+    return Math.hypot(b.bay.x - x, b.bay.z - z) < Math.hypot(a.bay.x - x, a.bay.z - z) ? b : a;
+  });
 }
 
 /** Does a segment pass through an axis-aligned box (grown by `pad`)? */

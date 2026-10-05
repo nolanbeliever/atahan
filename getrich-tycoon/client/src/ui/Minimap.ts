@@ -5,6 +5,7 @@ import { CARRIAGEWAY_EDGE, DRAG_STRIP, JUNCTIONS, JUNCTION_APRON, LOOP_LEN, path
 import { SANAYI } from '../../../shared/sanayiLayout';
 import { ALLEYS, alleyMouths } from '../../../shared/alleys';
 import { HEISTS } from '../../../shared/heists';
+import { POLICE_STATIONS } from '../../../shared/police';
 import { findDrop } from '../../../shared/telegram';
 import { ROADS, ZONES, PLOTS, PLOT_HALF, BUILDINGS, INTERACTABLES, CITY_HALF } from '../../../shared/world';
 import { BOULEVARD, CONTAINER_STACKS, DOCKS, DOCKS_GATE, DOCKS_ROAD, HILL, TOUGE_HALF, TOUGE_PATH } from '../../../shared/farShore';
@@ -286,6 +287,39 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   }
   const hv = game.ui?.heist.current;
   if (hv?.drop) badge(g, tx(hv.drop.x), tz(hv.drop.z), Math.max(9, 4 * s), '#ffc53d', '🏁', turn);
+  // The police stations, and the taped-off crime scenes.
+  for (const st of POLICE_STATIONS) badge(g, tx((st.box.minX + st.box.maxX) / 2), tz((st.box.minZ + st.box.maxZ) / 2), Math.max(8, 3.6 * s), '#3b7bff', '🚓', turn);
+  for (const v of game.crimeScenes.list()) badge(g, tx(v.x), tz(v.z), Math.max(8, 3.4 * s), '#ffd400', '🚧', turn);
+  // A police call out for me: the reported scene in a pulsing red ring; with the police scanner,
+  // the units on their way (blue).
+  const call = game.wanted.call;
+  if (call) {
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
+    const r = Math.max(9, call.r * s);
+    g.save();
+    g.fillStyle = `rgba(255,40,50,${0.1 + 0.12 * pulse})`;
+    g.strokeStyle = `rgba(255,45,60,${0.75 + 0.25 * pulse})`;
+    g.lineWidth = 2.5 + pulse * 1.5;
+    g.beginPath();
+    g.arc(tx(call.x), tz(call.z), r, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    g.setLineDash([4, 4]);
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.arc(tx(call.x), tz(call.z), r * (1.25 + 0.35 * ((performance.now() / 900) % 1)), 0, Math.PI * 2);
+    g.stroke();
+    g.restore();
+    for (const [ux, uz] of call.units ?? []) {
+      g.fillStyle = Math.floor(performance.now() / 200) % 2 ? '#ff3b47' : '#3b7bff';
+      g.strokeStyle = '#fff';
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.arc(tx(ux), tz(uz), 4, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+    }
+  }
   // Parked cars that can be broken into (flashing red while the alarm sounds).
   const blink = Math.floor(performance.now() / 250) % 2 === 0;
   for (const c of game.store.street.values()) {
@@ -303,11 +337,11 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   // Highway traffic
   g.fillStyle = 'rgba(230,236,245,0.85)';
   for (const c of game.traffic.cars.values()) g.fillRect(tx(c.x) - 1.5, tz(c.z) - 1.5, 3, 3);
-  // NPC customers
-  g.fillStyle = '#ffd166';
+  // NPC customers (and police officers on foot in blue)
   for (const [id, n] of game.entities.npcs) {
     if (id.startsWith('hmc_')) continue;
     const l = n.buffer.latest;
+    g.fillStyle = id.startsWith('cop_') || id.startsWith('csi_') ? '#5b8cff' : '#ffd166';
     if (l) g.fillRect(tx(l.x) - 1.5, tz(l.z) - 1.5, 3, 3);
   }
   // Other players

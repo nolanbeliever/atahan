@@ -149,9 +149,10 @@ describe('shooting', () => {
     expect(wreck.condition.engine).toBe(0);
     expect(wreck.condition.body).toBe(0);
     await client.waitFor<{ title: string }>('notify', (n) => n.title === 'Engine blow-out!');
-    // Own car: no crime, but the gunfire is heard and a patrol is called (2 stars, not 3).
+    // Own car: no crime, but the gunfire is heard and reported: patrols are called (2 stars, not 3).
     expect(starsFor(heat(client))).toBe(2);
-    await client.waitFor<{ title: string }>('notify', (n) => n.title.includes('Silah sesi'));
+    const call = await client.waitFor<{ tone: string; text: string; eta?: number }>('police.radio', (r) => r.tone === 'call');
+    expect(call.text).toContain('silah sesi ihbarı');
     client.close();
   });
 
@@ -199,6 +200,8 @@ describe('health, officers and WASTED', () => {
     uow.player(client.playerId).inventory[partItemId('engine', 2, 't')] = 1;
     await uow.commit();
     server.game.police.raiseHeat(client.playerId, 350);
+    // They have seen you (a pursuit: no waiting for the response time here).
+    server.game.police.engageNow(client.playerId);
     // Wait for a police car to come close and stop, and an officer to get out.
     const officer = async () => [...combat().officers.values()].find((o) => o.target === client.playerId);
     let found = await officer();

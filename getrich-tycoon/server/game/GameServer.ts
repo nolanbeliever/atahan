@@ -454,6 +454,7 @@ export class GameServer implements Hub {
     this.deals.welcome(playerId);
     this.mechanic.welcome(playerId);
     this.combat.welcome(playerId);
+    for (const v of this.police.scenes.views()) this.sendTo(playerId, 'police.scene', v);
     for (const m of this.chat.history) socket.emit('chat', m);
     log.info('player connected', { playerId, name: record.name, online: this.sessions.size });
 

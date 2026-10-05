@@ -139,7 +139,7 @@ export class TollService {
       return;
     }
     if (read === 'fake' || !flagged) return;
-    this.police.addHeat(playerId, ECONOMY.tolls.anprHeat);
+    this.police.addHeat(playerId, ECONOMY.tolls.anprHeat, 'anpr');
     const plate = plateText(v.id, v.mods);
     const why = v.mods.hot ? 'çalıntı kaydı' : v.status === 'stolen' ? 'çalıntı araç' : 'aranan araç';
     this.ctx.hub.broadcast('anpr.flash', { id: cam.id });

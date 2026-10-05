@@ -1,5 +1,7 @@
 // Police cars on the client: snapshot interpolation, the interceptor model with flashing red / blue
-// light bars (and glows that light up the night), and their collision boxes for local prediction.
+// light bars (and glows that light up the night), the black SWAT van with a roof light bar, the
+// lights flashing without the siren at a crime scene and off on the way back to the station, and
+// their collision boxes for local prediction.
 
 import * as THREE from 'three';
 import { PF, type PoliceSnap } from '../../../shared/police';
@@ -8,7 +10,7 @@ import { HelicopterView } from '../render/Helicopter';
 import { vehicleBox, type DynamicBox } from '../../../shared/physics';
 import { modelBoxHalfExtents } from '../../../shared/collision';
 import { Anim } from '../../../shared/types';
-import { CharacterView, POLICE_OFFICER } from '../render/Character';
+import { CharacterView, POLICE_OFFICER, SWAT_OFFICER } from '../render/Character';
 import { surfaceTilt, surfaceY } from '../render/City';
 import { lightGlowTexture } from '../render/Highway';
 import { VehicleView } from '../render/VehicleMesh';
@@ -37,6 +39,25 @@ interface Unit {
 
 const PERFECT = { engine: 100, transmission: 100, brakes: 100, tires: 100, body: 100, interior: 100, cleanliness: 100 };
 const LOOK = { modelId: 'police', color: '#f4f4f2', mods: { paint: null, wheels: 'wheel_stock', tint: 'tint_dark', bodyKit: 'kit_none', headlights: 'lights_xenon', accessory: 'acc_none' }, condition: PERFECT };
+/** The SWAT van: a black panel van. */
+const SWAT_LOOK = { ...LOOK, modelId: 'norda_workmate', color: '#151a24', mods: { ...LOOK.mods, wheels: 'wheel_stock', tint: 'tint_limo' } };
+
+/** A roof light bar for a vehicle without one in its model (the SWAT van): own lens materials. */
+function addLightBar(view: VehicleView): { red: THREE.MeshStandardMaterial[]; blue: THREE.MeshStandardMaterial[] } {
+  const h = (view.info?.height ?? 2) + 0.06;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.1, 0.3), new THREE.MeshStandardMaterial({ color: '#202226', roughness: 0.5 }));
+  base.position.set(0, h, 0.35);
+  view.root.add(base);
+  const lens = (color: string, x: number) => {
+    const m = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15, roughness: 0.3 });
+    m.userData.base = { emissive: m.emissive.getHex(), color: m.color.getHex() };
+    const o = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.26), m);
+    o.position.set(x, h + 0.08, 0.35);
+    view.root.add(o);
+    return m;
+  };
+  return { red: [lens('#ff2a2a', 0.32)], blue: [lens('#2a5bff', -0.32)] };
+}
 
 /** The light bar lenses of a police car (own copies, so each car flashes on its own). */
 function sirenMaterials(view: VehicleView): { red: THREE.MeshStandardMaterial[]; blue: THREE.MeshStandardMaterial[] } {
@@ -129,19 +150,20 @@ export class PoliceClient {
     for (const [id, x, z, rot, speed, steer, flags, deck] of snaps) {
       let u = this.units.get(id);
       if (!u) {
-        const view = new VehicleView(LOOK);
+        const swat = (flags & PF.SWAT) !== 0;
+        const view = new VehicleView(swat ? SWAT_LOOK : LOOK);
         const glow = (color: string) => {
           const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: lightGlowTexture(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
           s.scale.setScalar(2.4);
           view.root.add(s);
           return s;
         };
-        const driver = new CharacterView(POLICE_OFFICER);
+        const driver = new CharacterView(swat ? SWAT_OFFICER : POLICE_OFFICER);
         driver.pose = 'sit';
         view.driverMount.add(driver.root);
         const unit: Unit = { id, buffer: new InterpBuffer(), view, driver, red: glow('#ff2a2a'), blue: glow('#2a5bff'), lastSeen: now, flags, x, z, rot, speed: 0, sirens: null, amber: false, deck: 0 };
         view.root.rotation.order = 'YXZ';
-        void view.ready.then(() => (unit.sirens = sirenMaterials(view)));
+        void view.ready.then(() => (unit.sirens = swat ? addLightBar(view) : sirenMaterials(view)));
         u = unit;
         this.scene.add(view.root);
         this.units.set(id, u);
@@ -311,7 +333,7 @@ export class PoliceClient {
   /** Distance to the nearest police car with its siren on (for the siren sound). */
   nearestSiren(x: number, z: number): number {
     let best = Infinity;
-    for (const u of this.units.values()) if (u.flags & PF.SIREN) best = Math.min(best, Math.hypot(u.x - x, u.z - z));
+    for (const u of this.units.values()) if (u.flags & PF.SIREN && !(u.flags & PF.QUIET)) best = Math.min(best, Math.hypot(u.x - x, u.z - z));
     return best;
   }
 

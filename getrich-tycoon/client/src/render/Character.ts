@@ -1,5 +1,6 @@
-// Original low-poly character with procedural animation (idle/walk/run/interact, riding) and poses
-// for cutscenes: seated in a car, ducking through a door, hands up, handcuffed.
+// Original low-poly character with procedural animation (idle/walk/run/interact, riding; police at
+// a crime scene: a torch out, down on one knee photographing the evidence) and poses for
+// cutscenes: seated in a car, ducking through a door, hands up, handcuffed.
 
 import * as THREE from 'three';
 import { VISORS, helmet, visor, type VisorDef } from '../../../shared/helmets';
@@ -19,6 +20,48 @@ function part(mat: THREE.Material, sx: number, sy: number, sz: number, x: number
 
 /** Police officer uniform. */
 export const POLICE_OFFICER: Appearance = { skin: '#c68642', shirt: '#1d2b4f', pants: '#141b2e', hair: '#1b1b1b' };
+
+/** SWAT: black fatigues and a black helmet. */
+export const SWAT_OFFICER: Appearance = { skin: '#b9875a', shirt: '#15171b', pants: '#202329', hair: '#0e0f12' };
+
+/** A police torch (beam along the arm, glowing at night) and a camera for the evidence photos. */
+let propKit: { beamTex: THREE.Texture; body: THREE.BufferGeometry; lens: THREE.BufferGeometry; beam: THREE.BufferGeometry; dark: THREE.MeshStandardMaterial; lensMat: THREE.MeshBasicMaterial; cam: THREE.BufferGeometry; flash: THREE.SpriteMaterial } | null = null;
+function props(): NonNullable<typeof propKit> {
+  if (propKit) return propKit;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.35, 'rgba(220,235,255,0.7)');
+  grad.addColorStop(1, 'rgba(200,220,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  // The beam fades out along its length (bright at the lens, nothing at the far end).
+  const bc = document.createElement('canvas');
+  bc.width = 4;
+  bc.height = 128;
+  const bg = bc.getContext('2d')!;
+  const fade = bg.createLinearGradient(0, 0, 0, 128);
+  fade.addColorStop(0, 'rgb(255,255,255)');
+  fade.addColorStop(0.25, 'rgb(120,120,120)');
+  fade.addColorStop(1, 'rgb(0,0,0)');
+  bg.fillStyle = fade;
+  bg.fillRect(0, 0, 4, 128);
+  const beamTex = new THREE.CanvasTexture(bc);
+  propKit = {
+    beamTex,
+    body: new THREE.CylinderGeometry(0.022, 0.026, 0.2, 8),
+    lens: new THREE.CylinderGeometry(0.032, 0.032, 0.02, 10),
+    beam: new THREE.ConeGeometry(0.9, 6, 18, 1, true).translate(0, -3, 0),
+    dark: new THREE.MeshStandardMaterial({ color: '#1a1b1f', metalness: 0.5, roughness: 0.4 }),
+    lensMat: new THREE.MeshBasicMaterial({ color: '#fff6dd', toneMapped: false }),
+    cam: new THREE.BoxGeometry(0.13, 0.085, 0.07),
+    flash: new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }),
+  };
+  return propKit;
+}
 
 /** The hitman contact: dark coat, dark trousers, a shaved head. */
 export const HITMAN_CONTACT: Appearance = { skin: '#b07a52', shirt: '#121214', pants: '#0b0b0d', hair: '#0b0b0d' };
@@ -139,8 +182,14 @@ function helmetModel(id: string, v: VisorDef, paint: string): THREE.Group {
 export type Pose = 'none' | 'sit' | 'duck' | 'handsUp' | 'cuffed';
 
 export class CharacterView {
+  /** How dark it is (0 day - 1 night): torch beams show up at night. */
+  static night = 0;
   /** Current pose (set every frame by whoever animates the character). */
   pose: Pose = 'none';
+  private prop: 'torch' | 'camera' | null = null;
+  private propObj: THREE.Group | null = null;
+  private beamMat: THREE.MeshBasicMaterial | null = null;
+  private flash: THREE.Sprite | null = null;
   readonly root = new THREE.Group();
   private readonly rig = new THREE.Group();
   private hipL = new THREE.Group();
@@ -245,8 +294,54 @@ export class CharacterView {
     this.shR.add(this.gun);
   }
 
+  /** The torch in the left hand, or the camera held up in both. */
+  private setProp(kind: 'torch' | 'camera' | null): void {
+    if (kind === this.prop) return;
+    this.prop = kind;
+    this.propObj?.removeFromParent();
+    this.propObj = null;
+    this.beamMat?.dispose();
+    this.beamMat = null;
+    this.flash?.material.dispose();
+    this.flash = null;
+    if (!kind) return;
+    const k = props();
+    const g = new THREE.Group();
+    if (kind === 'torch') {
+      const body = new THREE.Mesh(k.body, k.dark);
+      body.position.y = -0.04;
+      const lens = new THREE.Mesh(k.lens, k.lensMat);
+      lens.position.y = -0.15;
+      this.beamMat = new THREE.MeshBasicMaterial({ color: '#fff3d6', map: k.beamTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide });
+      const beam = new THREE.Mesh(k.beam, this.beamMat);
+      beam.position.y = -0.16;
+      g.add(body, lens, beam);
+      g.position.set(0, -0.6, 0.03);
+      this.shL.add(g);
+    } else {
+      const cam = new THREE.Mesh(k.cam, k.dark);
+      cam.castShadow = true;
+      const lens = new THREE.Mesh(k.lens, k.dark);
+      lens.rotation.x = Math.PI / 2;
+      lens.position.set(0, -0.02, 0.05);
+      this.flash = new THREE.Sprite(k.flash.clone());
+      this.flash.position.set(0, 0.02, 0.1);
+      this.flash.scale.setScalar(0.9);
+      g.add(cam, lens, this.flash);
+      // Held in front of the face (in the rig, not an arm: both hands are on it).
+      g.position.set(0, 1.62, 0.3);
+      this.rig.add(g);
+    }
+    this.propObj = g;
+  }
+
   animate(anim: number, dt: number): void {
     this.time += dt;
+    this.setProp(anim === Anim.TorchWalk || anim === Anim.TorchIdle ? 'torch' : anim === Anim.Kneel ? 'camera' : null);
+    if (anim === Anim.TorchWalk || anim === Anim.TorchIdle || anim === Anim.Kneel) {
+      this.policeWork(anim, dt);
+      return;
+    }
     const moving = anim === Anim.Walk || anim === Anim.Run;
     const running = anim === Anim.Run;
     if (moving) this.phase += dt * (running ? 11 : 7.5);
@@ -321,7 +416,46 @@ export class CharacterView {
     if (this.torso) this.torso.scale.y = 0.62 * (1 + (moving ? 0 : Math.sin(this.time * 2.2) * 0.012));
   }
 
+  /** Combing a crime scene: walking with the torch out in front, or down on one knee taking
+   *  photos (a flash now and then). */
+  private policeWork(anim: number, dt: number): void {
+    const k = Math.min(1, dt * 10);
+    const lerp = (obj: THREE.Object3D, target: number) => (obj.rotation.x += (target - obj.rotation.x) * k);
+    const lerpZ = (obj: THREE.Object3D, target: number) => (obj.rotation.z += (target - obj.rotation.z) * k);
+    if (anim === Anim.Kneel) {
+      // Down on one knee, leaning in, both hands up holding the camera.
+      lerp(this.hipL, -0.78);
+      lerp(this.hipR, 0.62);
+      lerp(this.shL, -1.75);
+      lerp(this.shR, -1.75);
+      lerpZ(this.shL, -0.42);
+      lerpZ(this.shR, 0.42);
+      this.rig.position.y += (-0.26 - this.rig.position.y) * k;
+      this.rig.rotation.x += (0.12 - this.rig.rotation.x) * k;
+      if (this.flash) {
+        const p = (this.time + this.phase) % 2.3;
+        (this.flash.material as THREE.SpriteMaterial).opacity = p < 0.09 ? 1 : 0;
+        this.flash.scale.setScalar(p < 0.09 ? 1.6 : 0.5);
+      }
+      return;
+    }
+    const walking = anim === Anim.TorchWalk;
+    if (walking) this.phase += dt * 6.5;
+    const swing = walking ? Math.sin(this.phase) * 0.5 : 0;
+    lerp(this.hipL, swing);
+    lerp(this.hipR, -swing);
+    // The torch held out ahead, sweeping a little; the other arm low.
+    lerp(this.shL, -1.32 + Math.sin(this.time * 1.3) * 0.08);
+    lerpZ(this.shL, -0.08 + Math.sin(this.time * 0.9) * 0.1);
+    lerp(this.shR, walking ? swing * 0.6 : -0.15);
+    lerpZ(this.shR, 0);
+    this.rig.position.y = walking ? Math.abs(Math.sin(this.phase)) * 0.035 : 0;
+    this.rig.rotation.x += (0 - this.rig.rotation.x) * k;
+    if (this.beamMat) this.beamMat.opacity = 0.03 + CharacterView.night * 0.32;
+  }
+
   dispose(): void {
+    this.setProp(null);
     for (const m of this.mats) m.dispose();
   }
 }

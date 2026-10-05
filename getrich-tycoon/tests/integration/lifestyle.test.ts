@@ -210,6 +210,17 @@ describe('missions', () => {
   });
 });
 
+/** The first police car of a pursuit on the road (and no more joining: the test drives it). */
+async function firstUnit<U>(w: { units: U[]; pending: unknown[]; nextSpawnAt: number }): Promise<U> {
+  const until = Date.now() + 9000;
+  while (w.units.length === 0 && Date.now() < until) await sleep(100);
+  expect(w.units.length).toBeGreaterThan(0);
+  w.units.length = 1;
+  w.pending.length = 0;
+  w.nextSpawnAt = Infinity;
+  return w.units[0]!;
+}
+
 describe('police', () => {
   it('wanted stars bring pursuit cars; 45 s out of their sight is an escape', async () => {
     const { client } = await connectNew(server);
@@ -217,16 +228,22 @@ describe('police', () => {
     const vehicleId = await driveNewCar(client);
     server.game.sim.placeDrive(vehicleId, 50, -120, 0);
     server.game.police.addHeat(client.playerId, 250);
-    // The cars join one after the other, a few seconds apart (not in a bunch).
-    const wanted = await client.waitFor<WantedState>('police.wanted', (w) => w.stars === 3 && w.units === 2, 9000);
+    // Spotted at once (a pursuit): the cars join from the nearest patrols one after the other, a
+    // few seconds apart (not in a bunch).
+    server.game.police.engageNow(client.playerId);
+    const wanted = await client.waitFor<WantedState>('police.wanted', (w) => w.stars === 3 && w.units === 2, 14_000);
     expect(wanted.stars).toBe(3);
     await client.waitSnapshot((s) => (s.po?.length ?? 0) === 2, 5000);
     // 3 stars bring the helicopter too; it spots you from above.
-    await client.waitFor<WantedState>('police.wanted', (x) => x.heli === 'seen', 5000);
+    await client.waitFor<WantedState>('police.wanted', (x) => x.heli === 'seen', 14_000);
     // Lose them: the police cars and the helicopter end up far away, the report is old news, and
     // the hidden countdown is nearly over.
-    const w = server.game.police.wantedOf(client.playerId)! as unknown as { units: { dyn: { x: number; z: number; speed: number } }[]; hiddenT: number; dispatchUntil: number };
+    const w = server.game.police.wantedOf(client.playerId)! as unknown as { units: { dyn: { x: number; z: number; speed: number }; sees: boolean; seeT: number }[]; hiddenT: number; dispatchUntil: number; heliSeeT: number; sightAt: number };
+    // (Their sight is re-checked a few times a second: drop what they saw before the move.)
+    for (const u of w.units) Object.assign(u, { sees: false, seeT: 0 });
     for (const u of w.units) Object.assign(u.dyn, { x: -150, z: 150, speed: 0 });
+    w.heliSeeT = 0;
+    w.sightAt = 0;
     Object.assign(server.game.police.heliOf(client.playerId)!, { x: -150, z: 150, lostT: ECONOMY.police.heli.lostSec + 1 });
     w.dispatchUntil = 0;
     w.hiddenT = ECONOMY.police.sight.hiddenSec - 0.3;
@@ -251,10 +268,10 @@ describe('police', () => {
     // West of the bank, facing north; the police car on the far (east) side of the bank.
     server.game.sim.placeDrive(vehicleId, -131, -24, 0);
     server.game.police.addHeat(client.playerId, 150);
-    await client.waitFor<WantedState>('police.wanted', (x) => x.stars === 2 && x.units === 1, 9000);
+    server.game.police.engageNow(client.playerId);
     type U = { dyn: { x: number; z: number; rot: number; speed: number }; parked: boolean; searching: boolean };
-    const w = server.game.police.wantedOf(client.playerId)! as unknown as { units: U[]; hiddenT: number; dispatchUntil: number; knows: boolean };
-    const u = w.units[0]!;
+    const w = server.game.police.wantedOf(client.playerId)! as unknown as { units: U[]; pending: unknown[]; nextSpawnAt: number; hiddenT: number; dispatchUntil: number; knows: boolean };
+    const u = await firstUnit(w);
     const hide = () => Object.assign(u.dyn, { x: -68, z: -24, rot: -Math.PI / 2, speed: 0 });
     const show = () => Object.assign(u.dyn, { x: -131, z: -52, rot: 0, speed: 0 });
     u.parked = true;
@@ -301,10 +318,10 @@ describe('police', () => {
     const alley = ALLEYS.find((a) => a.id === 'wrench')!;
     server.game.sim.placeDrive(vehicleId, 78, alley.c, Math.PI / 2);
     server.game.police.addHeat(client.playerId, 150);
-    await client.waitFor<WantedState>('police.wanted', (x) => x.stars === 2 && x.units === 1, 9000);
+    server.game.police.engageNow(client.playerId);
     type U = { dyn: { x: number; z: number; rot: number; speed: number; gear: number }; followIn: string | null; crashUntil: number };
-    const w = server.game.police.wantedOf(client.playerId)! as unknown as { units: U[] };
-    const u = w.units[0]!;
+    const w = server.game.police.wantedOf(client.playerId)! as unknown as { units: U[]; pending: unknown[]; nextSpawnAt: number };
+    const u = await firstUnit(w);
     // Right behind the player at 95 km/h, following them in.
     Object.assign(u.dyn, { x: 46, z: alley.c, rot: Math.PI / 2, speed: 95 / KMH_PER_MS, gear: 4 });
     u.followIn = alley.id;
@@ -326,8 +343,9 @@ describe('police', () => {
     const vehicleId = await driveNewCar(client);
     server.game.sim.placeDrive(vehicleId, -50, 60, 0);
     server.game.police.addHeat(client.playerId, 190);
-    await client.waitFor<WantedState>('police.wanted', (w) => w.units === 1, 5000);
-    const w = server.game.police.wantedOf(client.playerId)!;
+    server.game.police.engageNow(client.playerId);
+    const w = server.game.police.wantedOf(client.playerId)! as unknown as { units: { dyn: { x: number; z: number; rot: number; speed: number } }[]; pending: unknown[]; nextSpawnAt: number };
+    await firstUnit(w);
     const d = server.game.sim.drives.get(vehicleId)!;
     const money0 = cash(client);
     // Keep the police car parked right beside the player while they sit still.

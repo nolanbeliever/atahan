@@ -159,6 +159,8 @@ describe('police checkpoints', () => {
     const start = server.game.state.players.get(client.playerId)!.money;
     const b = BRIDGES[1]!;
     server.game.police.raiseHeat(client.playerId, 200);
+    // In a pursuit (the police have seen the car): a checkpoint waits at the bridge.
+    server.game.police.engageNow(client.playerId);
     // Onto the bridge from the city end, heading east.
     await run(client, vid, b.x0 - 6, b.z + 4, Math.PI / 2, 50, 0, KEY.FORWARD, 2500);
     const cp = await client.waitFor<{ n: number; dir: number }>('police.checkpoint');

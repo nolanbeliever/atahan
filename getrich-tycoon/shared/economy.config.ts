@@ -576,10 +576,43 @@ export const ECONOMY = {
     heatTrafficCrash: 90,
     heatHitPolice: 150,
     maxHeat: 500,
-    /** Stars needed before police cars come after you. */
-    pursuitStars: 2,
-    /** Police cars in pursuit by wanted level (index = stars). */
-    unitsByStars: [0, 0, 1, 2, 3, 4],
+    /**
+     * Response time (Police Response Time): an offence is reported, nobody appears at your side.
+     * The cars set off from the nearest police station, or the nearest patrol out on the roads
+     * when the station is too far, and drive there for real with their sirens on. By wanted
+     * stars: the first car is on the scene after `etaSec[stars]` s ([min, max]); `cars[stars]`
+     * cars go, `swat[stars]` of them SWAT vans, and from `heliStars` the helicopter. Planning
+     * assumes `cruise` m/s along roads `roadFactor` x longer than the straight line. A car
+     * within `arriveDist` m is on the scene; they look round for `scanSec` s and, when you are
+     * nowhere to be seen, call it off. A car (or the helicopter) that keeps you in sight for
+     * spotSec on the way turns it into a pursuit (at 1 star only within `oneStarRadius` m of
+     * the scene). Running late by `lateSec` the call is closed anyway. Cars going back to the
+     * station disappear after `returnSec` (or out of everybody's sight). `cars` is also the size
+     * of a pursuit: missing cars come as reinforcements from the nearest patrol.
+     */
+    response: {
+      etaSec: [[0, 0], [45, 60], [30, 40], [15, 20], [15, 20], [15, 20]] as [number, number][],
+      cars: [0, 1, 2, 2, 3, 4],
+      swat: [0, 0, 0, 1, 1, 2],
+      heliStars: 3,
+      cruise: 14,
+      roadFactor: 1.3,
+      arriveDist: 22,
+      scanSec: 8,
+      oneStarRadius: 70,
+      lateSec: 45,
+      returnSec: 90,
+    },
+    /**
+     * The crime scene (olay yeri): police who find it empty tape it off for `lifeSec` s: `posts`
+     * cones round a ring of `radius` m with the tape between them, road flares, evidence markers,
+     * and two officers who comb it with torches and kneel to photograph the evidence. Crossing the
+     * tape, a gun out within `armedDist` m, or standing within `closeDist` m of an officer for
+     * `loiterSec` s is tampering: `tamperHeat` (1 star) and a stop warning; the officers' car
+     * waits `warnSec` s for you to give up, then gives chase. An offence within `respondDist` m of
+     * a scene brings its officers straight away.
+     */
+    scene: { lifeSec: 180, radius: 9, posts: 10, armedDist: 15, closeDist: 3, loiterSec: 4, tamperHeat: 100, respondDist: 160, warnSec: 4 },
     /**
      * What a police car sees (shared/sight.ts): a cone of `fovDeg` ahead, out to `range` m, and
      * anything within `nearSense` m whatever the direction; the line to you must be clear of
@@ -594,8 +627,6 @@ export const ECONOMY = {
     escapeReward: 2_000,
     escapePerCar: 1_000,
     escapeXp: 60,
-    /** At 1 star (no pursuit) the heat simply fades after this long without an offence (s). */
-    calmSec: 30,
     /** A police car this close (box gap, m) while you are this slow (km/h) for bustSec: busted. */
     bustGap: 2.5,
     bustKmh: 15,
@@ -641,8 +672,8 @@ export const ECONOMY = {
    * within `workRadius` m of the door; everyone away beyond `abortRadius` m for `abortSec` and it
    * is off. A target can be hit again after `cooldownSec`, a player can start one every
    * `playerCooldownSec`. The showroom car has to reach the docks within `dropSec`. XP per heist.
-   * The police know at once, but their cars take `responseSec[stars]` to get there; at the door
-   * you're in cover: officers' shots do `cover` of their damage.
+   * The police know at once; their cars take the response time (police.response) to get there.
+   * At the door you're in cover: officers' shots do `cover` of their damage.
    */
   heists: {
     targets: {
@@ -663,7 +694,6 @@ export const ECONOMY = {
     playerCooldownSec: 90,
     dropSec: 240,
     xp: 150,
-    responseSec: [0, 0, 30, 25, 20, 20],
     cover: 0.4,
   },
 
@@ -731,6 +761,10 @@ export const ECONOMY = {
     armorKg: 240,
     /** A police officer's bullet that hits a car bursts its tyres this often (not run-flats). */
     tyreShotChance: 0.06,
+    /** The police scanner / radar jammer: listens in on the police radio (live response countdown). */
+    scannerPrice: 20_000,
+    /** It still picks the radio up this far from the car (m): parked outside a job. */
+    scannerRange: 30,
   },
 
   /** Money laundering (shared/realestate.ts): every business you own turns up to `perCycle` of

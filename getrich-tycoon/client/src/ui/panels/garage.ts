@@ -762,12 +762,13 @@ export class TuningGaragePanel extends Panel {
       let status: string;
       if (item === 'stash' && fitted) status = `Takılı ✓ · zulada ${v.mods.stashGrams ?? 0} / ${SECURITY.stashCapacity} gr · araçta Z`;
       else if (item === 'armor' && fitted) status = `Takılı ✓ · zırh %${Math.ceil(armor ?? 100)}`;
+      else if (item === 'scanner' && fitted) status = 'Takılı ✓ · ihbarda canlı polis sayacı';
       else status = fitted ? 'Takılı ✓' : 'Takılı değil';
       const buy = () =>
         void this.act(
           () => this.net.rpc('security.buy', { vehicleId: v.id, item }),
           () => {
-            this.ui.toast({ kind: 'success', title: repair ? '🛡️ Zırh onarıldı' : `${def.icon} ${def.name} takıldı`, text: item === 'stash' ? 'Araçtayken Z: üzerindeki malı zulaya sakla.' : item === 'armor' ? 'Kurşun geçirmez: sürerken sağ altta ZIRH %.' : 'Çivili şerit ve kurşunlar artık lastikleri patlatamaz.' });
+            this.ui.toast({ kind: 'success', title: repair ? '🛡️ Zırh onarıldı' : `${def.icon} ${def.name} takıldı`, text: item === 'stash' ? 'Araçtayken Z: üzerindeki malı zulaya sakla.' : item === 'armor' ? 'Kurşun geçirmez: sürerken sağ altta ZIRH %.' : item === 'scanner' ? 'Polis telsizi dinleniyor: ihbar olunca sol üstte canlı intikal sayacı.' : 'Çivili şerit ve kurşunlar artık lastikleri patlatamaz.' });
             this.studio?.pop(0.6);
           },
         );

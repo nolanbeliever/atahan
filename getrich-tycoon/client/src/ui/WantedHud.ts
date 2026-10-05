@@ -1,6 +1,7 @@
-// Wanted level HUD: 1-5 stars (flashing red / blue while police are chasing), the blue HIDDEN
-// countdown while no police car can see you (and a warning while one is about to spot you), the
-// arrest meter, and the full-screen BUSTED / ESCAPED banners.
+// Wanted level HUD: 1-5 stars (flashing red / blue while police are chasing, amber while a call
+// is out and they are on their way), the blue HIDDEN countdown while no police car can see you (and
+// a warning while one is about to spot you), the arrest meter, and the full-screen BUSTED / ESCAPED
+// banners. The police radio and the response countdown are in ScannerHud.
 
 import { ECONOMY } from '../../../shared/economy.config';
 import type { RadarFlash } from '../../../shared/protocol';
@@ -54,12 +55,14 @@ export class WantedHud {
   set(s: WantedState): void {
     this.state = s;
     this.el.classList.toggle('show', s.stars > 0 || s.bust > 0);
-    this.el.classList.toggle('pursuit', s.units > 0);
+    this.el.classList.toggle('pursuit', !!s.engaged && s.units > 0);
+    this.el.classList.toggle('called', !!s.call);
     this.stars.forEach((el, i) => el.classList.toggle('on', i < s.stars));
-    const hiding = s.escapeLeft !== null && s.stars >= ECONOMY.police.pursuitStars;
+    const hiding = s.escapeLeft !== null && !!s.engaged;
     if (hiding) this.status.textContent = s.search ? 'POLİS SENİ ARIYOR · SEARCHING' : 'GÖZDEN KAYBOLDUN';
-    else if (s.units > 0) this.status.textContent = `POLICE PURSUIT · ${s.units} unit${s.units === 1 ? '' : 's'}`;
-    else if (s.stars > 0) this.status.textContent = s.stars >= 2 ? 'POLICE ON THE WAY' : 'WANTED · drive carefully';
+    else if (s.engaged) this.status.textContent = `POLİS TAKİBİ · ${s.units} ekip`;
+    else if (s.call) this.status.textContent = s.call.arrived ? 'POLİS OLAY YERİNDE · seni arıyor' : `İHBAR EDİLDİN · ${s.units} ekip yolda · uzaklaş!`;
+    else if (s.stars > 0) this.status.textContent = 'ARANIYORSUN';
     else this.status.textContent = '';
     // Out of sight: the blue countdown to the escape (it only starts over if a police car keeps
     // you in sight for 2 s).

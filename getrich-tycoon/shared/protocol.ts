@@ -4,7 +4,7 @@
 
 import type { DragInfo, DragRaceView } from './drag';
 import type { MissionView } from './missions';
-import type { BustedEvent, WantedState } from './police';
+import type { BustedEvent, CrimeSceneView, RadioLine, WantedState } from './police';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { ShowroomId, ShowroomInfo, TestDriveEnd, TestDriveView } from './showrooms';
@@ -323,6 +323,12 @@ export interface ServerToClientEvents {
   /** A mission was completed (the reward is already paid). */
   'missions.complete': (d: { id: string; title: string; reward: string }) => void;
   'police.wanted': (d: WantedState) => void;
+  /** A line on the police radio (the wanted player and their crew: calls, units on the way, a
+   *  chase, a stop warning, called off). */
+  'police.radio': (d: RadioLine) => void;
+  /** A taped-off crime scene went up (everyone; also sent on connect), and was cleared away. */
+  'police.scene': (d: CrimeSceneView) => void;
+  'police.sceneEnd': (d: { id: number }) => void;
   'police.busted': (d: BustedEvent) => void;
   'police.escaped': (d: { reward: number; xp: number; cars: number }) => void;
   /** Street-parked cars changed (one was stolen, a new one parked, an alarm started). */

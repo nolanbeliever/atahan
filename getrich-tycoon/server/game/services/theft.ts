@@ -307,7 +307,7 @@ export class TheftService {
       car.alarmUntil = now + T.alarmSec * 1000;
       this.publish();
       this.ctx.hub.broadcast('car.alarm', { carId: car.id, x: car.x, z: car.z, until: car.alarmUntil });
-      this.police.raiseHeat(playerId, T.failHeat);
+      this.police.raiseHeat(playerId, T.failHeat, 'carAlarm');
       this.ctx.hub.notify(playerId, { kind: 'warning', title: 'ALARM! The lock beat you', text: 'Maymuncuk kırıldı, alarm çalıyor: polis geliyor (2 yıldız).' });
       return { turn, opened: false, picksLeft: 0, failed: true, vehicleId: null, ...hint };
     });

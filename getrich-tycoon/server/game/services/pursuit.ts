@@ -51,7 +51,7 @@ export class PursuitService {
     const v = this.ctx.state.vehicles.get(vehicleId);
     if (!v || v.status !== 'stolen' || v.ownerId !== playerId) return;
     this.tracks.set(playerId, { vehicleId, modelId: v.modelId, left: P.seconds, paused: false, seenAt: now, seenBy: by, sentAt: 0, sentKey: '', finishing: false });
-    this.police.raiseHeat(playerId, P.heat);
+    this.police.raiseHeat(playerId, P.heat, 'stolenCar');
     this.send(playerId, true);
   }
 
@@ -90,7 +90,7 @@ export class PursuitService {
             t.seenAt = now;
           }
           t.left = P.seconds;
-          if (cam) this.police.raiseHeat(playerId, P.heat);
+          if (cam) this.police.raiseHeat(playerId, P.heat, 'stolenCar');
         } else {
           t.left = Math.max(0, t.left - dt);
         }

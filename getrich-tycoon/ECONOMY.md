@@ -162,11 +162,31 @@ interceptor's power and top speed (288 hp, about 165 km/h), aim 0.84 s ahead of 
 behind you (not 125 m) and only give up and come back from behind after falling 480 m back or being stuck for 9 s.
 
 - Heat: +40 per near miss above 180 km/h, +90 per crash into traffic, +150 for ramming a police car (max 500); any gunshot
-  raises it to at least 150 (2 stars: the shot is heard and the nearest patrol comes, witnesses or not,
-  `ECONOMY.combat.heatGunshot`); it cools after 30 s without offences. Stars = heat / 100 rounded up (1-5).
+  raises it to at least 150 (2 stars: the shot is heard and reported, witnesses or not, `ECONOMY.combat.heatGunshot`).
+  Stars = heat / 100 rounded up (1-5).
 - **Shared wanted level:** heat from anyone in a car (driver or passenger) goes to everyone in that car.
-- From 2 stars police cars chase you (1-4 units by stars, joining one at a time 4 s apart, each aiming at a different point
-  ahead of you and keeping 10 m from the car in front). **Line of sight** (`ECONOMY.police.sight`, `shared/sight.ts`): a car
+- **Response time** (`ECONOMY.police.response`): an offence is a **call**, not a car at your side. The yellow "POLİS İHBAR
+  EDİLDİ - Tahmini Geliş Süresi" strip, the police radio (`police.radio`) and a red ring on the map round the scene. The
+  first car is due after **45-60 s at 1 star (1 car), 30-40 s at 2 stars (2 cars), 15-20 s from 3 stars** (2-4 cars, 1-2 of
+  them SWAT vans, and the helicopter). The cars leave the nearest **police station** (Merkez Karakolu south-west of the city,
+  Karşı Kıyı Karakolu by the VIP Otoban; `POLICE_STATIONS`) when it can make it in time (planned at 14 m/s along roads
+  1.3x the straight line; they leave when they have to, 2.5 s apart), otherwise a patrol out on the roads about that far
+  away, on the station's side of the scene, sets off at once; they drive there for real with the siren on. A car within
+  22 m is on the scene: they look round for 8 s. Not seen: the call is closed, **the wanted level is gone** (no reward),
+  heists pay out as after an escape. More offences while they are on the way move the scene and can only bring it
+  sooner (or more cars). A car (or the helicopter) on the way that keeps you in sight for 2 s starts a pursuit (at 1 star
+  only within 70 m of the scene); so does an offence within 160 m of a crime scene (its officers come straight over).
+  45 s late and the call is closed anyway. Cars that are done drive back to the station (lights off, gone after 90 s or out
+  of everybody's sight).
+- **Crime scenes** (`ECONOMY.police.scene`, `server/game/services/crimeScene.ts`): a crime (not a traffic offence) found
+  empty gets 10 cones on a 9 m ring (pulled in out of walls; tape left open through a wall), 4 road flares, numbered
+  evidence (casings, blood, glass by offence) and two officers who walk to each marker with a torch, kneel 4.5-6.5 s to
+  photograph it, then stand guard. **3 minutes**, then they pack up and the cars go back. **Tampering** (not wanted):
+  inside the tape (a car snaps the segment), a gun out within 15 m, or within 3 m of an officer for 4 s: **1 star**
+  (heat 100), a stop warning (the officers aim at you), and the nearest car waits 4 s (stay put: arrested) then gives
+  chase. Officers there can be shot (police heat).
+- In a pursuit police cars chase you (1-4 units by stars, missing ones joining from the nearest patrol 4 s apart, each
+  aiming at a different point ahead of you and keeping 10 m from the car in front). **Line of sight** (`ECONOMY.police.sight`, `shared/sight.ts`): a car
   sees you inside a 150° cone ahead of it out to 140 m (or within 10 m in any direction), and only when the straight line
   to you is clear of buildings, walls, ramp embankments, piers (columns 0.9 m or thicker) and the hill; a car on a bridge
   deck and one below never see each other. The police know where you are while any car (or the helicopter) sees you, and
@@ -179,11 +199,12 @@ behind you (not 125 m) and only give up and come back from behind after falling 
 - Stopped (under 15 km/h) with a police car within 2.5 m for 3 s: **arrest**. Fine: always **$3,000** (`ECONOMY.police.fine`),
   from the cash first, then the bank (never below zero) (`police_fine`); "POLİSE YAKALANDIN! - $3,000 Ceza Ödendi"; the car is
   towed to the garage (no fee); you respawn at the nearest garage. Values are in `ECONOMY.police`.
-- **Spike strips** (`ECONOMY.police.spikes`): from 3 stars, every 22 s, 110 m ahead of a wanted driver on the highway or a
+- **Spike strips** (`ECONOMY.police.spikes`): from 3 stars in a pursuit, every 22 s, 110 m ahead of a wanted driver on the highway or a
   city street; a strip lasts 40 s. Bursting the tyres sets the `blown` mod and the tyres part to 0: side grip x0.1 (-90%),
   drive/brake traction x0.6. Replacing the tyres at Wrench Bros (the normal tyres repair) clears it.
 - **Helicopter** (`ECONOMY.police.heli`): from 3 stars, 300 HP, flies at 38 m, sees 220 m (from above: walls don't hide
-  you). Seeing you for 2 s starts the hidden countdown over. Under cover (overpass or bridge deck, car-wash tunnel, Sanayi hall) for 8 s and it loses you. Shot down: no
+  you). Called with the cars it takes off 430 m out on the station's side to get there with them; it tracks you only once
+  it has seen you. Seeing you for 2 s starts the hidden countdown over. Under cover (overpass or bridge deck, car-wash tunnel, Sanayi hall) for 8 s and it loses you. Shot down: no
   reward, but no helicopter for 60 s; shooting at it is police heat.
 - **Back alleys** (`shared/alleys.ts`): three 5 m wide passages through city blocks (behind Wrench Bros, behind the auction
   house, beside Chroma Customs) between rows of apartment buildings, with two steel bollards across each end (gaps of
@@ -209,7 +230,7 @@ Values are in `ECONOMY.heists` (`shared/heists.ts` for the targets, `shared/unde
 | Hyper Garage (car heist) | showroom's back, bollard forecourt | 75 s (hack), then 4 min to the docks | 3★ | $7,500-$9,500 |
 
 - E at the door, on foot, owning a gun. The starter and everyone within 25 m is the crew. The police know at once (the
-  stars above, heat `stars × 100 - 50`), but their cars arrive after 30 s (2★), 25 s (3★) or 20 s (4★+). The work runs
+  stars above, heat `stars × 100 - 50`), but their cars take the response time: 30-40 s (2★), 15-20 s (3★+). The work runs
   while someone of the crew is within 3 m of the door; at the door officers' shots do 40% damage (cover). Everyone more
   than 45 m away for 12 s: the job is off. A target can be hit again after 10 minutes; a player can start one every 90 s.
 - Done: the loot (rolled in the range, to $100) is in the bag. Lose the police (the wanted level wiped by an escape) and
@@ -262,6 +283,7 @@ Values are in `ECONOMY.security` (`shared/security.ts`). Fitted on the spot from
 | --- | --- | --- |
 | 🗄️ Gizli Zula (hidden compartment) | $15,000 | Holds up to 100 g under the boot floor. **Z** in (or next to) the car: the goods you carry go in; Z again with nothing on you takes them back out (you need them on you to sell). |
 | 🛞 Patlamaz Lastik (run-flat) | $25,000 | Spike strips and police bullets can't burst the tyres (without them an officer's bullet that hits the car bursts them 6% of the time). |
+| 📻 Polis Telsiz Dinleyici · Radar Karartıcı (police scanner) | $20,000 | In the car, or within 30 m of it (`scannerRange`): while a call is out for you, the **live countdown** to the first police car on the scene and the units' positions on the map. A whip antenna on the roof. |
 | 🛡️ Seviye 3 Zırh (level-3 armour) | $40,000 | Takes **36 bullets** of any gun (a blast takes 0.45 % per point of damage) before anything gets through: the glass cracks in three steps but holds, the body takes no damage, the people inside take no bullets and only 20% of a blast. +240 kg. Not for motorcycles/ATVs. Worn armour is patched up at Chroma Customs for **$120 per %** ($12,000 from nothing). |
 
 - **Police search (an arrest):** the goods on you, and loose in the car (the boot), are always found and seized. The

@@ -97,16 +97,13 @@ export class HeistService {
       if (o.id === playerId || o.dead || this.jobs.has(o.id)) continue;
       if (Math.hypot(o.x - c.x, o.z - c.z) <= H.crewRadius) crew.add(o.id);
     }
-    const response = H.responseSec[heist.stars] ?? 20;
-    const job: Job = { heist, leader: playerId, crew, phase: 'work', done: 0, away: 0, atDoor: true, loot: 0, policeAt: now + response * 1000 };
+    const job: Job = { heist, leader: playerId, crew, phase: 'work', done: 0, away: 0, atDoor: true, loot: 0, policeAt: now + 20_000 };
     for (const id of crew) this.jobs.set(id, job);
     this.targetReady.set(heist.id, now + H.cooldownSec * 1000);
     this.playerReady.set(playerId, now + H.playerCooldownSec * 1000);
-    // The police know at once; their cars are on the way.
-    for (const id of crew) {
-      this.police.raiseHeat(id, heist.stars * 100 - 50);
-      this.police.holdUnits(id, response);
-    }
+    // The alarm goes straight to the police: their cars are on the way (the response time).
+    for (const id of crew) this.police.raiseHeat(id, heist.stars * 100 - 50, 'heist');
+    job.policeAt = this.police.arrivalOf(playerId, now) ?? job.policeAt;
     this.ctx.hub.broadcast('heist.alarm', { id: heist.id, on: true });
     for (const id of crew) {
       this.ctx.hub.notify(id, { kind: 'warning', title: `🚨 ${heist.title}!`, text: `${heist.name}: alarm çaldı, polis yolda! Kapıda kal: ${heist.task.toLowerCase()} (${heist.workSec} sn).` });

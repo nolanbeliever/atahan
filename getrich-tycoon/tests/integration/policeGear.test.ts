@@ -44,6 +44,8 @@ describe('spike strips', () => {
     // North up the x = 50 street, wanted at 3 stars.
     server.game.sim.placeDrive(vehicleId, 50, 60, Math.PI);
     server.game.police.raiseHeat(client.playerId, 250);
+    // Spike strips are for a pursuit: the police have seen the car.
+    server.game.police.engageNow(client.playerId);
     await client.waitFor<{ title: string }>('notify', (n) => n.title === 'Çivili barikat!', 12_000);
     const snap = await client.waitSnapshot((s) => (s.sp?.length ?? 0) > 0, 3000);
     const [, sx, sz] = snap.sp![0]!;
@@ -76,11 +78,13 @@ describe('spike strips', () => {
     const police = server.game.police;
     server.game.sim.teleport(client.playerId, -26, 40);
     police.raiseHeat(client.playerId, 250);
-    await client.waitFor<{ title: string }>('notify', (n) => n.title === '🚁 Polis helikopteri!', 5000);
+    police.engageNow(client.playerId);
+    // It takes off a few seconds into the pursuit and flies over.
+    await client.waitFor<{ title: string }>('notify', (n) => n.title === '🚁 Polis helikopteri yolda!', 9000);
     const h = police.heliOf(client.playerId)!;
     expect(h).toBeDefined();
     expect(h.y).toBeGreaterThan(30);
-    await client.waitFor<{ heli?: string }>('police.wanted', (w) => w.heli === 'seen', 5000);
+    await client.waitFor<{ heli?: string }>('police.wanted', (w) => w.heli === 'seen', 8000);
     const snap = await client.waitSnapshot((sn) => (sn.ph?.length ?? 0) > 0, 3000);
     expect(snap.ph![0]![0]).toBe(h.id);
     // Into the car wash tunnel: after a while it loses you.

@@ -131,6 +131,8 @@ export interface WheelLike {
   left: boolean;
 }
 
+const ANTENNA = new THREE.MeshStandardMaterial({ color: '#0d0e10', metalness: 0.6, roughness: 0.35 });
+
 export class SecurityLook {
   private cracks: THREE.Mesh[] = [];
   private crackMat: THREE.MeshBasicMaterial | null = null;
@@ -140,12 +142,29 @@ export class SecurityLook {
   private xrayParts: THREE.Object3D[] = [];
   xray = false;
   private mods: Pick<VehicleMods, 'stash' | 'runflat' | 'armor'> = {};
+  /** The police scanner's whip antenna on the roof. */
+  private antenna: THREE.Object3D | null = null;
 
   constructor(private readonly owner: THREE.Object3D) {}
 
   /** After the model is (re)dressed: the run-flat rings, the cracks, the x-ray. */
-  apply(model: THREE.Group, wheels: WheelLike[], mods: VehicleMods, info: { seatY: number; length: number; width: number; wheelR: number }, bike: boolean): void {
+  apply(model: THREE.Group, wheels: WheelLike[], mods: VehicleMods, info: { seatY: number; length: number; width: number; wheelR: number; height?: number }, bike: boolean): void {
     this.mods = { stash: !!mods.stash, runflat: !!mods.runflat, armor: !!mods.armor };
+    // The police scanner: a thin black whip antenna at the back of the roof (on the tail of a bike).
+    this.antenna?.removeFromParent();
+    this.antenna = null;
+    if (mods.scanner) {
+      const g = new THREE.Group();
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.03, 10), ANTENNA);
+      const whip = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.007, 0.62, 5), ANTENNA);
+      whip.position.y = 0.32;
+      whip.rotation.x = -0.12;
+      g.add(base, whip);
+      g.position.set(info.width * 0.22, bike ? (info.height ?? 1.2) * 0.75 : (info.height ?? 1.45) - 0.02, -info.length * (bike ? 0.42 : 0.24));
+      g.userData.secOverlay = true;
+      this.owner.add(g);
+      this.antenna = g;
+    }
     // Run-flat rings on the tyre sidewalls.
     for (const r of this.rings) r.removeFromParent();
     this.rings = [];
@@ -248,6 +267,7 @@ export class SecurityLook {
   }
 
   dispose(): void {
+    this.antenna?.removeFromParent();
     for (const p of [...this.xrayParts, ...this.rings, ...this.cracks]) p.removeFromParent();
     this.xrayParts = [];
     this.rings = [];

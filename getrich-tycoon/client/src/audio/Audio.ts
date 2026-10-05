@@ -763,4 +763,85 @@ export class AudioSystem {
       this.hornNodes = null;
     }
   }
+
+  private radioStatic: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  private radioTimer = 0;
+
+  /**
+   * The police radio: a squelch chirp, static under the voice, and the line read out (the
+   * browser's speech synthesis in Turkish, when it has a voice; otherwise just the static and a
+   * second chirp). `onTalk` hears how long it is talking (the scanner's waveform).
+   */
+  radio(text: string, urgent: boolean, onTalk?: (sec: number) => void): void {
+    if (!this.ctx || !this.noiseBuf) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    // Squelch: a short beep and a burst of hiss.
+    const beep = ctx.createOscillator();
+    beep.type = 'square';
+    beep.frequency.setValueAtTime(urgent ? 1450 : 1250, t);
+    beep.frequency.setValueAtTime(urgent ? 1050 : 950, t + 0.07);
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.035, t);
+    bg.gain.setValueAtTime(0, t + 0.14);
+    beep.connect(bg).connect(this.sfxBus);
+    beep.start(t);
+    beep.stop(t + 0.16);
+    this.burst(t + 0.12, 0.22, 'bandpass', 1900, 0.06);
+    // Static under the voice.
+    const sec = Math.min(9, 1.2 + text.length * 0.062);
+    this.stopRadioStatic();
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    src.loop = true;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 2200;
+    f.Q.value = 0.7;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.012, t + 0.2);
+    src.connect(f).connect(gain).connect(this.sfxBus);
+    src.start(t, Math.random());
+    this.radioStatic = { src, gain };
+    onTalk?.(sec);
+    const end = () => {
+      this.stopRadioStatic();
+      if (this.ctx) this.burst(this.ctx.currentTime, 0.18, 'bandpass', 1700, 0.05);
+    };
+    window.clearTimeout(this.radioTimer);
+    this.radioTimer = window.setTimeout(end, (sec + 0.6) * 1000);
+    // The voice (a dispatcher reading the line).
+    const synth = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
+    const vol = this.volumes.master * this.volumes.sfx;
+    if (!synth || typeof SpeechSynthesisUtterance === 'undefined' || vol <= 0.01) return;
+    try {
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text.replace(/[!·]/g, ','));
+      u.lang = 'tr-TR';
+      const voice = synth.getVoices().find((v) => v.lang.toLowerCase().startsWith('tr'));
+      if (voice) u.voice = voice;
+      u.rate = urgent ? 1.18 : 1.08;
+      u.pitch = 0.82;
+      u.volume = Math.min(1, vol * 0.95);
+      u.onend = () => {
+        window.clearTimeout(this.radioTimer);
+        end();
+      };
+      synth.speak(u);
+    } catch {
+      // No voice: the static and the chirps do.
+    }
+  }
+
+  private stopRadioStatic(): void {
+    if (!this.radioStatic || !this.ctx) return;
+    const { src, gain } = this.radioStatic;
+    const t = this.ctx.currentTime;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(gain.gain.value, t);
+    gain.gain.linearRampToValueAtTime(0, t + 0.08);
+    src.stop(t + 0.1);
+    this.radioStatic = null;
+  }
 }

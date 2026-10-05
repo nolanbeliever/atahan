@@ -98,7 +98,14 @@
     `mechanic.ts`: the Sanayi's part-time mechanic (shifts, customers' cars on free lifts broadcast as `mech.cars`,
     `TheftService.bayBusy` keeps stolen cars off them, the jobs timed per tick, $1,000 per car; the client draws the cars
     in `render/RepairCars.ts` and the shift card in `ui/MechanicHud.ts`),
-    `police.ts`: heat and stars, police interceptors (physics cars routed over the city road grid and the
+    `police.ts`: heat and stars, the **response time** (an offence is a call: `police.radio`, the estimate by stars
+    in `ECONOMY.police.response`; the cars leave the nearest station of `POLICE_STATIONS` (shared/compounds.ts) when they
+    can make it in time, otherwise a patrol out on the roads, and drive to the scene with `mode: 'respond'`; a car or the
+    helicopter keeping the player in sight starts a pursuit (`engage`); nobody on the scene after a look round closes the
+    call (`calledOff`): no stars, a crime scene for a crime, the cars `mode: 'return'` drive back to the station),
+    `crimeScene.ts` (the taped-off scenes: `planCordon` in shared/police.ts, two officer NPCs `csi_*` walking with
+    torches and kneeling at the evidence, tampering checks five times a second, 3 minutes then cleared; combat can
+    shoot them), police interceptors (physics cars routed over the city road grid and the
     highway lanes), line of sight five times a second per car (`policeSees` in shared/sight.ts against the solid colliders
     minus the see-through fences and toll islands), the back alleys (shared/alleys.ts: the cars right behind follow the
     player in and crash into the bollards, the rest go round to the far end; `CAR_GATES` in shared/physics.ts stop every
@@ -155,7 +162,11 @@
     `ui/TouchControls.ts` adds the touch look area (right half of the screen, behind the HUD), the gun button and
     **ATEŞ ET**. `game/EntityViews.ts` animates getting in and out (walk to the door, door, sit) and seats the drivers;
     `game/Busted.ts` plays the arrest cutscene; `BikeView` (render/VehicleMesh.ts) also draws the quad (four wheels, no
-    lean), the pillion seat and the wheelie pose (pivoting on the rear tyre); characters wear their helmet on bikes; `game/Police.ts` renders police cars with wig-wag light bars, spike strips
+    lean), the pillion seat and the wheelie pose (pivoting on the rear tyre); characters wear their helmet on bikes; `game/Police.ts` renders police cars with wig-wag light bars (the SWAT van
+    with a roof bar; `PF.QUIET` at a crime scene: lights, no siren; no flags: lights off on the way home),
+    `render/CrimeScene.ts` the cones, tape, flares and evidence of a crime scene, `render/PoliceStations.ts` the stations'
+    beacons and bays, `ui/ScannerHud.ts` the police radio panel (waveform, lines, the yellow call strip, the scanner's
+    live countdown; `AudioSystem.radio` plays the squelch, static and a Turkish speech-synthesis voice), spike strips
     (instanced spikes, blinking lamps) and helicopters (`render/Helicopter.ts`: rotors, beacons, searchlight cone and pool,
     HP bar); `VehicleMesh.flat` drops a car with burst tyres onto its rims. Hitman: `ui/panels/hitman.ts` (the contact),
     `ui/HitmanHud.ts` (the contract card), the minimap search circle, mark labels only for the contract holder, and the

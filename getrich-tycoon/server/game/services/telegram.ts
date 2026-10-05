@@ -317,7 +317,7 @@ export class DealService {
         if (inv[GOODS_ITEM] === 0) delete inv[GOODS_ITEM];
         if (car.cop) {
           await uow.commit();
-          this.police.raiseHeat(playerId, D.copStars * 100 - 50);
+          this.police.raiseHeat(playerId, D.copStars * 100 - 50, 'deal');
           this.say(playerId, p, { chat: 'channel', from: 'system', name: o.name, text: `⚠️ @${o.name} GİZLİ POLİS çıktı! ${o.grams} gr el konuldu. Kaç!` });
           this.ctx.hub.sendTo(playerId, 'deal.done', { kind: 'sell', cop: true, grams: o.grams, money: 0 });
         } else {

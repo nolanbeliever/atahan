@@ -2,15 +2,16 @@
 // goods you carry in it; a police search finds it one time in ten, the goods on you or in the boot
 // always), run-flat tyres (spike strips and bullets don't burst them) and level-3 armour (the
 // glass cracks but holds, nothing gets through for at least 30 bullets; the Armor HP % shows while
-// you drive it). Values in ECONOMY.security.
+// you drive it), and the police scanner / radar jammer (listens in on the police radio: the live
+// countdown to the police arriving at a reported scene). Values in ECONOMY.security.
 
 import { ECONOMY } from './economy.config';
 import type { VehicleMods } from './types';
 
 export const SECURITY = ECONOMY.security;
 
-export type SecurityItem = 'stash' | 'runflat' | 'armor';
-export const SECURITY_ITEMS: SecurityItem[] = ['stash', 'runflat', 'armor'];
+export type SecurityItem = 'stash' | 'runflat' | 'armor' | 'scanner';
+export const SECURITY_ITEMS: SecurityItem[] = ['stash', 'runflat', 'armor', 'scanner'];
 
 export interface SecurityDef {
   id: SecurityItem;
@@ -46,6 +47,14 @@ export const SECURITY_DEFS: Record<SecurityItem, SecurityDef> = {
     price: SECURITY.armorPrice,
     text: `Çelik kaporta panelleri ve kurşun geçirmez cam: en az ${SECURITY.armorHits} mermiye dayanır, cam çatlar ama delinmez, içeridekilere kurşun işlemez. +${SECURITY.armorKg} kg (biraz daha yavaş hızlanır).`,
     carsOnly: true,
+  },
+  scanner: {
+    id: 'scanner',
+    name: 'Polis Telsiz Dinleyici · Radar Karartıcı',
+    icon: '📻',
+    price: SECURITY.scannerPrice,
+    text: `Gizli telsiz tarayıcı: polis ihbarı yapıldığında ekiplerin olay yerine kaçıncı saniyede varacağını CANLI SAYAÇ olarak gösterir, yoldaki ekipleri haritada işaretler. Araçtayken ya da araca ${SECURITY.scannerRange} m yakınken çalışır.`,
+    carsOnly: false,
   },
 };
 

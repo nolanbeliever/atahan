@@ -147,7 +147,7 @@ export class StreetRaceService {
       // A few seconds after the green light the police hear about it: every racer still out there is wanted.
       if (!race.alerted && now >= v.startsAt + R.policeDelaySec * 1000) {
         race.alerted = true;
-        for (const r of race.racers) if (!r.bot && r.view.place === null && !r.view.dnf) this.police.raiseHeat(r.view.id, R.heat);
+        for (const r of race.racers) if (!r.bot && r.view.place === null && !r.view.dnf) this.police.raiseHeat(r.view.id, R.heat, 'race');
       }
       let changed = false;
       for (const r of race.racers) {

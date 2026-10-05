@@ -33,7 +33,7 @@ import { K, type Ctx } from '../context';
 import { requireNear } from '../guards';
 import type { NpcEntity } from '../simulation';
 import type { CustomerService } from './customers';
-import { starsFor, type PoliceService } from './police';
+import type { PoliceService } from './police';
 import type { TheftService } from './theft';
 import type { VehicleService } from './vehicles';
 
@@ -128,6 +128,8 @@ export class CombatService {
     private readonly vehicles: VehicleService,
   ) {
     for (let i = 0; i < C.pedestrians; i++) this.spawnPed(Date.now());
+    // A gun out near a crime scene is tampering.
+    police.armedFn = (pid) => this.equipped.has(pid);
   }
 
   // ---------------------------------------------------------------- shop
@@ -242,12 +244,8 @@ export class CombatService {
       const aim = spreadAim(yaw as number, pitch as number, w.spread, (n as number) * 13 + i * 7 + 1);
       this.trace(playerId, w, aimRay(x as number, y as number, z as number, aim.yaw, aim.pitch), now, i === 0, inside, at.deck ?? 0);
     }
-    // Every shot is heard, witnesses or not: the nearest patrol is called to the scene (2 stars).
-    const before = this.police.starsOf(playerId);
-    this.police.raiseHeat(playerId, C.heatGunshot);
-    if (before < starsFor(C.heatGunshot)) {
-      this.ctx.hub.notify(playerId, { kind: 'warning', title: '📢 Silah sesi ihbarı', text: 'Silah sesi duyuldu: en yakın polis devriyesi olay yerine geliyor!' });
-    }
+    // Every shot is heard, witnesses or not: it is reported and patrols are sent (2 stars).
+    this.police.raiseHeat(playerId, C.heatGunshot, 'gunshot');
     this.panic(c.x, c.z, 35, now);
     return true;
   }
@@ -343,6 +341,8 @@ export class CombatService {
     for (const c of this.ctx.sim.chars.values()) if (c.id !== shooter && !c.drivingId && !c.ridingId && !c.dead) person(c.id, c.x, c.z, 'player', c.deck ?? 0);
     for (const p of this.peds.values()) if (!p.deadAt) person(p.npc.id, p.npc.x, p.npc.z, 'ped');
     for (const o of this.officers.values()) if (!o.deadAt) person(o.npc.id, o.npc.x, o.npc.z, 'officer');
+    // The officers at a crime scene.
+    for (const o of this.police.scenes.officers()) person(o.id, o.x, o.z, 'officer');
     for (const npc of this.ctx.sim.npcs.values()) if (npc.id.startsWith('npc')) person(npc.id, npc.x, npc.z, 'customer');
 
     const to: [number, number, number] = [r.x + r.dx * best, rayY(r, best), r.z + r.dz * best];
@@ -359,7 +359,7 @@ export class CombatService {
     if (!t) return;
     if (t.type === 'car') this.damageCar(t.id, w.damage, shooter, now);
     else if (t.type === 'heli') {
-      this.police.raiseHeat(shooter, C.heatPolice);
+      this.police.raiseHeat(shooter, C.heatPolice, 'copShot');
       this.police.damageHeli(t.id, w.damage, now);
     } else this.damagePerson(t.id, t.who!, w.damage, shooter, r.x, r.z, now);
   }
@@ -399,8 +399,8 @@ export class CombatService {
   damageCar(id: string, amount: number, by: string | null, now = Date.now(), kind: 'bullet' | 'blast' = 'bullet'): void {
     if (this.wrecks.has(id)) return;
     if (by) {
-      if (id.startsWith('po:')) this.police.raiseHeat(by, C.heatPolice);
-      else if (this.occupied(id) && this.ctx.sim.driverOf(id) !== by) this.police.raiseHeat(by, C.heatPerson);
+      if (id.startsWith('po:')) this.police.raiseHeat(by, C.heatPolice, 'copShot');
+      else if (this.occupied(id) && this.ctx.sim.driverOf(id) !== by) this.police.raiseHeat(by, C.heatPerson, 'shooting');
     }
     const v = this.ctx.state.vehicles.get(id);
     if (v) {
@@ -498,13 +498,17 @@ export class CombatService {
     for (const hz of this.police.heliTargets()) {
       const d = Math.hypot(hz.x - x, hz.y - y, hz.z - z);
       if (d < radius + 2) {
-        if (by) this.police.raiseHeat(by, C.heatPolice);
+        if (by) this.police.raiseHeat(by, C.heatPolice, 'copShot');
         this.police.damageHeli(hz.id, fall(Math.max(0, d - 2)), now);
       }
     }
     for (const o of this.officers.values()) {
       const d = Math.hypot(o.npc.x - x, o.npc.z - z);
       if (d < radius && !o.deadAt) this.damagePerson(o.npc.id, 'officer', fall(d), by, x, z, now);
+    }
+    for (const o of this.police.scenes.officers()) {
+      const d = Math.hypot(o.x - x, o.z - z);
+      if (d < radius) this.damagePerson(o.id, 'officer', fall(d), by, x, z, now);
     }
     for (const npc of [...this.ctx.sim.npcs.values()]) {
       if (!npc.id.startsWith('npc')) continue;
@@ -523,7 +527,7 @@ export class CombatService {
   }
 
   private damagePerson(id: string, who: Who, amount: number, by: string | null, fromX: number, fromZ: number, now: number): void {
-    if (by) this.police.raiseHeat(by, who === 'officer' ? C.heatPolice : C.heatPerson);
+    if (by) this.police.raiseHeat(by, who === 'officer' ? C.heatPolice : C.heatPerson, who === 'officer' ? 'copShot' : 'shooting');
     if (who === 'player') return; // no PvP
     if (who === 'customer') {
       const npc = this.ctx.sim.npcs.get(id);
@@ -545,6 +549,10 @@ export class CombatService {
         p.npc.rot = Math.atan2(p.npc.x - fromX, p.npc.z - fromZ);
         for (const l of this.killListeners) l(id, by);
       }
+      return;
+    }
+    if (id.startsWith('csi_')) {
+      this.police.scenes.hitOfficer(id, amount);
       return;
     }
     const o = this.officers.get(id);
@@ -739,7 +747,8 @@ export class CombatService {
     }
   }
 
-  /** Officers get out of police cars near a 3-star suspect, keep their distance and shoot. */
+  /** Officers get out of police cars near a 3-star suspect (four out of a SWAT van, with rifles
+   *  and vests), keep their distance and shoot. */
   private tickOfficers(dt: number, now: number): void {
     for (const c of this.ctx.sim.chars.values()) {
       if (c.dead || this.police.starsOf(c.id) < C.officerStars) continue;
@@ -748,11 +757,12 @@ export class CombatService {
       for (const u of this.police.unitsOf(c.id)) {
         if (Math.abs(u.dyn.speed) > 3 || Math.hypot(u.dyn.x - pos.x, u.dyn.z - pos.z) > 32) continue;
         const crew = [...this.officers.values()].filter((o) => o.unitId === u.id && !o.deadAt).length;
-        if (crew >= 2) continue;
-        const side = crew === 0 ? 1 : -1;
+        if (crew >= (u.swat ? 4 : 2)) continue;
+        const side = crew % 2 === 0 ? 1 : -1;
+        const back = crew >= 2 ? -1.6 : 0;
         const id = `cop_${seq++}`;
-        const npc: NpcEntity = { id, x: u.dyn.x + Math.cos(u.dyn.rot) * 1.6 * side, z: u.dyn.z - Math.sin(u.dyn.rot) * 1.6 * side, rot: u.dyn.rot, anim: Anim.Aim, style: 0 };
-        this.officers.set(id, { npc, hp: C.officerHp, target: c.id, unitId: u.id, fireAt: now + 900 + this.ctx.rng() * 600, deadAt: 0 });
+        const npc: NpcEntity = { id, x: u.dyn.x + Math.cos(u.dyn.rot) * 1.6 * side + Math.sin(u.dyn.rot) * back, z: u.dyn.z - Math.sin(u.dyn.rot) * 1.6 * side + Math.cos(u.dyn.rot) * back, rot: u.dyn.rot, anim: Anim.Aim, style: u.swat ? 1 : 0 };
+        this.officers.set(id, { npc, hp: u.swat ? Math.round(C.officerHp * 1.6) : C.officerHp, target: c.id, unitId: u.id, fireAt: now + 900 + this.ctx.rng() * 600, deadAt: 0 });
         this.ctx.sim.npcs.set(id, npc);
       }
     }

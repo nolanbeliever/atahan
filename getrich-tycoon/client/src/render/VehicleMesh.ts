@@ -591,7 +591,7 @@ abstract class ModelView implements AnyVehicleView {
   }
 
   private securityInfo() {
-    return { seatY: this.info?.seat.y ?? 1.1, length: this.length, width: this.width, wheelR: this.info?.wheelR ?? 0.33 };
+    return { seatY: this.info?.seat.y ?? 1.1, length: this.length, width: this.width, wheelR: this.info?.wheelR ?? 0.33, height: this.info?.height ?? 1.45 };
   }
 
   setCracks(level: number): void {
