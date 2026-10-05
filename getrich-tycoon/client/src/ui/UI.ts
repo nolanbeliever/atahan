@@ -24,6 +24,7 @@ import { RewardsHud } from './RewardsHud';
 import { claimPlaytime } from './panels/rewards';
 import { WantedHud } from './WantedHud';
 import { ScannerHud } from './ScannerHud';
+import { StopHud } from './StopHud';
 import { PursuitHud } from './PursuitHud';
 import { RaceHud } from './RaceHud';
 import { CombatHud } from './CombatHud';
@@ -149,6 +150,7 @@ export class UI {
   readonly cluster = new GaugeHud();
   readonly wanted = new WantedHud();
   readonly scanner = new ScannerHud();
+  readonly stop = new StopHud();
   readonly pursuit = new PursuitHud();
   readonly hitman = new HitmanHud();
   readonly heist = new HeistHud();
@@ -298,7 +300,7 @@ export class UI {
       h('span', null, h('span', { class: 'kbd' }, 'Enter'), 'Chat'),
       h('span', null, h('span', { class: 'kbd' }, 'Esc'), 'Menu'),
     );
-    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.scanner.strip, this.tollFeed.notice, this.flashEl, reconnect);
+    this.root.append(top, right, dock, this.missions.el, prompt, drive, this.nearMiss.el, this.dragHud.el, this.game.theft.hud, this.chat.el, hint, offers, this.toasts, this.pursuit.el, this.race.count, this.combat.gun, this.combat.overlay, this.wanted.banner, this.scanner.strip, this.stop.el, this.tollFeed.notice, this.flashEl, reconnect);
     this.hud = { name, level, xpFill, xpText, rep, cash, bank, dirty, goods, phoneBtn, zone, prompt, drive, gauge, missionsBtn, reconnect, offers, dealerBtn, marketBtn, hint };
   }
 

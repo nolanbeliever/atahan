@@ -85,6 +85,7 @@ import { Input } from './Input';
 import { BustedCutscene } from './Busted';
 import { PoliceClient } from './Police';
 import { CrimeScenes } from '../render/CrimeScene';
+import { TrafficStopsView } from '../render/TrafficStops';
 import { CharacterView } from '../render/Character';
 import { TheftClient } from './Theft';
 import { TrafficClient } from './Traffic';
@@ -158,6 +159,8 @@ export class Game {
   readonly police: PoliceClient;
   /** Taped-off crime scenes (cones, tape, flares, evidence). */
   readonly crimeScenes: CrimeScenes;
+  /** Police checkpoints (cones, signs). */
+  readonly trafficStops: TrafficStopsView;
   private rain = new Rain();
   /** Rain now (0-1) and how wet the roads are. */
   weather = { rain: 0, wet: 0 };
@@ -245,6 +248,7 @@ export class Game {
     this.entities = new EntityViews(this.renderer.scene, () => this.store.playerId);
     this.police = new PoliceClient(this.renderer.scene);
     this.crimeScenes = new CrimeScenes(this.renderer.scene);
+    this.trafficStops = new TrafficStopsView(this.renderer.scene);
     this.entities.serverNow = () => this.store.serverNow();
     this.theft = new TheftClient(this);
     this.renderer.scene.add(this.theft.group);
@@ -308,6 +312,7 @@ export class Game {
       this.endBusted();
       this.police.clear();
       this.crimeScenes.clear();
+      this.trafficStops.clear();
       this.ui?.pursuit.set(null);
       void this.net
         .rpc('missions.list', {})
@@ -525,6 +530,18 @@ export class Game {
     });
     net.on('police.scene', (v) => this.crimeScenes.apply(v));
     net.on('police.sceneEnd', (d) => this.crimeScenes.remove(d.id));
+    // Police checkpoints: the list, what happens to me at one, a sniffer dog barking.
+    net.on('stop.list', (l) => this.trafficStops.set(l));
+    net.on('stop.state', (st) => {
+      this.ui?.stop.set(st);
+      if (st.phase === 'warn') this.audio.play('notify');
+      else if (st.phase === 'clear') this.audio.play('coin');
+      else if (st.phase === 'caught' || st.phase === 'evaded') this.audio.play('foul');
+    });
+    net.on('stop.bark', (b) => {
+      const d = Math.hypot(b.x - this.curr.x, b.z - this.curr.z);
+      this.audio.bark(Math.max(0, 1 - d / 80));
+    });
     net.on('police.spiked', (e) => {
       // Bang-bang: the tyres go, sparks fly.
       const me = this.localPosition();
@@ -1032,6 +1049,7 @@ export class Game {
     this.police.night = this.night;
     this.police.update(dt, now);
     this.crimeScenes.update(dt, this.night);
+    this.trafficStops.update(dt, this.night);
     CharacterView.night = this.night;
     this.ui?.scanner.update(dt, now);
     this.audio.siren(Math.min(this.police.nearestSiren(rx, rz), this.dealScene?.sirenDistance ?? Infinity));

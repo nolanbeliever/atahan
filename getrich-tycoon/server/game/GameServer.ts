@@ -52,6 +52,7 @@ import { DealService } from './services/telegram';
 import { MechanicService } from './services/mechanic';
 import { SecurityService } from './services/security';
 import { CombatService } from './services/combat';
+import { TrafficStopService } from './services/trafficStops';
 import { PoliceService } from './services/police';
 import { TheftService } from './services/theft';
 import { HighwayService } from './services/highway';
@@ -117,6 +118,7 @@ export class GameServer implements Hub {
   readonly mechanic: MechanicService;
   readonly security: SecurityService;
   readonly police: PoliceService;
+  readonly stops: TrafficStopService;
   readonly theft: TheftService;
   private tickCount = 0;
   private sessions = new Map<string, Session>();
@@ -171,6 +173,8 @@ export class GameServer implements Hub {
     this.deals = new DealService(this.ctx, this.police, this.combat, this.crime);
     this.mechanic = new MechanicService(this.ctx, this.theft);
     this.security = new SecurityService(this.ctx, this.combat, this.deals);
+    // (Random world events are off in the test suite: tests set them up themselves.)
+    this.stops = new TrafficStopService(this.ctx, this.police, cfg.env !== 'test');
     this.theft.theftListeners.push((pid, vehicleId) => this.pursuit.start(pid, vehicleId, 'lockpick'));
     // Near misses feed the wanted level and the missions; distance and escapes feed missions.
     this.highway.listeners.push((pid, e) => {
@@ -455,6 +459,7 @@ export class GameServer implements Hub {
     this.mechanic.welcome(playerId);
     this.combat.welcome(playerId);
     for (const v of this.police.scenes.views()) this.sendTo(playerId, 'police.scene', v);
+    this.stops.welcome(playerId);
     for (const m of this.chat.history) socket.emit('chat', m);
     log.info('player connected', { playerId, name: record.name, online: this.sessions.size });
 
@@ -474,6 +479,7 @@ export class GameServer implements Hub {
     this.drag.forget(playerId);
     this.driving.forget(playerId);
     this.police.forget(playerId);
+    this.stops.forget(playerId);
     this.theft.forget(playerId);
     this.pursuit.forget(playerId);
     this.streetRace.forget(playerId);
@@ -706,6 +712,7 @@ export class GameServer implements Hub {
     this.highway.tick(now);
     this.drag.tick(dt);
     this.police.tick(dt, now);
+    this.stops.tick(dt, now);
     this.pursuit.tick(dt, now);
     this.streetRace.tick(dt, now);
     this.combat.tick(dt, now);

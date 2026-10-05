@@ -614,6 +614,20 @@ export const ECONOMY = {
      */
     scene: { lifeSec: 180, radius: 9, posts: 10, armedDist: 15, closeDist: 3, loiterSec: 4, tamperHeat: 100, respondDist: 160, warnSec: 4 },
     /**
+     * Police checkpoints (çevirme noktaları, shared/trafficStops.ts): `active` stops are up at a
+     * time, each for `lifeSec` s, a new one `gapSec` s after one is packed up; `k9Chance` of them
+     * have a sniffer dog. Drivers get the green "ÇEVİRME NOKTASI - YAVAŞLA VE DUR" within `warnDist`
+     * m; stopped within `stopBox` m of the line under `stopKmh` km/h the check takes `checkSec`
+     * ([min, max] s) after the officer has walked over. The dog smells goods on anyone in the car
+     * every time (`k9Open`) and goods in the hidden compartment `k9Stash` of the time; an officer
+     * without a dog finds goods on you `officerOpen` of the time and checks the papers (a stolen car
+     * is found). Found, or through the stop without being checked: `caughtHeat` (2 stars) and the
+     * stop's cars give chase. Turning back once warned within `uturnSure` m is always seen (beyond:
+     * half the time) and reported: `uturnHeat` (1 star, a call). Cones narrow the road to a `lane`
+     * m lane over `funnel` m on both sides.
+     */
+    stops: { active: 3, lifeSec: 300, gapSec: 45, k9Chance: 0.5, warnDist: 85, stopBox: 9, stopKmh: 6, checkSec: [3, 5] as [number, number], k9Open: 1, k9Stash: 0.15, officerOpen: 0.5, caughtHeat: 150, uturnHeat: 100, uturnSure: 60, lane: 6.5, funnel: 32 },
+    /**
      * What a police car sees (shared/sight.ts): a cone of `fovDeg` ahead, out to `range` m, and
      * anything within `nearSense` m whatever the direction; the line to you must be clear of
      * buildings, walls, piers and the hill. A car has to keep you in sight for `spotSec` before

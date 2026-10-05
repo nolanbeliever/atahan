@@ -341,8 +341,8 @@ export class CombatService {
     for (const c of this.ctx.sim.chars.values()) if (c.id !== shooter && !c.drivingId && !c.ridingId && !c.dead) person(c.id, c.x, c.z, 'player', c.deck ?? 0);
     for (const p of this.peds.values()) if (!p.deadAt) person(p.npc.id, p.npc.x, p.npc.z, 'ped');
     for (const o of this.officers.values()) if (!o.deadAt) person(o.npc.id, o.npc.x, o.npc.z, 'officer');
-    // The officers at a crime scene.
-    for (const o of this.police.scenes.officers()) person(o.id, o.x, o.z, 'officer');
+    // Police on foot at crime scenes and checkpoints.
+    for (const src of this.police.officerSources) for (const o of src.list()) person(o.id, o.x, o.z, 'officer');
     for (const npc of this.ctx.sim.npcs.values()) if (npc.id.startsWith('npc')) person(npc.id, npc.x, npc.z, 'customer');
 
     const to: [number, number, number] = [r.x + r.dx * best, rayY(r, best), r.z + r.dz * best];
@@ -506,9 +506,11 @@ export class CombatService {
       const d = Math.hypot(o.npc.x - x, o.npc.z - z);
       if (d < radius && !o.deadAt) this.damagePerson(o.npc.id, 'officer', fall(d), by, x, z, now);
     }
-    for (const o of this.police.scenes.officers()) {
-      const d = Math.hypot(o.x - x, o.z - z);
-      if (d < radius) this.damagePerson(o.id, 'officer', fall(d), by, x, z, now);
+    for (const src of this.police.officerSources) {
+      for (const o of src.list()) {
+        const d = Math.hypot(o.x - x, o.z - z);
+        if (d < radius) this.damagePerson(o.id, 'officer', fall(d), by, x, z, now);
+      }
     }
     for (const npc of [...this.ctx.sim.npcs.values()]) {
       if (!npc.id.startsWith('npc')) continue;
@@ -551,8 +553,8 @@ export class CombatService {
       }
       return;
     }
-    if (id.startsWith('csi_')) {
-      this.police.scenes.hitOfficer(id, amount);
+    if (!this.officers.has(id)) {
+      for (const src of this.police.officerSources) if (src.hit(id, amount)) return;
       return;
     }
     const o = this.officers.get(id);

@@ -43,6 +43,7 @@ import { INTERACTABLES, type AABB } from '../../../shared/world';
 import { createLogger } from '../../logger';
 import { K, type Ctx } from '../context';
 import { CrimeScenes, type CrimeScene } from './crimeScene';
+import type { NpcEntity } from '../simulation';
 import type { PoliceStation } from '../../../shared/compounds';
 import type { VehicleService } from './vehicles';
 
@@ -301,6 +302,10 @@ export class PoliceService {
   private bayFreeAt = new Map<string, number>();
   /** Is a player holding a gun (combat sets it; crime scenes care)? */
   armedFn: (playerId: string) => boolean = () => false;
+  /** Other police cars out there (checkpoints...): in the snapshots and obstacles. */
+  readonly unitSources: (() => readonly Unit[])[] = [];
+  /** Police on foot bullets can hit (crime scenes, checkpoints): who they are, and a hit. */
+  readonly officerSources: { list: () => NpcEntity[]; hit: (id: string, amount: number) => boolean }[] = [];
 
   constructor(
     private readonly ctx: Ctx,
@@ -312,6 +317,33 @@ export class PoliceService {
       armed: (pid) => this.armedFn(pid),
       wanted: (pid) => this.starsOf(pid) > 0 || !!this.wanted.get(pid)?.busted,
     });
+    this.officerSources.push({ list: () => this.scenes.officers(), hit: (id, amount) => this.scenes.hitOfficer(id, amount) });
+  }
+
+  /** A police car standing at a point with its lights on (a checkpoint's). */
+  standingUnit(x: number, z: number, rot: number, deck = 0): Unit {
+    const st = nearestStation(x, z);
+    const u = this.unitAt(x, z, rot, deck, 0, false, { x: st.bay.x, z: st.bay.z }, 'scene');
+    u.parked = true;
+    return u;
+  }
+
+  /**
+   * Police right there saw it (a checkpoint): the wanted level goes up to at least `heat` for the
+   * player and everyone in the car, and these cars give chase after `holdSec`.
+   */
+  engageWith(playerId: string, units: readonly Unit[], heat: number, why: string, holdSec = 1.2): void {
+    const now = Date.now();
+    for (const id of this.crew(playerId)) {
+      const w = this.get(id);
+      if (w.busted) continue;
+      w.heat = Math.min(ECONOMY.police.maxHeat, Math.max(w.heat, heat));
+      w.lastOffence = now;
+      this.engage(id, w, why, false);
+    }
+    const w = this.wanted.get(playerId);
+    if (w && !w.busted) for (const u of units) this.join(w, u, holdSec);
+    this.publishObstacles();
   }
 
   // ---------------------------------------------------------------- offences
@@ -615,7 +647,7 @@ export class PoliceService {
   }
 
   /** Cars that are done drive back to the station, lights off. */
-  private sendHome(units: readonly Unit[]): void {
+  sendHome(units: readonly Unit[]): void {
     const R = ECONOMY.police.response;
     for (const u of units) {
       if (this.returning.includes(u)) continue;
@@ -1744,6 +1776,7 @@ export class PoliceService {
     for (const w of this.wanted.values()) yield* w.units;
     for (const c of this.checkpoints.values()) yield* c.units;
     for (const g of this.scenes.unitGroups()) yield* g;
+    for (const src of this.unitSources) yield* src();
     yield* this.returning;
   }
 
@@ -1774,7 +1807,7 @@ export class PoliceService {
 
   /** Any police car, spike strip, helicopter or crime scene in the world (tick fast path). */
   get active(): boolean {
-    return this.wanted.size > 0 || this.spikes.size > 0 || this.helis.size > 0 || this.scenes.size > 0 || this.returning.length > 0 || this.checkpoints.size > 0;
+    return this.wanted.size > 0 || this.spikes.size > 0 || this.helis.size > 0 || this.scenes.size > 0 || this.returning.length > 0 || this.checkpoints.size > 0 || this.unitSources.some((src) => src().length > 0);
   }
 }
 

@@ -5,6 +5,7 @@
 import type { DragInfo, DragRaceView } from './drag';
 import type { MissionView } from './missions';
 import type { BustedEvent, CrimeSceneView, RadioLine, WantedState } from './police';
+import type { StopState, StopView } from './trafficStops';
 import type { InputCmd } from './physics';
 import type { RareMarketState } from './rareMarket';
 import type { ShowroomId, ShowroomInfo, TestDriveEnd, TestDriveView } from './showrooms';
@@ -329,6 +330,12 @@ export interface ServerToClientEvents {
   /** A taped-off crime scene went up (everyone; also sent on connect), and was cleared away. */
   'police.scene': (d: CrimeSceneView) => void;
   'police.sceneEnd': (d: { id: number }) => void;
+  /** Police checkpoints up now (everyone; also sent on connect). */
+  'stop.list': (d: StopView[]) => void;
+  /** At a checkpoint: warned, being checked, clean, caught, through it, turned back. */
+  'stop.state': (d: StopState) => void;
+  /** A sniffer dog barking (everyone nearby hears it). */
+  'stop.bark': (d: { x: number; z: number }) => void;
   'police.busted': (d: BustedEvent) => void;
   'police.escaped': (d: { reward: number; xp: number; cars: number }) => void;
   /** Street-parked cars changed (one was stolen, a new one parked, an alarm started). */

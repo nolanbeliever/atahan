@@ -290,6 +290,8 @@ export function drawMap(g: CanvasRenderingContext2D, size: number, game: Game, c
   // The police stations, and the taped-off crime scenes.
   for (const st of POLICE_STATIONS) badge(g, tx((st.box.minX + st.box.maxX) / 2), tz((st.box.minZ + st.box.maxZ) / 2), Math.max(8, 3.6 * s), '#3b7bff', '🚓', turn);
   for (const v of game.crimeScenes.list()) badge(g, tx(v.x), tz(v.z), Math.max(8, 3.4 * s), '#ffd400', '🚧', turn);
+  // Police checkpoints (a dog's head where there's a K9 unit).
+  for (const v of game.trafficStops.list()) badge(g, tx(v.x), tz(v.z), Math.max(8, 3.4 * s), '#2ee59d', v.k9 ? '🐕' : '🛑', turn);
   // A police call out for me: the reported scene in a pulsing red ring; with the police scanner,
   // the units on their way (blue).
   const call = game.wanted.call;

@@ -173,17 +173,18 @@ export class CrimeScenes {
     return out;
   }
 
-  /** An officer was shot (down at zero health). */
-  hitOfficer(id: string, amount: number): void {
+  /** An officer was shot (down at zero health). Returns whether it was one of these. */
+  hitOfficer(id: string, amount: number): boolean {
     for (const s of this.scenes.values()) {
       const o = s.officers.find((x) => x.npc.id === id);
       if (!o || o.phase === 'dead') continue;
       o.hp -= amount;
-      if (o.hp > 0) return;
+      if (o.hp > 0) return true;
       o.phase = 'dead';
       o.npc.anim = Anim.Dead;
-      return;
+      return true;
     }
+    return false;
   }
 
   /** Every scene's cars (snapshots, obstacles). */

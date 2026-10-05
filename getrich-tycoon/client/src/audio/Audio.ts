@@ -844,4 +844,34 @@ export class AudioSystem {
     src.stop(t + 0.1);
     this.radioStatic = null;
   }
+
+  /** A big dog barking twice ("woof woof"), quieter further away (0-1). */
+  bark(volume: number): void {
+    if (!this.ctx || !this.noiseBuf || volume <= 0.01) return;
+    const ctx = this.ctx;
+    for (const [k, delay] of [
+      [0, 0],
+      [1, 0.32],
+    ] as const) {
+      const t = ctx.currentTime + delay;
+      // The voice: a growly saw dropping in pitch, through a mouth-like band-pass.
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(k ? 300 : 340, t);
+      osc.frequency.exponentialRampToValueAtTime(150, t + 0.16);
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.setValueAtTime(900, t);
+      f.frequency.exponentialRampToValueAtTime(500, t + 0.16);
+      f.Q.value = 1.2;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.28 * volume, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      osc.connect(f).connect(g).connect(this.sfxBus);
+      osc.start(t);
+      osc.stop(t + 0.22);
+      this.burst(t, 0.12, 'bandpass', 1400, 0.12 * volume);
+    }
+  }
 }

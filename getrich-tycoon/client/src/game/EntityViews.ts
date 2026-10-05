@@ -11,6 +11,7 @@ import { angleDiff, clamp, formatMoney, lerpAngle } from '../../../shared/util';
 import { modelDisplayName } from '../../../shared/vehicles';
 import { LIFT_HEIGHT } from '../../../shared/theft';
 import { groundHeight, surfaceTilt, surfaceY } from '../render/City';
+import { DogView } from '../render/Dog';
 import { CharacterView, HITMAN_CONTACT, NPC_PALETTE, POLICE_OFFICER, SWAT_OFFICER, type Pose } from '../render/Character';
 import { Label } from '../render/Labels';
 import { calculateVehicleStats } from '../../../shared/tuningSystem';
@@ -19,6 +20,11 @@ import { HeadlightRig } from '../render/Headlights';
 import { StripRig } from '../render/StripRig';
 import { BikeView, createVehicleView, type AnyVehicleView } from '../render/VehicleMesh';
 import { INTERP_DELAY_MS, InterpBuffer } from './Interpolation';
+
+const LEASH_MAT = new THREE.LineBasicMaterial({ color: '#1a1a1a' });
+const LEASH_A = new THREE.Vector3();
+const LEASH_B = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
 
 export interface CharEntity {
   view: CharacterView;
@@ -136,6 +142,8 @@ export interface VehEntity {
 export class EntityViews {
   readonly players = new Map<string, CharEntity>();
   readonly npcs = new Map<string, CharEntity>();
+  /** The K9 dogs' leashes (by the dog's id). */
+  private leashes = new Map<string, THREE.Line>();
   /** The hitman mark the local player is after (its label shows). */
   contractMark: string | null = null;
   readonly vehicles = new Map<string, VehEntity>();
@@ -201,9 +209,24 @@ export class EntityViews {
       // Customers (npc_), people in the street (ped_, no label), police officers on foot (cop_;
       // style 1: SWAT), officers combing a crime scene (csi_), the hitman contact in the alley
       // (hmc_) and contract marks (hmt_, labelled for whoever holds it).
-      const csi = id.startsWith('csi_');
+      const csi = id.startsWith('csi_') || id.startsWith('stp_');
       const swat = id.startsWith('cop_') && style === 1;
       const cop = id.startsWith('cop_') || csi;
+      // A checkpoint's K9 sniffer dog.
+      if (id.startsWith('k9_')) {
+        const dog = new DogView();
+        this.scene.add(dog.root);
+        const label = new Label('K9', { color: '#7aa7ff', height: 0.26 });
+        this.scene.add(label.sprite);
+        const leash = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), LEASH_MAT);
+        leash.frustumCulled = false;
+        this.scene.add(leash);
+        this.leashes.set(id, leash);
+        e = { view: dog as unknown as CharacterView, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null, deck: 0 };
+        this.npcs.set(id, e);
+        e.buffer.push({ t, x, z, r, a, b: 0 });
+        return;
+      }
       const ped = id.startsWith('ped_');
       const contact = id.startsWith('hmc_');
       const mark = id.startsWith('hmt_');
@@ -217,7 +240,7 @@ export class EntityViews {
           ? new Label('??? · Görev Al', { color: '#ff6b77', height: 0.3 })
           : mark
             ? new Label(`🎯 ${MARKS[style % MARKS.length]!.name}`, { color: '#ff4655', height: 0.32 })
-            : new Label(swat ? 'SWAT' : csi ? 'POLİS · OLAY YERİ' : cop ? 'POLICE' : 'Customer', { color: cop ? '#7aa7ff' : '#ffd166', height: 0.3 });
+            : new Label(swat ? 'SWAT' : id.startsWith('stp_') ? 'POLİS · ÇEVİRME' : csi ? 'POLİS · OLAY YERİ' : cop ? 'POLICE' : 'Customer', { color: cop ? '#7aa7ff' : '#ffd166', height: 0.3 });
       if (label) this.scene.add(label.sprite);
       e = { view, label, buffer: new InterpBuffer(), anim: Anim.Idle, driving: null, lastSeen: t, foot: { x, z, rot: r }, board: null, riding: null, deck: 0 };
       this.npcs.set(id, e);
@@ -229,6 +252,12 @@ export class EntityViews {
   pruneNpcs(alive: Set<string>): void {
     for (const [id, e] of this.npcs) {
       if (alive.has(id)) continue;
+      const leash = this.leashes.get(id);
+      if (leash) {
+        leash.removeFromParent();
+        leash.geometry.dispose();
+        this.leashes.delete(id);
+      }
       this.scene.remove(e.view.root);
       if (e.label) {
         this.scene.remove(e.label.sprite);
@@ -554,6 +583,30 @@ export class EntityViews {
       e.view.root.rotation.y = s.r;
       e.view.animate(s.a, dt);
       if (e.label) e.label.sprite.position.set(s.x, y + 2.2, s.z);
+    }
+    // The K9 dogs' leashes, from the collar to the handler's hand.
+    for (const [id, leash] of this.leashes) {
+      const dog = this.npcs.get(id);
+      if (!dog) continue;
+      let handler: CharEntity | null = null;
+      let best = 3.2;
+      for (const [oid, o] of this.npcs) {
+        if (!oid.startsWith('stp_')) continue;
+        const d = o.view.root.position.distanceTo(dog.view.root.position);
+        if (d < best) {
+          best = d;
+          handler = o;
+        }
+      }
+      leash.visible = !!handler;
+      if (!handler) continue;
+      const a = (dog.view as unknown as DogView).collar(LEASH_A);
+      const h = handler.view.root;
+      LEASH_B.set(0.32, 0.86, 0.12).applyAxisAngle(UP, h.rotation.y).add(h.position);
+      const pos = leash.geometry.attributes.position as THREE.BufferAttribute;
+      pos.setXYZ(0, a.x, a.y, a.z);
+      pos.setXYZ(1, LEASH_B.x, LEASH_B.y, LEASH_B.z);
+      pos.needsUpdate = true;
     }
     // Contract marks: only whoever holds the contract sees the label.
     for (const [id, e] of this.npcs) if (e.label && id.startsWith('hmt_')) e.label.sprite.visible = id === this.contractMark;

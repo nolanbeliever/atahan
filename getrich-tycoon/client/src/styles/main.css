@@ -1059,3 +1059,21 @@ body.is-wasted #game-root canvas { filter: grayscale(1) contrast(1.1) brightness
 .wallet .goods { color: #c9a6ff; }
 .deal-fade { position: fixed; inset: 0; background: #000; opacity: 1; pointer-events: none; z-index: 40; transition: opacity 0.6s ease-out; }
 .deal-fade.out { opacity: 0; }
+
+/* Police checkpoint card (top centre). */
+.stop-card { position: absolute; top: 132px; left: 50%; transform: translate(-50%, -10px); display: flex; align-items: center; gap: 12px; min-width: 330px; max-width: 520px; padding: 10px 16px; border-radius: 14px; background: rgba(10,16,24,0.92); border: 2px solid #2ee59d; box-shadow: 0 10px 30px rgba(0,0,0,0.45); color: #eafff5; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 39; }
+.stop-card.show { opacity: 1; transform: translate(-50%, 0); }
+.stop-card .stop-icon { width: 42px; height: 42px; flex: none; display: grid; place-items: center; border-radius: 50%; background: #1fbf7a; font-size: 22px; box-shadow: 0 0 14px rgba(46,229,157,0.6); }
+.stop-card .stop-title { font-size: 15px; font-weight: 950; letter-spacing: 0.04em; }
+.stop-card .stop-text { margin-top: 2px; font-size: 11.5px; opacity: 0.85; }
+.stop-card .stop-bar { margin-top: 7px; height: 6px; border-radius: 4px; background: rgba(255,255,255,0.15); overflow: hidden; }
+.stop-card .stop-bar div { height: 100%; background: linear-gradient(90deg, #3b7bff, #7dffb0); transition: width 0.2s linear; }
+.stop-card.warn { animation: stopPulse 1.1s ease-in-out infinite; }
+@keyframes stopPulse { 50% { box-shadow: 0 0 26px rgba(46,229,157,0.65); } }
+.stop-card.check { border-color: #3b7bff; }
+.stop-card.check .stop-icon { background: #2a5bff; box-shadow: 0 0 14px rgba(59,123,255,0.6); }
+.stop-card.caught, .stop-card.evaded { border-color: #ff3b47; }
+.stop-card.caught .stop-icon, .stop-card.evaded .stop-icon { background: #d6111a; box-shadow: 0 0 16px rgba(255,59,71,0.7); }
+.stop-card.uturn { border-color: #ff9f1c; }
+.stop-card.uturn .stop-icon { background: #e07b00; }
+body.touch .stop-card { top: calc(110px + env(safe-area-inset-top)); min-width: 260px; }
