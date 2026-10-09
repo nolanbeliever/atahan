@@ -80,3 +80,15 @@ iOS Safari, kamera erişimine yalnızca **HTTPS** veya gerçek `localhost` üzer
 - `public/` — Vanilla HTML/CSS/JS frontend (derleme adımı yok), `manifest.webmanifest` ve `img/icon-180.png` "Ana Ekrana Ekle" desteği için
 - `public/js/filters.js` — yüz takipli kamera filtreleri; [face-api.js](https://github.com/justadudewhohacks/face-api.js) kütüphanesini ve model dosyalarını jsDelivr CDN'den kullanıcının kendi tarayıcısında yükler (internet bağlantısı gerekir; yüklenemezse kamera yine çalışır, sadece filtreler pasif kalır)
 - `certs/` — (gitignore'lu) yerel HTTPS için mkcert sertifikaları, yukarıdaki adımlarla kendin oluşturursun
+
+## Amsterdam Otel (3D FPV oyun)
+
+Bu repoda ayrıca bağımsız bir proje olarak **[`amsterdam-otel/`](amsterdam-otel/)** klasöründe Amsterdam temalı, birinci şahıs perspektifli, çok oyunculu bir 3D otel yönetimi oyunu (Three.js + Socket.io) bulunur. Kendi `package.json`'ı vardır ve Snoop uygulamasından bağımsız çalışır:
+
+```bash
+cd amsterdam-otel
+npm install
+npm start   # http://localhost:3000
+```
+
+Ayrıntılar için [`amsterdam-otel/README.md`](amsterdam-otel/README.md).

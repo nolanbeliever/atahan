@@ -1,0 +1,23 @@
+{
+  "name": "amsterdam-otel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Amsterdam temalı, FPV perspektifli 3D çok oyunculu otel yönetimi oyunu (MVP / 1. Aşama)",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "compression": "^1.8.2",
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3",
+    "three": "0.185.1"
+  }
+}

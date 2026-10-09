@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1b2430">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Amsterdam Otel</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/vendor/three/three.module.min.js",
+        "three/addons/": "/vendor/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="game" aria-label="Oyun alanı"></canvas>
+
+  <!-- Dokunmatik kontroller (yalnızca dokunmatik cihazlarda görünür) -->
+  <div id="touch-ui" hidden>
+    <div id="touch-move" class="touch-zone"></div>
+    <div id="touch-look" class="touch-zone"></div>
+    <div id="joystick" aria-hidden="true"><div id="joystick-knob"></div></div>
+    <button id="btn-action" type="button">Aksiyon</button>
+  </div>
+
+  <!-- Oyun içi arayüz -->
+  <div id="hud">
+    <div id="panel-time" class="panel">
+      <div class="row">
+        <span id="hud-day">Pazartesi</span>
+        <span id="hud-clock">07:00</span>
+      </div>
+      <div class="row">
+        <span id="hud-open" class="chip">—</span>
+        <span id="hud-money">€ 0</span>
+      </div>
+    </div>
+
+    <div id="panel-rooms" class="panel">
+      <div class="panel-title">Oda Durumu</div>
+      <ul id="room-list"></ul>
+    </div>
+
+    <div id="weekend-banner" hidden>Hafta Sonu — Otel Kapalı</div>
+    <div id="toasts" aria-live="polite"></div>
+    <div id="crosshair"></div>
+    <div id="prompt" hidden></div>
+    <div id="fps" hidden></div>
+    <button id="btn-settings" type="button" aria-label="Ayarlar">⚙</button>
+  </div>
+
+  <!-- Başlangıç / duraklatma ekranı -->
+  <div id="overlay" class="overlay">
+    <div class="card">
+      <div class="logo">🌷</div>
+      <h1>Amsterdam Otel</h1>
+      <p class="sub" id="overlay-sub">Hotel De Tulp'ta kat görevlisi olarak işe başla.</p>
+      <label class="field" id="name-field">
+        <span>Adın</span>
+        <input id="name-input" maxlength="16" autocomplete="off" placeholder="Görevli">
+      </label>
+      <button id="btn-play" type="button" class="primary" disabled>Bağlanıyor…</button>
+      <button id="btn-overlay-settings" type="button" class="secondary">⚙ Ayarlar</button>
+      <ul class="help desktop-only">
+        <li><b>W A S D</b> yürü · <b>Shift</b> koş</li>
+        <li><b>Fare</b> etrafa bak</li>
+        <li><b>E</b> / <b>Sol tık</b> aksiyon</li>
+        <li><b>Esc</b> duraklat</li>
+      </ul>
+      <ul class="help touch-only">
+        <li><b>Sol taraf</b>: parmağını bastır, joystick çıkar</li>
+        <li><b>Sağ taraf</b>: sürükleyerek etrafa bak</li>
+        <li><b>Aksiyon</b> butonu: yatak düzelt / çöp topla</li>
+      </ul>
+      <p class="goal">Misafirler resepsiyona gelir ve boş odaya yerleşir. Çıkış yapınca oda <b>Kirli</b> olur:
+        içeri gir, yatağı düzelt, çöpleri topla. Hafta içi otel açık, hafta sonu kapalıdır.</p>
+      <div id="conn-status">Sunucuya bağlanılıyor…</div>
+    </div>
+  </div>
+
+  <!-- Ayarlar -->
+  <div id="settings" class="overlay" hidden>
+    <div class="card">
+      <h2>Ayarlar</h2>
+      <div class="setting">
+        <span>FPS sınırı</span>
+        <div class="seg" id="set-fps">
+          <button type="button" data-value="30">30</button>
+          <button type="button" data-value="60">60</button>
+        </div>
+      </div>
+      <div class="setting">
+        <span>Grafik kalitesi</span>
+        <select id="set-quality">
+          <option value="auto">Otomatik</option>
+          <option value="low">Düşük (pil dostu)</option>
+          <option value="medium">Orta</option>
+          <option value="high">Yüksek</option>
+        </select>
+      </div>
+      <label class="setting check">
+        <span>FPS göstergesi</span>
+        <input type="checkbox" id="set-showfps">
+      </label>
+      <p class="note" id="set-note"></p>
+      <button type="button" class="primary" id="btn-settings-close">Kapat</button>
+    </div>
+  </div>
+
+  <noscript>Bu oyun için JavaScript gereklidir.</noscript>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>
