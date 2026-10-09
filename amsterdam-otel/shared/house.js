@@ -2,7 +2,7 @@
 // Sunucu (yetkili doğrulama) ve istemci (önizleme / hayalet) AYNI fonksiyonları
 // kullanır; böylece istemcide yeşil görünen yerleşim sunucuda da kabul edilir.
 
-import { HOUSE } from './layout.js';
+import { HOUSE, PLAYER_RADIUS } from './layout.js';
 
 /**
  * w: genişlik (rot 0'da X ekseni), d: derinlik (rot 0'da Z ekseni), metre.
@@ -28,7 +28,8 @@ export const FURNITURE = Object.freeze([
   { id: 'led', name: 'LED şerit', icon: '🌈', price: 5, w: 2.0, d: 0.06, h: 0.05, layer: 'wall',
     colors: ['#b03cff', '#2f7bff', '#ff3fa4', '#3cff7a', '#ff3b3b', '#00e5ff', '#ffd23f', '#ffffff'] },
 ]);
-export const FURNITURE_BY_ID = Object.freeze(Object.fromEntries(FURNITURE.map((f) => [f.id, f])));
+// Prototipsiz nesne: istemciden gelen 'constructor' / '__proto__' gibi anahtarlar undefined döner
+export const FURNITURE_BY_ID = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(FURNITURE.map((f) => [f.id, f]))));
 
 export const HOUSE_RULES = Object.freeze({
   MAX_ITEMS: 80,
@@ -147,6 +148,20 @@ export function validatePlacement(items, c) {
     if (overlaps(box, itemBox(od, o))) return { ok: false, error: 'Başka bir eşyayla çakışıyor.' };
   }
   return { ok: true };
+}
+
+/**
+ * Katı eşya, bir oyuncunun durduğu yere konamaz: çarpışma çözümü oyuncuyu en
+ * yakın kenardan dışarı iter ve eşya duvara yakınsa duvarın öbür tarafına atabilir.
+ * @param margin istemcinin ek payı (ağ gecikmesi)
+ */
+export function blocksPlayer(def, c, x, z, margin = 0) {
+  if (def.layer !== 'floor') return false;
+  const b = itemBox(def, c);
+  const dx = x - Math.min(Math.max(x, b.minX), b.maxX);
+  const dz = z - Math.min(Math.max(z, b.minZ), b.maxZ);
+  const r = PLAYER_RADIUS + margin;
+  return dx * dx + dz * dz < r * r;
 }
 
 /**

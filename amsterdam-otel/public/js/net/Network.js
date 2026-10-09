@@ -28,6 +28,9 @@ export class Network {
     this.pendingMove = null;
     this.moveTimer = 0;
     this.lastSent = null;
+    // Yeniden bağlanınca sunucu oyuncuyu baştan (lobide) oluşturur: aynı konum
+    // "değişmedi" diye atlanmasın, ilk sendMove mutlaka gitsin
+    this.socket.on('disconnect', () => { this.lastSent = null; });
   }
 
   on(event, fn) { this.socket.on(event, fn); }

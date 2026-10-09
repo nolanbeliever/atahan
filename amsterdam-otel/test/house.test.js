@@ -116,6 +116,61 @@ test('satın alıp yerleştirme, herkese yayın, kaldırınca yarı iade', () =>
   assert.ok(sim.snapshot(p.id).house.items.length === 0);
 });
 
+test('prototip anahtarları (constructor, __proto__) sunucuyu çökertmez, cüzdanı bozmaz', () => {
+  const { sim, p, inHouse } = setup();
+  inHouse();
+  for (const type of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+    assert.equal(sim.housePlace(p.id, { type, x: -13, z: 5, rot: 0, color: 0 }).ok, false);
+  }
+  const weird = { toString: 1 }; // Number()/String() ile çevrilince TypeError fırlatır
+  assert.equal(sim.housePlace(p.id, { type: weird, x: weird, z: -1, rot: 0, color: 0 }).ok, false);
+  assert.equal(sim.houseRemove(p.id, weird).ok, false);
+  assert.equal(sim.houseTvStop(p.id, weird).ok, false);
+  sim.movePlayer(p.id, 12.25, 5.6, 0); // coffee shop tezgâhı
+  assert.equal(sim.buy(p.id, 'constructor').ok, false);
+  assert.equal(p.wallet, START_WALLET);
+});
+
+test('oyuncunun durduğu yere katı eşya konamaz (halı ve LED konabilir)', () => {
+  const { sim, p, inHouse } = setup();
+  const other = sim.addPlayer('Komşu');
+  inHouse(-15.6, 4);
+  p.wallet = 100;
+  const chair = { type: 'armchair', x: -15.43, z: 4, rot: 0, color: 0 };
+  assert.match(sim.housePlace(p.id, chair).error, /Durduğun yere/);
+  sim.movePlayer(other.id, -13, 5, 0);
+  assert.match(sim.housePlace(p.id, { type: 'sofa', x: -13, z: 5, rot: 0, color: 0 }).error, /Komşu/);
+  assert.equal(sim.housePlace(p.id, { type: 'rug', x: -13, z: 5, rot: 0, color: 0 }).ok, true);
+  inHouse(-14, 4);
+  assert.equal(sim.housePlace(p.id, chair).ok, true, 'geri çekilince olur');
+});
+
+test('iade yalnızca eşyayı bu oturumda alan oyuncuya; kayda alıcı kimliği yazılmaz', () => {
+  const store = memoryStore();
+  const { sim, p, inHouse } = setup({ store });
+  const other = sim.addPlayer('Komşu');
+  inHouse();
+  sim.movePlayer(other.id, -12.5, 4, 0);
+  const sofa = sim.housePlace(p.id, { type: 'sofa', x: -14, z: 6, rot: 0, color: 0 }).item;
+  const plant = sim.housePlace(p.id, { type: 'plant', x: -10, z: 6, rot: 0, color: 0 }).item;
+  const before = other.wallet;
+  const r = sim.houseRemove(other.id, sofa.id);
+  assert.equal(r.ok, true, 'ev ortak: herkes kaldırabilir');
+  assert.equal(r.refund, 0);
+  assert.equal(other.wallet, before, 'başkasının eşyasından para yok');
+  // Yeniden giriş = yeni oyuncu kimliği → eski eşyadan iade yok (sınırsız para döngüsü olmasın)
+  sim.removePlayer(p.id);
+  const again = sim.addPlayer('Ev');
+  sim.movePlayer(again.id, -12, 4, 0);
+  assert.equal(sim.houseRemove(again.id, plant.id).refund, 0);
+  sim.house.flush();
+  assert.equal(store.data.items.length, 0);
+  sim.movePlayer(again.id, -12, 4, 0);
+  sim.housePlace(again.id, { type: 'plant', x: -10, z: 6, rot: 0, color: 0 });
+  sim.house.flush();
+  assert.equal('byId' in store.data.items[0], false);
+});
+
 test('ışık anahtarı: yalnızca yakındayken, herkese yayınlanır', () => {
   const { sim, p, out, inHouse } = setup();
   inHouse(-14, 7);
@@ -168,7 +223,7 @@ test('TV: link doğrulama, başlık, gömülemeyen video, ağ hatası, kaldırı
   release({ title: 'x' });
   assert.equal((await pending).ok, false);
   // Kanepe TV değildir
-  const sofa = sim.housePlace(p.id, { type: 'sofa', x: -13, z: 4, rot: 0, color: 0 }).item;
+  const sofa = sim.housePlace(p.id, { type: 'sofa', x: -14, z: 4, rot: 0, color: 0 }).item;
   assert.equal((await sim.houseTvSet(p.id, sofa.id, 'dQw4w9WgXcQ')).ok, false);
 });
 

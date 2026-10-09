@@ -50,7 +50,7 @@ export class CoffeeShopService {
     if (!isInsideShop(p.x, p.z) || !near(p, COFFEESHOP.counterPoint, COFFEESHOP.range + 1)) {
       return { ok: false, error: 'Satın almak için tezgâha yaklaş.' };
     }
-    if (p.wallet < product.price) return { ok: false, error: 'Cüzdanında yeterli para yok.' };
+    if (!(p.wallet >= product.price)) return { ok: false, error: 'Cüzdanında yeterli para yok.' };
     p.wallet -= product.price;
     p.inventory[product.id] = (p.inventory[product.id] || 0) + 1;
     this.sendSelf(p);

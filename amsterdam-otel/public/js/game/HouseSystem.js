@@ -4,7 +4,7 @@ import { EVT } from '/shared/constants.js';
 import { HOUSE, isInsideHouse } from '/shared/layout.js';
 import {
   FURNITURE, FURNITURE_BY_ID, HOUSE_RULES, itemBox, itemRotationY, candidateFromPoint,
-  validatePlacement, itemAtPoint,
+  validatePlacement, itemAtPoint, blocksPlayer,
 } from '/shared/house.js';
 import { buildFurniture, makeGlowTexture } from './FurnitureModels.js';
 
@@ -16,6 +16,9 @@ const _p = new THREE.Vector3();
 const _one = new THREE.Vector3(1, 1, 1);
 const _up = new THREE.Vector3(0, 1, 0);
 const _dir = new THREE.Vector3();
+// Sunucu konumu ~100 ms geriden gelir: istemci biraz daha katı davranır ki
+// yeşil görünen yerleşim sunucuda reddedilmesin
+const REACH_MARGIN = 0.25;
 
 /**
  * Bizim Ev: eşyaların çizimi, dekorasyon modu, ışık anahtarı, kapı.
@@ -27,7 +30,7 @@ const _dir = new THREE.Vector3();
  * bir degrade ile taklit edilir.
  */
 export class HouseSystem {
-  constructor({ engine, building, collision, net, hud, interaction, player, device, tv }) {
+  constructor({ engine, building, collision, net, hud, interaction, player, remotes, device, tv }) {
     this.engine = engine;
     this.scene = engine.scene;
     this.building = building;
@@ -36,11 +39,13 @@ export class HouseSystem {
     this.hud = hud;
     this.interaction = interaction;
     this.player = player;
+    this.remotes = remotes;
     this.device = device;
     this.tv = tv;
 
     this.items = new Map();
     this.getWallet = () => Infinity; // main.js bağlar (coffee shop cüzdanı)
+    this.selfId = null; // iade önizlemesi için (yalnızca kendi aldığın eşya)
     this.lightsOn = true;
     this.inside = false;
     this.greeted = false;
@@ -107,6 +112,8 @@ export class HouseSystem {
     this.setLights(house?.lightsOn !== false);
     this.rebuild();
     for (const it of this.items.values()) if (it.type === 'tv') this.tv.syncScreen(it);
+    // Bağlantı kopukken kaçırılan TV olaylarını (kaldırma, durdurma, yeni video) telafi et
+    this.tv.reconcile(this.items);
   }
 
   onAdded(item) {
@@ -417,9 +424,24 @@ export class HouseSystem {
     const c = candidateFromPoint(def, pt.x, pt.z, b.rot);
     b.cand = { type: def.id, x: c.x, z: c.z, rot: c.rot, color: b.color };
     b.check = validatePlacement([...this.items.values()], b.cand);
+    const me = this.player.pos;
+    // LED en yakın duvara yapıştığı için bakılan noktadan metrelerce uzağa kayabilir
+    if (b.check.ok && Math.hypot(c.x - me.x, c.z - me.z) > HOUSE_RULES.REACH - REACH_MARGIN) {
+      b.check = { ok: false, error: 'Çok uzak — biraz yaklaş.' };
+    }
+    if (b.check.ok && blocksPlayer(def, b.cand, me.x, me.z, 0.1)) {
+      b.check = { ok: false, error: 'Durduğun yere koyamazsın — biraz geri çekil.' };
+    }
+    if (b.check.ok) {
+      for (const o of this.remotes.positions()) {
+        if (!blocksPlayer(def, b.cand, o.x, o.z, 0.15)) continue;
+        b.check = { ok: false, error: 'Orada biri duruyor.' };
+        break;
+      }
+    }
     const wallet = this.getWallet();
     if (b.check.ok && wallet < def.price) {
-      b.check = { ok: false, error: `${def.name} için €${def.price} gerekli (cüzdanında €${wallet} var — oda temizleyip bahşiş topla)` };
+      b.check = { ok: false, error: `${def.name}: €${def.price} gerekli, cüzdanda €${wallet} var. Oda temizle, bahşiş topla.` };
     }
 
     // Hayalet önizleme (tür/renk değişince yeniden kurulur)
@@ -446,6 +468,7 @@ export class HouseSystem {
 
     // Kaldırma hedefi: bakılan noktadaki eşya
     b.target = itemAtPoint([...this.items.values()], pt.x, pt.z);
+    b.targetFar = !!b.target && Math.hypot(b.target.x - me.x, b.target.z - me.z) > HOUSE_RULES.REACH - REACH_MARGIN;
     if (b.target) {
       const td = FURNITURE_BY_ID[b.target.type];
       const box = itemBox(td, b.target);
@@ -462,10 +485,14 @@ export class HouseSystem {
     const text = b.check.ok ? `${def.icon} ${def.name} yerleştir · €${def.price}` : b.check.error;
     this.hud.setPrompt(b.check.ok ? { key: key2, text } : { info: `⚠ ${text}` });
     const t = b.target ? FURNITURE_BY_ID[b.target.type] : null;
-    const refund = t ? Math.floor(t.price * HOUSE_RULES.REFUND) : 0;
-    this.el.hint.textContent = t
-      ? `${this.device.touch ? '🗑' : 'X'}: ${t.icon} ${t.name} kaldır (+€${refund})`
-      : (this.device.touch
+    // İade yalnızca bu oturumda kendi aldığın eşyaya (sunucu kuralı)
+    const refund = t && b.target.byId === this.selfId ? Math.floor(t.price * HOUSE_RULES.REFUND) : 0;
+    const removeKey = this.device.touch ? '🗑' : 'X';
+    let removeText = null;
+    if (t && b.targetFar) removeText = `${t.icon} ${t.name} — kaldırmak için yaklaş`;
+    else if (t) removeText = `${removeKey}: ${t.icon} ${t.name} kaldır${refund ? ` (+€${refund})` : ''}`;
+    this.el.hint.textContent = removeText
+      || (this.device.touch
         ? 'Eşyayı seç, yere bak, Aksiyon ile yerleştir.'
         : '1-9 eşya · C renk · R döndür · E yerleştir · X kaldır · B çık');
   }
@@ -489,9 +516,14 @@ export class HouseSystem {
       this.hud.toast('Kaldırmak için eşyanın durduğu yere bak.', 'info');
       return;
     }
+    if (this.build.targetFar) {
+      this.hud.toast('Eşyaya yaklaş.', 'info');
+      return;
+    }
     const def = FURNITURE_BY_ID[t.type];
     const res = await this.net.request(EVT.HOUSE_REMOVE, { id: t.id });
-    if (res.ok) this.hud.toast(`${def.icon} ${def.name} kaldırıldı (+€${res.refund})`, 'money');
-    else this.hud.toast(res.error || 'Kaldırılamadı.', 'warn');
+    if (!res.ok) this.hud.toast(res.error || 'Kaldırılamadı.', 'warn');
+    else if (res.refund) this.hud.toast(`${def.icon} ${def.name} kaldırıldı (+€${res.refund})`, 'money');
+    else this.hud.toast(`${def.icon} ${def.name} kaldırıldı`, 'info');
   }
 }

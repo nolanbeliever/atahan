@@ -51,7 +51,8 @@ export class TvSystem {
       if (this.offer) this.load(this.offer.itemId, this.offer.video);
     });
     this.el.link.addEventListener('keydown', (e) => {
-      e.stopPropagation(); // oyun tuşları (WASD, E, F…) yazarken tetiklenmesin
+      // Oyun tuşları (WASD, E, F…) yazarken tetiklenmesin; Esc ise paneli kapatabilsin
+      if (e.key !== 'Escape') e.stopPropagation();
       if (e.key === 'Enter') this.play();
     });
   }
@@ -66,13 +67,20 @@ export class TvSystem {
     if (this.current) {
       this.unload();
       this.offer = null;
-    } else if (this.offer && this.inside) {
-      this.load(this.offer.itemId, this.offer.video);
     } else {
-      this.hud.toast('Açık bir TV yok. Bizim Ev\'deki televizyona bakıp E ile YouTube aç.', 'info');
+      // Kapatılan yayına T ile geri dönülebilsin: öneri yoksa evde çalan en son TV
+      const o = this.inside ? (this.offer || this.latestPlaying()) : null;
+      if (o) this.load(o.itemId, o.video);
+      else this.hud.toast('Açık bir TV yok. Bizim Ev\'deki televizyona bakıp E ile YouTube aç.', 'info');
     }
     this.renderPlayer();
     return true;
+  }
+
+  /** Evde en son açılan video { itemId, video } ya da null */
+  latestPlaying(tvs = this.house?.tvItems() ?? []) {
+    const playing = tvs.filter((t) => t.video).sort((a, b) => b.video.startedAt - a.video.startedAt)[0];
+    return playing ? { itemId: playing.id, video: playing.video } : null;
   }
 
   // ---- Panel ------------------------------------------------------------------
@@ -160,8 +168,31 @@ export class TvSystem {
 
   onEnterHouse(tvs) {
     this.inside = true;
-    const playing = tvs.filter((t) => t.video).sort((a, b) => b.video.startedAt - a.video.startedAt)[0];
-    this.offer = playing ? { itemId: playing.id, video: playing.video } : null;
+    this.offer = this.latestPlaying(tvs);
+    this.renderPlayer();
+  }
+
+  /**
+   * Yeniden bağlanınca (WELCOME) gelen tam ev durumuyla eşitle: bağlantı
+   * kopukken kaldırılan / durdurulan / değiştirilen TV'nin oynatıcısı kalmasın.
+   * @param items Map<id, item>
+   */
+  reconcile(items) {
+    const tvAt = (id) => {
+      const it = items.get(id);
+      return it?.type === 'tv' ? it : null;
+    };
+    if (this.panelItem !== null) {
+      const it = tvAt(this.panelItem);
+      if (it) this.updateNow(it);
+      else this.modal.close(this.el.panel);
+    }
+    if (this.current) {
+      const it = tvAt(this.current.itemId);
+      if (!it?.video) this.unload();
+      else if (it.video.id !== this.current.videoId) this.load(it.id, it.video);
+    }
+    this.offer = this.inside && !this.current ? this.latestPlaying([...items.values()].filter((it) => it.type === 'tv')) : null;
     this.renderPlayer();
   }
 

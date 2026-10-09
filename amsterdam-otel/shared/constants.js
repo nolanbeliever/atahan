@@ -88,7 +88,8 @@ export const PRODUCTS = Object.freeze([
   { id: 'whitewidow', name: 'White Widow', price: 10, icon: '🍃', desc: 'Adı korkutucu, ünü efsane.' },
   { id: 'northern', name: 'Northern Lights', price: 11, icon: '🌌', desc: 'Kuzey ışıkları kadar renkli bir yolculuk vaat eder.' },
 ]);
-export const PRODUCT_BY_ID = Object.freeze(Object.fromEntries(PRODUCTS.map((p) => [p.id, p])));
+// Prototipsiz nesne: istemciden gelen 'constructor' / '__proto__' gibi anahtarlar undefined döner
+export const PRODUCT_BY_ID = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(PRODUCTS.map((p) => [p.id, p]))));
 
 export const START_WALLET = 30; // € — oyuncunun kişisel cüzdanı
 export const TIP_MIN = 4; // € — temizlenen odada bulunan bahşiş

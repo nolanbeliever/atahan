@@ -1,10 +1,12 @@
 import { EVT } from '../../shared/constants.js';
 import { HOUSE, isInsideHouse } from '../../shared/layout.js';
 import {
-  FURNITURE_BY_ID, HOUSE_RULES, validatePlacement, parseYouTubeId, isYouTubeId,
+  FURNITURE_BY_ID, HOUSE_RULES, validatePlacement, blocksPlayer, parseYouTubeId, isYouTubeId,
 } from '../../shared/house.js';
 
 const round2 = (v) => Math.round(v * 100) / 100;
+// İstemci sayıları sayı olarak gönderir; başka her şey (nesne, dizi…) geçersiz sayılır
+const num = (v) => (typeof v === 'number' ? v : NaN);
 const SAVE_DELAY_MS = 1500;
 
 /**
@@ -64,6 +66,11 @@ export class HouseService {
     return { items: this.items.map((it) => ({ ...it })), lightsOn: this.lightsOn };
   }
 
+  /** Dosyaya yazılan hâli: oturumluk alıcı kimliği (byId) kaydedilmez */
+  persisted() {
+    return { items: this.items.map(({ byId, ...it }) => it), lightsOn: this.lightsOn };
+  }
+
   scheduleSave() {
     if (!this.store) return;
     clearTimeout(this.saveTimer);
@@ -74,7 +81,7 @@ export class HouseService {
   flush() {
     clearTimeout(this.saveTimer);
     this.saveTimer = null;
-    this.store?.save(this.serialize());
+    this.store?.save(this.persisted());
   }
 
   /** Oyuncu evin içinde mi (ağ gecikmesi için küçük tolerans) */
@@ -84,7 +91,8 @@ export class HouseService {
   }
 
   find(id) {
-    return this.items.find((it) => it.id === Number(id));
+    const n = num(id);
+    return this.items.find((it) => it.id === n);
   }
 
   // ---- Dekorasyon -------------------------------------------------------------
@@ -93,20 +101,27 @@ export class HouseService {
     if (!this.inside(p)) return { ok: false, error: 'Dekorasyon için evin içinde olmalısın.' };
     if (this.items.length >= HOUSE_RULES.MAX_ITEMS) return { ok: false, error: `Evde en fazla ${HOUSE_RULES.MAX_ITEMS} eşya olabilir.` };
     const c = {
-      type: String(data?.type ?? ''),
-      x: round2(Number(data?.x)),
-      z: round2(Number(data?.z)),
-      rot: Number(data?.rot),
-      color: Number(data?.color),
+      type: typeof data?.type === 'string' ? data.type : '',
+      x: round2(num(data?.x)),
+      z: round2(num(data?.z)),
+      rot: num(data?.rot),
+      color: num(data?.color),
     };
     const v = validatePlacement(this.items, c);
     if (!v.ok) return v;
     if (Math.hypot(p.x - c.x, p.z - c.z) > HOUSE_RULES.REACH) return { ok: false, error: 'Bu kadar uzağa yerleştiremezsin.' };
     const def = FURNITURE_BY_ID[c.type];
-    if (p.wallet < def.price) return { ok: false, error: `${def.name} için €${def.price} gerekli.` };
+    for (const o of this.sim.players.values()) {
+      if (!blocksPlayer(def, c, o.x, o.z)) continue;
+      return { ok: false, error: o === p ? 'Durduğun yere koyamazsın, biraz geri çekil.' : `${o.name} orada duruyor.` };
+    }
+    if (!(p.wallet >= def.price)) return { ok: false, error: `${def.name} için €${def.price} gerekli.` };
 
     p.wallet -= def.price;
-    const item = { id: this.nextId++, ...c, by: p.name, video: null };
+    // byId: iade yalnızca bu oturumda eşyayı alan oyuncuya (kayda yazılmaz; yeniden
+    // başlatınca kimlikler sıfırlanır). Aksi halde ev, her girişte yenilenen cüzdandan
+    // sınırsız para aktarmanın yolu olurdu.
+    const item = { id: this.nextId++, ...c, by: p.name, byId: p.id, video: null };
     this.items.push(item);
     this.sim.shop.sendSelf(p);
     this.sim.out(EVT.HOUSE_ADDED, item);
@@ -120,10 +135,12 @@ export class HouseService {
     if (!it) return { ok: false, error: 'Eşya bulunamadı.' };
     if (Math.hypot(p.x - it.x, p.z - it.z) > HOUSE_RULES.REACH) return { ok: false, error: 'Eşyaya yaklaş.' };
     const def = FURNITURE_BY_ID[it.type];
-    const refund = Math.floor(def.price * HOUSE_RULES.REFUND);
+    const refund = it.byId === p.id ? Math.floor(def.price * HOUSE_RULES.REFUND) : 0;
     this.items.splice(this.items.indexOf(it), 1);
-    p.wallet += refund;
-    this.sim.shop.sendSelf(p);
+    if (refund) {
+      p.wallet += refund;
+      this.sim.shop.sendSelf(p);
+    }
     this.sim.out(EVT.HOUSE_REMOVED, it.id);
     this.scheduleSave();
     return { ok: true, refund };

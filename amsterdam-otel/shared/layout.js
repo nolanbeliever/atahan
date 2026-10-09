@@ -48,8 +48,10 @@ export function isInsideShop(x, z) {
 // Otelin batısında, sokağa açılan ortak ev ("Bizim Ev") — oyuncular dekore eder
 export const HOUSE = Object.freeze({
   bounds: { minX: -16, maxX: -8.1, minZ: 0, maxZ: 8 },
-  // Eşyaların yerleştirilebileceği iç alan; duvar eşyaları (LED) bu çizgilere monte edilir
-  inner: { minX: -15.88, maxX: -8.16, minZ: 0.12, maxZ: 7.88 },
+  // Eşyaların yerleştirilebileceği iç alan; duvar eşyaları (LED) bu çizgilere monte edilir.
+  // Her çizgi duvarın görünen iç yüzünden 2 cm içeride (ön duvarın kaplaması z=0.13'te biter;
+  // daha geride kalırsa LED ışığı kaplamanın arkasında gizlenir).
+  inner: { minX: -15.88, maxX: -8.16, minZ: 0.15, maxZ: 7.88 },
   door: { from: -12.6, to: -11.4 },
   lightSwitch: [-11.0, 0.12], // kapının yanında, ön duvarın iç yüzü
 });
@@ -116,7 +118,7 @@ export const ROOMS = Object.freeze([
   makeRoom('104', 1, 19),
 ]);
 
-export const ROOM_BY_ID = Object.freeze(Object.fromEntries(ROOMS.map((r) => [r.id, r])));
+export const ROOM_BY_ID = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(ROOMS.map((r) => [r.id, r]))));
 
 export function pointInBounds(x, z, b, margin = 0) {
   return x >= b.minX - margin && x <= b.maxX + margin && z >= b.minZ - margin && z <= b.maxZ + margin;

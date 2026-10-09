@@ -77,7 +77,9 @@ hafta sonları otel kapalıyken takılmak için ideal.
 
 - **Dekorasyon modu:** evin içinde **B** (mobilde **🛠 Dekor**). Alttaki çubuktan eşyayı seç (1–9), rengini seç (**C** ya da renk
   noktaları), **R** ile döndür, zemine bakıp **E** / **Aksiyon** ile yerleştir. Yeşil önizleme = olur, kırmızı = olmaz (sebebi
-  ekranda yazar). Bir eşyaya bakıp **X** / **🗑 Kaldır** → fiyatının yarısı cüzdana döner.
+  ekranda yazar; birinin durduğu yere katı eşya konmaz). Bir eşyaya bakıp **X** / **🗑 Kaldır** → eşya kalkar; bu oturumda
+  kendi aldığın eşyaysa fiyatının yarısı cüzdana döner (başkasının ya da önceki oturumun eşyası para getirmez — cüzdan her
+  girişte yenilendiği için ev, sınırsız para aktarma yolu olmasın).
 - **Eşyalar (kişisel cüzdandan):** kanepe €18, berjer €10, armut koltuk €7, televizyon €25, sehpa €8, halı €6, bitki €4,
   ayaklı lamba €6, LED şerit €5 (8 renk). Halılar eşyaların altına serilebilir; LED'ler duvara monte edilir.
   Kapının önü boş kalmalı; evde en fazla 80 eşya olabilir.
@@ -85,7 +87,8 @@ hafta sonları otel kapalıyken takılmak için ideal.
   vurur. Işık durumu herkes için ortaktır.
 - **Televizyon / YouTube:** TV'ye bakıp **E** → YouTube linkini yapıştır → **▶ Oynat**. Video YouTube'un resmi gömülü oynatıcısıyla
   (youtube-nocookie.com) çalar; panel kapanınca köşede küçük oynatıcıda devam eder, TV ekranında videonun küçük resmi görünür.
-  Evdeki diğer oyuncular **▶ Katıl** (masaüstünde **T**) ile aynı saniyeden izler. Evden çıkınca oynatıcı kapanır.
+  Evdeki diğer oyuncular **▶ Katıl** (masaüstünde **T**) ile aynı saniyeden izler; **T** oynatıcıyı kapatır, tekrar **T**
+  geri getirir. Evden çıkınca oynatıcı kapanır. Bağlantı koparsa geri gelince TV durumu sunucuyla eşitlenir.
   Sahibi başka sitelerde oynatılmaya izin vermeyen videolar açılmaz (sunucu YouTube oEmbed ile kontrol eder).
 - **Kalıcılık:** ev `data/house.json` dosyasına kaydedilir (`HOUSE_FILE` ile değiştirilebilir). Render'ın ücretsiz planında
   disk kalıcı olmadığından yeniden deploy'da ev sıfırlanır.

@@ -189,7 +189,10 @@ html, body {
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 14px;
-  white-space: nowrap;
+  /* Tek satır; dar ekranda taşmak yerine alt satıra geçer */
+  width: max-content;
+  max-width: 92vw;
+  text-align: center;
 }
 #prompt kbd {
   display: inline-block;
@@ -397,7 +400,7 @@ body.touch.building #btn-action { bottom: calc(150px + var(--safe-b)); }
 /* ---------- Bizim Ev: TV / YouTube ---------- */
 #tv-player {
   position: fixed;
-  z-index: 11;
+  z-index: 9; /* HUD'un (bildirimler, dekor çubuğu) altında, dokunmatik bölgelerin üstünde */
   background: #000;
   border: 1px solid var(--panel-border);
   border-radius: 10px;
@@ -657,7 +660,8 @@ body.touch #crosshair { width: 4px; height: 4px; margin: -2px 0 0 -2px; }
 @media (max-height: 480px), (max-width: 560px) {
   #inventory { top: calc(110px + var(--safe-t)); }
   #btn-build { top: calc(106px + var(--safe-t)); font-size: 12px; padding: 5px 10px; }
-  #tv-player.mini { top: calc(138px + var(--safe-t)); width: 168px; }
+  /* Alttaki Aksiyon butonuna değmesin: kısa ekranda video küçülür */
+  #tv-player.mini { top: calc(138px + var(--safe-t)); width: clamp(96px, calc((100vh - 264px) * 16 / 9), 168px); }
   #build-items button { width: 48px; }
   body.building #prompt { bottom: calc(132px + var(--safe-b)); }
   body.touch.building #btn-action { bottom: calc(132px + var(--safe-b)); width: 64px; height: 64px; }
@@ -667,4 +671,26 @@ body.touch #crosshair { width: 4px; height: 4px; margin: -2px 0 0 -2px; }
 }
 @media (max-width: 560px) {
   #top-center { top: calc(172px + var(--safe-t)); width: 86vw; }
+}
+/* Dikey telefon, dekorasyon modu: Aksiyon çubuğun, ipucu Aksiyon'un üstünde */
+@media (max-width: 560px) {
+  body.building #prompt { bottom: calc(222px + var(--safe-b)); }
+  body.touch.building #btn-action { bottom: calc(150px + var(--safe-b)); }
+}
+/* Yatay telefon, dekorasyon modu */
+@media (max-height: 480px) {
+  /* Video başlık çubuğuna iner (ses sürer) */
+  body.building #tv-player.mini #tv-frame { height: 0; aspect-ratio: auto; }
+  body.building #tv-join { display: none; }
+  /* Çubuk soldaki joystick bölgesinin (%45) dışında, Aksiyon da her zamanki yerinde
+     çubuğun sağında: dokunuşlar yanlışlıkla eşya seçmez, buton videonun altında kalmaz */
+  body.touch #build-bar {
+    left: auto;
+    right: calc(102px + var(--safe-r));
+    transform: none;
+    width: min(440px, calc(55vw - 102px - var(--safe-r)));
+  }
+  body.touch.building #btn-action { bottom: calc(26px + var(--safe-b)); width: 74px; height: 74px; }
+  body.touch #build-bar .lbl { display: none; }
+  body.touch #build-colors .sw { width: 20px; height: 20px; }
 }

@@ -90,6 +90,8 @@ const modal = {
     const i = this.stack.indexOf(el);
     if (i < 0) return;
     this.stack.splice(i, 1);
+    // Gizlenen paneldeki kutuda odak kalırsa sonraki oyun tuşları oraya gider (Esc ile kapanış)
+    if (el.contains(document.activeElement)) document.activeElement.blur();
     el.hidden = true;
     const cb = this.onClose.get(el);
     this.onClose.delete(el);
@@ -109,7 +111,7 @@ const modal = {
 const trip = new TripEffects({ engine, player, collision, hud, net, remotes, settings });
 const tv = new TvSystem({ net, hud, modal, engine, device });
 const house = new HouseSystem({
-  engine, building: world.house, collision, net, hud, interaction, player, device, tv,
+  engine, building: world.house, collision, net, hud, interaction, player, remotes, device, tv,
 });
 tv.house = house;
 house.getWallet = () => shop.wallet;
@@ -277,6 +279,7 @@ net.on(EVT.WELCOME, (snap) => {
   state.economy = snap.economy;
   shop.applySelf(snap.self);
   trip.setSelfTrip(snap.self?.trip);
+  house.selfId = snap.selfId;
   house.applySnapshot(snap.house);
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);

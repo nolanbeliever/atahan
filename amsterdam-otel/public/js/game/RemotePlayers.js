@@ -48,6 +48,11 @@ export class RemotePlayers {
 
   get(id) { return this.items.get(id); }
 
+  /** Diğer oyuncuların sunucudan gelen son konumları */
+  * positions() {
+    for (const it of this.items.values()) yield { x: it.tx, z: it.tz };
+  }
+
   remove(id) {
     const it = this.items.get(id);
     if (!it) return;
