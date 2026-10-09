@@ -24,11 +24,11 @@ export const ENTRANCE_HALF = 1.2;
 export const AREAS = Object.freeze({
   lobby: { minX: -8, maxX: 8, minZ: 0, maxZ: 12 },
   corridor: { minX: -1.5, maxX: 1.5, minZ: 12, maxZ: 26 },
-  street: { minX: -12, maxX: 18, minZ: -7.4, maxZ: 0 },
+  street: { minX: -18, maxX: 18, minZ: -7.4, maxZ: 0 },
 });
 
 // Oyuncunun gidebileceği en geniş alan (sunucu konum doğrulaması için)
-export const WORLD_BOUNDS = Object.freeze({ minX: -12, maxX: 18, minZ: -7.6, maxZ: 26 });
+export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 18, minZ: -7.6, maxZ: 26 });
 
 // Otelin doğusunda, sokağa açılan Amsterdam coffee shop'u
 export const COFFEESHOP = Object.freeze({
@@ -43,6 +43,19 @@ export const COFFEESHOP = Object.freeze({
 
 export function isInsideShop(x, z) {
   return x > 8.15 && x < 15.9 && z > 0.12 && z < 7.9;
+}
+
+// Otelin batısında, sokağa açılan ortak ev ("Bizim Ev") — oyuncular dekore eder
+export const HOUSE = Object.freeze({
+  bounds: { minX: -16, maxX: -8.1, minZ: 0, maxZ: 8 },
+  // Eşyaların yerleştirilebileceği iç alan; duvar eşyaları (LED) bu çizgilere monte edilir
+  inner: { minX: -15.88, maxX: -8.16, minZ: 0.12, maxZ: 7.88 },
+  door: { from: -12.6, to: -11.4 },
+  lightSwitch: [-11.0, 0.12], // kapının yanında, ön duvarın iç yüzü
+});
+
+export function isInsideHouse(x, z) {
+  return x > -15.9 && x < -8.14 && z > 0.12 && z < 7.9;
 }
 
 export const RECEPTION = Object.freeze({
@@ -61,7 +74,7 @@ export const SEATS = Object.freeze([
 ]);
 
 export const POINTS = Object.freeze({
-  streetWest: [-19, -3.6],
+  streetWest: [-23, -3.6],
   streetEast: [23, -3.6],
   doorOutside: [0, -1.4],
   doorInside: [0, 1.0],
@@ -167,12 +180,18 @@ export function buildWallSegments() {
   wallAlongX(w, 0, 8.2, 16, [{ from: shop.door.from, to: shop.door.to, top: 2.5 }], 'shopWall');
   wallAlongZ(w, 16, 0, 8, [], 'shopWall');
   wallAlongX(w, 8, 8.2, 16, [], 'shopWall');
+  // Bizim Ev: ön cephe (kapılı), batı ve arka duvar; doğu duvarı otelin batı duvarı
+  const house = HOUSE;
+  wallAlongX(w, 0, -16, -8.2, [{ from: house.door.from, to: house.door.to, top: 2.5 }], 'brick');
+  wallAlongZ(w, -16, 0, 8, [], 'houseWall');
+  wallAlongX(w, 8, -16, -8.2, [], 'houseWall');
   return w;
 }
 
 /** Oyuncunun bulunduğu bölge (halüsinasyonları aynı bölgede tutmak için) */
 export function areaAt(x, z) {
   if (isInsideShop(x, z)) return 'shop';
+  if (isInsideHouse(x, z)) return 'house';
   for (const r of ROOMS) if (isInsideRoom(r, x, z)) return r.id;
   if (pointInBounds(x, z, AREAS.corridor) && Math.abs(x) < 1.4) return 'corridor';
   if (pointInBounds(x, z, AREAS.lobby) && z > 0.1 && Math.abs(x) < 7.9) return 'lobby';

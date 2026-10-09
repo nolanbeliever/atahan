@@ -5,3 +5,6 @@ data/*.db-wal
 data/*.db-shm
 *.log
 certs/
+
+# Amsterdam Otel: Bizim Ev kaydı
+amsterdam-otel/data/

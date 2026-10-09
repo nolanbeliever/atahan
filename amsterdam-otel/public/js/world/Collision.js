@@ -15,6 +15,11 @@ export class Collision {
     return b;
   }
 
+  remove(box) {
+    const i = this.boxes.indexOf(box);
+    if (i >= 0) this.boxes.splice(i, 1);
+  }
+
   /** Merkez + yarıçapla küçük engel (saksı, direk vb.) */
   addAround(x, z, half) {
     return this.add(x - half, x + half, z - half, z + half);

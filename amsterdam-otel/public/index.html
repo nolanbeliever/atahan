@@ -66,11 +66,51 @@
     <div id="prompt" hidden></div>
     <div id="fps" hidden></div>
     <button id="btn-settings" type="button" aria-label="Ayarlar">⚙</button>
+    <button id="btn-build" type="button" hidden>🛠 Dekor</button>
+
+    <!-- Bizim Ev: dekorasyon modu (oyun durmaz, yürüyerek yerleştirirsin) -->
+    <div id="build-bar" hidden>
+      <div id="build-items"></div>
+      <div class="build-row">
+        <div id="build-colors"></div>
+        <button type="button" id="build-rotate">⟳ Döndür</button>
+        <button type="button" id="build-remove">🗑 Kaldır</button>
+        <button type="button" id="build-close" aria-label="Dekorasyon modundan çık">✕</button>
+      </div>
+      <div id="build-hint">1-9 eşya · C renk · R döndür · E yerleştir · X kaldır · B çık</div>
+    </div>
   </div>
 
   <!-- Trip efektleri (yalnızca bu oyuncu görür) -->
   <div id="trip-bubbles" aria-hidden="true"></div>
   <div id="splatter" aria-hidden="true"></div>
+
+  <!-- Bizim Ev: YouTube oynatıcı (TV panelinde büyük, kapanınca köşede küçük) -->
+  <div id="tv-player" class="mini" hidden>
+    <div class="tv-bar">
+      <span id="tv-title">📺 TV</span>
+      <button type="button" id="tv-hide" aria-label="Oynatıcıyı kapat">✕</button>
+    </div>
+    <div id="tv-frame"></div>
+    <button type="button" id="tv-join" hidden>▶ Katıl</button>
+  </div>
+
+  <!-- Bizim Ev: TV kumandası -->
+  <div id="tv-panel" class="overlay" hidden>
+    <div class="card">
+      <h2>📺 Televizyon</h2>
+      <p class="sub" id="tv-now">TV kapalı.</p>
+      <div class="tv-input">
+        <input id="tv-link" type="url" inputmode="url" autocomplete="off" placeholder="YouTube linkini yapıştır (youtube.com/watch?v=… ya da youtu.be/…)">
+        <button type="button" class="primary" id="tv-play">▶ Oynat</button>
+      </div>
+      <p class="note" id="tv-msg"></p>
+      <div class="tv-actions">
+        <button type="button" class="secondary" id="tv-stop">⏹ Kapat (herkes için)</button>
+        <button type="button" class="secondary" id="tv-close">Geri dön</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Coffee shop: yaş onayı -->
   <div id="age-gate" class="overlay" hidden>
@@ -131,6 +171,7 @@
         <li><b>W A S D</b> yürü · <b>Shift</b> koş</li>
         <li><b>Fare</b> etrafa bak</li>
         <li><b>E</b> / <b>Sol tık</b> aksiyon · <b>F</b> tüket · <b>Q</b> ürün değiştir</li>
+        <li><b>B</b> Bizim Ev'de dekorasyon modu · <b>T</b> TV yayınına katıl / kapat</li>
         <li><b>Esc</b> duraklat</li>
       </ul>
       <ul class="help touch-only">
@@ -140,7 +181,8 @@
       </ul>
       <p class="goal">Misafirler resepsiyona gelir ve boş odaya yerleşir. Çıkış yapınca oda <b>Kirli</b> olur:
         içeri gir, yatağı düzelt, çöpleri topla. Hafta içi otel açık, hafta sonu kapalıdır.
-        Bahşişlerini sokaktaki <b>coffee shop</b>'ta (18+) harcayabilirsin.</p>
+        Bahşişlerini sokaktaki <b>coffee shop</b>'ta (18+) ya da otelin batısındaki <b>Bizim Ev</b>'i
+        dekore etmeye harcayabilirsin; evdeki TV'de YouTube açabilirsin.</p>
       <div id="conn-status">Sunucuya bağlanılıyor…</div>
     </div>
   </div>

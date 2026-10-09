@@ -28,6 +28,7 @@ export function attachSocketHandlers(io, sim) {
     const allowMove = rateLimiter(20, 30);
     const allowInteract = rateLimiter(8, 8);
     const allowShop = rateLimiter(4, 6);
+    const allowHouse = rateLimiter(6, 10);
     const reply = (ack, res) => { if (typeof ack === 'function') ack(res); };
 
     // Saat senkronu: istemci gecikmeyi ölçüp sunucu saatine hizalanır
@@ -78,6 +79,30 @@ export function attachSocketHandlers(io, sim) {
     socket.on(EVT.EMOTE, (data) => {
       if (!player || !data) return;
       sim.emote(player.id, data.type === 'giggle' ? 'giggle' : 'vomit');
+    });
+
+    // ---- Bizim Ev ----
+    const houseGuard = (ack) => {
+      if (player && allowHouse()) return true;
+      reply(ack, { ok: false, error: 'Çok hızlı!' });
+      return false;
+    };
+    socket.on(EVT.HOUSE_PLACE, (data, ack) => {
+      if (houseGuard(ack)) reply(ack, sim.housePlace(player.id, data));
+    });
+    socket.on(EVT.HOUSE_REMOVE, (data, ack) => {
+      if (houseGuard(ack)) reply(ack, sim.houseRemove(player.id, data?.id));
+    });
+    socket.on(EVT.HOUSE_LIGHTS, (_data, ack) => {
+      if (houseGuard(ack)) reply(ack, sim.houseLights(player.id));
+    });
+    socket.on(EVT.HOUSE_TV_SET, async (data, ack) => {
+      if (!houseGuard(ack)) return;
+      const link = typeof data?.link === 'string' ? data.link : '';
+      reply(ack, await sim.houseTvSet(player.id, data?.itemId, link));
+    });
+    socket.on(EVT.HOUSE_TV_STOP, (data, ack) => {
+      if (houseGuard(ack)) reply(ack, sim.houseTvStop(player.id, data?.itemId));
     });
 
     socket.on('disconnect', () => {

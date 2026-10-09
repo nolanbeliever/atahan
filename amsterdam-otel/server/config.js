@@ -25,6 +25,8 @@ export const config = Object.freeze({
   // Saat senkronunun istemcilere tekrar gönderilme aralığı
   clockBroadcastMs: num('CLOCK_BROADCAST_MS', 5000),
   maxPlayers: num('MAX_PLAYERS', 16),
+  // Yeni bağlanan oyuncunun kişisel cüzdanı (€)
+  startWallet: num('START_WALLET', 30, 0),
   // Başlangıç günü (0 = Pazartesi … 5 = Cumartesi, 6 = Pazar) ve saati (7–22)
   startDay: Math.floor(num('START_DAY', 0, 0)) % 7,
   startHour: Math.min(22, Math.max(7, num('START_HOUR', 7, 0))),

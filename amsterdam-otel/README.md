@@ -42,6 +42,8 @@ Bu klasörde oyuna özel bir Blueprint dosyası var: [`render.yaml`](render.yaml
 | `SPAWN_MIN_MIN` / `SPAWN_MAX_MIN` | `40` / `90` | Misafir gelişleri arası (oyun dakikası) |
 | `STAY_MIN_MIN` / `STAY_MAX_MIN` | `150` / `420` | Konaklama süresi (oyun dakikası) |
 | `MAX_PLAYERS` | `16` | Aynı anda bağlanabilecek görevli sayısı |
+| `START_WALLET` | `30` | Yeni oyuncunun kişisel cüzdanı (€) |
+| `HOUSE_FILE` | `data/house.json` | Bizim Ev'in kayıt dosyası |
 
 Örnek — hafta sonu modunu hemen görmek için: `START_DAY=5 START_HOUR=10 npm start`
 
@@ -53,6 +55,8 @@ Bu klasörde oyuna özel bir Blueprint dosyası var: [`render.yaml`](render.yaml
 | **Fare**: etrafa bak (Pointer Lock) | **Sağ taraf**: dokunup sürükleyerek kamera çevir |
 | **E** / **Space** / **Sol tık**: aksiyon | Tek, şeffaf **Aksiyon** butonu |
 | **F**: seçili ürünü tüket · **Q** / **1–4**: ürün seç | Hedef yokken **Aksiyon**: seçili ürünü tüket · envanterde dokunarak seç |
+| **B**: dekorasyon modu (evde) · **1–9 / C / R / X** | **🛠 Dekor** butonu ve alt çubuk |
+| **T**: TV yayınına katıl / mini oynatıcıyı kapat | **▶ Katıl** / **✕** |
 | **Esc**: duraklat / paneli kapat | ⚙ butonu: ayarlar |
 
 Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir ve ekranın altında ipucu çıkar.
@@ -65,6 +69,28 @@ Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir
 - **Zarar verme / kırma mekaniği yoktur.**
 - **Bahşiş:** odayı bitiren görevli misafirin bıraktığı **€4–12** bahşişi kişisel **cüzdanına** alır (otel kasasından ayrı; başlangıç cüzdanı €30).
 - **Zaman:** Pazartesi–Cuma otel açık (misafir kabulü 08:00–19:00). **Cumartesi–Pazar otel kapalı:** giriş kapısı kapanır, tabela "KAPALI · Gesloten" olur, yeni misafir gelmez, zaman 2 kat hızlı akar. Gece yarısını aşan konaklamalar ertesi sabah 07:00'de çıkış yapar (Cumartesi sabahı son misafirler ayrılır → hafta sonu temizlik zamanı). Her gün sonunda günlük özet bildirimi gelir.
+
+## Bizim Ev — dekorasyon, LED'ler ve YouTube TV
+
+Otelin batısında, sokağa açılan ortak bir kanal evi ("HUIS 7"). Aynı sunucudaki herkes paylaşır ve birlikte dekore eder;
+hafta sonları otel kapalıyken takılmak için ideal.
+
+- **Dekorasyon modu:** evin içinde **B** (mobilde **🛠 Dekor**). Alttaki çubuktan eşyayı seç (1–9), rengini seç (**C** ya da renk
+  noktaları), **R** ile döndür, zemine bakıp **E** / **Aksiyon** ile yerleştir. Yeşil önizleme = olur, kırmızı = olmaz (sebebi
+  ekranda yazar). Bir eşyaya bakıp **X** / **🗑 Kaldır** → fiyatının yarısı cüzdana döner.
+- **Eşyalar (kişisel cüzdandan):** kanepe €18, berjer €10, armut koltuk €7, televizyon €25, sehpa €8, halı €6, bitki €4,
+  ayaklı lamba €6, LED şerit €5 (8 renk). Halılar eşyaların altına serilebilir; LED'ler duvara monte edilir.
+  Kapının önü boş kalmalı; evde en fazla 80 eşya olabilir.
+- **LED partisi:** kapının yanındaki anahtara bakıp **E** → tavan ışığı kapanır, oda kararır, LED şeritler duvara renkli ışık
+  vurur. Işık durumu herkes için ortaktır.
+- **Televizyon / YouTube:** TV'ye bakıp **E** → YouTube linkini yapıştır → **▶ Oynat**. Video YouTube'un resmi gömülü oynatıcısıyla
+  (youtube-nocookie.com) çalar; panel kapanınca köşede küçük oynatıcıda devam eder, TV ekranında videonun küçük resmi görünür.
+  Evdeki diğer oyuncular **▶ Katıl** (masaüstünde **T**) ile aynı saniyeden izler. Evden çıkınca oynatıcı kapanır.
+  Sahibi başka sitelerde oynatılmaya izin vermeyen videolar açılmaz (sunucu YouTube oEmbed ile kontrol eder).
+- **Kalıcılık:** ev `data/house.json` dosyasına kaydedilir (`HOUSE_FILE` ile değiştirilebilir). Render'ın ücretsiz planında
+  disk kalıcı olmadığından yeniden deploy'da ev sıfırlanır.
+- **Pil:** tüm mobilyalar tek geometride birleştirilir (eşya sayısından bağımsız ~3 draw call); LED ışığı gerçek ışık kaynağı
+  değil, ucuz bir additive degradedir; ev boştayken motor yine uyur. Video oynatmanın kendisi (YouTube) pil harcar.
 
 ## Coffee Shop ve Trip Sistemi (18+)
 
@@ -115,9 +141,11 @@ amsterdam-otel/
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
 │       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları
 │       └── CoffeeShopService.js # Cüzdan, envanter, trip zarı, slot, bahşiş
+│   └── house/                   # Bizim Ev: HouseService, FileStore (JSON kayıt), YouTube oEmbed + küçük resim vekili
 ├── shared/                      # Sunucu + istemci ortak kodu (ESM)
 │   ├── constants.js             # Durumlar, olay adları, fiyat, saatler, ürünler, trip/slot
-│   ├── layout.js                # Otel + coffee shop yerleşimi: duvarlar, odalar, rota noktaları
+│   ├── layout.js                # Otel + coffee shop + ev yerleşimi: duvarlar, odalar, rota noktaları
+│   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları, YouTube link ayrıştırma
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
@@ -129,7 +157,10 @@ amsterdam-otel/
 │       ├── controls/            # Klavye/fare, dokunmatik joystick, FPV oyuncu
 │       ├── game/                # Misafirler, diğer oyuncular, etkileşim, durum
 │       │   ├── CoffeeShopSystem.js  # Tezgâh/slot etkileşimi, paneller, envanter, tüketim
-│       │   └── TripEffects.js       # Shader, sallanma, hayaletler, baloncuk, ses, emote'lar
+│       │   ├── TripEffects.js       # Shader, sallanma, hayaletler, baloncuk, ses, emote'lar
+│       │   ├── HouseSystem.js       # Ev: birleştirilmiş mobilya, dekorasyon modu, ışık, kapı
+│       │   ├── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
+│       │   └── TvSystem.js          # YouTube paneli, mini oynatıcı, senkron katılım
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
 └── test/                        # Sunucu testleri (node:test): simülasyon + coffee shop

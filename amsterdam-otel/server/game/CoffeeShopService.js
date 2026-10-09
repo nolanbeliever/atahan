@@ -21,7 +21,7 @@ export class CoffeeShopService {
   get rng() { return this.sim.rng; }
 
   initPlayer(p) {
-    p.wallet = START_WALLET;
+    p.wallet = this.sim.config.startWallet ?? START_WALLET;
     p.inventory = {};
     p.trip = null;
     p.lastEmote = 0;

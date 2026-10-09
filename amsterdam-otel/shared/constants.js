@@ -66,6 +66,17 @@ export const EVT = Object.freeze({
   SELF: 'self', // yalnızca o oyuncuya: cüzdan, envanter, trip
   PLAYER_TRIP: 'player:trip', // herkese: kimin trip'te olduğu (yavaşlama/animasyon için)
   PLAYER_EMOTE: 'player:emote', // herkese: kıkırdama / kusma animasyonu
+  // Bizim Ev (istemci → sunucu, ack ile)
+  HOUSE_PLACE: 'house:place',
+  HOUSE_REMOVE: 'house:remove',
+  HOUSE_LIGHTS: 'house:lights',
+  HOUSE_TV_SET: 'house:tvSet',
+  HOUSE_TV_STOP: 'house:tvStop',
+  // Bizim Ev (sunucu → herkes)
+  HOUSE_ADDED: 'house:added',
+  HOUSE_REMOVED: 'house:removed',
+  HOUSE_LIGHTS_STATE: 'house:lightsState',
+  HOUSE_TV_STATE: 'house:tvState',
 });
 
 // ---- Coffee shop -------------------------------------------------------

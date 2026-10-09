@@ -7,6 +7,7 @@ import { GameClock } from './GameClock.js';
 import { RoomManager } from './RoomManager.js';
 import { GuestManager } from './GuestManager.js';
 import { CoffeeShopService } from './CoffeeShopService.js';
+import { HouseService } from '../house/HouseService.js';
 
 const PLAYER_COLORS = ['#e4572e', '#29a3a3', '#f3a712', '#6a4c93', '#3a86ff', '#8ac926', '#ff595e', '#c77dff'];
 
@@ -30,7 +31,10 @@ function sanitizeName(raw) {
  *  - Oyuncu konumları sadece değiştiğinde, toplu halde yayınlanır.
  */
 export class HotelSimulation extends EventEmitter {
-  constructor({ config, rng = Math.random, now = Date.now }) {
+  /**
+   * @param house { store, fetchVideoInfo } — Bizim Ev için kalıcılık ve YouTube bilgisi (isteğe bağlı)
+   */
+  constructor({ config, rng = Math.random, now = Date.now, house = {} }) {
     super();
     this.config = config;
     this.rng = rng;
@@ -44,6 +48,7 @@ export class HotelSimulation extends EventEmitter {
     this.rooms = new RoomManager(rng);
     this.guests = new GuestManager(this);
     this.shop = new CoffeeShopService(this);
+    this.house = new HouseService(this, house);
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -135,7 +140,7 @@ export class HotelSimulation extends EventEmitter {
     let text = `${DAY_NAMES[prevDay]} bitti: ${t.guests} misafir, ${formatMoney(t.earned)} gelir, ${t.cleaned} oda temizlendi.`;
     this.today = { earned: 0, guests: 0, cleaned: 0 };
     const day = this.clock.dayOfWeek;
-    if (day === 5) text += ' Hafta sonu başladı — otel kapalı.';
+    if (day === 5) text += ' Hafta sonu başladı — otel kapalı. 🏠 Bizim Ev\'de takılma zamanı!';
     else if (day === 0) text += ' Yeni hafta! Otel misafirlere açık.';
     else text += ` ${DAY_NAMES[day]} başladı.`;
     this.notify(text, 'day');
@@ -253,6 +258,26 @@ export class HotelSimulation extends EventEmitter {
     return p ? this.shop.spin(p) : { ok: false };
   }
 
+  // ---- Bizim Ev ------------------------------------------------------------
+
+  withPlayer(playerId, fn) {
+    const p = this.players.get(playerId);
+    return p ? fn(p) : { ok: false };
+  }
+
+  housePlace(playerId, data) { return this.withPlayer(playerId, (p) => this.house.place(p, data)); }
+
+  houseRemove(playerId, itemId) { return this.withPlayer(playerId, (p) => this.house.remove(p, itemId)); }
+
+  houseLights(playerId) { return this.withPlayer(playerId, (p) => this.house.toggleLights(p)); }
+
+  async houseTvSet(playerId, itemId, link) {
+    const p = this.players.get(playerId);
+    return p ? this.house.setTv(p, itemId, link) : { ok: false };
+  }
+
+  houseTvStop(playerId, itemId) { return this.withPlayer(playerId, (p) => this.house.stopTv(p, itemId)); }
+
   emote(playerId, type) {
     const p = this.players.get(playerId);
     return p ? this.shop.emote(p, type, this.now()) : false;
@@ -269,6 +294,7 @@ export class HotelSimulation extends EventEmitter {
       players: [...this.players.values()].map((p) => this.publicPlayer(p)),
       economy: this.economy(),
       self: this.players.has(selfId) ? this.shop.privateState(this.players.get(selfId)) : null,
+      house: this.house.serialize(),
     };
   }
 }

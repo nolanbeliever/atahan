@@ -16,6 +16,8 @@ import { RemotePlayers } from './game/RemotePlayers.js';
 import { Interaction } from './game/Interaction.js';
 import { CoffeeShopSystem } from './game/CoffeeShopSystem.js';
 import { TripEffects } from './game/TripEffects.js';
+import { HouseSystem } from './game/HouseSystem.js';
+import { TvSystem } from './game/TvSystem.js';
 import { Network } from './net/Network.js';
 import { HUD } from './ui/HUD.js';
 import { SettingsPanel } from './ui/SettingsPanel.js';
@@ -57,7 +59,11 @@ const net = new Network();
 const interaction = new Interaction({
   scene: engine.scene, world, state, player, hud, touch, net, desktop: !device.touch,
 });
-input.onAction((source) => interaction.trigger(source));
+input.onAction((source) => {
+  // Dekorasyon modunda Aksiyon/E/tık = eşyayı yerleştir
+  if (house.build.active) house.place();
+  else interaction.trigger(source);
+});
 
 // ---- Modal paneller (coffee shop, slot, yaş onayı) ---------------------------------
 // Panel açıkken girdi kapanır, fare kilidi bırakılır ve 3D render tamamen durur.
@@ -65,9 +71,11 @@ input.onAction((source) => interaction.trigger(source));
 let suppressPause = false; // panel açarken bırakılan fare kilidi "duraklat" ekranı açmasın
 const modal = {
   stack: [],
-  open(el) {
+  onClose: new Map(),
+  open(el, onClose) {
     if (this.stack.includes(el)) return;
     this.stack.push(el);
+    if (onClose) this.onClose.set(el, onClose);
     el.hidden = false;
     input.setEnabled(false);
     touch?.reset();
@@ -83,6 +91,9 @@ const modal = {
     if (i < 0) return;
     this.stack.splice(i, 1);
     el.hidden = true;
+    const cb = this.onClose.get(el);
+    this.onClose.delete(el);
+    cb?.();
     if (this.stack.length === 0) {
       setPlaying(true);
       if (!device.touch && !kbm.dragFallback) kbm.lock(); // buton tıklaması = kullanıcı hareketi
@@ -96,6 +107,14 @@ const modal = {
 };
 
 const trip = new TripEffects({ engine, player, collision, hud, net, remotes, settings });
+const tv = new TvSystem({ net, hud, modal, engine, device });
+const house = new HouseSystem({
+  engine, building: world.house, collision, net, hud, interaction, player, device, tv,
+});
+tv.house = house;
+house.getWallet = () => shop.wallet;
+// Dekorasyon modu komutları (B, R, C, X, 1-9) coffee shop'tan ÖNCE işlenir
+input.onCommand((cmd) => house.command(cmd) || tv.command(cmd));
 const shop = new CoffeeShopSystem({ net, hud, interaction, input, modal, device });
 
 let started = false; // oyuncu "Oyna"ya bastı
@@ -109,6 +128,7 @@ engine.addSystem((dt) => player.update(dt));
 engine.addSystem((dt) => guests.update(dt, net.serverNow()));
 engine.addSystem((dt) => remotes.update(dt));
 engine.addSystem((dt) => trip.update(dt));
+engine.addSystem((dt) => house.update(dt));
 engine.addSystem((dt) => {
   ctx.px = player.pos.x;
   ctx.pz = player.pos.z;
@@ -199,6 +219,10 @@ window.addEventListener('keydown', (e) => {
     modal.closeTop();
     return;
   }
+  if (house.build.active) {
+    house.toggleBuild(false);
+    return;
+  }
   if (!started || !overlay.hidden) return;
   // Kilitliyse kilidi bırak (pointerlockchange → showPause), değilse doğrudan duraklat
   if (kbm.locked) document.exitPointerLock();
@@ -253,6 +277,7 @@ net.on(EVT.WELCOME, (snap) => {
   state.economy = snap.economy;
   shop.applySelf(snap.self);
   trip.setSelfTrip(snap.self?.trip);
+  house.applySnapshot(snap.house);
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
   hud.setRooms(state.rooms);
@@ -320,7 +345,10 @@ net.on(EVT.PLAYERS, (batch) => {
 net.on(EVT.NOTIFY, (n) => hud.toast(n.text, n.kind));
 
 // Coffee shop / trip
-net.on(EVT.SELF, (self) => shop.applySelf(self));
+net.on(EVT.SELF, (self) => {
+  shop.applySelf(self);
+  if (house.build.active) engine.requestRender(); // önizleme rengi (yeterli para var mı) güncellensin
+});
 net.on(EVT.PLAYER_TRIP, (t) => {
   if (t.id !== state.selfId) return; // başkalarının trip'i: yavaşlamaları ve animasyonları yeterli
   const tripState = t.type ? { type: t.type, endsAt: t.endsAt } : null;
@@ -330,6 +358,12 @@ net.on(EVT.PLAYER_TRIP, (t) => {
 net.on(EVT.PLAYER_EMOTE, (e) => {
   if (e.id !== state.selfId) trip.playRemoteEmote(e.id, e.type);
 });
+
+// Bizim Ev
+net.on(EVT.HOUSE_ADDED, (item) => house.onAdded(item));
+net.on(EVT.HOUSE_REMOVED, (id) => house.onRemoved(id));
+net.on(EVT.HOUSE_LIGHTS_STATE, (on) => house.setLights(on));
+net.on(EVT.HOUSE_TV_STATE, (s) => house.onTvState(s));
 
 // ---- Saat / FPS göstergesi (saniyede bir, render döngüsünden bağımsız) -------------
 
@@ -372,4 +406,4 @@ navigator.getBattery?.().then((battery) => {
 }).catch(() => {});
 
 // Geliştirme/test için konsoldan erişim
-window.__otel = { engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal };
+window.__otel = { engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv };

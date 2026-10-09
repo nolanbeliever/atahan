@@ -27,6 +27,7 @@ export class Interaction {
     this.idleShown = false;
     this.onIdleAction = null; // dokunmatik Aksiyon, hedef yokken
     this.lastVersion = -1;
+    this.enabled = true;
     this._f = { x: 0, z: 0 };
 
     this.marker = new THREE.Mesh(
@@ -42,7 +43,17 @@ export class Interaction {
 
   invalidate() { this.lastVersion = -1; }
 
+  /** Dekorasyon modu gibi durumlarda normal hedeflemeyi kapatır */
+  setEnabled(on) {
+    this.enabled = on;
+    this.current = null;
+    this.marker.visible = false;
+    this.idleShown = false;
+    this.invalidate();
+  }
+
   update(force = false) {
+    if (!this.enabled) return;
     if (!force && !this.player.moved && this.lastVersion === this.state.version) return;
     this.lastVersion = this.state.version;
 

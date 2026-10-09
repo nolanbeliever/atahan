@@ -5,6 +5,7 @@ import { UV } from './Materials.js';
 import { signDrawer } from './Textures.js';
 import { RoomView } from './RoomView.js';
 import { buildCoffeeShop } from './CoffeeShopBuilding.js';
+import { buildHouse } from './HouseBuilding.js';
 import {
   addPlanter, addBike, addTree, addBollard, addStreetLamp, addWindow, addPainting,
   addArmchair, addSideTable, makePanel,
@@ -42,6 +43,7 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
 
   const entrance = buildEntrance(scene, mats);
   const coffeeShop = buildCoffeeShop({ batcher: b, collision, scene, mats, factory });
+  const house = buildHouse({ batcher: b, scene, mats, factory });
 
   b.build(mats, scene);
   addLights(scene, quality);
@@ -53,6 +55,7 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
     roomById: new Map(rooms.map((r) => [r.id, r])),
     clerk,
     coffeeShop,
+    house,
 
     setWeekend(on) {
       if (weekend === on) return;
@@ -163,13 +166,14 @@ function buildExterior(b, collision, scene, mats) {
     for (let i = 0; i < uv.count; i++) uv.setX(i, uOff + uv.getX(i) * uSpan);
     b.add('skyline', g, { position: [x, y, z], rotation: [0, rotY, 0], cast: false, receive: false });
   };
-  skyPlane(15.9, 12, -16.05, 6, -0.05, Math.PI, 15.9 / 24, 0.1);
+  skyPlane(7.9, 12, -20.05, 6, -0.05, Math.PI, 7.9 / 24, 0.1); // Bizim Ev'in batısı
   skyPlane(7.9, 12, 20.05, 6, -0.05, Math.PI, 7.9 / 24, 0.55); // coffee shop'un doğusu
   skyPlane(60, 13.7, 0, 6.15, -16, 0, 60 / 27.4, 0.3);
   skyPlane(16, 13.7, -24, 6.15, -8, Math.PI / 2, 16 / 27.4, 0.7);
   skyPlane(16, 13.7, 24, 6.15, -8, -Math.PI / 2, 16 / 27.4, 0.2);
 
-  for (let x = -11.2; x <= 17.21; x += 1.6) addBollard(b, collision, x, -7.35);
+  for (let x = -16.8; x <= 17.21; x += 1.6) addBollard(b, collision, x, -7.35);
+  addBike(b, collision, -14.4, -0.75, Math.PI, 'fabricBlue');
   addBike(b, collision, 3.6, -0.75, 0, 'paintGreen');
   addBike(b, collision, 4.75, -0.75, Math.PI, 'black');
   addBike(b, collision, -4.4, -0.75, 0, 'fabricRed');
@@ -183,9 +187,9 @@ function buildExterior(b, collision, scene, mats) {
 
   // Sokak sınırları
   collision.add(-30, 30, -20, -7.7); // kanal
-  collision.add(-30, -12, -20, 0.1);
+  collision.add(-30, -18, -20, 0.1);
   collision.add(18, 30, -20, 0.1);
-  collision.add(-30, -8, -0.15, 0.1); // komşu cepheler
+  collision.add(-30, -16, -0.15, 0.1); // komşu cepheler
   collision.add(16, 30, -0.15, 0.1);
 }
 

@@ -8,6 +8,8 @@ import { Server } from 'socket.io';
 import { config } from './config.js';
 import { HotelSimulation } from './game/HotelSimulation.js';
 import { attachSocketHandlers } from './net/socketHandlers.js';
+import { FileStore } from './house/FileStore.js';
+import { fetchVideoInfo, thumbnailHandler } from './house/youtube.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -27,6 +29,9 @@ app.use('/vendor/three', express.static(threeBuild, vendorCache));
 app.use('/shared', express.static(path.join(root, 'shared')));
 app.use(express.static(path.join(root, 'public')));
 
+// TV ekranındaki video küçük resmi (aynı köken → WebGL dokusu olarak kullanılabilir)
+app.get('/yt/thumb/:id', thumbnailHandler());
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true, players: sim.players.size, running: sim.running });
 });
@@ -38,7 +43,12 @@ const io = new Server(server, {
   serveClient: true,
 });
 
-const sim = new HotelSimulation({ config });
+// Bizim Ev'in kalıcı kaydı (HOUSE_FILE ile değiştirilebilir)
+const houseFile = process.env.HOUSE_FILE || path.join(root, 'data', 'house.json');
+const sim = new HotelSimulation({
+  config,
+  house: { store: new FileStore(houseFile), fetchVideoInfo },
+});
 attachSocketHandlers(io, sim);
 
 server.listen(config.port, () => {
@@ -48,6 +58,7 @@ server.listen(config.port, () => {
 
 function shutdown() {
   sim.stop();
+  sim.house.flush();
   io.close();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 2000).unref();

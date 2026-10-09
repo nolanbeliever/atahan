@@ -97,9 +97,10 @@ export class InputState {
   /** Adlandırılmış komutlar: 'consume', 'cycle', 'select:N' */
   onCommand(fn) { this.commandHandlers.push(fn); }
 
+  /** İlk `true` döndüren işleyicide durur (ör. dekorasyon modu 1-9'u kendine alır) */
   command(name) {
     if (!this.enabled) return;
-    for (const fn of this.commandHandlers) fn(name);
+    for (const fn of this.commandHandlers) if (fn(name) === true) break;
     this.onActivity();
   }
 }
