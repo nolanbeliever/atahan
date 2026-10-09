@@ -1,0 +1,21 @@
+# Render Blueprint — Amsterdam Otel oyun sunucusu
+#
+# Render panelinde: Blueprint → Settings → Blueprint Path = amsterdam-otel/render.yaml
+# (Kökteki render.yaml eski Snoop uygulamasınındır; ona dokunulmaz.)
+services:
+  - type: web
+    name: amsterdam-otel
+    runtime: node
+    plan: free
+    # Monorepo: yalnızca bu klasör derlenir/çalıştırılır; Snoop değişiklikleri
+    # bu servisi yeniden deploy etmez.
+    rootDir: amsterdam-otel
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Bir oyun gününün gerçek süresi (sn); diğer ayarlar için README'ye bakın
+      - key: DAY_LENGTH_SEC
+        value: "240"

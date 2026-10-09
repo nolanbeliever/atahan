@@ -20,6 +20,16 @@ Aynı ağdaki telefon/tablet ile `http://<bilgisayar-ip>:3000` adresinden bağla
 
 Geliştirme için: `npm run dev` (dosya değişince sunucu yeniden başlar), testler için: `npm test`.
 
+### Render'a deploy (Blueprint)
+
+Bu klasörde oyuna özel bir Blueprint dosyası var: [`render.yaml`](render.yaml). Kökteki `render.yaml` eski Snoop uygulamasınındır.
+
+1. Render → **Blueprints** → kendi Blueprint'in → **Settings** → **Blueprint Path** alanına `amsterdam-otel/render.yaml` yaz ve kaydet.
+2. **Manual sync** ile senkronize et → `amsterdam-otel` adlı web servisi oluşur (`rootDir: amsterdam-otel`, `npm ci` / `npm start`, sağlık kontrolü `/health`).
+3. Blueprint daha önce Snoop servisini oluşturduysa o servis **otomatik silinmez**; istemiyorsan panelden elle sil (ücretsiz plandaki aylık çalışma saatini paylaşırlar).
+
+Ücretsiz planda servis 15 dk hareketsiz kalınca uyur (ilk açılış ~1 dk sürebilir) ve oyun durumu bellekte tutulduğu için yeniden başlatmada sıfırlanır.
+
 ### Ortam değişkenleri
 
 | Değişken | Varsayılan | Açıklama |
