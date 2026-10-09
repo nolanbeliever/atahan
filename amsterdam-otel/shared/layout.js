@@ -24,11 +24,26 @@ export const ENTRANCE_HALF = 1.2;
 export const AREAS = Object.freeze({
   lobby: { minX: -8, maxX: 8, minZ: 0, maxZ: 12 },
   corridor: { minX: -1.5, maxX: 1.5, minZ: 12, maxZ: 26 },
-  street: { minX: -12, maxX: 12, minZ: -7.4, maxZ: 0 },
+  street: { minX: -12, maxX: 18, minZ: -7.4, maxZ: 0 },
 });
 
 // Oyuncunun gidebileceği en geniş alan (sunucu konum doğrulaması için)
-export const WORLD_BOUNDS = Object.freeze({ minX: -12, maxX: 12, minZ: -7.6, maxZ: 26 });
+export const WORLD_BOUNDS = Object.freeze({ minX: -12, maxX: 18, minZ: -7.6, maxZ: 26 });
+
+// Otelin doğusunda, sokağa açılan Amsterdam coffee shop'u
+export const COFFEESHOP = Object.freeze({
+  bounds: { minX: 8.1, maxX: 16, minZ: 0, maxZ: 8 },
+  door: { from: 10.8, to: 12.2 },
+  counter: { minX: 10.2, maxX: 14.3, minZ: 6.0, maxZ: 6.7 },
+  counterPoint: [12.25, 6.0], // etkileşim mesafesi bu noktaya göre ölçülür
+  budtender: [12.25, 7.25],
+  slot: { x: 15.45, z: 2.2, point: [15.1, 2.2] },
+  range: 2.3,
+});
+
+export function isInsideShop(x, z) {
+  return x > 8.15 && x < 15.9 && z > 0.12 && z < 7.9;
+}
 
 export const RECEPTION = Object.freeze({
   desk: { minX: -7.0, maxX: -6.2, minZ: 5.2, maxZ: 8.8 },
@@ -47,7 +62,7 @@ export const SEATS = Object.freeze([
 
 export const POINTS = Object.freeze({
   streetWest: [-19, -3.6],
-  streetEast: [19, -3.6],
+  streetEast: [23, -3.6],
   doorOutside: [0, -1.4],
   doorInside: [0, 1.0],
   hub: [0, 10.6],
@@ -147,5 +162,20 @@ export function buildWallSegments() {
   wallAlongX(w, 19, 1.5, 8, [], 'wall');
   // Arka duvar
   wallAlongX(w, 26, -8, 8, [], 'wall');
+  // Coffee shop: ön cephe (kapılı), doğu ve arka duvar; batı duvarı otelin doğu duvarı
+  const shop = COFFEESHOP;
+  wallAlongX(w, 0, 8.2, 16, [{ from: shop.door.from, to: shop.door.to, top: 2.5 }], 'shopWall');
+  wallAlongZ(w, 16, 0, 8, [], 'shopWall');
+  wallAlongX(w, 8, 8.2, 16, [], 'shopWall');
   return w;
+}
+
+/** Oyuncunun bulunduğu bölge (halüsinasyonları aynı bölgede tutmak için) */
+export function areaAt(x, z) {
+  if (isInsideShop(x, z)) return 'shop';
+  for (const r of ROOMS) if (isInsideRoom(r, x, z)) return r.id;
+  if (pointInBounds(x, z, AREAS.corridor) && Math.abs(x) < 1.4) return 'corridor';
+  if (pointInBounds(x, z, AREAS.lobby) && z > 0.1 && Math.abs(x) < 7.9) return 'lobby';
+  if (z < -0.1 && pointInBounds(x, z, AREAS.street)) return 'street';
+  return null;
 }

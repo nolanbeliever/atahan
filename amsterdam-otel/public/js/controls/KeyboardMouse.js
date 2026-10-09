@@ -18,15 +18,21 @@ export class KeyboardMouse {
       if (!input.enabled || e.target instanceof HTMLInputElement) return;
       if (PREVENT.has(e.code)) e.preventDefault();
       if (e.repeat) return;
-      if (e.code === 'KeyE' || e.code === 'Space') input.action();
+      if (e.code === 'KeyE' || e.code === 'Space') input.action('key');
+      else if (e.code === 'KeyF') input.command('consume');
+      else if (e.code === 'KeyQ') input.command('cycle');
+      else if (/^Digit[1-4]$/.test(e.code)) input.command(`select:${Number(e.code.slice(5)) - 1}`);
       else input.setKey(e.code, true);
     });
     window.addEventListener('keyup', (e) => input.setKey(e.code, false));
     window.addEventListener('blur', () => input.clear());
 
     this.skipMoves = 0;
+    this.everLocked = false;
     document.addEventListener('pointerlockchange', () => {
-      if (this.locked) this.skipMoves = 2;
+      if (!this.locked) return;
+      this.skipMoves = 2;
+      this.everLocked = true;
     });
     document.addEventListener('mousemove', (e) => {
       if (!input.enabled || !(this.locked || this.dragging)) return;
@@ -42,8 +48,9 @@ export class KeyboardMouse {
 
     canvas.addEventListener('mousedown', (e) => {
       if (!input.enabled || e.button !== 0) return;
-      if (this.locked) input.action();
+      if (this.locked) input.action('mouse');
       else if (this.dragFallback) this.dragging = true;
+      else this.lock(); // kilit bir pencere/menü sonrası düştüyse tıklayınca geri al
     });
     window.addEventListener('mouseup', () => { this.dragging = false; });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());

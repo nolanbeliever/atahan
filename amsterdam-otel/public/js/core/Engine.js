@@ -69,6 +69,8 @@ export class Engine {
     this.perf = { sum: 0, n: 0 };
     this.texturesReduced = false;
     this.onDegrade = null;
+    // İsteğe bağlı son işlem (trip efektleri): { render(), setSize(w, h, pixelRatio) }
+    this.post = null;
 
     this._frame = this._frame.bind(this);
 
@@ -139,8 +141,21 @@ export class Engine {
   /** Döngüden bağımsız tek kare (ör. menü arka planı) */
   renderOnce() {
     if (this.contextLost) return;
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
     this.renderedFrames++;
+  }
+
+  /** Son işlem etkinse onunla, değilse doğrudan çizer */
+  draw() {
+    if (this.post) this.post.render();
+    else this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Son işlemciyi tak/çıkar (null → doğrudan render, ekstra GPU geçişi yok) */
+  setPostProcessor(post) {
+    this.post = post;
+    if (post) post.setSize(window.innerWidth, window.innerHeight, this.pixelRatio);
+    this.requestRender();
   }
 
   requestShadowUpdate() {
@@ -183,7 +198,7 @@ export class Engine {
 
     if (active || this.dirty) {
       this.dirty = false;
-      this.renderer.render(this.scene, this.camera);
+      this.draw();
       this.renderedFrames++;
       this.trackPerf(now);
       this.idleFrames = 0;
@@ -249,6 +264,7 @@ export class Engine {
     const h = window.innerHeight;
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(w, h, false);
+    this.post?.setSize(w, h, this.pixelRatio);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.requestRender();

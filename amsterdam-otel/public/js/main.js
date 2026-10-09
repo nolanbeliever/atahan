@@ -14,6 +14,8 @@ import { GameState } from './game/GameState.js';
 import { GuestView } from './game/GuestView.js';
 import { RemotePlayers } from './game/RemotePlayers.js';
 import { Interaction } from './game/Interaction.js';
+import { CoffeeShopSystem } from './game/CoffeeShopSystem.js';
+import { TripEffects } from './game/TripEffects.js';
 import { Network } from './net/Network.js';
 import { HUD } from './ui/HUD.js';
 import { SettingsPanel } from './ui/SettingsPanel.js';
@@ -55,7 +57,46 @@ const net = new Network();
 const interaction = new Interaction({
   scene: engine.scene, world, state, player, hud, touch, net, desktop: !device.touch,
 });
-input.onAction(() => interaction.trigger());
+input.onAction((source) => interaction.trigger(source));
+
+// ---- Modal paneller (coffee shop, slot, yaş onayı) ---------------------------------
+// Panel açıkken girdi kapanır, fare kilidi bırakılır ve 3D render tamamen durur.
+
+let suppressPause = false; // panel açarken bırakılan fare kilidi "duraklat" ekranı açmasın
+const modal = {
+  stack: [],
+  open(el) {
+    if (this.stack.includes(el)) return;
+    this.stack.push(el);
+    el.hidden = false;
+    input.setEnabled(false);
+    touch?.reset();
+    touch?.show(false);
+    if (kbm.locked) {
+      suppressPause = true;
+      document.exitPointerLock();
+    }
+    engine.setPaused(true);
+  },
+  close(el) {
+    const i = this.stack.indexOf(el);
+    if (i < 0) return;
+    this.stack.splice(i, 1);
+    el.hidden = true;
+    if (this.stack.length === 0) {
+      setPlaying(true);
+      if (!device.touch && !kbm.dragFallback) kbm.lock(); // buton tıklaması = kullanıcı hareketi
+    }
+  },
+  closeTop() {
+    const top = this.stack[this.stack.length - 1];
+    if (top) this.close(top);
+  },
+  get active() { return this.stack.length > 0; },
+};
+
+const trip = new TripEffects({ engine, player, collision, hud, net, remotes, settings });
+const shop = new CoffeeShopSystem({ net, hud, interaction, input, modal, device });
 
 let started = false; // oyuncu "Oyna"ya bastı
 let joined = false; // bu bağlantıda sunucu "welcome" gönderdi
@@ -67,6 +108,7 @@ const ctx = { px: 0, pz: 0, guestNear: (x, z, r) => guests.near(x, z, r) };
 engine.addSystem((dt) => player.update(dt));
 engine.addSystem((dt) => guests.update(dt, net.serverNow()));
 engine.addSystem((dt) => remotes.update(dt));
+engine.addSystem((dt) => trip.update(dt));
 engine.addSystem((dt) => {
   ctx.px = player.pos.x;
   ctx.pz = player.pos.z;
@@ -115,6 +157,7 @@ function tryFullscreen() {
 }
 
 playBtn.addEventListener('click', () => {
+  trip.audio.unlock(); // tarayıcılar sesi yalnızca kullanıcı hareketiyle açar
   if (!started) {
     started = true;
     settings.name = nameInput.value.trim().slice(0, 16);
@@ -135,16 +178,28 @@ nameInput.addEventListener('keydown', (e) => {
 });
 
 document.addEventListener('pointerlockchange', () => {
-  if (kbm.locked) setPlaying(true);
-  else if (started && !device.touch) showPause();
+  if (kbm.locked) {
+    if (!modal.active) setPlaying(true);
+  } else if (suppressPause) {
+    suppressPause = false;
+  } else if (started && !device.touch && !modal.active) {
+    showPause();
+  }
 });
 document.addEventListener('pointerlockerror', () => {
+  // Panel kapanışından sonraki yeniden kilitleme reddedilirse: oyun sürer, tıklayınca kilitlenir
+  if (kbm.everLocked) return;
   kbm.dragFallback = true;
   setPlaying(true);
   hud.toast('Fare kilitlenemedi: bakmak için sol tuşla sürükleyin. Esc ile duraklat.', 'warn');
 });
 window.addEventListener('keydown', (e) => {
-  if (e.code !== 'Escape' || !started || !overlay.hidden) return;
+  if (e.code !== 'Escape') return;
+  if (modal.active) {
+    modal.closeTop();
+    return;
+  }
+  if (!started || !overlay.hidden) return;
   // Kilitliyse kilidi bırak (pointerlockchange → showPause), değilse doğrudan duraklat
   if (kbm.locked) document.exitPointerLock();
   else showPause();
@@ -196,6 +251,8 @@ net.on(EVT.WELCOME, (snap) => {
   state.setClock(snap.clock);
   state.setRooms(snap.rooms);
   state.economy = snap.economy;
+  shop.applySelf(snap.self);
+  trip.setSelfTrip(snap.self?.trip);
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
   hud.setRooms(state.rooms);
@@ -262,6 +319,18 @@ net.on(EVT.PLAYERS, (batch) => {
 });
 net.on(EVT.NOTIFY, (n) => hud.toast(n.text, n.kind));
 
+// Coffee shop / trip
+net.on(EVT.SELF, (self) => shop.applySelf(self));
+net.on(EVT.PLAYER_TRIP, (t) => {
+  if (t.id !== state.selfId) return; // başkalarının trip'i: yavaşlamaları ve animasyonları yeterli
+  const tripState = t.type ? { type: t.type, endsAt: t.endsAt } : null;
+  shop.setTrip(tripState);
+  trip.setSelfTrip(tripState);
+});
+net.on(EVT.PLAYER_EMOTE, (e) => {
+  if (e.id !== state.selfId) trip.playRemoteEmote(e.id, e.type);
+});
+
 // ---- Saat / FPS göstergesi (saniyede bir, render döngüsünden bağımsız) -------------
 
 function updateClock() {
@@ -303,4 +372,4 @@ navigator.getBattery?.().then((battery) => {
 }).catch(() => {});
 
 // Geliştirme/test için konsoldan erişim
-window.__otel = { engine, state, player, net, world, interaction, settingsPanel };
+window.__otel = { engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal };

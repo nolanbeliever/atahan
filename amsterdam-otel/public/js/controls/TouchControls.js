@@ -36,7 +36,7 @@ export class TouchControls {
     this.actionBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      input.action();
+      input.action('touch');
     });
     // iOS: çift dokunma ile yakınlaştırma / uzun basma menüsü olmasın
     document.addEventListener('gesturestart', (e) => e.preventDefault());

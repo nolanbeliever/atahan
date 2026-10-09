@@ -14,6 +14,7 @@ export const UV = Object.freeze({
   cobble: 1.1,
   wood: 1.0,
   wainscot: 1.0,
+  shopWall: 0.7,
 });
 
 /**

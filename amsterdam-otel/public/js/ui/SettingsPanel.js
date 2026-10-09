@@ -12,6 +12,8 @@ export class SettingsPanel {
     this.fpsSeg = document.getElementById('set-fps');
     this.quality = document.getElementById('set-quality');
     this.showFps = document.getElementById('set-showfps');
+    this.reduceMotion = document.getElementById('set-reducemotion');
+    this.sound = document.getElementById('set-sound');
     this.note = document.getElementById('set-note');
     this.initialQuality = settings.quality;
 
@@ -33,6 +35,14 @@ export class SettingsPanel {
       saveSettings(settings);
       this.refresh();
     });
+    this.reduceMotion.addEventListener('change', () => {
+      settings.reduceMotion = this.reduceMotion.checked;
+      saveSettings(settings);
+    });
+    this.sound.addEventListener('change', () => {
+      settings.sound = this.sound.checked;
+      saveSettings(settings);
+    });
     this.showFps.addEventListener('change', () => {
       settings.showFps = this.showFps.checked;
       saveSettings(settings);
@@ -46,6 +56,8 @@ export class SettingsPanel {
     }
     this.quality.value = this.settings.quality;
     this.showFps.checked = this.settings.showFps;
+    this.reduceMotion.checked = this.settings.reduceMotion;
+    this.sound.checked = this.settings.sound;
     const q = resolveQuality(this.settings.quality, this.device);
     const notes = [];
     if (this.settings.quality !== this.initialQuality) notes.push('Kalite değişikliği "Kapat" ile oyun yeniden yüklenince uygulanır.');

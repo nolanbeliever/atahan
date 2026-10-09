@@ -197,12 +197,12 @@ test('oyuncu konumu dünya sınırına kırpılır ve toplu yayınlanır', () =>
   const { sim, events, advance } = makeSim();
   const p = sim.addPlayer('A');
   sim.movePlayer(p.id, 999, -999, 10);
-  assert.equal(p.x, 12);
+  assert.equal(p.x, 18);
   assert.equal(p.z, -7.6);
   advance(100);
   const batch = events.filter((e) => e.event === EVT.PLAYERS).pop();
   assert.ok(batch);
-  assert.deepEqual(batch.payload[0].slice(0, 3), [p.id, 12, -7.6]);
+  assert.deepEqual(batch.payload[0].slice(0, 3), [p.id, 18, -7.6]);
   sim.movePlayer(p.id, NaN, 0, 0);
-  assert.equal(p.x, 12, 'geçersiz değer yok sayılmalı');
+  assert.equal(p.x, 18, 'geçersiz değer yok sayılmalı');
 });

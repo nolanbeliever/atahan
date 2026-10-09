@@ -20,6 +20,9 @@ export function defaultSettings(device) {
     quality: 'auto',
     showFps: false,
     name: '',
+    // Trip efektlerinde sallanma/dalgalanmayı kapat (hareket hassasiyeti; ayrıca pil dostu)
+    reduceMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+    sound: true,
   };
 }
 
@@ -34,6 +37,8 @@ export function loadSettings(device) {
       quality: ['auto', 'low', 'medium', 'high'].includes(s.quality) ? s.quality : base.quality,
       showFps: !!s.showFps,
       name: typeof s.name === 'string' ? s.name.slice(0, 16) : '',
+      reduceMotion: typeof s.reduceMotion === 'boolean' ? s.reduceMotion : base.reduceMotion,
+      sound: typeof s.sound === 'boolean' ? s.sound : base.sound,
     };
   } catch {
     return base;

@@ -6,6 +6,7 @@ import { POINTS, ROOM_BY_ID, WORLD_BOUNDS, pointInBounds } from '../../shared/la
 import { GameClock } from './GameClock.js';
 import { RoomManager } from './RoomManager.js';
 import { GuestManager } from './GuestManager.js';
+import { CoffeeShopService } from './CoffeeShopService.js';
 
 const PLAYER_COLORS = ['#e4572e', '#29a3a3', '#f3a712', '#6a4c93', '#3a86ff', '#8ac926', '#ff595e', '#c77dff'];
 
@@ -42,6 +43,7 @@ export class HotelSimulation extends EventEmitter {
     });
     this.rooms = new RoomManager(rng);
     this.guests = new GuestManager(this);
+    this.shop = new CoffeeShopService(this);
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -57,6 +59,9 @@ export class HotelSimulation extends EventEmitter {
   // ---- Çıkış (yayın) yardımcıları --------------------------------------
 
   out(event, payload) { this.emit('out', event, payload); }
+
+  /** Yalnızca tek bir oyuncuya giden mesaj (cüzdan, kişisel bildirim) */
+  toPlayer(id, event, payload) { this.emit('to', id, event, payload); }
 
   notify(text, kind = 'info') { this.out(EVT.NOTIFY, { text, kind }); }
 
@@ -119,6 +124,7 @@ export class HotelSimulation extends EventEmitter {
     }
 
     this.guests.update(now);
+    this.shop.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
     this.flushPlayers();
@@ -149,6 +155,7 @@ export class HotelSimulation extends EventEmitter {
       z: POINTS.playerSpawn[1] + (this.rng() - 0.5),
       yaw: Math.PI,
     };
+    this.shop.initPlayer(p);
     this.players.set(p.id, p);
     if (this.players.size === 1) this.start();
     this.out(EVT.PLAYER_JOIN, this.publicPlayer(p));
@@ -163,7 +170,10 @@ export class HotelSimulation extends EventEmitter {
   }
 
   publicPlayer(p) {
-    return { id: p.id, name: p.name, color: p.color, x: round2(p.x), z: round2(p.z), yaw: round2(p.yaw) };
+    return {
+      id: p.id, name: p.name, color: p.color, x: round2(p.x), z: round2(p.z), yaw: round2(p.yaw),
+      trip: this.shop.publicTrip(p),
+    };
   }
 
   movePlayer(id, x, z, yaw) {
@@ -217,8 +227,35 @@ export class HotelSimulation extends EventEmitter {
     if (res.finished) {
       this.today.cleaned += 1;
       this.notify(`Oda ${room.id} temizlendi ✓ (${p.name})`, 'clean');
+      const tip = this.shop.tip(p);
+      this.toPlayer(p.id, EVT.NOTIFY, {
+        text: `Misafir odada €${tip.amount} bahşiş bırakmış!${tip.lucky ? ' 🍀 Şans bonusu +%20' : ''}`,
+        kind: 'money',
+      });
     }
     return true;
+  }
+
+  // ---- Coffee shop (kişisel cüzdan / envanter / trip) -------------------
+
+  buy(playerId, productId) {
+    const p = this.players.get(playerId);
+    return p ? this.shop.buy(p, productId) : { ok: false };
+  }
+
+  consume(playerId, productId) {
+    const p = this.players.get(playerId);
+    return p ? this.shop.consume(p, productId, this.now()) : { ok: false };
+  }
+
+  spin(playerId) {
+    const p = this.players.get(playerId);
+    return p ? this.shop.spin(p) : { ok: false };
+  }
+
+  emote(playerId, type) {
+    const p = this.players.get(playerId);
+    return p ? this.shop.emote(p, type, this.now()) : false;
   }
 
   snapshot(selfId) {
@@ -231,6 +268,7 @@ export class HotelSimulation extends EventEmitter {
       guests: this.guests.serialize(),
       players: [...this.players.values()].map((p) => this.publicPlayer(p)),
       economy: this.economy(),
+      self: this.players.has(selfId) ? this.shop.privateState(this.players.get(selfId)) : null,
     };
   }
 }

@@ -17,6 +17,10 @@ export class PlayerController {
     this._move = { x: 0, y: 0 };
     this._teleported = false;
     this.moved = false;
+    // Trip etkileri için: hız çarpanı, kısa süre hareketsizlik, kamera ofseti
+    this.speedMul = 1;
+    this.stunUntil = 0;
+    this.viewOffset = { pitch: 0, yaw: 0, roll: 0 };
     this.apply();
   }
 
@@ -47,10 +51,10 @@ export class PlayerController {
     }
 
     const mv = this.input.moveVector(this._move);
-    const moving = mv.x !== 0 || mv.y !== 0;
+    const moving = (mv.x !== 0 || mv.y !== 0) && performance.now() >= this.stunUntil;
     if (moving) {
       const joyFull = Math.hypot(this.input.joyX, this.input.joyY) > 0.97;
-      const speed = this.input.run || joyFull ? RUN : WALK;
+      const speed = (this.input.run || joyFull ? RUN : WALK) * this.speedMul;
       const sin = Math.sin(this.yaw);
       const cos = Math.cos(this.yaw);
       // ileri = (-sin, -cos), sağ = (cos, -sin)
@@ -69,6 +73,7 @@ export class PlayerController {
 
   apply() {
     this.camera.position.set(this.pos.x, EYE_HEIGHT, this.pos.z);
-    this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+    const o = this.viewOffset;
+    this.camera.rotation.set(this.pitch + o.pitch, this.yaw + o.yaw, o.roll, 'YXZ');
   }
 }

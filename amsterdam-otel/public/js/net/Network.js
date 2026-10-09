@@ -66,6 +66,25 @@ export class Network {
     this.socket.emit(EVT.INTERACT, { roomId, target });
   }
 
+  /** Sunucudan onay (ack) bekleyen istek; zaman aşımında { ok:false } döner */
+  request(event, data, timeoutMs = 5000) {
+    return new Promise((resolve) => {
+      if (!this.socket.connected) {
+        resolve({ ok: false, error: 'Sunucuya bağlı değilsin.' });
+        return;
+      }
+      const timer = setTimeout(() => resolve({ ok: false, error: 'Sunucu yanıt vermedi.' }), timeoutMs);
+      this.socket.emit(event, data, (res) => {
+        clearTimeout(timer);
+        resolve(res || { ok: false });
+      });
+    });
+  }
+
+  emote(type) {
+    if (this.socket.connected) this.socket.emit(EVT.EMOTE, { type });
+  }
+
   /** Kısıtlı (throttle) konum gönderimi; son konum her zaman iletilir */
   sendMove(x, z, yaw) {
     const m = [Math.round(x * 100) / 100, Math.round(z * 100) / 100, Math.round(yaw * 100) / 100];

@@ -18,6 +18,7 @@ export class InputState {
     this.lookY = 0;
     this.run = false;
     this.actionHandlers = [];
+    this.commandHandlers = [];
   }
 
   setEnabled(on) {
@@ -86,9 +87,19 @@ export class InputState {
 
   onAction(fn) { this.actionHandlers.push(fn); }
 
-  action() {
+  /** @param source 'key' | 'mouse' | 'touch' */
+  action(source = 'key') {
     if (!this.enabled) return;
-    for (const fn of this.actionHandlers) fn();
+    for (const fn of this.actionHandlers) fn(source);
+    this.onActivity();
+  }
+
+  /** Adlandırılmış komutlar: 'consume', 'cycle', 'select:N' */
+  onCommand(fn) { this.commandHandlers.push(fn); }
+
+  command(name) {
+    if (!this.enabled) return;
+    for (const fn of this.commandHandlers) fn(name);
     this.onActivity();
   }
 }

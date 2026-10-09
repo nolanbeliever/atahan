@@ -46,6 +46,8 @@ export class RemotePlayers {
     this.items.set(p.id, { obj, label, tx: p.x, tz: p.z, tyaw: p.yaw + Math.PI });
   }
 
+  get(id) { return this.items.get(id); }
+
   remove(id) {
     const it = this.items.get(id);
     if (!it) return;

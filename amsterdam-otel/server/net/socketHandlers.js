@@ -18,13 +18,17 @@ function rateLimiter(perSecond, burst = perSecond) {
 }
 
 export function attachSocketHandlers(io, sim) {
+  const sockets = new Map(); // oyuncu id → socket (kişisel mesajlar için)
   // Simülasyon olaylarını tüm istemcilere ilet
   sim.on('out', (event, payload) => io.emit(event, payload));
+  sim.on('to', (id, event, payload) => sockets.get(id)?.emit(event, payload));
 
   io.on('connection', (socket) => {
     let player = null;
     const allowMove = rateLimiter(20, 30);
     const allowInteract = rateLimiter(8, 8);
+    const allowShop = rateLimiter(4, 6);
+    const reply = (ack, res) => { if (typeof ack === 'function') ack(res); };
 
     // Saat senkronu: istemci gecikmeyi ölçüp sunucu saatine hizalanır
     socket.on(EVT.SYNC, (ack) => {
@@ -39,6 +43,7 @@ export function attachSocketHandlers(io, sim) {
         return;
       }
       player = sim.addPlayer(data && data.name);
+      sockets.set(player.id, socket);
       socket.emit(EVT.WELCOME, sim.snapshot(player.id));
     });
 
@@ -55,8 +60,31 @@ export function attachSocketHandlers(io, sim) {
       if (!ok) socket.emit(EVT.ROOMS, sim.rooms.serialize());
     });
 
+    socket.on(EVT.SHOP_BUY, (data, ack) => {
+      if (!player || !allowShop()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.buy(player.id, String(data?.product ?? '')));
+    });
+
+    socket.on(EVT.CONSUME, (data, ack) => {
+      if (!player || !allowShop()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.consume(player.id, String(data?.product ?? '')));
+    });
+
+    socket.on(EVT.SLOT_SPIN, (_data, ack) => {
+      if (!player || !allowShop()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.spin(player.id));
+    });
+
+    socket.on(EVT.EMOTE, (data) => {
+      if (!player || !data) return;
+      sim.emote(player.id, data.type === 'giggle' ? 'giggle' : 'vomit');
+    });
+
     socket.on('disconnect', () => {
-      if (player) sim.removePlayer(player.id);
+      if (player) {
+        sockets.delete(player.id);
+        sim.removePlayer(player.id);
+      }
       player = null;
     });
   });

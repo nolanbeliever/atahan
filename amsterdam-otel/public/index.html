@@ -38,8 +38,18 @@
       </div>
       <div class="row">
         <span id="hud-open" class="chip">—</span>
-        <span id="hud-money">€ 0</span>
+        <span><small class="lbl">Kasa</small> <span id="hud-money">€ 0</span></span>
       </div>
+      <div class="row">
+        <small class="lbl">🎒 Cüzdan</small>
+        <span id="hud-wallet">€ 0</span>
+      </div>
+    </div>
+
+    <!-- Envanter (coffee shop ürünleri) — dokunarak seçilir -->
+    <div id="inventory" class="panel" hidden>
+      <div class="panel-title">Envanter <span class="inv-hint" id="inv-hint">F: tüket · Q: değiştir</span></div>
+      <div id="inv-slots"></div>
     </div>
 
     <div id="panel-rooms" class="panel">
@@ -47,12 +57,62 @@
       <ul id="room-list"></ul>
     </div>
 
-    <div id="weekend-banner" hidden>Hafta Sonu — Otel Kapalı</div>
-    <div id="toasts" aria-live="polite"></div>
+    <div id="top-center">
+      <div id="weekend-banner" hidden>Hafta Sonu — Otel Kapalı</div>
+      <div id="trip-banner" hidden></div>
+      <div id="toasts" aria-live="polite"></div>
+    </div>
     <div id="crosshair"></div>
     <div id="prompt" hidden></div>
     <div id="fps" hidden></div>
     <button id="btn-settings" type="button" aria-label="Ayarlar">⚙</button>
+  </div>
+
+  <!-- Trip efektleri (yalnızca bu oyuncu görür) -->
+  <div id="trip-bubbles" aria-hidden="true"></div>
+  <div id="splatter" aria-hidden="true"></div>
+
+  <!-- Coffee shop: yaş onayı -->
+  <div id="age-gate" class="overlay" hidden>
+    <div class="card">
+      <div class="logo">🔞</div>
+      <h2>18+ İçerik</h2>
+      <p class="sub">Coffee shop bölümü kurgusal uyuşturucu kullanımı ve etkilerini içerir.
+        Devam etmek için 18 yaşından büyük olmalısın.</p>
+      <button type="button" class="primary" id="age-yes">18 yaşından büyüğüm</button>
+      <button type="button" class="secondary" id="age-no">Vazgeç</button>
+    </div>
+  </div>
+
+  <!-- Coffee shop: tezgâh / ürünler -->
+  <div id="shop-panel" class="overlay" hidden>
+    <div class="card wide">
+      <h2>☕ De Groene Molen</h2>
+      <p class="sub">Tezgâhtaki görevli: "Hoi! Ne alırsın?"</p>
+      <div id="shop-list"></div>
+      <div class="shop-foot">
+        <span>🎒 Cüzdan: <b id="shop-wallet">€ 0</b></span>
+        <span class="muted">Bahşişler cüzdanına gelir</span>
+      </div>
+      <p class="note" id="shop-msg"></p>
+      <button type="button" class="primary" id="shop-close">Kapat</button>
+    </div>
+  </div>
+
+  <!-- Slot makinesi -->
+  <div id="slot-panel" class="overlay" hidden>
+    <div class="card">
+      <h2>🎰 Lucky Tulp</h2>
+      <p class="sub" id="slot-luck">Üç aynı sembol = kazanç</p>
+      <div id="slot-reels"><span>🌷</span><span>🚲</span><span>🧀</span></div>
+      <p id="slot-result">&nbsp;</p>
+      <div class="shop-foot">
+        <span>🎒 Cüzdan: <b id="slot-wallet">€ 0</b></span>
+        <span class="muted">🌷🚲🧀 x2 · 🌀 x5 · 💰 x20</span>
+      </div>
+      <button type="button" class="primary" id="slot-spin">Çevir</button>
+      <button type="button" class="secondary" id="slot-close">Kapat</button>
+    </div>
   </div>
 
   <!-- Başlangıç / duraklatma ekranı -->
@@ -70,16 +130,17 @@
       <ul class="help desktop-only">
         <li><b>W A S D</b> yürü · <b>Shift</b> koş</li>
         <li><b>Fare</b> etrafa bak</li>
-        <li><b>E</b> / <b>Sol tık</b> aksiyon</li>
+        <li><b>E</b> / <b>Sol tık</b> aksiyon · <b>F</b> tüket · <b>Q</b> ürün değiştir</li>
         <li><b>Esc</b> duraklat</li>
       </ul>
       <ul class="help touch-only">
         <li><b>Sol taraf</b>: parmağını bastır, joystick çıkar</li>
         <li><b>Sağ taraf</b>: sürükleyerek etrafa bak</li>
-        <li><b>Aksiyon</b> butonu: yatak düzelt / çöp topla</li>
+        <li><b>Aksiyon</b> butonu: yatak düzelt / çöp topla / ürün tüket</li>
       </ul>
       <p class="goal">Misafirler resepsiyona gelir ve boş odaya yerleşir. Çıkış yapınca oda <b>Kirli</b> olur:
-        içeri gir, yatağı düzelt, çöpleri topla. Hafta içi otel açık, hafta sonu kapalıdır.</p>
+        içeri gir, yatağı düzelt, çöpleri topla. Hafta içi otel açık, hafta sonu kapalıdır.
+        Bahşişlerini sokaktaki <b>coffee shop</b>'ta (18+) harcayabilirsin.</p>
       <div id="conn-status">Sunucuya bağlanılıyor…</div>
     </div>
   </div>
@@ -107,6 +168,14 @@
       <label class="setting check">
         <span>FPS göstergesi</span>
         <input type="checkbox" id="set-showfps">
+      </label>
+      <label class="setting check">
+        <span>Trip: sallanma/dalgalanmayı azalt</span>
+        <input type="checkbox" id="set-reducemotion">
+      </label>
+      <label class="setting check">
+        <span>Ses efektleri</span>
+        <input type="checkbox" id="set-sound">
       </label>
       <p class="note" id="set-note"></p>
       <button type="button" class="primary" id="btn-settings-close">Kapat</button>

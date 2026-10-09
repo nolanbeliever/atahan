@@ -17,6 +17,8 @@ export class HUD {
       clock: $('hud-clock'),
       open: $('hud-open'),
       money: $('hud-money'),
+      wallet: $('hud-wallet'),
+      trip: $('trip-banner'),
       rooms: $('room-list'),
       weekend: $('weekend-banner'),
       toasts: $('toasts'),
@@ -79,6 +81,22 @@ export class HUD {
 
   setMoney(value) {
     this.set('money', this.el.money, formatMoney(value));
+  }
+
+  setWallet(value) {
+    this.set('wallet', this.el.wallet, formatMoney(value));
+  }
+
+  /** @param kind 'good' | 'bad' | null */
+  setTrip(kind, text = '') {
+    const el = this.el.trip;
+    el.hidden = !kind;
+    if (!kind) return;
+    if (this.cache.get('tripKind') !== kind) {
+      this.cache.set('tripKind', kind);
+      el.className = kind;
+    }
+    this.set('trip', el, text);
   }
 
   toast(text, kind = 'info') {
