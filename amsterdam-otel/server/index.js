@@ -43,7 +43,7 @@ const io = new Server(server, {
   serveClient: true,
 });
 
-// Bizim Ev'in kalıcı kaydı (HOUSE_FILE ile değiştirilebilir)
+// Evlerin (Bizim Ev + oyuncu evleri, sahipler) ve anahtarlı oyuncu cüzdanlarının kalıcı kaydı (HOUSE_FILE ile değiştirilebilir)
 const houseFile = process.env.HOUSE_FILE || path.join(root, 'data', 'house.json');
 const sim = new HotelSimulation({
   config,

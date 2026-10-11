@@ -444,55 +444,43 @@ body.touch.building #btn-action { bottom: calc(150px + var(--safe-b)); }
 }
 body.building #bar-held { display: none; }
 
-/* ---------- Bizim Ev: TV / YouTube ---------- */
-#tv-player {
-  position: fixed;
-  z-index: 9; /* HUD'un (bildirimler, dekor çubuğu) altında, dokunmatik bölgelerin üstünde */
-  background: #000;
-  border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  overflow: hidden;
-}
-#tv-player.mini {
-  top: calc(164px + var(--safe-t));
-  right: calc(8px + var(--safe-r));
-  width: 208px;
-}
-#tv-player.big {
-  z-index: 31;
-  top: calc(10px + var(--safe-t));
+/* ---------- Oyuncu evleri: kapı zili istemi ---------- */
+#ring-prompt {
   left: 50%;
+  top: calc(30% + var(--safe-t));
   transform: translateX(-50%);
-  width: min(720px, 94vw, calc((100vh - 245px) * 16 / 9));
+  width: min(360px, 92vw);
+  padding: 10px 12px 8px;
+  text-align: center;
+  pointer-events: auto; /* dokunmatikte Evet / Hayır tıklanır */
+  border-color: rgba(255, 122, 26, .7);
 }
-.tv-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 6px;
-  font-size: 11.5px;
-  background: rgba(16,20,28,.9);
-}
-#tv-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#tv-hide { border: 0; background: transparent; color: var(--text); font-size: 13px; cursor: pointer; }
-#tv-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; }
-#tv-frame:empty { display: none; }
-#tv-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-#tv-join {
-  display: block;
-  width: 100%;
-  border: 0;
-  padding: 10px 8px;
-  background: #c4302b;
-  color: #fff;
-  font-weight: 700;
-  font-size: 12.5px;
+#ring-text { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.ring-actions { display: flex; gap: 8px; justify-content: center; }
+.ring-actions button {
+  flex: 1;
+  border: 1px solid rgba(255,255,255,.25);
+  background: rgba(255,255,255,.1);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
+.ring-actions button.primary { background: #2f6b3a; border-color: #3ecf6e; }
+.ring-actions kbd {
+  background: rgba(255,255,255,.18);
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-left: 4px;
+  font-family: inherit;
+  font-size: 12px;
+}
+#ring-timer { height: 3px; margin-top: 8px; border-radius: 2px; background: rgba(255,255,255,.15); overflow: hidden; }
+#ring-timer > i { display: block; height: 100%; background: var(--accent); transform-origin: left; }
+
+/* ---------- Bizim Ev: TV / YouTube ---------- */
 #tv-panel { align-items: flex-end; }
 #tv-panel .card { width: min(560px, 100%); padding: 12px 16px; }
 #tv-panel h2 { margin-bottom: 4px; }
@@ -707,8 +695,6 @@ body.touch #crosshair { width: 4px; height: 4px; margin: -2px 0 0 -2px; }
 @media (max-height: 480px), (max-width: 560px) {
   #inventory { top: calc(110px + var(--safe-t)); }
   #btn-build { top: calc(106px + var(--safe-t)); font-size: 12px; padding: 5px 10px; }
-  /* Alttaki Aksiyon butonuna değmesin: kısa ekranda video küçülür */
-  #tv-player.mini { top: calc(138px + var(--safe-t)); width: clamp(96px, calc((100vh - 264px) * 16 / 9), 168px); }
   #build-items button { width: 48px; }
   body.building #prompt { bottom: calc(132px + var(--safe-b)); }
   body.touch.building #btn-action { bottom: calc(132px + var(--safe-b)); width: 64px; height: 64px; }
@@ -733,9 +719,6 @@ body.touch #crosshair { width: 4px; height: 4px; margin: -2px 0 0 -2px; }
 }
 /* Yatay telefon, dekorasyon modu */
 @media (max-height: 480px) {
-  /* Video başlık çubuğuna iner (ses sürer) */
-  body.building #tv-player.mini #tv-frame { height: 0; aspect-ratio: auto; }
-  body.building #tv-join { display: none; }
   /* Çubuk soldaki joystick bölgesinin (%45) dışında, Aksiyon da her zamanki yerinde
      çubuğun sağında: dokunuşlar yanlışlıkla eşya seçmez, buton videonun altında kalmaz */
   body.touch #build-bar {

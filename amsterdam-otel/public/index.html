@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Amsterdam Otel</title>
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/interactive-tv.css">
   <script type="importmap">
     {
       "imports": {
@@ -72,6 +73,16 @@
     </div>
     <div id="bar-progress" hidden><i></i></div>
     <div id="bar-held" class="panel" hidden></div>
+
+    <!-- Oyuncu evleri: kapı zili istemi (ev sahibine) -->
+    <div id="ring-prompt" class="panel" hidden role="alertdialog" aria-live="assertive">
+      <div id="ring-text">🔔 Biri kapıda — içeri alınsın mı?</div>
+      <div class="ring-actions">
+        <button type="button" id="ring-yes" class="primary">Evet <kbd>Y</kbd></button>
+        <button type="button" id="ring-no">Hayır <kbd>N</kbd></button>
+      </div>
+      <div id="ring-timer"><i></i></div>
+    </div>
     <div id="fps" hidden></div>
     <button id="btn-settings" type="button" aria-label="Ayarlar">⚙</button>
     <button id="btn-build" type="button" hidden>🛠 Dekor</button>
@@ -92,16 +103,6 @@
   <!-- Trip efektleri (yalnızca bu oyuncu görür) -->
   <div id="trip-bubbles" aria-hidden="true"></div>
   <div id="splatter" aria-hidden="true"></div>
-
-  <!-- Bizim Ev: YouTube oynatıcı (TV panelinde büyük, kapanınca köşede küçük) -->
-  <div id="tv-player" class="mini" hidden>
-    <div class="tv-bar">
-      <span id="tv-title">📺 TV</span>
-      <button type="button" id="tv-hide" aria-label="Oynatıcıyı kapat">✕</button>
-    </div>
-    <div id="tv-frame"></div>
-    <button type="button" id="tv-join" hidden>▶ Katıl</button>
-  </div>
 
   <!-- Bizim Ev: TV kumandası -->
   <div id="tv-panel" class="overlay" hidden>
@@ -181,6 +182,7 @@
         <li><b>E</b> / <b>Sol tık</b> aksiyon · <b>F</b> tüket · <b>Q</b> ürün değiştir</li>
         <li><b>B</b> Bizim Ev'de dekorasyon modu · <b>T</b> TV yayınına katıl / kapat</li>
         <li>Barda <b>E</b>: bardak al · koy · çalkala · servis · topla · yıka · <b>F</b> yiyeceği ısır</li>
+        <li>Achterstraat'ta başkasının kapısında <b>E</b>: zili çal · kapıda biri varsa <b>Y</b> / <b>N</b>: içeri al / alma</li>
         <li><b>Esc</b> duraklat</li>
       </ul>
       <ul class="help touch-only">
@@ -191,7 +193,8 @@
       <p class="goal">Misafirler resepsiyona gelir ve boş odaya yerleşir. Çıkış yapınca oda <b>Kirli</b> olur:
         içeri gir, yatağı düzelt, çöpleri topla. Hafta içi otel açık, hafta sonu kapalıdır.
         Lobinin doğusundaki alkolsüz <b>Bar De Tulp</b>'ta barmenlik yapıp bahşiş toplayabilir, brownie
-        ve stroopwafel yiyebilirsin. Bahşişlerini sokaktaki <b>coffee shop</b>'ta (18+) ya da otelin
+        ve stroopwafel yiyebilirsin. Otelin arka kapısından çıkınca <b>Achterstraat</b>'ta sana ait bir ev var:
+        dekore et, arkadaşların zili çalınca içeri al. Bahşişlerini sokaktaki <b>coffee shop</b>'ta (18+) ya da otelin
         batısındaki <b>Bizim Ev</b>'i dekore etmeye harcayabilirsin; evdeki TV'de YouTube açabilirsin.</p>
       <div id="conn-status">Sunucuya bağlanılıyor…</div>
     </div>

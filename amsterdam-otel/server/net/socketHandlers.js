@@ -1,4 +1,4 @@
-import { EVT } from '../../shared/constants.js';
+import { EVT, PLAYER_KEY_RE } from '../../shared/constants.js';
 
 /**
  * Basit jeton kovası: istemci başına mesaj hızını sınırlar
@@ -38,6 +38,12 @@ export function attachSocketHandlers(io, sim) {
   // Simülasyon olaylarını tüm istemcilere ilet
   sim.on('out', (event, payload) => io.emit(event, payload));
   sim.on('to', (id, event, payload) => sockets.get(id)?.emit(event, payload));
+  // Aynı anahtarla yeni oturum açıldı: eski soketi kapat (oyuncusu simülasyondan zaten silindi)
+  sim.on('kick', (id) => {
+    const old = sockets.get(id);
+    sockets.delete(id);
+    old?.disconnect(true);
+  });
 
   io.on('connection', (socket) => {
     const on = (event, fn) => socket.on(event, safe(fn));
@@ -56,12 +62,15 @@ export function attachSocketHandlers(io, sim) {
 
     on(EVT.JOIN, (data) => {
       if (player) return;
-      if (sim.players.size >= sim.config.maxPlayers) {
+      // Kalıcı anahtar yalnızca doğru biçimdeki string ise geçer (asla loglanmaz / saklanmaz)
+      const key = typeof data?.key === 'string' && PLAYER_KEY_RE.test(data.key) ? data.key : null;
+      // Aynı anahtarla açık oturumun yerini alan bağlantı dolu sunucuda da kabul edilir
+      if (sim.players.size >= sim.config.maxPlayers && !(key && sim.playerByKey(key))) {
         socket.emit(EVT.NOTIFY, { text: 'Otel personeli dolu, lütfen daha sonra tekrar deneyin.', kind: 'warn' });
         socket.disconnect(true);
         return;
       }
-      player = sim.addPlayer(data && data.name);
+      player = sim.addPlayer(data && data.name, key);
       sockets.set(player.id, socket);
       socket.emit(EVT.WELCOME, sim.snapshot(player.id));
     });
@@ -99,7 +108,7 @@ export function attachSocketHandlers(io, sim) {
       sim.emote(player.id, data.type === 'giggle' ? 'giggle' : 'vomit');
     });
 
-    // ---- Bizim Ev ----
+    // ---- Evler (Bizim Ev + oyuncu evleri) ----
     const houseGuard = (ack) => {
       if (player && allowHouse()) return true;
       reply(ack, { ok: false, error: 'Çok hızlı!' });
@@ -121,6 +130,13 @@ export function attachSocketHandlers(io, sim) {
     });
     on(EVT.HOUSE_TV_STOP, (data, ack) => {
       if (houseGuard(ack)) reply(ack, sim.houseTvStop(player.id, data?.itemId));
+    });
+    // Kapı zili: ziyaretçi → { houseId }; ev sahibi → { ringId, accept } (tipler HouseService'te doğrulanır)
+    on(EVT.HOUSE_RING, (data, ack) => {
+      if (houseGuard(ack)) reply(ack, sim.houseRing(player.id, data?.houseId));
+    });
+    on(EVT.HOUSE_RING_ANSWER, (data, ack) => {
+      if (houseGuard(ack)) reply(ack, sim.houseRingAnswer(player.id, data?.ringId, data?.accept));
     });
 
     // ---- Bar De Tulp ----

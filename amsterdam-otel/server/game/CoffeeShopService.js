@@ -27,9 +27,14 @@ export class CoffeeShopService {
     p.lastEmote = 0;
   }
 
+  /** Kişisel durum (WELCOME.self / SELF): houseId = oyuncunun kendi evi (yoksa null) */
   privateState(p) {
     return {
-      wallet: p.wallet, inventory: { ...p.inventory }, trip: this.publicTrip(p), bar: this.sim.bar?.privateState(p),
+      wallet: p.wallet,
+      inventory: { ...p.inventory },
+      trip: this.publicTrip(p),
+      bar: this.sim.bar?.privateState(p),
+      houseId: this.sim.house?.houseIdOf(p) ?? null,
     };
   }
 
@@ -37,7 +42,9 @@ export class CoffeeShopService {
     return p.trip ? { type: p.trip.type, endsAt: p.trip.endsAt } : null;
   }
 
+  /** Cüzdan her değiştiğinde çağrılır: kişisel durumu gönder, anahtarlı oyuncunun cüzdanını kaydet */
   sendSelf(p) {
+    this.sim.house?.saveWallet(p);
     this.sim.toPlayer(p.id, EVT.SELF, this.privateState(p));
   }
 

@@ -27,8 +27,9 @@ export const AREAS = Object.freeze({
   street: { minX: -18, maxX: 18, minZ: -7.4, maxZ: 0 },
 });
 
-// Oyuncunun gidebileceği en geniş alan (sunucu konum doğrulaması için)
-export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 18, minZ: -7.6, maxZ: 26 });
+// Oyuncunun gidebileceği en geniş alan (sunucu konum doğrulaması için);
+// kuzeyde otelin arkasındaki Achterstraat ve oyuncu evleri (z 26..39.8)
+export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 18, minZ: -7.6, maxZ: 40 });
 
 // Otelin doğusunda, sokağa açılan Amsterdam coffee shop'u
 export const COFFEESHOP = Object.freeze({
@@ -58,6 +59,77 @@ export const HOUSE = Object.freeze({
 
 export function isInsideHouse(x, z) {
   return x > -15.9 && x < -8.14 && z > 0.12 && z < 7.9;
+}
+
+// ---- Achterstraat ve oyuncu evleri ----------------------------------------
+// Otelin koridorunun sonundaki arka kapıdan çıkılan dar sokak; kuzeyinde 8 dar
+// kanal evi (Huis 1–8). Her oyuncuya bir ev verilir; kapı yalnızca ev sahibine ve
+// zili çalıp içeri alınan misafirlere açılır. Evlerin kapısı güney (sokak) duvarında,
+// yani Bizim Ev ile aynı yönde: aynı yerleşim kuralları (validatePlacement) çalışır.
+export const ALLEY = Object.freeze({
+  bounds: { minX: -18, maxX: 18, minZ: 26, maxZ: 33 },
+  backDoor: { from: -0.55, to: 0.55 }, // otelin arka duvarında (z = 26), koridorun sonu
+});
+
+const PH = Object.freeze({ count: 8, width: 4.2, x0: -16.8, z0: 33, z1: 39.8 });
+
+const r2 = (v) => Math.round(v * 100) / 100;
+
+function makePlayerHouse(i) {
+  const minX = r2(PH.x0 + i * PH.width);
+  const maxX = r2(minX + PH.width);
+  const door = { from: r2(minX + 0.75), to: r2(minX + 1.85) }; // sol tarafta; sağda pencere
+  const cx = r2((door.from + door.to) / 2);
+  return Object.freeze({
+    id: `h${i + 1}`,
+    name: `Huis ${i + 1}`,
+    owned: true,
+    maxItems: 30,
+    bounds: { minX, maxX, minZ: PH.z0, maxZ: PH.z1 },
+    // Eşyaların yerleşebileceği iç alan (duvar yüzlerinden 2 cm içeride)
+    inner: { minX: r2(minX + 0.12), maxX: r2(maxX - 0.12), minZ: r2(PH.z0 + 0.15), maxZ: r2(PH.z1 - 0.12) },
+    // "Evin içinde mi" testi (sunucu + istemci)
+    inside: { minX: r2(minX + 0.1), maxX: r2(maxX - 0.1), minZ: r2(PH.z0 + 0.12), maxZ: r2(PH.z1 - 0.1) },
+    door,
+    doorPoint: [cx, r2(PH.z0 - 0.45)], // kapının önü (sokakta): zil / giriş etkileşimi
+    entry: [cx, r2(PH.z0 + 0.9)], // içeri alınan misafirin ışınlandığı nokta
+    bell: [r2(door.to + 0.22), r2(PH.z0 - 0.11)], // cephedeki zil düğmesi (y ≈ 1.25)
+    lightSwitch: null,
+  });
+}
+
+export const PLAYER_HOUSES = Object.freeze(Array.from({ length: PH.count }, (_, i) => makePlayerHouse(i)));
+
+/** Bizim Ev (ortak, herkes dekore eder) + oyuncu evleri — aynı yapı */
+export const SHARED_HOUSE_ID = 'shared';
+export const HOUSES = Object.freeze([
+  Object.freeze({
+    id: SHARED_HOUSE_ID,
+    name: 'Bizim Ev',
+    owned: false,
+    maxItems: 80,
+    ...HOUSE,
+    inside: { minX: -15.9, maxX: -8.14, minZ: 0.12, maxZ: 7.9 },
+    doorPoint: [(HOUSE.door.from + HOUSE.door.to) / 2, -0.45],
+    entry: [(HOUSE.door.from + HOUSE.door.to) / 2, 0.9],
+  }),
+  ...PLAYER_HOUSES,
+]);
+export const HOUSE_BY_ID = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(HOUSES.map((h) => [h.id, h]))));
+
+export function isInsideHouseDef(h, x, z) {
+  const b = h.inside;
+  return x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ;
+}
+
+/** (x, z) hangi evin içinde (yoksa null) */
+export function houseAt(x, z) {
+  for (const h of HOUSES) if (isInsideHouseDef(h, x, z)) return h;
+  return null;
+}
+
+export function isInsideAlley(x, z) {
+  return x > -17.9 && x < 17.9 && z > 26.1 && z < 32.9;
 }
 
 // Bar De Tulp — otelin doğusunda, coffee shop'un arkasındaki ek bina (alkolsüz bar).
@@ -214,8 +286,8 @@ export function buildWallSegments() {
   // Odalar arası duvarlar
   wallAlongX(w, 19, -8, -1.5, [], 'wall');
   wallAlongX(w, 19, 1.5, 8, [], 'wall');
-  // Arka duvar
-  wallAlongX(w, 26, -8, 8, [], 'wall');
+  // Arka duvar — koridorun sonunda Achterstraat'a açılan arka kapı
+  wallAlongX(w, 26, -8, 8, [{ from: ALLEY.backDoor.from, to: ALLEY.backDoor.to, top: DOOR_H }], 'wall');
   // Coffee shop: ön cephe (kapılı), doğu ve arka duvar; batı duvarı otelin doğu duvarı
   const shop = COFFEESHOP;
   wallAlongX(w, 0, 8.2, 16, [{ from: shop.door.from, to: shop.door.to, top: 2.5 }], 'shopWall');
@@ -229,6 +301,15 @@ export function buildWallSegments() {
   // Bar De Tulp: kuzey ve doğu duvarı; güneyi coffee shop'un arka duvarı, batısı otelin doğu duvarı
   wallAlongX(w, 14, 8.2, 16, [], 'barWall');
   wallAlongZ(w, 16, 8.1, 14, [], 'barWall');
+  // Achterstraat: güneyde komşu binaların arka duvarları, iki uçta duvar
+  wallAlongX(w, 26, -18, -8.2, [], 'brick');
+  wallAlongX(w, 26, 8.2, 18, [], 'brick');
+  wallAlongZ(w, -18, 26.1, 33, [], 'brick');
+  wallAlongZ(w, 18, 26.1, 33, [], 'brick');
+  // Oyuncu evleri: sokağa bakan cephe (her evin kapısıyla), aralarındaki ve arka duvarlar
+  wallAlongX(w, PH.z0, -18, 18, PLAYER_HOUSES.map((h) => ({ from: h.door.from, to: h.door.to, top: DOOR_H })), 'brick');
+  for (let i = 0; i <= PH.count; i++) wallAlongZ(w, PH.x0 + i * PH.width, PH.z0 + 0.1, PH.z1, [], 'phWall');
+  wallAlongX(w, PH.z1, PH.x0 + 0.1, -PH.x0 - 0.1, [], 'phWall');
   return w;
 }
 
@@ -237,6 +318,8 @@ export function areaAt(x, z) {
   if (isInsideShop(x, z)) return 'shop';
   if (isInsideHouse(x, z)) return 'house';
   if (isInsideBar(x, z)) return 'bar';
+  if (isInsideAlley(x, z)) return 'alley';
+  for (const h of PLAYER_HOUSES) if (isInsideHouseDef(h, x, z)) return h.id;
   for (const r of ROOMS) if (isInsideRoom(r, x, z)) return r.id;
   if (pointInBounds(x, z, AREAS.corridor) && Math.abs(x) < 1.4) return 'corridor';
   if (pointInBounds(x, z, AREAS.lobby) && z > 0.1 && Math.abs(x) < 7.9) return 'lobby';

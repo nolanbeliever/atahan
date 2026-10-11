@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { EVT } from '/shared/constants.js';
-import { HOUSE, isInsideHouse } from '/shared/layout.js';
+import { EVT, possessive } from '/shared/constants.js';
+import { HOUSE, HOUSE_BY_ID, SHARED_HOUSE_ID, houseAt } from '/shared/layout.js';
 import {
   FURNITURE, FURNITURE_BY_ID, HOUSE_RULES, itemBox, itemRotationY, candidateFromPoint,
   validatePlacement, itemAtPoint, blocksPlayer,
@@ -19,15 +19,17 @@ const _dir = new THREE.Vector3();
 // Sunucu konumu ~100 ms geriden gelir: istemci biraz daha katı davranır ki
 // yeşil görünen yerleşim sunucuda reddedilmesin
 const REACH_MARGIN = 0.25;
+const PARTS = ['solid', 'unlit', 'glow'];
 
 /**
- * Bizim Ev: eşyaların çizimi, dekorasyon modu, ışık anahtarı, kapı.
+ * Evler: Bizim Ev (ortak, herkes dekore eder) + Achterstraat'taki oyuncu evleri.
+ * Eşyaların çizimi, dekorasyon modu (yalnızca Bizim Ev'de ya da KENDİ evinde),
+ * Bizim Ev'in ışık anahtarı ve kapısı.
  *
- * Performans: tüm mobilyalar (en fazla 80) üç birleştirilmiş mesh'e toplanır
- * (ışık alan / kendi ışığı olan / LED duvar ışığı). Eşya eklenip kaldırıldığında
- * — nadir bir olay — geometri yeniden birleştirilir; karede ekstra iş yoktur.
- * LED "ışıkları" gerçek ışık kaynağı değildir (pahalı); duvara vuran additive
- * bir degrade ile taklit edilir.
+ * Performans: her evin mobilyaları üç birleştirilmiş mesh'e toplanır (ışık alan /
+ * kendi ışığı olan / LED duvar ışığı). Eşya eklenip kaldırıldığında — nadir bir
+ * olay — yalnızca O EVİN geometrisi yeniden birleştirilir; karede ekstra iş yoktur.
+ * LED "ışıkları" gerçek ışık kaynağı değildir (pahalı); additive bir degradedir.
  */
 export class HouseSystem {
   constructor({ engine, building, collision, net, hud, interaction, player, remotes, device, tv }) {
@@ -43,22 +45,26 @@ export class HouseSystem {
     this.device = device;
     this.tv = tv;
 
-    this.items = new Map();
+    this.items = new Map(); // tüm evlerin eşyaları (item.houseId)
     this.getWallet = () => Infinity; // main.js bağlar (coffee shop cüzdanı)
-    this.selfId = null; // iade önizlemesi için (yalnızca kendi aldığın eşya)
+    this.selfId = null; // iade önizlemesi için (Bizim Ev'de yalnızca kendi aldığın eşya)
+    this.ownedHouseId = null; // oyuncunun kendi evi (sunucudan: self.houseId)
+    this.owners = new Map(); // houseId → { name, online, playerId } | null
+    this.accessCheck = () => false; // HouseVisitingSystem bağlar: zili çalıp içeri alındın mı
     this.lightsOn = true;
-    this.inside = false;
-    this.greeted = false;
-    this.colliders = [];
-    this.screens = new Map(); // itemId → mesh
+    this.houseId = null; // oyuncunun şu an içinde olduğu ev
+    this.greeted = new Set();
+    this.groups = new Map(); // houseId → { meshes: {solid, unlit, glow}, colliders: [] }
+    this.screens = new Map(); // itemId → mesh (TV ekranı)
 
+    // Bizim Ev'in mobilyaları ışık anahtarıyla kararır; oyuncu evlerininki kararmaz
     this.solidMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.privateSolidMat = new THREE.MeshLambertMaterial({ vertexColors: true });
     this.unlitMat = new THREE.MeshBasicMaterial({ vertexColors: true });
     this.glowMat = new THREE.MeshBasicMaterial({
       map: makeGlowTexture(), vertexColors: true, transparent: true,
       blending: THREE.AdditiveBlending, depthWrite: false,
     });
-    this.meshes = { solid: null, unlit: null, glow: null };
     this.dimmable = [...building.shell, this.solidMat].map((m) => ({ m, base: m.color.clone() }));
 
     this.screenGeo = new THREE.PlaneGeometry(1, 1);
@@ -104,28 +110,56 @@ export class HouseSystem {
     interaction.addProvider({ find: (px, pz, f) => this.findTarget(px, pz, f) });
   }
 
+  // ---- Yetki ---------------------------------------------------------------------
+
+  /** Bu evi dekore edebilir mi: Bizim Ev herkese, oyuncu evi yalnızca sahibine */
+  canBuild(houseId) {
+    return houseId === SHARED_HOUSE_ID || (houseId !== null && houseId === this.ownedHouseId);
+  }
+
+  /** TV'yi kullanabilir mi (sunucu yine doğrular): Bizim Ev, kendi evin ya da içeri alındığın ev */
+  canUseTv(houseId) {
+    return houseId === SHARED_HOUSE_ID || houseId === this.ownedHouseId || this.accessCheck(houseId);
+  }
+
+  ownerName(houseId) {
+    return this.owners.get(houseId)?.name ?? null;
+  }
+
   // ---- Sunucu durumu -----------------------------------------------------------
 
   applySnapshot(house) {
     this.items.clear();
-    for (const it of house?.items ?? []) this.items.set(it.id, it);
+    for (const it of house?.items ?? []) {
+      it.houseId = it.houseId || SHARED_HOUSE_ID;
+      this.items.set(it.id, it);
+    }
+    if (Array.isArray(house?.owners)) this.setOwners(house.owners);
     this.setLights(house?.lightsOn !== false);
-    this.rebuild();
+    for (const id of new Set([...this.groups.keys(), ...[...this.items.values()].map((it) => it.houseId)])) this.rebuild(id);
     for (const it of this.items.values()) if (it.type === 'tv') this.tv.syncScreen(it);
     // Bağlantı kopukken kaçırılan TV olaylarını (kaldırma, durdurma, yeni video) telafi et
     this.tv.reconcile(this.items);
   }
 
+  /** EVT.HOUSE_OWNERS ya da snapshot.house.owners */
+  setOwners(list) {
+    for (const o of list) this.owners.set(o.houseId, o.owner ?? null);
+    if (this.build.active) this.changed();
+  }
+
   onAdded(item) {
+    item.houseId = item.houseId || SHARED_HOUSE_ID;
     this.items.set(item.id, item);
-    this.rebuild();
+    this.rebuild(item.houseId);
   }
 
   onRemoved(id) {
     const it = this.items.get(id);
+    if (!it) return;
     this.items.delete(id);
-    if (it?.type === 'tv') this.tv.onTvRemoved(id);
-    this.rebuild();
+    if (it.type === 'tv') this.tv.onTvRemoved(id);
+    this.rebuild(it.houseId);
   }
 
   onTvState({ itemId, video }) {
@@ -144,22 +178,34 @@ export class HouseSystem {
     this.engine.requestRender();
   }
 
-  tvItems() {
-    return [...this.items.values()].filter((it) => it.type === 'tv');
+  itemsOf(houseId) {
+    const out = [];
+    for (const it of this.items.values()) if (it.houseId === houseId) out.push(it);
+    return out;
   }
 
-  // ---- Çizim (birleştirilmiş geometri) ---------------------------------------------
+  tvItems(houseId = this.houseId) {
+    return this.itemsOf(houseId).filter((it) => it.type === 'tv');
+  }
 
-  rebuild() {
-    const groups = { solid: [], unlit: [], glow: [] };
+  // ---- Çizim (ev başına birleştirilmiş geometri) --------------------------------------
+
+  rebuild(houseId) {
+    let g = this.groups.get(houseId);
+    if (!g) {
+      g = { meshes: { solid: null, unlit: null, glow: null }, colliders: [] };
+      this.groups.set(houseId, g);
+    }
+    const lists = { solid: [], unlit: [], glow: [] };
     const seenTv = new Set();
     for (const it of this.items.values()) {
+      if (it.houseId !== houseId) continue;
       const def = FURNITURE_BY_ID[it.type];
       if (!def) continue;
       const parts = buildFurniture(def, def.colors[it.color] ?? def.colors[0]);
       _m.compose(_p.set(it.x, 0, it.z), _q.setFromAxisAngle(_up, itemRotationY(def, it.rot)), _one);
-      for (const key of ['solid', 'unlit', 'glow']) {
-        for (const g of parts[key]) groups[key].push(g.applyMatrix4(_m));
+      for (const key of PARTS) {
+        for (const geo of parts[key]) lists[key].push(geo.applyMatrix4(_m));
       }
       if (parts.screen) {
         seenTv.add(it.id);
@@ -167,35 +213,36 @@ export class HouseSystem {
       }
     }
     for (const [id, mesh] of this.screens) {
-      if (seenTv.has(id)) continue;
+      if (mesh.userData.houseId !== houseId || seenTv.has(id)) continue;
       this.scene.remove(mesh);
       this.screens.delete(id);
     }
-    this.replaceMesh('solid', groups.solid, this.solidMat, true);
-    this.replaceMesh('unlit', groups.unlit, this.unlitMat, false);
-    this.replaceMesh('glow', groups.glow, this.glowMat, false);
-    this.rebuildColliders();
+    const solid = houseId === SHARED_HOUSE_ID ? this.solidMat : this.privateSolidMat;
+    this.replaceMesh(g, 'solid', lists.solid, solid, true);
+    this.replaceMesh(g, 'unlit', lists.unlit, this.unlitMat, false);
+    this.replaceMesh(g, 'glow', lists.glow, this.glowMat, false);
+    this.rebuildColliders(g, houseId);
     this.interaction.invalidate();
     this.engine.requestRender();
   }
 
-  replaceMesh(key, list, material, shadows) {
-    const old = this.meshes[key];
+  replaceMesh(g, key, list, material, shadows) {
+    const old = g.meshes[key];
     if (old) {
       this.scene.remove(old);
       old.geometry.dispose();
-      this.meshes[key] = null;
+      g.meshes[key] = null;
     }
     if (!list.length) return;
     const geo = mergeGeometries(list, false);
-    for (const g of list) g.dispose();
+    for (const x of list) x.dispose();
     if (!geo) return;
     const mesh = new THREE.Mesh(geo, material);
     mesh.matrixAutoUpdate = false;
     mesh.receiveShadow = shadows;
     if (key === 'glow') mesh.renderOrder = 3;
     this.scene.add(mesh);
-    this.meshes[key] = mesh;
+    g.meshes[key] = mesh;
   }
 
   placeScreen(it, s) {
@@ -206,6 +253,7 @@ export class HouseSystem {
       this.scene.add(mesh);
       this.screens.set(it.id, mesh);
     }
+    mesh.userData.houseId = it.houseId;
     const def = FURNITURE_BY_ID.tv;
     const ry = itemRotationY(def, it.rot);
     mesh.position.set(it.x + Math.sin(ry) * s.z, s.y, it.z + Math.cos(ry) * s.z);
@@ -214,7 +262,7 @@ export class HouseSystem {
     mesh.updateMatrix();
   }
 
-  /** TvSystem ekran malzemesini (küçük resim / kapalı) atar */
+  /** InteractiveTV ekran malzemesini (küçük resim / kapalı) atar */
   setScreenMaterial(itemId, material) {
     const mesh = this.screens.get(itemId);
     if (!mesh) return;
@@ -222,22 +270,24 @@ export class HouseSystem {
     this.engine.requestRender();
   }
 
-  rebuildColliders() {
-    for (const c of this.colliders) this.collision.remove(c);
-    this.colliders = [];
+  rebuildColliders(g, houseId) {
+    for (const c of g.colliders) this.collision.remove(c);
+    g.colliders = [];
     for (const it of this.items.values()) {
+      if (it.houseId !== houseId) continue;
       const def = FURNITURE_BY_ID[it.type];
       if (!def || def.layer !== 'floor') continue;
       const b = itemBox(def, it);
       const s = 0.04;
-      this.colliders.push(this.collision.add(b.minX + s, b.maxX - s, b.minZ + s, b.maxZ - s));
+      g.colliders.push(this.collision.add(b.minX + s, b.maxX - s, b.minZ + s, b.maxZ - s));
     }
   }
 
-  // ---- Etkileşim (TV, ışık anahtarı) -----------------------------------------------
+  // ---- Etkileşim (TV, Bizim Ev'in ışık anahtarı) -----------------------------------------
 
   findTarget(px, pz, f) {
-    if (!isInsideHouse(px, pz) || this.build.active) return null;
+    const h = houseAt(px, pz);
+    if (!h || this.build.active) return null;
     let best = null;
     let bestD = Infinity;
     const consider = (x, z, range, make) => {
@@ -252,22 +302,24 @@ export class HouseSystem {
         best = make();
       }
     };
-    for (const it of this.tvItems()) {
+    for (const it of this.tvItems(h.id)) {
       const ry = it.rot * (Math.PI / 2);
       const x = it.x + Math.sin(ry) * 0.5;
       const z = it.z + Math.cos(ry) * 0.5;
       consider(x, z, HOUSE_RULES.TV_RANGE, () => ({
-        x, z, marker: false,
+        x, z, marker: false, short: 'TV',
         label: it.video ? `📺 TV — ${it.video.title || 'oynatılıyor'}` : '📺 Televizyon — YouTube aç',
-        use: () => this.tv.open(it),
+        use: () => (this.canUseTv(h.id) ? this.tv.open(it) : this.hud.toast('Bu evin TV\'sini yalnızca ev sahibi ve içeri aldığı misafirler kullanabilir.', 'info')),
       }));
     }
-    const [sx, sz] = HOUSE.lightSwitch;
-    consider(sx, sz + 0.3, HOUSE_RULES.SWITCH_RANGE, () => ({
-      x: sx, z: sz + 0.3, marker: false,
-      label: this.lightsOn ? '💡 Işıkları kapat (LED partisi)' : '💡 Işıkları aç',
-      use: () => this.toggleLights(),
-    }));
+    if (h.lightSwitch) {
+      const [sx, sz] = h.lightSwitch;
+      consider(sx, sz + 0.3, HOUSE_RULES.SWITCH_RANGE, () => ({
+        x: sx, z: sz + 0.3, marker: false, short: 'Işık',
+        label: this.lightsOn ? '💡 Işıkları kapat (LED partisi)' : '💡 Işıkları aç',
+        use: () => this.toggleLights(),
+      }));
+    }
     return best;
   }
 
@@ -282,10 +334,11 @@ export class HouseSystem {
   update(dt) {
     let active = false;
     const { x, z } = this.player.pos;
-    const inside = isInsideHouse(x, z);
-    if (inside !== this.inside) this.onInsideChange(inside);
+    const h = houseAt(x, z);
+    const id = h ? h.id : null;
+    if (id !== this.houseId) this.onHouseChange(id);
 
-    // Kapı: yaklaşınca açılır
+    // Bizim Ev'in kapısı: yaklaşınca açılır (oyuncu evlerinin kapıları HouseVisitingSystem'de)
     const door = this.building.door;
     const near = Math.hypot(x - (HOUSE.door.from + HOUSE.door.to) / 2, z) < 2.4;
     const target = near ? 1 : 0;
@@ -300,18 +353,24 @@ export class HouseSystem {
     return active;
   }
 
-  onInsideChange(inside) {
-    this.inside = inside;
-    this.el.btn.hidden = !inside;
-    if (inside) {
-      this.tv.onEnterHouse(this.tvItems());
-      if (!this.greeted) {
-        this.greeted = true;
-        this.hud.toast(`🏠 Bizim Ev! ${this.device.touch ? '🛠 Dekor butonu' : 'B tuşu'} ile dekorasyon modunu aç.`, 'info');
-      }
-    } else {
+  onHouseChange(id) {
+    const prev = this.houseId;
+    this.houseId = id;
+    this.el.btn.hidden = !(id && this.canBuild(id));
+    if (prev !== null) {
       if (this.build.active) this.toggleBuild(false);
       this.tv.onLeaveHouse();
+    }
+    if (id === null) return;
+    this.tv.onEnterHouse(id, this.tvItems(id));
+    if (this.greeted.has(id)) return;
+    this.greeted.add(id);
+    const key = this.device.touch ? '🛠 Dekor butonu' : 'B tuşu';
+    if (id === SHARED_HOUSE_ID) this.hud.toast(`🏠 Bizim Ev! ${key} ile dekorasyon modunu aç.`, 'info');
+    else if (id === this.ownedHouseId) this.hud.toast(`🏡 Evine hoş geldin! ${key} ile dekore et; TV'ye YouTube açabilirsin.`, 'info');
+    else {
+      const name = this.ownerName(id);
+      this.hud.toast(`🚪 ${name ? `${possessive(name)} evindesin` : 'Misafirsin'} — eşyalara dokunamazsın, TV'yi açabilirsin.`, 'info');
     }
   }
 
@@ -342,8 +401,13 @@ export class HouseSystem {
   }
 
   toggleBuild(on = !this.build.active) {
-    if (on && !this.inside) {
-      this.hud.toast('Dekorasyon için Bizim Ev\'in içinde olmalısın (otelin batısında).', 'info');
+    if (on && !this.canBuild(this.houseId)) {
+      if (this.houseId) {
+        const name = this.ownerName(this.houseId);
+        this.hud.toast(`🔒 Bu ev ${name ? possessive(name) : 'başkasının'} — yalnızca ev sahibi düzenleyebilir.`, 'warn');
+      } else {
+        this.hud.toast('Dekorasyon için kendi evinde (Achterstraat) ya da Bizim Ev\'de olmalısın.', 'info');
+      }
       return;
     }
     this.build.active = on;
@@ -412,8 +476,9 @@ export class HouseSystem {
   updateBuild() {
     const b = this.build;
     const def = FURNITURE[b.sel];
+    const h = HOUSE_BY_ID[this.houseId];
     const pt = this.floorPoint();
-    if (!pt) {
+    if (!pt || !h) {
       b.cand = null;
       b.target = null;
       this.ghost.visible = false;
@@ -421,9 +486,12 @@ export class HouseSystem {
       this.hud.setPrompt({ info: 'Eşyayı koymak istediğin yere, zemine bak.' });
       return;
     }
-    const c = candidateFromPoint(def, pt.x, pt.z, b.rot);
+    const here = this.itemsOf(h.id);
+    const c = candidateFromPoint(def, pt.x, pt.z, b.rot, h);
     b.cand = { type: def.id, x: c.x, z: c.z, rot: c.rot, color: b.color };
-    b.check = validatePlacement([...this.items.values()], b.cand);
+    b.check = here.length >= h.maxItems
+      ? { ok: false, error: `Bu evde en fazla ${h.maxItems} eşya olabilir.` }
+      : validatePlacement(here, b.cand, h);
     const me = this.player.pos;
     // LED en yakın duvara yapıştığı için bakılan noktadan metrelerce uzağa kayabilir
     if (b.check.ok && Math.hypot(c.x - me.x, c.z - me.z) > HOUSE_RULES.REACH - REACH_MARGIN) {
@@ -466,16 +534,16 @@ export class HouseSystem {
     this.ghost.visible = true;
     this.ghostMat.color.setHex(b.check.ok ? 0x3cff7a : 0xff4f4f);
 
-    // Kaldırma hedefi: bakılan noktadaki eşya
-    b.target = itemAtPoint([...this.items.values()], pt.x, pt.z);
+    // Kaldırma hedefi: bakılan noktadaki eşya (yalnızca bu evde)
+    b.target = itemAtPoint(here, pt.x, pt.z);
     b.targetFar = !!b.target && Math.hypot(b.target.x - me.x, b.target.z - me.z) > HOUSE_RULES.REACH - REACH_MARGIN;
     if (b.target) {
       const td = FURNITURE_BY_ID[b.target.type];
       const box = itemBox(td, b.target);
-      const h = td.layer === 'wall' ? 0.3 : Math.max(0.05, td.h);
-      const y = td.layer === 'wall' ? HOUSE_RULES.LED_HEIGHT : h / 2;
+      const ht = td.layer === 'wall' ? 0.3 : Math.max(0.05, td.h);
+      const y = td.layer === 'wall' ? HOUSE_RULES.LED_HEIGHT : ht / 2;
       this.targetBox.position.set((box.minX + box.maxX) / 2, y, (box.minZ + box.maxZ) / 2);
-      this.targetBox.scale.set(box.maxX - box.minX + 0.04, h + 0.04, box.maxZ - box.minZ + 0.04);
+      this.targetBox.scale.set(box.maxX - box.minX + 0.04, ht + 0.04, box.maxZ - box.minZ + 0.04);
       this.targetBox.visible = true;
     } else {
       this.targetBox.visible = false;
@@ -485,8 +553,9 @@ export class HouseSystem {
     const text = b.check.ok ? `${def.icon} ${def.name} yerleştir · €${def.price}` : b.check.error;
     this.hud.setPrompt(b.check.ok ? { key: key2, text } : { info: `⚠ ${text}` });
     const t = b.target ? FURNITURE_BY_ID[b.target.type] : null;
-    // İade yalnızca bu oturumda kendi aldığın eşyaya (sunucu kuralı)
-    const refund = t && b.target.byId === this.selfId ? Math.floor(t.price * HOUSE_RULES.REFUND) : 0;
+    // İade: Bizim Ev'de yalnızca bu oturumda kendi aldığın eşya; kendi evinde hep (sunucu kuralı)
+    const own = h.id === SHARED_HOUSE_ID ? b.target?.byId === this.selfId : true;
+    const refund = t && own ? Math.floor(t.price * HOUSE_RULES.REFUND) : 0;
     const removeKey = this.device.touch ? '🗑' : 'X';
     let removeText = null;
     if (t && b.targetFar) removeText = `${t.icon} ${t.name} — kaldırmak için yaklaş`;

@@ -71,6 +71,11 @@ export class Engine {
     this.onDegrade = null;
     // İsteğe bağlı son işlem (trip efektleri): { render(), setSize(w, h, pixelRatio) }
     this.post = null;
+    // Her draw() sonunda (son işlem dahil, renderOnce da) çağrılan kancalar: ör. CSS3D
+    // TV ekranı. Ayrı döngü yoktur: motor uyurken / duraklatılmışken çağrılmazlar.
+    this.afterRender = [];
+    // Boyut değişince (debounce'lu resize) çağrılan kancalar: (w, h) => void
+    this.resizeHooks = [];
 
     this._frame = this._frame.bind(this);
 
@@ -123,6 +128,12 @@ export class Engine {
   /** @param {(dt:number, now:number) => boolean} fn  aktifse true döner */
   addSystem(fn) { this.systems.push(fn); }
 
+  /** @param {() => void} fn  her çizilen karenin (son işlem dahil) ardından çağrılır */
+  addAfterRender(fn) { this.afterRender.push(fn); }
+
+  /** @param {(w:number, h:number) => void} fn  pencere boyutu değişince çağrılır */
+  onResize(fn) { this.resizeHooks.push(fn); }
+
   start() {
     this.running = true;
     this.requestRender();
@@ -145,10 +156,11 @@ export class Engine {
     this.renderedFrames++;
   }
 
-  /** Son işlem etkinse onunla, değilse doğrudan çizer */
+  /** Son işlem etkinse onunla, değilse doğrudan çizer; ardından after-render kancaları */
   draw() {
     if (this.post) this.post.render();
     else this.renderer.render(this.scene, this.camera);
+    for (let i = 0; i < this.afterRender.length; i++) this.afterRender[i]();
   }
 
   /** Son işlemciyi tak/çıkar (null → doğrudan render, ekstra GPU geçişi yok) */
@@ -267,6 +279,7 @@ export class Engine {
     this.post?.setSize(w, h, this.pixelRatio);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    for (let i = 0; i < this.resizeHooks.length; i++) this.resizeHooks[i](w, h);
     this.requestRender();
   }
 }

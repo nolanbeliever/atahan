@@ -77,6 +77,12 @@ export const EVT = Object.freeze({
   HOUSE_REMOVED: 'house:removed',
   HOUSE_LIGHTS_STATE: 'house:lightsState',
   HOUSE_TV_STATE: 'house:tvState',
+  // Oyuncu evleri: kapı zili ve erişim
+  HOUSE_RING: 'house:ring', // ziyaretçi → sunucu (ack): { houseId }
+  HOUSE_RING_REQ: 'house:ringReq', // sunucu → ev sahibi: { ringId, houseId, visitorId, visitorName, expiresAt }
+  HOUSE_RING_ANSWER: 'house:ringAnswer', // ev sahibi → sunucu (ack): { ringId, accept }
+  HOUSE_ACCESS: 'house:access', // sunucu → ziyaretçi: { houseId, granted, by, reason? }
+  HOUSE_OWNERS: 'house:owners', // sunucu → herkes: [{ houseId, owner: { name, online, playerId } | null }]
   // Bar De Tulp (alkolsüz bar)
   BAR_ACT: 'bar:act', // istemci → sunucu (ack): { act, ing?, stool?, food? }
   BAR_STATE: 'bar:state', // sunucu → herkes: tabureler, siparişler, raf, tezgâhtaki bardaklar
@@ -96,6 +102,8 @@ export const PRODUCTS = Object.freeze([
 export const PRODUCT_BY_ID = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(PRODUCTS.map((p) => [p.id, p]))));
 
 export const START_WALLET = 30; // € — oyuncunun kişisel cüzdanı
+// Tarayıcıda saklanan gizli oyuncu anahtarı (ev sahipliği + cüzdan kalıcılığı); sunucu yalnızca özetini (hash) tutar
+export const PLAYER_KEY_RE = /^[0-9a-f]{32}$/;
 export const TIP_MIN = 4; // € — temizlenen odada bulunan bahşiş
 export const TIP_MAX = 12;
 
@@ -200,6 +208,19 @@ export function formatClock(minuteOfDay) {
   const hh = String(Math.floor(m / 60) % 24).padStart(2, '0');
   const mm = String(m % 60).padStart(2, '0');
   return `${hh}:${mm}`;
+}
+
+/**
+ * Türkçe iyelik eki (ünlü uyumu + kaynaştırma): Ayşe → Ayşe'nin, Burak → Burak'ın,
+ * Ali → Ali'nin, Noor → Noor'un, Gül → Gül'ün. Yabancı adlarda da yazımdaki son ünlüye bakar.
+ */
+export function possessive(name) {
+  const s = String(name);
+  const vowels = s.toLocaleLowerCase('tr-TR').match(/[aeıioöuü]/g);
+  const last = vowels ? vowels[vowels.length - 1] : 'e';
+  const v = { a: 'ı', ı: 'ı', e: 'i', i: 'i', o: 'u', u: 'u', ö: 'ü', ü: 'ü' }[last];
+  const endsWithVowel = /[aeıioöuü]$/i.test(s.toLocaleLowerCase('tr-TR'));
+  return `${s}'${endsWithVowel ? 'n' : ''}${v}n`;
 }
 
 export function formatMoney(value) {

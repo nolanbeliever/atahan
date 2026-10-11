@@ -26,6 +26,8 @@ export class KeyboardMouse {
       else if (e.code === 'KeyC') input.command('color');
       else if (e.code === 'KeyX') input.command('remove');
       else if (e.code === 'KeyT') input.command('tv');
+      else if (e.code === 'KeyY') input.command('ringYes'); // kapı zili: içeri al
+      else if (e.code === 'KeyN') input.command('ringNo'); // kapı zili: alma
       else if (/^Digit[1-9]$/.test(e.code)) input.command(`select:${Number(e.code.slice(5)) - 1}`);
       else input.setKey(e.code, true);
     });

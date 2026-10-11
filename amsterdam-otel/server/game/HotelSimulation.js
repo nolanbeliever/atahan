@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
+import { createHash } from 'node:crypto';
 import {
-  EVT, DAY_NAMES, INTERACT_RANGE, TRASH_SPOT_COUNT, formatMoney,
+  EVT, DAY_NAMES, INTERACT_RANGE, TRASH_SPOT_COUNT, PLAYER_KEY_RE, formatMoney,
 } from '../../shared/constants.js';
 import { POINTS, ROOM_BY_ID, WORLD_BOUNDS, pointInBounds } from '../../shared/layout.js';
 import { GameClock } from './GameClock.js';
@@ -13,6 +14,15 @@ import { BarService } from './BarService.js';
 const PLAYER_COLORS = ['#e4572e', '#29a3a3', '#f3a712', '#6a4c93', '#3a86ff', '#8ac926', '#ff595e', '#c77dff'];
 
 const round2 = (v) => Math.round(v * 100) / 100;
+
+/**
+ * Kalıcı oyuncu anahtarının özeti (sha256 hex). Anahtarın kendisi hiçbir yerde
+ * saklanmaz / yayınlanmaz / loglanmaz; geçersiz anahtar → null (kalıcılık yok).
+ */
+export function hashKey(key) {
+  if (typeof key !== 'string' || !PLAYER_KEY_RE.test(key)) return null;
+  return createHash('sha256').update(key).digest('hex');
+}
 
 function sanitizeName(raw) {
   if (typeof raw !== 'string') return '';
@@ -33,7 +43,7 @@ function sanitizeName(raw) {
  */
 export class HotelSimulation extends EventEmitter {
   /**
-   * @param house { store, fetchVideoInfo } — Bizim Ev için kalıcılık ve YouTube bilgisi (isteğe bağlı)
+   * @param house { store, fetchVideoInfo } — evler + cüzdanlar için kalıcılık ve YouTube bilgisi (isteğe bağlı)
    */
   constructor({ config, rng = Math.random, now = Date.now, house = {} }) {
     super();
@@ -135,6 +145,7 @@ export class HotelSimulation extends EventEmitter {
     this.guests.update(now);
     this.shop.update(now);
     this.bar.update(now);
+    this.house.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
     this.flushPlayers();
@@ -156,7 +167,28 @@ export class HotelSimulation extends EventEmitter {
 
   // ---- Oyuncular -------------------------------------------------------
 
-  addPlayer(rawName) {
+  /** Aynı kalıcı anahtarla bağlı oyuncu (yoksa undefined) */
+  playerByKey(key) {
+    const hash = hashKey(key);
+    if (!hash) return undefined;
+    for (const p of this.players.values()) if (p.keyHash === hash) return p;
+    return undefined;
+  }
+
+  /**
+   * @param key tarayıcıda saklanan gizli anahtar (PLAYER_KEY_RE) — ev ve cüzdan kalıcılığı için;
+   *            geçersizse yok sayılır. Aynı anahtarla açık eski oturum kapatılır ('kick' olayı).
+   */
+  addPlayer(rawName, key = null) {
+    const keyHash = hashKey(key);
+    if (keyHash) {
+      for (const old of [...this.players.values()]) {
+        if (old.keyHash !== keyHash) continue;
+        this.toPlayer(old.id, EVT.NOTIFY, { text: 'Oyun başka bir sekmede açıldı.', kind: 'warn' });
+        this.removePlayer(old.id); // cüzdanı kaydedilir, evi yeni oturuma geçer
+        this.emit('kick', old.id); // ağ katmanı eski soketi kapatır
+      }
+    }
     const no = this.nextPlayerNo++;
     const p = {
       id: no,
@@ -165,12 +197,15 @@ export class HotelSimulation extends EventEmitter {
       x: POINTS.playerSpawn[0] + (this.rng() - 0.5) * 2,
       z: POINTS.playerSpawn[1] + (this.rng() - 0.5),
       yaw: Math.PI,
+      keyHash, // yalnızca sunucuda; hiçbir yayına girmez
     };
     this.shop.initPlayer(p);
     this.bar.initPlayer(p);
+    this.house.initPlayer(p); // oturumluk ev erişimi + kayıtlı cüzdan
     this.players.set(p.id, p);
     if (this.players.size === 1) this.start();
     this.out(EVT.PLAYER_JOIN, this.publicPlayer(p));
+    this.house.assignHouse(p); // değişirse HOUSE_OWNERS yayınlanır
     return p;
   }
 
@@ -178,6 +213,7 @@ export class HotelSimulation extends EventEmitter {
     const p = this.players.get(id);
     if (!p) return;
     this.bar.removePlayer(p); // elindeki bardaklar rafa döner
+    this.house.removePlayer(p); // bekleyen ziller, cüzdan ve ev sahibi kaydı
     this.players.delete(id);
     this.dirtyPlayers.delete(id);
     this.out(EVT.PLAYER_LEAVE, id);
@@ -269,7 +305,7 @@ export class HotelSimulation extends EventEmitter {
     return p ? this.shop.spin(p) : { ok: false };
   }
 
-  // ---- Bizim Ev ------------------------------------------------------------
+  // ---- Evler (Bizim Ev + oyuncu evleri) ---------------------------------------
 
   withPlayer(playerId, fn) {
     const p = this.players.get(playerId);
@@ -288,6 +324,12 @@ export class HotelSimulation extends EventEmitter {
   }
 
   houseTvStop(playerId, itemId) { return this.withPlayer(playerId, (p) => this.house.stopTv(p, itemId)); }
+
+  houseRing(playerId, houseId) { return this.withPlayer(playerId, (p) => this.house.ring(p, houseId)); }
+
+  houseRingAnswer(playerId, ringId, accept) {
+    return this.withPlayer(playerId, (p) => this.house.answer(p, ringId, accept));
+  }
 
   // ---- Bar De Tulp -----------------------------------------------------------
 

@@ -38,15 +38,23 @@ export const HOUSE_RULES = Object.freeze({
   TV_RANGE: 4, // TV'yi kumanda etmek için en fazla uzaklık
   SWITCH_RANGE: 2.2,
   LED_HEIGHT: 2.95,
+  // Oyuncu evleri
+  DOOR_RANGE: 2.0, // zil / kapı etkileşimi için kapının önüne en fazla uzaklık
+  RING_TIMEOUT_MS: 25_000, // ev sahibi bu sürede yanıtlamazsa zil düşer
+  RING_COOLDOWN_MS: 8_000, // aynı ziyaretçi aynı kapıyı bu aralıktan sık çalamaz
+  OWNER_EVICT_DAYS: 3, // tüm evler doluysa bu kadar gündür gelmeyen sahibin evi yeni oyuncuya verilir
 });
 
-// Kapının önü her zaman boş kalmalı (halı hariç)
-const DOOR_ZONE = Object.freeze({
-  minX: HOUSE.door.from - 0.45,
-  maxX: HOUSE.door.to + 0.65, // ışık anahtarı da burada
-  minZ: HOUSE.inner.minZ,
-  maxZ: 1.35,
-});
+// Kapının önü her zaman boş kalmalı (halı hariç). Her ev (Bizim Ev + oyuncu evleri)
+// aynı yerleşim kurallarını kullanır; `h` parametresi verilmezse Bizim Ev.
+export function doorZone(h = HOUSE) {
+  return {
+    minX: h.door.from - 0.45,
+    maxX: h.door.to + 0.65, // ışık anahtarı da burada
+    minZ: h.inner.minZ,
+    maxZ: h.inner.minZ + 1.2,
+  };
+}
 
 export function footprint(def, rot) {
   return rot % 2 === 1 ? { w: def.d, d: def.w } : { w: def.w, d: def.d };
@@ -61,8 +69,8 @@ const overlaps = (a, b) => a.minX < b.maxX - 0.001 && a.maxX > b.minX + 0.001
   && a.minZ < b.maxZ - 0.001 && a.maxZ > b.minZ + 0.001;
 
 /** Duvar eşyası için: rot → hangi duvar. 0 arka, 1 batı, 2 ön, 3 doğu */
-export function wallLine(rot) {
-  const I = HOUSE.inner;
+export function wallLine(rot, h = HOUSE) {
+  const I = h.inner;
   return [
     { axis: 'z', value: I.maxZ },
     { axis: 'x', value: I.minX },
@@ -81,14 +89,14 @@ export function itemRotationY(def, rot) {
  * Zemindeki bir noktadan aday yerleşim üretir (istemci önizlemesi için).
  * Duvar eşyaları en yakın duvara yapışır; yerdekiler 0.25 m ızgaraya oturur.
  */
-export function candidateFromPoint(def, px, pz, rot) {
-  const I = HOUSE.inner;
+export function candidateFromPoint(def, px, pz, rot, h = HOUSE) {
+  const I = h.inner;
   const snap = (v) => Math.round(v * 4) / 4;
   if (def.layer === 'wall') {
     const dists = [I.maxZ - pz, px - I.minX, pz - I.minZ, I.maxX - px];
     let wall = 0;
     for (let i = 1; i < 4; i++) if (dists[i] < dists[wall]) wall = i;
-    const line = wallLine(wall);
+    const line = wallLine(wall, h);
     const half = def.w / 2;
     if (line.axis === 'z') {
       const x = Math.min(Math.max(snap(px), I.minX + half), I.maxX - half);
@@ -107,25 +115,26 @@ export function candidateFromPoint(def, px, pz, rot) {
  * Yerleşimi doğrular.
  * @param items mevcut eşyalar [{ type, x, z, rot }]
  * @param c aday { type, x, z, rot, color }
+ * @param h ev tanımı (shared/layout.js HOUSES); varsayılan Bizim Ev
  * @returns {{ ok: true } | { ok: false, error: string }}
  */
-export function validatePlacement(items, c) {
+export function validatePlacement(items, c, h = HOUSE) {
   const def = FURNITURE_BY_ID[c?.type];
   if (!def) return { ok: false, error: 'Böyle bir eşya yok.' };
   if (!Number.isInteger(c.rot) || c.rot < 0 || c.rot > 3) return { ok: false, error: 'Geçersiz yön.' };
   if (!Number.isInteger(c.color) || c.color < 0 || c.color >= def.colors.length) return { ok: false, error: 'Geçersiz renk.' };
   if (!Number.isFinite(c.x) || !Number.isFinite(c.z)) return { ok: false, error: 'Geçersiz konum.' };
-  const I = HOUSE.inner;
+  const I = h.inner;
   const eps = 0.02;
   const box = itemBox(def, c);
 
   if (def.layer === 'wall') {
-    const line = wallLine(c.rot);
+    const line = wallLine(c.rot, h);
     const v = line.axis === 'z' ? c.z : c.x;
     if (Math.abs(v - line.value) > eps) return { ok: false, error: 'LED şerit duvara monte edilmeli.' };
     const along = line.axis === 'z' ? [box.minX, box.maxX, I.minX, I.maxX] : [box.minZ, box.maxZ, I.minZ, I.maxZ];
     if (along[0] < along[2] - eps || along[1] > along[3] + eps) return { ok: false, error: 'Duvara sığmıyor.' };
-    if (c.rot === 2 && box.minX < HOUSE.door.to + 0.65 && box.maxX > HOUSE.door.from - 0.1) {
+    if (c.rot === 2 && box.minX < h.door.to + 0.65 && box.maxX > h.door.from - 0.1) {
       return { ok: false, error: 'Kapının üstüne LED takılamaz.' };
     }
     for (const o of items) {
@@ -140,7 +149,7 @@ export function validatePlacement(items, c) {
   if (box.minX < I.minX - eps || box.maxX > I.maxX + eps || box.minZ < I.minZ - eps || box.maxZ > I.maxZ + eps) {
     return { ok: false, error: 'Evin içine sığmıyor.' };
   }
-  if (def.layer === 'floor' && overlaps(box, DOOR_ZONE)) return { ok: false, error: 'Kapının önü boş kalmalı.' };
+  if (def.layer === 'floor' && overlaps(box, doorZone(h))) return { ok: false, error: 'Kapının önü boş kalmalı.' };
   for (const o of items) {
     const od = FURNITURE_BY_ID[o.type];
     if (!od || od.layer === 'wall') continue;

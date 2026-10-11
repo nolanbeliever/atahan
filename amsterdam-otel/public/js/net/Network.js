@@ -61,8 +61,9 @@ export class Network {
     return best;
   }
 
-  join(name) {
-    this.socket.emit(EVT.JOIN, { name });
+  /** @param key tarayıcıda saklanan gizli oyuncu anahtarı (ev sahipliği + cüzdan kalıcılığı) */
+  join(name, key = null) {
+    this.socket.emit(EVT.JOIN, key ? { name, key } : { name });
   }
 
   interact(roomId, target) {

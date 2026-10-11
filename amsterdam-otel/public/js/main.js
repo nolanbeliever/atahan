@@ -17,7 +17,8 @@ import { Interaction } from './game/Interaction.js';
 import { CoffeeShopSystem } from './game/CoffeeShopSystem.js';
 import { TripEffects } from './game/TripEffects.js';
 import { HouseSystem } from './game/HouseSystem.js';
-import { TvSystem } from './game/TvSystem.js';
+import { InteractiveTV } from './game/InteractiveTV.js';
+import { HouseVisitingSystem } from './game/HouseVisitingSystem.js';
 import { BarSystem } from './game/BarSystem.js';
 import { ViewModel } from './game/ViewModel.js';
 import { Sfx } from './core/Sfx.js';
@@ -30,6 +31,20 @@ import { SettingsPanel } from './ui/SettingsPanel.js';
 const device = detectDevice();
 document.body.classList.toggle('touch', device.touch);
 const settings = loadSettings(device);
+
+/** Tarayıcıda saklanan gizli oyuncu anahtarı: aynı ev ve cüzdan yeniden bağlanınca geri gelir */
+function getPlayerKey() {
+  const KEY = 'amsterdam-otel:key:v1';
+  try {
+    const old = localStorage.getItem(KEY);
+    if (old && /^[0-9a-f]{32}$/.test(old)) return old;
+  } catch { /* gizli sekme: oturumluk anahtar */ }
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  const key = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+  try { localStorage.setItem(KEY, key); } catch { /* yok say */ }
+  return key;
+}
+const playerKey = getPlayerKey();
 const quality = resolveQuality(settings.quality, device);
 
 const canvas = document.getElementById('game');
@@ -115,15 +130,19 @@ const modal = {
 const sfx = new Sfx(); // paylaşılan WebAudio sentezi (kıkırdama, dökme, çalkalama, ısırma…)
 const trip = new TripEffects({ engine, player, collision, hud, net, remotes, settings, audio: sfx });
 const vm = new ViewModel({ engine, settings }); // birinci şahıs eller
-const tv = new TvSystem({ net, hud, modal, engine, device });
+const tv = new InteractiveTV({ net, hud, modal, engine, device, settings });
 const house = new HouseSystem({
   engine, building: world.house, collision, net, hud, interaction, player, remotes, device, tv,
 });
 tv.house = house;
 house.getWallet = () => shop.wallet;
+// Achterstraat'taki oyuncu evleri: kapılar, zil, misafir erişimi
+const visits = new HouseVisitingSystem({
+  engine, net, hud, interaction, player, house, world: world.playerHouses, device, sfx, settings,
+});
 // Dekorasyon modu komutları (B, R, C, X, 1-9) coffee shop'tan ÖNCE işlenir
 // Bar 'consume' (F) komutunu elde yiyecek varsa sahiplenir (coffee shop'a gitmez)
-input.onCommand((cmd) => house.command(cmd) || tv.command(cmd) || bar.command(cmd));
+input.onCommand((cmd) => house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd));
 const shop = new CoffeeShopSystem({ net, hud, interaction, input, modal, device });
 // Shop'tan SONRA: boşta ipucu zincirini (idleHint) sarar
 const bar = new BarSystem({
@@ -149,6 +168,7 @@ engine.addSystem((dt) => guests.update(dt, net.serverNow(), engine.camera));
 engine.addSystem((dt) => remotes.update(dt));
 engine.addSystem((dt) => trip.update(dt));
 engine.addSystem((dt) => house.update(dt));
+engine.addSystem((dt) => visits.update(dt));
 engine.addSystem(() => bar.update());
 engine.addSystem((dt) => vm.update(dt));
 engine.addSystem((dt) => {
@@ -204,7 +224,7 @@ playBtn.addEventListener('click', () => {
     started = true;
     settings.name = nameInput.value.trim().slice(0, 16);
     saveSettings(settings);
-    if (net.connected) net.join(settings.name);
+    if (net.connected) net.join(settings.name, playerKey);
   }
   if (device.touch) {
     tryFullscreen();
@@ -280,10 +300,15 @@ net.on('connect', async () => {
   await net.syncClock();
   playBtn.disabled = false;
   if (!started) playBtn.textContent = 'Oyna';
-  if (started) net.join(settings.name);
+  if (started) net.join(settings.name, playerKey);
 });
-net.on('disconnect', () => {
+net.on('disconnect', (reason) => {
   joined = false;
+  // Aynı anahtarla başka sekmede açılınca sunucu bu oturumu kapatır; yeniden bağlanılmaz
+  if (reason === 'io server disconnect') {
+    hud.setConnection('Oyun başka bir sekmede açıldı. Bu sekmede devam etmek için sayfayı yenile.', true);
+    return;
+  }
   hud.setConnection('Bağlantı koptu, yeniden bağlanılıyor…', true);
   hud.toast('Sunucu bağlantısı koptu, yeniden bağlanılıyor…', 'warn');
 });
@@ -301,7 +326,10 @@ net.on(EVT.WELCOME, (snap) => {
   bar.applySelf(snap.self?.bar);
   trip.setSelfTrip(snap.self?.trip);
   house.selfId = snap.selfId;
+  visits.reset(); // misafir izinleri oturumluk
+  visits.applySelf(snap.self);
   house.applySnapshot(snap.house);
+  visits.setOwners(snap.house?.owners ?? []);
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
   hud.setRooms(state.rooms);
@@ -376,6 +404,7 @@ net.on(EVT.NOTIFY, (n) => hud.toast(n.text, n.kind));
 // Coffee shop / trip
 net.on(EVT.SELF, (self) => {
   shop.applySelf(self);
+  visits.applySelf(self);
   bar.applySelf(self.bar);
   if (house.build.active) engine.requestRender(); // önizleme rengi (yeterli para var mı) güncellensin
 });
@@ -394,6 +423,13 @@ net.on(EVT.HOUSE_ADDED, (item) => house.onAdded(item));
 net.on(EVT.HOUSE_REMOVED, (id) => house.onRemoved(id));
 net.on(EVT.HOUSE_LIGHTS_STATE, (on) => house.setLights(on));
 net.on(EVT.HOUSE_TV_STATE, (s) => house.onTvState(s));
+// Oyuncu evleri
+net.on(EVT.HOUSE_OWNERS, (list) => {
+  house.setOwners(list);
+  visits.setOwners(list);
+});
+net.on(EVT.HOUSE_RING_REQ, (req) => visits.onRingRequest(req));
+net.on(EVT.HOUSE_ACCESS, (a) => visits.onAccess(a));
 
 // Bar De Tulp
 net.on(EVT.BAR_STATE, (s) => bar.onState(s));
@@ -443,5 +479,5 @@ navigator.getBattery?.().then((battery) => {
 
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
-  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes,
+  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits,
 };

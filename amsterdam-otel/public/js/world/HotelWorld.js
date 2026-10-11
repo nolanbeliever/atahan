@@ -7,6 +7,7 @@ import { RoomView } from './RoomView.js';
 import { buildCoffeeShop } from './CoffeeShopBuilding.js';
 import { buildHouse } from './HouseBuilding.js';
 import { buildBar } from './BarBuilding.js';
+import { buildPlayerHouses } from './PlayerHouses.js';
 import {
   addPlanter, addBike, addTree, addBollard, addStreetLamp, addWindow, addPainting,
   addArmchair, addSideTable, makePanel,
@@ -17,7 +18,8 @@ const BLANKET_COLORS = { 101: 'fabricBlue', 102: 'fabricRed', 103: 'fabricGreen'
 const ENTRANCE_OPEN = Math.PI / 2 * 0.9;
 
 /**
- * Otelin tamamını kurar: lobi, koridor, 4 oda, Amsterdam sokağı ve kanal.
+ * Otelin tamamını kurar: lobi, koridor, 4 oda, Amsterdam sokağı ve kanal;
+ * arka kapıdan Achterstraat ve oyuncu evleri (PlayerHouses).
  * Statik her şey StaticBatcher ile malzeme başına tek mesh'e birleştirilir.
  */
 export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
@@ -46,6 +48,8 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
   const coffeeShop = buildCoffeeShop({ batcher: b, collision, scene, mats, factory });
   const house = buildHouse({ batcher: b, scene, mats, factory });
   const bar = buildBar({ batcher: b, collision, scene, mats, factory });
+  // Achterstraat + 8 oyuncu evi (phWall vb. malzemeler b.build'den önce mats'e eklenir)
+  const playerHouses = buildPlayerHouses({ batcher: b, collision, scene, mats, factory, engine });
 
   b.build(mats, scene);
   addLights(scene, quality);
@@ -59,6 +63,7 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
     coffeeShop,
     house,
     bar,
+    playerHouses,
 
     setWeekend(on) {
       if (weekend === on) return;
@@ -87,6 +92,9 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
         entrance.right.rotation.y = ENTRANCE_OPEN * entrance.t;
         active = true;
       }
+
+      // Otel arka kapısı (koridorun sonu): oyuncu yaklaşınca sokağa doğru açılır
+      if (playerHouses.updateBackDoor(dt, ctx.px, ctx.pz)) active = true;
       return active;
     },
   };
@@ -269,12 +277,12 @@ function buildCorridor(b, collision) {
   for (const z of [13.8, 17.4, 21, 24.6]) {
     b.box('lamp', -0.25, 0.25, WALL_H - 0.03, WALL_H - 0.005, z - 0.25, z + 0.25, { cast: false, receive: false });
   }
-  addWindow(b, { x: 0, y: 1.7, z: 25.9, w: 1.4, h: 1.4, facing: 'z-', glass: 'skyline', uOffset: 0.4 });
   addPainting(b, { x: -1.4, y: 1.7, z: 19, w: 1.1, h: 0.8, facing: 'x+' });
   b.box('wood', 1.36, 1.4, 1.22, 2.18, 18.4, 19.6, { cast: false });
   addWindow(b, { x: 1.36, y: 1.7, z: 19, w: 1.0, h: 0.8, facing: 'x-', glass: 'skyline', uOffset: 0.8 });
-  addPlanter(b, collision, 1.0, 25.45, 2);
-  addPlanter(b, collision, -1.0, 25.45, 1);
+  // Koridorun sonunda Achterstraat'a açılan arka kapı (x −0.55..0.55): saksılar kenarda
+  addPlanter(b, collision, 1.1, 25.5, 2);
+  addPlanter(b, collision, -1.1, 25.5, 1);
 }
 
 function buildEntrance(scene, mats) {

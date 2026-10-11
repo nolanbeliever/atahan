@@ -56,9 +56,10 @@ Bu klasörde oyuna özel bir Blueprint dosyası var: [`render.yaml`](render.yaml
 | **E** / **Space** / **Sol tık**: aksiyon | Tek, şeffaf **Aksiyon** butonu |
 | **F**: seçili ürünü tüket · **Q** / **1–4**: ürün seç | Hedef yokken **Aksiyon**: seçili ürünü tüket · envanterde dokunarak seç |
 | **B**: dekorasyon modu (evde) · **1–9 / C / R / X** | **🛠 Dekor** butonu ve alt çubuk |
-| **T**: TV yayınına katıl / mini oynatıcıyı kapat | **▶ Katıl** / **✕** |
+| **T**: TV yayınına katıl / kendi ekranında kapat | **▶ Katıl** çipi |
 | Barda **E**: bardak al · koy · çalkala · servis et · topla · yıka | **Aksiyon** (butonun etiketi bakılan şeye göre değişir: Al, Koy, Çalkala, Servis…) |
 | **F** / **E**: elindeki yiyeceği ısır (her ısırık 2 sn) | **Aksiyon**: ısır |
+| Achterstraat'ta başkasının kapısında **E**: zili çal · ev sahibiysen **Y** / **N**: içeri al / alma | **Zil** butonu · istemdeki **Evet** / **Hayır** |
 | **Esc**: duraklat / paneli kapat | ⚙ butonu: ayarlar |
 
 Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir ve ekranın altında ipucu çıkar.
@@ -88,14 +89,35 @@ hafta sonları otel kapalıyken takılmak için ideal.
 - **LED partisi:** kapının yanındaki anahtara bakıp **E** → tavan ışığı kapanır, oda kararır, LED şeritler duvara renkli ışık
   vurur. Işık durumu herkes için ortaktır.
 - **Televizyon / YouTube:** TV'ye bakıp **E** → YouTube linkini yapıştır → **▶ Oynat**. Video YouTube'un resmi gömülü oynatıcısıyla
-  (youtube-nocookie.com) çalar; panel kapanınca köşede küçük oynatıcıda devam eder, TV ekranında videonun küçük resmi görünür.
-  Evdeki diğer oyuncular **▶ Katıl** (masaüstünde **T**) ile aynı saniyeden izler; **T** oynatıcıyı kapatır, tekrar **T**
-  geri getirir. Evden çıkınca oynatıcı kapanır. Bağlantı koparsa geri gelince TV durumu sunucuyla eşitlenir.
+  (youtube-nocookie.com) çalar ve Three.js `CSS3DRenderer` ile doğrudan TV'nin ekranında görünür (panel alttan açılır, TV
+  görünür kalır). Evdeki diğer oyuncular **▶ Katıl** (masaüstünde **T**) ile aynı saniyeden izler; **T** kendi ekranında
+  kapatır, tekrar **T** geri getirir. Evden çıkınca oynatıcı kapanır. Bağlantı koparsa geri gelince TV durumu sunucuyla
+  eşitlenir. Not: video katmanı 3D sahnenin üstünde olduğu için TV'nin önünden geçen biri videonun arkasında kalır.
   Sahibi başka sitelerde oynatılmaya izin vermeyen videolar açılmaz (sunucu YouTube oEmbed ile kontrol eder).
 - **Kalıcılık:** ev `data/house.json` dosyasına kaydedilir (`HOUSE_FILE` ile değiştirilebilir). Render'ın ücretsiz planında
   disk kalıcı olmadığından yeniden deploy'da ev sıfırlanır.
 - **Pil:** tüm mobilyalar tek geometride birleştirilir (eşya sayısından bağımsız ~3 draw call); LED ışığı gerçek ışık kaynağı
   değil, ucuz bir additive degradedir; ev boştayken motor yine uyur. Video oynatmanın kendisi (YouTube) pil harcar.
+
+## Achterstraat — oyuncu evleri, kapı zili ve misafirler
+
+Otel koridorunun sonundaki arka kapıdan çıkılan dar sokakta 8 dar kanal evi var (Huis 1–8). Oyuna giren her
+oyuncuya bir ev verilir; ev, tarayıcında saklanan gizli bir anahtara bağlıdır. Böylece yeniden bağlanınca aynı ev ve
+aynı cüzdan geri gelir (sunucu anahtarın yalnızca özetini tutar). Tüm evler doluysa 3 günden uzun süredir gelmeyen
+bir sahibin evi yeni oyuncuya verilir.
+
+- **Kapı:** evinin kapısı sana açılır; başkalarının kapısı kapalıdır. Kapının yanındaki isim levhası ev sahibini ve
+  çevrimiçi olup olmadığını gösterir.
+- **Kapı zili:** başkasının kapısında **E** / **Zil** → ev sahibinin ekranına "🔔 X kapıda — içeri alınsın mı?
+  [Evet / Hayır]" istemi düşer (masaüstünde **Y** / **N**). Evet derse içeri ışınlanırsın ve o oturum boyunca kapı sana
+  açılır; Hayır derse ya da 25 sn içinde yanıt gelmezse haber verilir. Aynı kapıyı 8 sn'den sık çalamazsın.
+- **Eşya koruması:** bir oyuncunun evindeki eşyaları yalnızca ev sahibi yerleştirebilir, kaldırabilir (satıp yarı
+  fiyatını geri alabilir) ve yalnızca o dekor modunu açabilir. Misafirler eşyalara dokunamaz ama TV'yi kullanabilir.
+  Bunu sunucu doğrular; istemciyi değiştirmek işe yaramaz. Bizim Ev ortak ev olarak kalır: herkes dekore eder.
+- **3D TV:** TV'ye yaklaşıp **E** → YouTube linkini yapıştır. Video, Three.js `CSS3DRenderer` ile TV'nin ekranına
+  oturan bir iframe'de oynar; evdeki herkes aynı saniyeden izler. Evden çıkınca oynatıcı tamamen kapanır.
+- **Pil:** CSS3D katmanı yalnızca motor bir kare çizdiğinde güncellenir (ayrı döngü yok). Telefonda iframe
+  640×360 boyutunda; mobil/tablette render ölçeği 1.0 ve FPS kilidi bu katman için de geçerli.
 
 ## Bar De Tulp — alkolsüz bar, barmenlik ve yiyecekler
 
@@ -182,18 +204,21 @@ amsterdam-otel/
 │   ├── css/style.css
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
-│       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings
-│       ├── world/               # Otel + coffee shop geometrisi, dokular, malzemeler, çarpışma
+│       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
+│       ├── world/               # Otel, coffee shop, bar, Bizim Ev, Achterstraat evleri; dokular, malzemeler, çarpışma
 │       ├── controls/            # Klavye/fare, dokunmatik joystick, FPV oyuncu
 │       ├── game/                # Misafirler, diğer oyuncular, etkileşim, durum
 │       │   ├── CoffeeShopSystem.js  # Tezgâh/slot etkileşimi, paneller, envanter, tüketim
 │       │   ├── TripEffects.js       # Shader, sallanma, hayaletler, baloncuk, ses, emote'lar
-│       │   ├── HouseSystem.js       # Ev: birleştirilmiş mobilya, dekorasyon modu, ışık, kapı
-│       │   ├── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
-│       │   └── TvSystem.js          # YouTube paneli, mini oynatıcı, senkron katılım
+│       │   ├── HouseSystem.js       # Evler: birleştirilmiş mobilya, dekorasyon modu (yetkili), ışık, kapı
+│       │   ├── HouseVisitingSystem.js # Achterstraat: kapılar, kapı zili, misafir erişimi, ışınlama
+│       │   ├── InteractiveTV.js     # YouTube paneli, CSS3DRenderer ile TV ekranında video, senkron katılım
+│       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
+│       │   ├── ViewModel.js         # Birinci şahıs eller (dökme, çalkalama, ısırma, toplama…)
+│       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon + coffee shop
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar
 ```
 
 ## Sonraki aşamalar için notlar
