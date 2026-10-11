@@ -1,13 +1,19 @@
+import * as THREE from 'three';
 import { GUEST_PHASE } from '/shared/constants.js';
 import { pathLength, samplePath } from '/shared/path.js';
 import { makeCharacter } from './Characters.js';
 
-const SIT_DROP = 0.4;
+const SIT_DROP = 0.4; // kanepe; bar taburesi kendi yüksekliğini (sitY) gönderir
+const _frustum = new THREE.Frustum();
+const _pv = new THREE.Matrix4();
+const _sphere = new THREE.Sphere(new THREE.Vector3(), 1.1);
 
 /**
  * Misafirlerin görsel temsili. Konumlar sunucudan gelen rota + başlangıç
  * zamanından deterministik olarak hesaplanır (karede ağ trafiği yok).
- * Yalnızca yürüyen misafir varken render döngüsünü aktif tutar.
+ * Render döngüsünü yalnızca KAMERANIN GÖRDÜĞÜ yürüyen misafir varken aktif tutar
+ * (bar müşterileri sürekli gelip gittiği için; görünmeyenin konumu zaten zamandan
+ * hesaplanır, kamera dönünce doğru yerde çizilir).
  */
 export class GuestView {
   constructor(scene) {
@@ -28,8 +34,9 @@ export class GuestView {
     it.len = pathLength(data.path);
     it.obj.visible = data.phase !== GUEST_PHASE.IN_ROOM;
     const u = it.obj.userData;
-    it.obj.position.y = data.sit ? -SIT_DROP : 0;
-    if (u.bag) u.bag.position.y = data.sit ? SIT_DROP : 0;
+    const y = data.sit ? (data.sitY ?? -SIT_DROP) : 0;
+    it.obj.position.y = y;
+    if (u.bag) u.bag.position.y = -y; // çanta yerde kalsın
     u.blob.visible = !data.sit;
     u.inner.position.y = 0;
     if (data.path.length === 1) {
@@ -50,10 +57,15 @@ export class GuestView {
     for (const id of [...this.items.keys()]) this.remove(id);
   }
 
-  /** @returns {boolean} yürüyen misafir var mı */
-  update(dt, serverNow) {
+  /** @returns {boolean} görünür yürüyen misafir var mı */
+  update(dt, serverNow, camera = null) {
     let active = false;
     const s = this._s;
+    if (camera) {
+      camera.updateMatrixWorld();
+      _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      _frustum.setFromProjectionMatrix(_pv);
+    }
     for (const it of this.items.values()) {
       const d = it.data;
       if (!it.obj.visible || d.path.length < 2) continue;
@@ -64,7 +76,12 @@ export class GuestView {
       it.obj.rotation.y = Math.atan2(s.dirX, s.dirZ);
       const walking = dist < it.len;
       it.obj.userData.inner.position.y = walking ? Math.abs(Math.sin(dist * 4.2)) * 0.035 : 0;
-      if (walking) active = true;
+      // Yürüyorsa ya da bu karede vardıysa (son pozu çizmek için) ve görüş alanındaysa
+      if (walking || it.walking) {
+        _sphere.center.set(s.x, 0.8, s.z);
+        if (!camera || _frustum.intersectsSphere(_sphere)) active = true;
+      }
+      it.walking = walking;
     }
     return active;
   }

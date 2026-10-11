@@ -18,6 +18,9 @@ import { CoffeeShopSystem } from './game/CoffeeShopSystem.js';
 import { TripEffects } from './game/TripEffects.js';
 import { HouseSystem } from './game/HouseSystem.js';
 import { TvSystem } from './game/TvSystem.js';
+import { BarSystem } from './game/BarSystem.js';
+import { ViewModel } from './game/ViewModel.js';
+import { Sfx } from './core/Sfx.js';
 import { Network } from './net/Network.js';
 import { HUD } from './ui/HUD.js';
 import { SettingsPanel } from './ui/SettingsPanel.js';
@@ -62,7 +65,8 @@ const interaction = new Interaction({
 input.onAction((source) => {
   // Dekorasyon modunda Aksiyon/E/tık = eşyayı yerleştir
   if (house.build.active) house.place();
-  else interaction.trigger(source);
+  // Bar: eylem sürerken girdi yutulur; elde yiyecek varsa ve hedef yoksa ısırır
+  else if (!bar.onAction(source)) interaction.trigger(source);
 });
 
 // ---- Modal paneller (coffee shop, slot, yaş onayı) ---------------------------------
@@ -108,7 +112,9 @@ const modal = {
   get active() { return this.stack.length > 0; },
 };
 
-const trip = new TripEffects({ engine, player, collision, hud, net, remotes, settings });
+const sfx = new Sfx(); // paylaşılan WebAudio sentezi (kıkırdama, dökme, çalkalama, ısırma…)
+const trip = new TripEffects({ engine, player, collision, hud, net, remotes, settings, audio: sfx });
+const vm = new ViewModel({ engine, settings }); // birinci şahıs eller
 const tv = new TvSystem({ net, hud, modal, engine, device });
 const house = new HouseSystem({
   engine, building: world.house, collision, net, hud, interaction, player, remotes, device, tv,
@@ -116,8 +122,20 @@ const house = new HouseSystem({
 tv.house = house;
 house.getWallet = () => shop.wallet;
 // Dekorasyon modu komutları (B, R, C, X, 1-9) coffee shop'tan ÖNCE işlenir
-input.onCommand((cmd) => house.command(cmd) || tv.command(cmd));
+// Bar 'consume' (F) komutunu elde yiyecek varsa sahiplenir (coffee shop'a gitmez)
+input.onCommand((cmd) => house.command(cmd) || tv.command(cmd) || bar.command(cmd));
 const shop = new CoffeeShopSystem({ net, hud, interaction, input, modal, device });
+// Shop'tan SONRA: boşta ipucu zincirini (idleHint) sarar
+const bar = new BarSystem({
+  engine, net, hud, interaction, player, remotes, guests, settings, sfx, vm,
+  view: world.bar, device, getWallet: () => shop.wallet,
+});
+// Otel odasında çöp toplarken birinci şahıs toplama animasyonu
+const TRASH_ITEMS = ['paper', 'can', 'box', 'bottle'];
+interaction.onRoomAction = (room, t) => {
+  if (t.kind !== 'trash' || bar.local) return;
+  vm.play('pickup', 650, { item: TRASH_ITEMS[t.target] ?? 'paper', after: bar.vmHold(bar.hold) });
+};
 
 let started = false; // oyuncu "Oyna"ya bastı
 let joined = false; // bu bağlantıda sunucu "welcome" gönderdi
@@ -127,10 +145,12 @@ let positioned = false; // ilk doğma konumu alındı
 
 const ctx = { px: 0, pz: 0, guestNear: (x, z, r) => guests.near(x, z, r) };
 engine.addSystem((dt) => player.update(dt));
-engine.addSystem((dt) => guests.update(dt, net.serverNow()));
+engine.addSystem((dt) => guests.update(dt, net.serverNow(), engine.camera));
 engine.addSystem((dt) => remotes.update(dt));
 engine.addSystem((dt) => trip.update(dt));
 engine.addSystem((dt) => house.update(dt));
+engine.addSystem(() => bar.update());
+engine.addSystem((dt) => vm.update(dt));
 engine.addSystem((dt) => {
   ctx.px = player.pos.x;
   ctx.pz = player.pos.z;
@@ -179,7 +199,7 @@ function tryFullscreen() {
 }
 
 playBtn.addEventListener('click', () => {
-  trip.audio.unlock(); // tarayıcılar sesi yalnızca kullanıcı hareketiyle açar
+  sfx.unlock(); // tarayıcılar sesi yalnızca kullanıcı hareketiyle açar
   if (!started) {
     started = true;
     settings.name = nameInput.value.trim().slice(0, 16);
@@ -278,6 +298,7 @@ net.on(EVT.WELCOME, (snap) => {
   state.setRooms(snap.rooms);
   state.economy = snap.economy;
   shop.applySelf(snap.self);
+  bar.applySelf(snap.self?.bar);
   trip.setSelfTrip(snap.self?.trip);
   house.selfId = snap.selfId;
   house.applySnapshot(snap.house);
@@ -289,12 +310,15 @@ net.on(EVT.WELCOME, (snap) => {
   for (const g of snap.guests) guests.upsert(g);
   remotes.clear();
   for (const p of snap.players) {
-    if (p.id !== snap.selfId) remotes.add(p);
-    else if (!positioned) {
+    if (p.id !== snap.selfId) {
+      remotes.add(p);
+      bar.onRemoteBar(p.id, p.bar);
+    } else if (!positioned) {
       player.setPose(p.x, p.z, p.yaw);
       positioned = true;
     }
   }
+  bar.applySnapshot(snap.bar); // müşteriler (guests) yüklendikten sonra: ellerindeki bardaklar
   // Yeniden bağlanmada mevcut konumu bildir
   net.sendMove(player.pos.x, player.pos.z, player.yaw);
   updateClock();
@@ -334,10 +358,12 @@ net.on(EVT.GUEST_REMOVE, (id) => {
 net.on(EVT.PLAYER_JOIN, (p) => {
   if (!joined || p.id === state.selfId) return;
   remotes.add(p);
+  bar.onRemoteBar(p.id, p.bar);
   hud.toast(`${p.name} vardiyaya katıldı.`, 'info');
   engine.requestRender();
 });
 net.on(EVT.PLAYER_LEAVE, (id) => {
+  bar.removeRemote(id);
   remotes.remove(id);
   engine.requestRender();
 });
@@ -350,6 +376,7 @@ net.on(EVT.NOTIFY, (n) => hud.toast(n.text, n.kind));
 // Coffee shop / trip
 net.on(EVT.SELF, (self) => {
   shop.applySelf(self);
+  bar.applySelf(self.bar);
   if (house.build.active) engine.requestRender(); // önizleme rengi (yeterli para var mı) güncellensin
 });
 net.on(EVT.PLAYER_TRIP, (t) => {
@@ -367,6 +394,12 @@ net.on(EVT.HOUSE_ADDED, (item) => house.onAdded(item));
 net.on(EVT.HOUSE_REMOVED, (id) => house.onRemoved(id));
 net.on(EVT.HOUSE_LIGHTS_STATE, (on) => house.setLights(on));
 net.on(EVT.HOUSE_TV_STATE, (s) => house.onTvState(s));
+
+// Bar De Tulp
+net.on(EVT.BAR_STATE, (s) => bar.onState(s));
+net.on(EVT.PLAYER_BAR, (b) => {
+  if (b.id !== state.selfId) bar.onRemoteBar(b.id, b);
+});
 
 // ---- Saat / FPS göstergesi (saniyede bir, render döngüsünden bağımsız) -------------
 
@@ -409,4 +442,6 @@ navigator.getBattery?.().then((battery) => {
 }).catch(() => {});
 
 // Geliştirme/test için konsoldan erişim
-window.__otel = { engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv };
+window.__otel = {
+  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes,
+};

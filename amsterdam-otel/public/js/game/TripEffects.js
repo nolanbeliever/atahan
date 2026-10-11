@@ -5,6 +5,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TRIP } from '/shared/constants.js';
 import { areaAt } from '/shared/layout.js';
+import { Sfx } from '../core/Sfx.js';
 
 const FADE_IN = 2.0; // sn
 const FADE_OUT = 2.5;
@@ -66,64 +67,6 @@ const GIGGLE_LINES = [
   'Resepsiyondaki adam aslında bir yel değirmeni mi?',
   'Kahkahamı durduramıyorum, yardım edin 🤣',
 ];
-
-// ---------------------------------------------------------------------------
-// Sentezlenmiş kıkırdama (ses dosyası yok). AudioContext yalnızca çalarken
-// açık kalır, sonra askıya alınır (boşta CPU/pil harcamaz).
-class GiggleSynth {
-  constructor() {
-    this.ctx = null;
-    this.timer = 0;
-  }
-
-  /** Kullanıcı hareketi (Oyna tıklaması) içinde çağrılmalı (iOS/Chrome kilidi) */
-  unlock() {
-    try {
-      if (!this.ctx) {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) return;
-        this.ctx = new AC();
-      }
-      this.ctx.resume?.();
-      this.suspendLater(300);
-    } catch { /* ses yok */ }
-  }
-
-  suspendLater(ms) {
-    clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.ctx?.suspend?.(), ms);
-  }
-
-  play() {
-    const ctx = this.ctx;
-    if (!ctx) return;
-    ctx.resume?.();
-    const t0 = ctx.currentTime + 0.03;
-    const base = rand(300, 420);
-    const n = 4 + Math.floor(Math.random() * 3);
-    const out = ctx.createGain();
-    out.gain.value = 0.22;
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 2400;
-    lp.connect(out).connect(ctx.destination);
-    for (let i = 0; i < n; i++) {
-      const t = t0 + i * rand(0.12, 0.16);
-      const osc = ctx.createOscillator();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(base * (1.3 - i * 0.05), t);
-      osc.frequency.exponentialRampToValueAtTime(base * (0.85 - i * 0.04), t + 0.1);
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.9, t + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
-      osc.connect(g).connect(lp);
-      osc.start(t);
-      osc.stop(t + 0.12);
-    }
-    this.suspendLater(n * 160 + 600);
-  }
-}
 
 // ---------------------------------------------------------------------------
 
@@ -195,7 +138,7 @@ function makeHahaTexture() {
  * sürekli çizim gerekir; "hareketi azalt" ayarı bunu da kapatır.
  */
 export class TripEffects {
-  constructor({ engine, player, collision, hud, net, remotes, settings }) {
+  constructor({ engine, player, collision, hud, net, remotes, settings, audio }) {
     this.engine = engine;
     this.player = player;
     this.collision = collision;
@@ -224,7 +167,8 @@ export class TripEffects {
 
     this.ghosts = [];
     this.remoteFx = [];
-    this.audio = new GiggleSynth();
+    // Paylaşılan ses sentezi (main.js bar sesleriyle aynı örneği verebilir); kıkırdama sesi
+    this.audio = audio || new Sfx();
     this.bubbles = document.getElementById('trip-bubbles');
     this.splatter = document.getElementById('splatter');
     this.splatterReady = false;
@@ -480,7 +424,7 @@ export class TripEffects {
 
   giggle() {
     this.net.emote('giggle');
-    if (this.settings.sound) this.audio.play();
+    if (this.settings.sound) this.audio.giggle();
     const b = document.createElement('div');
     b.className = 'bubble';
     b.textContent = GIGGLE_LINES[Math.floor(Math.random() * GIGGLE_LINES.length)];

@@ -20,6 +20,7 @@ export class PlayerController {
     // Trip etkileri için: hız çarpanı, kısa süre hareketsizlik, kamera ofseti
     this.speedMul = 1;
     this.stunUntil = 0;
+    this.lockUntil = 0; // bar: dökerken / çalkalarken / yıkarken yürünmez (bakış serbest)
     this.viewOffset = { pitch: 0, yaw: 0, roll: 0 };
     this.apply();
   }
@@ -51,7 +52,8 @@ export class PlayerController {
     }
 
     const mv = this.input.moveVector(this._move);
-    const moving = (mv.x !== 0 || mv.y !== 0) && performance.now() >= this.stunUntil;
+    const now = performance.now();
+    const moving = (mv.x !== 0 || mv.y !== 0) && now >= this.stunUntil && now >= this.lockUntil;
     if (moving) {
       const joyFull = Math.hypot(this.input.joyX, this.input.joyY) > 0.97;
       const speed = (this.input.run || joyFull ? RUN : WALK) * this.speedMul;

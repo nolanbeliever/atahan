@@ -8,6 +8,7 @@ import { RoomManager } from './RoomManager.js';
 import { GuestManager } from './GuestManager.js';
 import { CoffeeShopService } from './CoffeeShopService.js';
 import { HouseService } from '../house/HouseService.js';
+import { BarService } from './BarService.js';
 
 const PLAYER_COLORS = ['#e4572e', '#29a3a3', '#f3a712', '#6a4c93', '#3a86ff', '#8ac926', '#ff595e', '#c77dff'];
 
@@ -49,10 +50,11 @@ export class HotelSimulation extends EventEmitter {
     this.guests = new GuestManager(this);
     this.shop = new CoffeeShopService(this);
     this.house = new HouseService(this, house);
+    this.bar = new BarService(this);
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
-    this.today = { earned: 0, guests: 0, cleaned: 0 };
+    this.today = { earned: 0, guests: 0, cleaned: 0, served: 0 };
     this.timer = null;
     this.lastTick = 0;
     this.pausedAt = null;
@@ -76,10 +78,11 @@ export class HotelSimulation extends EventEmitter {
     return { money: this.money, delta, reason, today: { ...this.today } };
   }
 
-  earn(amount, reason) {
+  /** @param guest false ise günün misafir sayısı artmaz (bar satışları gibi) */
+  earn(amount, reason, { guest = true } = {}) {
     this.money += amount;
     this.today.earned += amount;
-    this.today.guests += 1;
+    if (guest) this.today.guests += 1;
     this.out(EVT.ECONOMY, this.economy(amount, reason));
   }
 
@@ -98,6 +101,7 @@ export class HotelSimulation extends EventEmitter {
     if (this.pausedAt !== null) {
       // Duraklama süresince yürüyen misafirlerin zaman damgalarını kaydır
       this.guests.shiftTime(now - this.pausedAt);
+      this.bar.shiftTime(now - this.pausedAt);
       this.pausedAt = null;
     }
     this.lastTick = now;
@@ -130,6 +134,7 @@ export class HotelSimulation extends EventEmitter {
 
     this.guests.update(now);
     this.shop.update(now);
+    this.bar.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
     this.flushPlayers();
@@ -137,8 +142,9 @@ export class HotelSimulation extends EventEmitter {
 
   onNewDay(prevDay, now) {
     const t = this.today;
-    let text = `${DAY_NAMES[prevDay]} bitti: ${t.guests} misafir, ${formatMoney(t.earned)} gelir, ${t.cleaned} oda temizlendi.`;
-    this.today = { earned: 0, guests: 0, cleaned: 0 };
+    const drinks = t.served ? ` · ${t.served} içecek` : '';
+    let text = `${DAY_NAMES[prevDay]} bitti: ${t.guests} misafir, ${formatMoney(t.earned)} gelir, ${t.cleaned} oda temizlendi${drinks}.`;
+    this.today = { earned: 0, guests: 0, cleaned: 0, served: 0 };
     const day = this.clock.dayOfWeek;
     if (day === 5) text += ' Hafta sonu başladı — otel kapalı. 🏠 Bizim Ev\'de takılma zamanı!';
     else if (day === 0) text += ' Yeni hafta! Otel misafirlere açık.';
@@ -161,6 +167,7 @@ export class HotelSimulation extends EventEmitter {
       yaw: Math.PI,
     };
     this.shop.initPlayer(p);
+    this.bar.initPlayer(p);
     this.players.set(p.id, p);
     if (this.players.size === 1) this.start();
     this.out(EVT.PLAYER_JOIN, this.publicPlayer(p));
@@ -168,7 +175,10 @@ export class HotelSimulation extends EventEmitter {
   }
 
   removePlayer(id) {
-    if (!this.players.delete(id)) return;
+    const p = this.players.get(id);
+    if (!p) return;
+    this.bar.removePlayer(p); // elindeki bardaklar rafa döner
+    this.players.delete(id);
     this.dirtyPlayers.delete(id);
     this.out(EVT.PLAYER_LEAVE, id);
     if (this.players.size === 0) this.stop();
@@ -178,6 +188,7 @@ export class HotelSimulation extends EventEmitter {
     return {
       id: p.id, name: p.name, color: p.color, x: round2(p.x), z: round2(p.z), yaw: round2(p.yaw),
       trip: this.shop.publicTrip(p),
+      bar: this.bar.publicState(p),
     };
   }
 
@@ -278,6 +289,10 @@ export class HotelSimulation extends EventEmitter {
 
   houseTvStop(playerId, itemId) { return this.withPlayer(playerId, (p) => this.house.stopTv(p, itemId)); }
 
+  // ---- Bar De Tulp -----------------------------------------------------------
+
+  barAct(playerId, data) { return this.withPlayer(playerId, (p) => this.bar.act(p, data, this.now())); }
+
   emote(playerId, type) {
     const p = this.players.get(playerId);
     return p ? this.shop.emote(p, type, this.now()) : false;
@@ -290,11 +305,12 @@ export class HotelSimulation extends EventEmitter {
       serverTime: now,
       clock: this.clock.snapshot(now),
       rooms: this.rooms.serialize(),
-      guests: this.guests.serialize(),
+      guests: [...this.guests.serialize(), ...this.bar.serializeCustomers()],
       players: [...this.players.values()].map((p) => this.publicPlayer(p)),
       economy: this.economy(),
       self: this.players.has(selfId) ? this.shop.privateState(this.players.get(selfId)) : null,
       house: this.house.serialize(),
+      bar: this.bar.serialize(),
     };
   }
 }

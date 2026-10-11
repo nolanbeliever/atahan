@@ -60,6 +60,44 @@ export function isInsideHouse(x, z) {
   return x > -15.9 && x < -8.14 && z > 0.12 && z < 7.9;
 }
 
+// Bar De Tulp — otelin doğusunda, coffee shop'un arkasındaki ek bina (alkolsüz bar).
+// Girişi lobinin doğu duvarındaki kapıdan (x = 8). Müşteriler tezgâhın güneyindeki
+// taburelere oturur; barmen tezgâhla arka tezgâh arasındaki koridorda çalışır
+// (koridora tezgâhın iki ucundan girilir).
+export const BAR = Object.freeze({
+  bounds: { minX: 8.1, maxX: 16, minZ: 8, maxZ: 14 },
+  door: { from: 9.2, to: 10.6 }, // otelin doğu duvarında (z aralığı)
+  counter: { minX: 10.0, maxX: 14.6, minZ: 11.4, maxZ: 12.0, top: 1.05 },
+  backBar: { minX: 9.6, maxX: 15.88, minZ: 13.3, maxZ: 13.88, top: 0.95 },
+  // Etkileşim noktaları (arka tezgâhın ön kenarında; barmen koridordan uzanır)
+  glassRack: [10.2, 13.3],
+  dispensers: Object.freeze({
+    lemon: [11.0, 13.3],
+    strawberry: [11.6, 13.3],
+    milk: [12.2, 13.3],
+    cocoa: [12.8, 13.3],
+    soda: [13.4, 13.3],
+  }),
+  shaker: [14.2, 13.3],
+  sink: [15.1, 13.3],
+  // Yiyecek vitrini tezgâhın doğu ucunda (iki taraftan da alınabilir)
+  food: Object.freeze({ brownie: [13.95, 11.7], stroopwafel: [14.4, 11.7] }),
+  // spot: tezgâhta müşterinin önü (servis edilen / kirli bardak burada durur)
+  stools: Object.freeze([
+    { seat: [10.5, 10.85], approach: [10.5, 10.2], spot: [10.5, 11.62] },
+    { seat: [11.4, 10.85], approach: [11.4, 10.2], spot: [11.4, 11.62] },
+    { seat: [12.3, 10.85], approach: [12.3, 10.2], spot: [12.3, 11.62] },
+    { seat: [13.2, 10.85], approach: [13.2, 10.2], spot: [13.2, 11.62] },
+  ]),
+  // Müşteri rotası: lobi → kapı → taburenin önü (kanepe ve saksılardan uzak)
+  points: Object.freeze({ lobby: [6.4, 9.9], doorWest: [7.4, 9.9], doorEast: [8.8, 9.9] }),
+  range: 1.8, // istasyona en fazla uzaklık (sunucu + 1 m gecikme toleransı ekler)
+});
+
+export function isInsideBar(x, z) {
+  return x > 8.15 && x < 15.85 && z > 8.15 && z < 13.85;
+}
+
 export const RECEPTION = Object.freeze({
   desk: { minX: -7.0, maxX: -6.2, minZ: 5.2, maxZ: 8.8 },
   clerk: [-7.45, 7.0],
@@ -166,7 +204,8 @@ export function buildWallSegments() {
   wallAlongX(w, 0, -8, 8, [{ from: -ENTRANCE_HALF, to: ENTRANCE_HALF, top: 2.6 }], 'brick');
   // Yan dış duvarlar
   wallAlongZ(w, -8, 0, 26, [], 'wall');
-  wallAlongZ(w, 8, 0, 26, [], 'wall');
+  // Doğu duvarı: lobiden Bar De Tulp'a açılan kapı
+  wallAlongZ(w, 8, 0, 26, [{ from: BAR.door.from, to: BAR.door.to, top: DOOR_H }], 'wall');
   // Lobi kuzey duvarı (101/102'nin güney duvarı), ortada koridor ağzı
   wallAlongX(w, 12, -8, 8, [{ from: -1.5, to: 1.5, top: 2.7 }], 'wall');
   // Koridor duvarları + oda kapıları
@@ -187,6 +226,9 @@ export function buildWallSegments() {
   wallAlongX(w, 0, -16, -8.2, [{ from: house.door.from, to: house.door.to, top: 2.5 }], 'brick');
   wallAlongZ(w, -16, 0, 8, [], 'houseWall');
   wallAlongX(w, 8, -16, -8.2, [], 'houseWall');
+  // Bar De Tulp: kuzey ve doğu duvarı; güneyi coffee shop'un arka duvarı, batısı otelin doğu duvarı
+  wallAlongX(w, 14, 8.2, 16, [], 'barWall');
+  wallAlongZ(w, 16, 8.1, 14, [], 'barWall');
   return w;
 }
 
@@ -194,6 +236,7 @@ export function buildWallSegments() {
 export function areaAt(x, z) {
   if (isInsideShop(x, z)) return 'shop';
   if (isInsideHouse(x, z)) return 'house';
+  if (isInsideBar(x, z)) return 'bar';
   for (const r of ROOMS) if (isInsideRoom(r, x, z)) return r.id;
   if (pointInBounds(x, z, AREAS.corridor) && Math.abs(x) < 1.4) return 'corridor';
   if (pointInBounds(x, z, AREAS.lobby) && z > 0.1 && Math.abs(x) < 7.9) return 'lobby';

@@ -77,6 +77,10 @@ export const EVT = Object.freeze({
   HOUSE_REMOVED: 'house:removed',
   HOUSE_LIGHTS_STATE: 'house:lightsState',
   HOUSE_TV_STATE: 'house:tvState',
+  // Bar De Tulp (alkolsüz bar)
+  BAR_ACT: 'bar:act', // istemci → sunucu (ack): { act, ing?, stool?, food? }
+  BAR_STATE: 'bar:state', // sunucu → herkes: tabureler, siparişler, raf, tezgâhtaki bardaklar
+  PLAYER_BAR: 'player:bar', // sunucu → herkes: { id, hold, color, act, until } (uzaktan el animasyonu)
 });
 
 // ---- Coffee shop -------------------------------------------------------
@@ -117,6 +121,68 @@ export const SLOT = Object.freeze({
     { mult: 20, weight: 3, symbols: [4] },
   ],
 });
+
+// ---- Bar De Tulp (alkolsüz) ----------------------------------------------
+// Oyuncu barmen olur: temiz bardak al → malzemeleri koy → (gerekiyorsa) çalkala →
+// müşteriye servis et. Müşteri içip gidince boş bardağı topla, lavaboda yıka.
+// Barda normal yiyecekler de satılır (brownie, stroopwafel); ısırık ısırık yenir.
+
+const byId = (list) => Object.freeze(Object.assign(Object.create(null), Object.fromEntries(list.map((x) => [x.id, x]))));
+
+export const INGREDIENTS = Object.freeze([
+  { id: 'lemon', name: 'Limon suyu', icon: '🍋', color: '#f2df4a' },
+  { id: 'strawberry', name: 'Çilek şurubu', icon: '🍓', color: '#e23a4e' },
+  { id: 'milk', name: 'Süt', icon: '🥛', color: '#f3efe4' },
+  { id: 'cocoa', name: 'Kakao', icon: '🍫', color: '#6a3c20' },
+  { id: 'soda', name: 'Soda', icon: '🫧', color: '#cdeefb' },
+]);
+export const INGREDIENT_BY_ID = byId(INGREDIENTS);
+
+/** Malzemelerin sırası serbest; shake: true ise en az bir kez çalkalanmış olmalı */
+export const DRINKS = Object.freeze([
+  { id: 'lemonade', name: 'Limonata', icon: '🍋', price: 4, ingredients: ['lemon', 'soda'], shake: false, color: '#f4e46c' },
+  { id: 'mocktail', name: 'Çilekli Mocktail', icon: '🍹', price: 6, ingredients: ['strawberry', 'lemon', 'soda'], shake: true, color: '#ef5d6e' },
+  { id: 'milkshake', name: 'Çilekli Milkshake', icon: '🥤', price: 5, ingredients: ['milk', 'strawberry'], shake: true, color: '#f4a7b6' },
+  { id: 'chocolate', name: 'Sıcak Çikolata', icon: '☕', price: 4, ingredients: ['milk', 'cocoa'], shake: false, color: '#7b4a2b' },
+]);
+export const DRINK_BY_ID = byId(DRINKS);
+
+export const FOOD = Object.freeze([
+  { id: 'brownie', name: 'Brownie', icon: '🍫', price: 3, bites: 4 },
+  { id: 'stroopwafel', name: 'Stroopwafel', icon: '🧇', price: 2, bites: 3 },
+]);
+export const FOOD_BY_ID = byId(FOOD);
+
+export const BAR_RULES = Object.freeze({
+  GLASSES: 6, // bardaki toplam bardak (raf + elde + tezgâhta)
+  MAX_DIRTY_HELD: 3, // aynı anda taşınabilecek kirli bardak
+  MAX_POURS: 3,
+  OPEN_MIN: 10 * 60, // 10:00 — gün 23:00'te bittiği için kapanış = gün sonu
+  CLOSE_MIN: 23 * 60,
+  SPAWN_MIN_MS: 18_000, // yeni müşteri aralığı (gerçek ms)
+  SPAWN_MAX_MS: 40_000,
+  PATIENCE_MS: 80_000, // oturduktan sonra siparişini bekleme süresi
+  DRINK_MS: 20_000, // içme süresi; sonra kirli bardak tezgâhta kalır
+  TIP_MIN: 2, // hızlı servis → daha çok bahşiş
+  TIP_MAX: 6,
+  NET_SLACK_MS: 250, // zamanlı adımlarda ağ titremesi toleransı
+  SIT_Y: 0.12, // taburede oturan müşterinin yükseltisi (istemci)
+  // Zamanlı eylemler (ms) — sunucu doğrular, istemci animasyonu aynı süreyle oynatır
+  T: Object.freeze({
+    take: 600,
+    pour: 1500,
+    shake: 2000,
+    serve: 700,
+    collect: 650,
+    wash: 2200,
+    buy: 500,
+    bite: 2000, // her ısırık 2 sn
+  }),
+});
+
+export const BAR_CUSTOMER_NAMES = Object.freeze([
+  'Sanne', 'Daan', 'Emma', 'Lars', 'Noor', 'Bram', 'Fleur', 'Jesse', 'Lotte', 'Thijs', 'Mila', 'Sem',
+]);
 
 export const GUEST_PHASE = Object.freeze({
   ARRIVE: 'arrive',

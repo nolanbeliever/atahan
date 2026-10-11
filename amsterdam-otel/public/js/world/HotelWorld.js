@@ -1,11 +1,12 @@
 import * as THREE from 'three';
-import { WALL_H, ROOMS, RECEPTION, SOFA, buildWallSegments } from '/shared/layout.js';
+import { WALL_H, ROOMS, RECEPTION, SOFA, BAR, buildWallSegments } from '/shared/layout.js';
 import { StaticBatcher } from './StaticBatcher.js';
 import { UV } from './Materials.js';
 import { signDrawer } from './Textures.js';
 import { RoomView } from './RoomView.js';
 import { buildCoffeeShop } from './CoffeeShopBuilding.js';
 import { buildHouse } from './HouseBuilding.js';
+import { buildBar } from './BarBuilding.js';
 import {
   addPlanter, addBike, addTree, addBollard, addStreetLamp, addWindow, addPainting,
   addArmchair, addSideTable, makePanel,
@@ -44,6 +45,7 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
   const entrance = buildEntrance(scene, mats);
   const coffeeShop = buildCoffeeShop({ batcher: b, collision, scene, mats, factory });
   const house = buildHouse({ batcher: b, scene, mats, factory });
+  const bar = buildBar({ batcher: b, collision, scene, mats, factory });
 
   b.build(mats, scene);
   addLights(scene, quality);
@@ -56,6 +58,7 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
     clerk,
     coffeeShop,
     house,
+    bar,
 
     setWeekend(on) {
       if (weekend === on) return;
@@ -116,7 +119,9 @@ function buildShell(b, collision) {
   const wh = 0.85;
   const lam = { uvScale: UV.wainscot, cast: false };
   b.box('wainscot', -7.9, -7.87, 0, wh, 0.1, 11.9, lam);
-  b.box('wainscot', 7.87, 7.9, 0, wh, 0.1, 11.9, lam);
+  // Doğu lambrisi bar kapısının kasasında kesilir (kasa: BarBuilding)
+  b.box('wainscot', 7.87, 7.9, 0, wh, 0.1, BAR.door.from - 0.12, lam);
+  b.box('wainscot', 7.87, 7.9, 0, wh, BAR.door.to + 0.12, 11.9, lam);
   b.box('wainscot', -7.9, -1.6, 0, wh, 11.87, 11.9, lam);
   b.box('wainscot', 1.6, 7.9, 0, wh, 11.87, 11.9, lam);
   b.box('wainscot', -7.9, -1.32, 0, wh, 0.1, 0.13, lam);

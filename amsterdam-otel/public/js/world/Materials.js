@@ -15,6 +15,7 @@ export const UV = Object.freeze({
   wood: 1.0,
   wainscot: 1.0,
   shopWall: 0.7,
+  barWall: 1 / 3.2, // bir karo = duvar yüksekliği (lambri + sıva tek dokuda)
 });
 
 /**

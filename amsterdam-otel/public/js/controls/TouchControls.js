@@ -49,6 +49,12 @@ export class TouchControls {
     this.actionBtn.classList.toggle('ready', on);
   }
 
+  /** Kısa fiil (≤ 8 harf); boşsa varsayılan "Aksiyon" */
+  setLabel(text) {
+    const t = text || 'Aksiyon';
+    if (this.actionBtn.textContent !== t) this.actionBtn.textContent = t;
+  }
+
   bindMove() {
     const z = this.moveZone;
     z.addEventListener('pointerdown', (e) => {

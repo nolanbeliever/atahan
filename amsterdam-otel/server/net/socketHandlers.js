@@ -46,6 +46,7 @@ export function attachSocketHandlers(io, sim) {
     const allowInteract = rateLimiter(8, 8);
     const allowShop = rateLimiter(4, 6);
     const allowHouse = rateLimiter(6, 10);
+    const allowBar = rateLimiter(8, 12);
     const reply = (ack, res) => { if (typeof ack === 'function') ack(res); };
 
     // Saat senkronu: istemci gecikmeyi ölçüp sunucu saatine hizalanır
@@ -120,6 +121,16 @@ export function attachSocketHandlers(io, sim) {
     });
     on(EVT.HOUSE_TV_STOP, (data, ack) => {
       if (houseGuard(ack)) reply(ack, sim.houseTvStop(player.id, data?.itemId));
+    });
+
+    // ---- Bar De Tulp ----
+    const barGuard = (ack) => {
+      if (player && allowBar()) return true;
+      reply(ack, { ok: false, error: 'Çok hızlı!' });
+      return false;
+    };
+    on(EVT.BAR_ACT, (data, ack) => {
+      if (barGuard(ack)) reply(ack, sim.barAct(player.id, data));
     });
 
     on('disconnect', () => {

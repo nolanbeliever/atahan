@@ -57,6 +57,8 @@ Bu klasörde oyuna özel bir Blueprint dosyası var: [`render.yaml`](render.yaml
 | **F**: seçili ürünü tüket · **Q** / **1–4**: ürün seç | Hedef yokken **Aksiyon**: seçili ürünü tüket · envanterde dokunarak seç |
 | **B**: dekorasyon modu (evde) · **1–9 / C / R / X** | **🛠 Dekor** butonu ve alt çubuk |
 | **T**: TV yayınına katıl / mini oynatıcıyı kapat | **▶ Katıl** / **✕** |
+| Barda **E**: bardak al · koy · çalkala · servis et · topla · yıka | **Aksiyon** (butonun etiketi bakılan şeye göre değişir: Al, Koy, Çalkala, Servis…) |
+| **F** / **E**: elindeki yiyeceği ısır (her ısırık 2 sn) | **Aksiyon**: ısır |
 | **Esc**: duraklat / paneli kapat | ⚙ butonu: ayarlar |
 
 Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir ve ekranın altında ipucu çıkar.
@@ -94,6 +96,31 @@ hafta sonları otel kapalıyken takılmak için ideal.
   disk kalıcı olmadığından yeniden deploy'da ev sıfırlanır.
 - **Pil:** tüm mobilyalar tek geometride birleştirilir (eşya sayısından bağımsız ~3 draw call); LED ışığı gerçek ışık kaynağı
   değil, ucuz bir additive degradedir; ev boştayken motor yine uyur. Video oynatmanın kendisi (YouTube) pil harcar.
+
+## Bar De Tulp — alkolsüz bar, barmenlik ve yiyecekler
+
+Lobinin doğu duvarındaki kapıdan girilen küçük bar (coffee shop'un arkasında). Her gün 10:00–23:00 açık; hafta sonu
+otel kapalıyken de müşteri gelir.
+
+- **Müşteriler:** sokaktan gelip dört bar taburesinden birine oturur ve sipariş verir (başlarında sipariş baloncuğu,
+  sağ üstte sabır çubuklu sipariş listesi). Sabırları tükenirse kalkıp giderler. Kirli bardak duran tabureye oturmazlar.
+- **İçecekler (hepsi alkolsüz):** 🍋 Limonata (limon + soda) · 🍹 Çilekli Mocktail (çilek + limon + soda, çalkala) ·
+  🥤 Çilekli Milkshake (süt + çilek, çalkala) · ☕ Sıcak Çikolata (süt + kakao). Malzemelerin sırası serbest.
+- **Barmenlik:** raftan temiz bardak al → arka tezgâhtaki dispenserlerden malzemeleri koy (dökme animasyonu, 1.5 sn) →
+  gerekiyorsa çalkalayıcıda çalkala (2 sn) → müşteriye servis et. Bardak siparişe uymuyorsa ipucu neyin eksik
+  olduğunu söyler; yanlış içeceği lavaboya dökebilirsin. Doğru servis: içeceğin fiyatı kasaya, hızına göre €2–6
+  bahşiş cüzdanına.
+- **Toplama ve yıkama:** müşteri içip gidince tezgâhta kirli bardak kalır. Topla (aynı anda en fazla 3), lavaboda yıka
+  (2.2 sn) → bardaklar rafa döner. Barda toplam 6 bardak var; yıkamazsan temiz bardak biter.
+- **Yiyecekler:** 🍫 Brownie (€3, 4 ısırık) ve 🧇 Stroopwafel (€2, 3 ısırık) — tezgâhın ucundaki vitrinden al, her
+  ısırık 2 sn (ısırma animasyonu, kırıntılar). Yerken yürüyebilirsin; bar dışında da yenir.
+- **Birinci şahıs eller:** bardak alma, dökme, çalkalama, servis, toplama, yıkama, ısırma ve otel odalarında çöp
+  toplama animasyonları. Diğer oyuncular elinde ne tuttuğunu ve kol hareketini görür.
+- **Sunucu yetkili:** her adım tek istek; sunucu konumu, sırayı ve süreyi (ör. ısırıklar arası en az 2 sn) doğrular.
+  İstemci animasyonu bekletmeden (iyimser) oynatır, reddedilirse geri alır.
+- **Pil:** eller kameraya bağlı küçük bir grup (ayrı render geçişi yok), yalnızca animasyon sürerken kare çizilir;
+  sabır çubukları CSS geçişiyle akar (kare başı DOM yazımı yok). Ayarlardaki "sallanma/dalgalanmayı azalt" el
+  animasyonlarının genliğini de kısar.
 
 ## Coffee Shop ve Trip Sistemi (18+)
 

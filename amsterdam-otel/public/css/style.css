@@ -397,6 +397,53 @@ body.touch .inv-hint { display: none; }
 body.building #prompt { bottom: calc(150px + var(--safe-b)); }
 body.touch.building #btn-action { bottom: calc(150px + var(--safe-b)); }
 
+/* ---------- Bar De Tulp ---------- */
+/* Hepsi #hud içinde ve tıklanmaz (pointer-events: none miras): joystick / Aksiyon dokunuşlarını yutmaz */
+#bar-orders {
+  top: calc(124px + var(--safe-t));
+  right: calc(8px + var(--safe-r));
+  width: 214px;
+}
+#bar-order-list.empty::after { content: 'Şu an sipariş yok.'; font-size: 11.5px; color: var(--muted); }
+.order {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  column-gap: 6px;
+  align-items: center;
+  padding: 2px 0 2px 4px;
+  border-left: 2px solid transparent;
+}
+.order.waiting { border-left-color: var(--accent); }
+.order .ic { font-size: 18px; line-height: 22px; grid-row: span 2; text-align: center; }
+.order .nm { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.order .pat { height: 4px; border-radius: 2px; background: rgba(255,255,255,.15); overflow: hidden; }
+.order .pat[hidden] { display: none; }
+.order .pat > i { display: block; height: 100%; background: var(--ok); transform-origin: left; }
+.order.urgent .pat > i { background: var(--busy); }
+#bar-progress {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 14px);
+  transform: translateX(-50%);
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0,0,0,.45);
+  border: 1px solid rgba(255,255,255,.25);
+  overflow: hidden;
+}
+#bar-progress > i { display: block; height: 100%; background: var(--accent); transform-origin: left; transform: scaleX(0); }
+#bar-held {
+  left: 50%;
+  bottom: calc(18% + 52px + var(--safe-b));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 92vw;
+  font-size: 12.5px;
+  text-align: center;
+}
+body.building #bar-held { display: none; }
+
 /* ---------- Bizim Ev: TV / YouTube ---------- */
 #tv-player {
   position: fixed;
@@ -671,6 +718,13 @@ body.touch #crosshair { width: 4px; height: 4px; margin: -2px 0 0 -2px; }
 }
 @media (max-width: 560px) {
   #top-center { top: calc(172px + var(--safe-t)); width: 86vw; }
+  /* Barda sağ sütunda sipariş listesi var: bildirimler onun altına */
+  body.at-bar #top-center { top: calc(252px + var(--safe-t)); }
+}
+@media (max-height: 480px), (max-width: 560px) {
+  #bar-orders { top: calc(112px + var(--safe-t)); width: 150px; }
+  .order .nm { font-size: 11px; }
+  #bar-held { font-size: 11.5px; }
 }
 /* Dikey telefon, dekorasyon modu: Aksiyon çubuğun, ipucu Aksiyon'un üstünde */
 @media (max-width: 560px) {

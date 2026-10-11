@@ -64,6 +64,14 @@
     </div>
     <div id="crosshair"></div>
     <div id="prompt" hidden></div>
+
+    <!-- Bar De Tulp: siparişler (sağ sütun), eylem ilerlemesi (nişangâh altı), eldeki bardak / yiyecek -->
+    <div id="bar-orders" class="panel" hidden>
+      <div class="panel-title" id="bar-title">🍹 Bar De Tulp</div>
+      <div id="bar-order-list"></div>
+    </div>
+    <div id="bar-progress" hidden><i></i></div>
+    <div id="bar-held" class="panel" hidden></div>
     <div id="fps" hidden></div>
     <button id="btn-settings" type="button" aria-label="Ayarlar">⚙</button>
     <button id="btn-build" type="button" hidden>🛠 Dekor</button>
@@ -172,17 +180,19 @@
         <li><b>Fare</b> etrafa bak</li>
         <li><b>E</b> / <b>Sol tık</b> aksiyon · <b>F</b> tüket · <b>Q</b> ürün değiştir</li>
         <li><b>B</b> Bizim Ev'de dekorasyon modu · <b>T</b> TV yayınına katıl / kapat</li>
+        <li>Barda <b>E</b>: bardak al · koy · çalkala · servis · topla · yıka · <b>F</b> yiyeceği ısır</li>
         <li><b>Esc</b> duraklat</li>
       </ul>
       <ul class="help touch-only">
         <li><b>Sol taraf</b>: parmağını bastır, joystick çıkar</li>
         <li><b>Sağ taraf</b>: sürükleyerek etrafa bak</li>
-        <li><b>Aksiyon</b> butonu: yatak düzelt / çöp topla / ürün tüket</li>
+        <li><b>Aksiyon</b> butonu: yatak düzelt / çöp topla / barda koy, çalkala, servis et / ısır</li>
       </ul>
       <p class="goal">Misafirler resepsiyona gelir ve boş odaya yerleşir. Çıkış yapınca oda <b>Kirli</b> olur:
         içeri gir, yatağı düzelt, çöpleri topla. Hafta içi otel açık, hafta sonu kapalıdır.
-        Bahşişlerini sokaktaki <b>coffee shop</b>'ta (18+) ya da otelin batısındaki <b>Bizim Ev</b>'i
-        dekore etmeye harcayabilirsin; evdeki TV'de YouTube açabilirsin.</p>
+        Lobinin doğusundaki alkolsüz <b>Bar De Tulp</b>'ta barmenlik yapıp bahşiş toplayabilir, brownie
+        ve stroopwafel yiyebilirsin. Bahşişlerini sokaktaki <b>coffee shop</b>'ta (18+) ya da otelin
+        batısındaki <b>Bizim Ev</b>'i dekore etmeye harcayabilirsin; evdeki TV'de YouTube açabilirsin.</p>
       <div id="conn-status">Sunucuya bağlanılıyor…</div>
     </div>
   </div>
@@ -212,7 +222,7 @@
         <input type="checkbox" id="set-showfps">
       </label>
       <label class="setting check">
-        <span>Trip: sallanma/dalgalanmayı azalt</span>
+        <span>Sallanma/dalgalanmayı azalt (trip, el animasyonları)</span>
         <input type="checkbox" id="set-reducemotion">
       </label>
       <label class="setting check">

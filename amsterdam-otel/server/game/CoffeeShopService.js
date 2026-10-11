@@ -28,7 +28,9 @@ export class CoffeeShopService {
   }
 
   privateState(p) {
-    return { wallet: p.wallet, inventory: { ...p.inventory }, trip: this.publicTrip(p) };
+    return {
+      wallet: p.wallet, inventory: { ...p.inventory }, trip: this.publicTrip(p), bar: this.sim.bar?.privateState(p),
+    };
   }
 
   publicTrip(p) {
