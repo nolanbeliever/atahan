@@ -264,3 +264,23 @@ test('eşya sınırı', () => {
   }
   assert.equal(sim.house.items.length, HOUSE_RULES.MAX_ITEMS);
 });
+
+test('kalıcılık: otel kasası, günün özeti ve oyun saati yeniden başlatmada geri gelir', () => {
+  const store = memoryStore();
+  const a = setup({ store });
+  a.sim.earn(95, 'Oda 101 kiralandı');
+  a.sim.clock.dayCount = 4;
+  a.sim.clock.minute = 15 * 60 + 30;
+  a.sim.house.flush();
+  assert.equal(store.data.hotel.money, 95);
+  const b = setup({ store });
+  assert.equal(b.sim.money, 95);
+  assert.equal(b.sim.today.earned, 95);
+  assert.equal(b.sim.clock.dayCount, 4);
+  assert.equal(b.sim.clock.minute, 930);
+  // Bozuk kayıt yok sayılır
+  store.data.hotel = { money: -5, day: 'x', minute: NaN, today: { earned: 'çok' } };
+  const c = setup({ store });
+  assert.equal(c.sim.money, 0);
+  assert.equal(c.sim.today.earned, 0);
+});

@@ -9,6 +9,7 @@ import { config } from './config.js';
 import { HotelSimulation } from './game/HotelSimulation.js';
 import { attachSocketHandlers } from './net/socketHandlers.js';
 import { FileStore } from './house/FileStore.js';
+import { PgStore } from './house/PgStore.js';
 import { fetchVideoInfo, thumbnailHandler } from './house/youtube.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,11 +44,27 @@ const io = new Server(server, {
   serveClient: true,
 });
 
-// Evlerin (Bizim Ev + oyuncu evleri, sahipler) ve anahtarlı oyuncu cüzdanlarının kalıcı kaydı (HOUSE_FILE ile değiştirilebilir)
+// Kalıcı kayıt: evler (Bizim Ev + oyuncu evleri, sahipler), eşyalar, anahtarlı oyuncu cüzdanları,
+// otel kasası ve oyun saati. DATABASE_URL varsa PostgreSQL (ör. ücretsiz Neon — Render'ın ücretsiz
+// diski her yeniden başlatmada silinir), yoksa yerel JSON dosyası (HOUSE_FILE ile değiştirilebilir).
 const houseFile = process.env.HOUSE_FILE || path.join(root, 'data', 'house.json');
+let store;
+if (process.env.DATABASE_URL) {
+  try {
+    store = await PgStore.create(process.env.DATABASE_URL);
+    console.log('Kayıt: PostgreSQL (DATABASE_URL)');
+  } catch (err) {
+    // Boş bir kayıtla açılıp veritabanındaki kaydın üstüne yazmamak için başlamayı reddet
+    console.error('Veritabanına bağlanılamadı, sunucu başlatılmıyor:', err.message);
+    process.exit(1);
+  }
+} else {
+  store = new FileStore(houseFile);
+  console.log(`Kayıt: ${houseFile} (DATABASE_URL yok — Render'ın ücretsiz planında yeniden başlatmada silinir)`);
+}
 const sim = new HotelSimulation({
   config,
-  house: { store: new FileStore(houseFile), fetchVideoInfo },
+  house: { store, fetchVideoInfo },
 });
 attachSocketHandlers(io, sim);
 
@@ -56,12 +73,20 @@ server.listen(config.port, () => {
   console.log(`Gün uzunluğu: ${config.dayLengthSec} sn, hafta sonu hızı: x${config.weekendSpeed}`);
 });
 
-function shutdown() {
+let closing = false;
+async function shutdown() {
+  if (closing) return;
+  closing = true;
+  setTimeout(() => process.exit(0), 8000).unref(); // ne olursa olsun kapan
   sim.stop();
   sim.house.flush();
   io.close();
+  try {
+    await store.close?.(); // bekleyen veritabanı yazmasını bitir
+  } catch (err) {
+    console.warn('Kayıt kapatılırken hata:', err.message);
+  }
   server.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 2000).unref();
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

@@ -11,6 +11,7 @@ const round2 = (v) => Math.round(v * 100) / 100;
 // Number()/String() ile ÇEVRİLMEZ ({ toString: 1 } gibi bir nesne çevrilirken TypeError fırlatır).
 const num = (v) => (typeof v === 'number' ? v : NaN);
 const SAVE_DELAY_MS = 1500;
+const SAVE_MAX_WAIT_MS = 10_000;
 const DAY_MS = 86_400_000;
 const EDGE_TOL = 0.3; // "evin içinde mi" için ağ gecikmesi toleransı (m)
 const HASH_RE = /^[0-9a-f]{64}$/; // sha256 hex (kayıttaki sahip / cüzdan anahtarları)
@@ -122,6 +123,9 @@ export class HouseService {
       };
     }
 
+    // Otel durumu (kasa, oyun günü/saati): HotelSimulation açılışta uygular
+    this.hotelData = data.hotel && typeof data.hotel === 'object' && !Array.isArray(data.hotel) ? data.hotel : null;
+
     // Cüzdanlar: sonlu ve ≥ 0 olmayan kayıtlar yok sayılır
     const wallets = data.wallets && typeof data.wallets === 'object' && !Array.isArray(data.wallets) ? data.wallets : {};
     for (const [hash, w] of Object.entries(wallets)) {
@@ -149,19 +153,25 @@ export class HouseService {
       lightsOn: this.lightsOn,
       owners,
       wallets: Object.fromEntries(this.wallets),
+      hotel: this.sim.hotelState?.(),
     };
   }
 
+  /** Değişiklikten SAVE_DELAY_MS sonra kaydet; sürekli değişiklikte de en geç SAVE_MAX_WAIT_MS'de bir */
   scheduleSave() {
     if (!this.store) return;
+    const now = Date.now();
+    this.saveSince ??= now;
     clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => this.flush(), SAVE_DELAY_MS);
+    const wait = Math.min(SAVE_DELAY_MS, Math.max(0, this.saveSince + SAVE_MAX_WAIT_MS - now));
+    this.saveTimer = setTimeout(() => this.flush(), wait);
     this.saveTimer.unref?.();
   }
 
   flush() {
     clearTimeout(this.saveTimer);
     this.saveTimer = null;
+    this.saveSince = null;
     this.store?.save(this.persisted());
   }
 

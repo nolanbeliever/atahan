@@ -17,6 +17,7 @@
   "dependencies": {
     "compression": "^1.8.2",
     "express": "^5.2.1",
+    "pg": "^8.23.1",
     "socket.io": "^4.8.3",
     "three": "0.185.1"
   }

@@ -19,3 +19,8 @@ services:
       # Bir oyun gününün gerçek süresi (sn); diğer ayarlar için README'ye bakın
       - key: DAY_LENGTH_SEC
         value: "240"
+      # Kalıcı kayıt (evler, cüzdanlar, kasa): ücretsiz Neon PostgreSQL adresi.
+      # Render Blueprint'i ilk kurarken bu değeri sorar; GetRich Tycoon'daki DATABASE_URL de kullanılabilir
+      # (oyun kendi tablosunu açar: amsterdam_otel_state).
+      - key: DATABASE_URL
+        sync: false

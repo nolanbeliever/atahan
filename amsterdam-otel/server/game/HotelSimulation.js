@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 import {
-  EVT, DAY_NAMES, INTERACT_RANGE, TRASH_SPOT_COUNT, PLAYER_KEY_RE, formatMoney,
+  EVT, DAY_NAMES, INTERACT_RANGE, TRASH_SPOT_COUNT, PLAYER_KEY_RE, DAY_START_MIN, DAY_END_MIN, formatMoney,
 } from '../../shared/constants.js';
 import { POINTS, ROOM_BY_ID, WORLD_BOUNDS, pointInBounds } from '../../shared/layout.js';
 import { GameClock } from './GameClock.js';
@@ -65,6 +65,7 @@ export class HotelSimulation extends EventEmitter {
     this.nextPlayerNo = 1;
     this.money = 0;
     this.today = { earned: 0, guests: 0, cleaned: 0, served: 0 };
+    this.restoreHotel(this.house.hotelData);
     this.timer = null;
     this.lastTick = 0;
     this.pausedAt = null;
@@ -94,6 +95,25 @@ export class HotelSimulation extends EventEmitter {
     this.today.earned += amount;
     if (guest) this.today.guests += 1;
     this.out(EVT.ECONOMY, this.economy(amount, reason));
+    this.house.scheduleSave(); // kasa kalıcı
+  }
+
+  /** Kalıcı kayda giden otel durumu: kasa, bugünün özeti, oyun günü ve saati */
+  hotelState() {
+    return { money: this.money, today: { ...this.today }, day: this.clock.dayCount, minute: Math.round(this.clock.minute) };
+  }
+
+  restoreHotel(h) {
+    if (!h) return;
+    if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
+    const t = h.today;
+    if (t && typeof t === 'object') {
+      for (const k of Object.keys(this.today)) if (Number.isFinite(t[k]) && t[k] >= 0) this.today[k] = t[k];
+    }
+    if (Number.isInteger(h.day) && h.day >= 0 && h.day < 1e6 && Number.isFinite(h.minute)) {
+      this.clock.dayCount = h.day;
+      this.clock.minute = Math.min(Math.max(h.minute, DAY_START_MIN), DAY_END_MIN - 1);
+    }
   }
 
   broadcastClock(now) {
@@ -163,6 +183,7 @@ export class HotelSimulation extends EventEmitter {
     this.notify(text, 'day');
     this.out(EVT.ECONOMY, this.economy());
     this.broadcastClock(now);
+    this.house.scheduleSave(); // yeni gün kayda geçsin
   }
 
   // ---- Oyuncular -------------------------------------------------------

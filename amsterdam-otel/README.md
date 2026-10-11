@@ -43,9 +43,24 @@ Bu klasörde oyuna özel bir Blueprint dosyası var: [`render.yaml`](render.yaml
 | `STAY_MIN_MIN` / `STAY_MAX_MIN` | `150` / `420` | Konaklama süresi (oyun dakikası) |
 | `MAX_PLAYERS` | `16` | Aynı anda bağlanabilecek görevli sayısı |
 | `START_WALLET` | `30` | Yeni oyuncunun kişisel cüzdanı (€) |
-| `HOUSE_FILE` | `data/house.json` | Bizim Ev'in kayıt dosyası |
+| `DATABASE_URL` | — | PostgreSQL adresi (ör. ücretsiz Neon). Varsa tüm kalıcı kayıt buraya yazılır |
+| `HOUSE_FILE` | `data/house.json` | `DATABASE_URL` yokken kullanılan yerel kayıt dosyası |
 
 Örnek — hafta sonu modunu hemen görmek için: `START_DAY=5 START_HOUR=10 npm start`
+
+### Kalıcı kayıt (paralar sıfırlanmasın)
+
+Oyun her değişiklikten sonra otomatik kaydeder: evler ve eşyalar, ev sahipleri, oyuncu cüzdanları (tarayıcıdaki
+gizli anahtara bağlı), otel kasası, günün özeti ve oyun günü/saati. Render'ın ücretsiz planında sunucunun diski
+her yeniden başlatmada (deploy ya da 15 dk boşta kalıp uyuma) silindiği için kaydın bir veritabanında durması gerekir:
+
+1. [neon.tech](https://neon.tech)'te ücretsiz bir PostgreSQL veritabanı aç (GetRich Tycoon'da kullandığın Neon
+   veritabanı da olur; oyun kendi tablosunu açar: `amsterdam_otel_state`).
+2. Neon'daki bağlantı adresini (`postgresql://…?sslmode=require`) kopyala.
+3. Render → amsterdam-otel servisi → **Environment** → `DATABASE_URL` olarak ekle ve kaydet (servis yeniden başlar).
+
+Açılış logunda `Kayıt: PostgreSQL (DATABASE_URL)` görünür. Veritabanına ulaşılamazsa sunucu boş bir kayıtla açılıp
+eski kaydın üstüne yazmasın diye başlamaz (Render yeniden dener). `DATABASE_URL` yoksa kayıt yerel dosyaya yazılır.
 
 ## Kontroller
 
