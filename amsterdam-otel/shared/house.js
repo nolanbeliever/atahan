@@ -2,11 +2,13 @@
 // Sunucu (yetkili doğrulama) ve istemci (önizleme / hayalet) AYNI fonksiyonları
 // kullanır; böylece istemcide yeşil görünen yerleşim sunucuda da kabul edilir.
 
-import { HOUSE, PLAYER_RADIUS } from './layout.js';
+import { HOUSE, PLAYER_RADIUS, WALL_H } from './layout.js';
 
 /**
  * w: genişlik (rot 0'da X ekseni), d: derinlik (rot 0'da Z ekseni), metre.
- * layer: 'floor' (katı, çarpışır) | 'rug' (yerde düz, eşyaların altına girer) | 'wall' (duvara monte)
+ * layer: 'floor' (katı, çarpışır) | 'rug' (yerde düz, eşyaların altına girer)
+ *      | 'wall' (duvara monte; slot: 'top' tavan hizası, 'mid' göz hizası — aynı slotta çakışmaz)
+ *      | 'ceiling' (tavana yapışır; rot 0 X ekseni, 1 Z ekseni, 2-3 çapraz; birbirini kesebilir)
  */
 export const FURNITURE = Object.freeze([
   { id: 'sofa', name: 'Kanepe', icon: '🛋️', price: 18, w: 2.0, d: 0.9, h: 0.95, layer: 'floor',
@@ -25,8 +27,24 @@ export const FURNITURE = Object.freeze([
     colors: ['#2b5ea7', '#e8e4dc', '#b5462f', '#1c1c1f'] },
   { id: 'lamp', name: 'Ayaklı lamba', icon: '💡', price: 6, w: 0.45, d: 0.45, h: 1.8, layer: 'floor',
     colors: ['#fff1c8', '#ffb3d9', '#b3e0ff', '#c8ffb3'] },
-  { id: 'led', name: 'LED şerit', icon: '🌈', price: 5, w: 2.0, d: 0.06, h: 0.05, layer: 'wall',
+  { id: 'led', name: 'LED şerit', icon: '🌈', price: 5, w: 2.0, d: 0.06, h: 0.05, layer: 'wall', slot: 'top',
     colors: ['#b03cff', '#2f7bff', '#ff3fa4', '#3cff7a', '#ff3b3b', '#00e5ff', '#ffd23f', '#ffffff'] },
+  { id: 'ceilLed', name: 'Tavan RGB LED', icon: '✨', price: 6, w: 2.0, d: 0.06, h: 0.04, layer: 'ceiling',
+    colors: ['#ff3fa4', '#2f7bff', '#b03cff', '#3cff7a', '#00e5ff', '#ffd23f', '#ff3b3b', '#ffffff'] },
+  { id: 'bed', name: 'Yatak', icon: '🛏️', price: 15, w: 1.5, d: 2.1, h: 0.75, layer: 'floor',
+    colors: ['#2d4f7c', '#e8e4dc', '#9c2f2f', '#3e6b48', '#f28ab2', '#5b5f66'] },
+  { id: 'cornerSofa', name: 'Köşe koltuk', icon: '🛋️', price: 24, w: 2.0, d: 2.0, h: 0.95, layer: 'floor',
+    colors: ['#5b5f66', '#2d4f7c', '#9c2f2f', '#3e6b48', '#d9a441', '#e8e4dc', '#6a4c93'] },
+  { id: 'bookcase', name: 'Kitaplık', icon: '📚', price: 12, w: 1.2, d: 0.4, h: 2.0, layer: 'floor',
+    colors: ['#7a4f2e', '#e8e4dc', '#1c1c1f', '#c9a25e'] },
+  { id: 'shelf', name: 'Duvar rafı', icon: '🪜', price: 5, w: 1.2, d: 0.25, h: 0.3, layer: 'wall', slot: 'mid',
+    colors: ['#7a4f2e', '#e8e4dc', '#1c1c1f', '#c9a25e'] },
+  // Tablolar: her renk ayrı bir eser (renk = paletin baskın rengi)
+  { id: 'painting', name: 'Tablo', icon: '🖼️', price: 6, w: 0.9, d: 0.05, h: 0.7, layer: 'wall', slot: 'mid',
+    colors: ['#d7263d', '#e36f1e', '#2f7bff', '#1d2a4a', '#3e6b48', '#f2d06b'],
+    art: ['Mondriaan', 'Lale tarlası', 'Kanal evleri', 'Yıldızlı gece', 'Yel değirmeni', 'Ayçiçekleri'] },
+  { id: 'pot', name: 'Saksı', icon: '🪴', price: 5, w: 0.5, d: 0.5, h: 0.42, layer: 'floor',
+    colors: ['#b5462f', '#e8e4dc', '#2b5ea7', '#1c1c1f', '#3e6b48'] },
 ]);
 // Prototipsiz nesne: istemciden gelen 'constructor' / '__proto__' gibi anahtarlar undefined döner
 export const FURNITURE_BY_ID = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(FURNITURE.map((f) => [f.id, f]))));
@@ -38,6 +56,8 @@ export const HOUSE_RULES = Object.freeze({
   TV_RANGE: 4, // TV'yi kumanda etmek için en fazla uzaklık
   SWITCH_RANGE: 2.2,
   LED_HEIGHT: 2.95,
+  PAINT_HEIGHT: 1.6, // göz hizasındaki duvar eşyalarının (tablo, raf) orta yüksekliği
+  CEIL_HEIGHT: WALL_H - 0.02, // tavan LED'inin yüksekliği
   // Oyuncu evleri
   DOOR_RANGE: 2.0, // zil / kapı etkileşimi için kapının önüne en fazla uzaklık
   RING_TIMEOUT_MS: 25_000, // ev sahibi bu sürede yanıtlamazsa zil düşer
@@ -56,7 +76,13 @@ export function doorZone(h = HOUSE) {
   };
 }
 
+const DIAG = Math.SQRT1_2;
+
 export function footprint(def, rot) {
+  if (def.layer === 'ceiling' && rot >= 2) {
+    const s = (def.w + def.d) * DIAG; // 45° dönmüş şeridin kapsayan kutusu
+    return { w: s, d: s };
+  }
   return rot % 2 === 1 ? { w: def.d, d: def.w } : { w: def.w, d: def.d };
 }
 
@@ -82,7 +108,13 @@ export function wallLine(rot, h = HOUSE) {
 /** Görselde kullanılan Y dönüşü (yerde: rot·90°, duvarda: odaya bakacak şekilde) */
 export function itemRotationY(def, rot) {
   if (def.layer === 'wall') return [Math.PI, Math.PI / 2, 0, -Math.PI / 2][rot];
+  if (def.layer === 'ceiling') return [0, Math.PI / 2, Math.PI / 4, -Math.PI / 4][rot];
   return rot * (Math.PI / 2);
+}
+
+/** Duvar eşyasının orta yüksekliği (seçim kutusu vb.) */
+export function wallItemY(def) {
+  return def.slot === 'mid' ? HOUSE_RULES.PAINT_HEIGHT : HOUSE_RULES.LED_HEIGHT;
 }
 
 /**
@@ -105,6 +137,7 @@ export function candidateFromPoint(def, px, pz, rot, h = HOUSE) {
     const z = Math.min(Math.max(snap(pz), I.minZ + half), I.maxZ - half);
     return { x: line.value, z, rot: wall };
   }
+  if (def.layer === 'ceiling') rot = Math.min(Math.max(rot, 0), 3);
   const f = footprint(def, rot);
   const x = Math.min(Math.max(snap(px), I.minX + f.w / 2), I.maxX - f.w / 2);
   const z = Math.min(Math.max(snap(pz), I.minZ + f.d / 2), I.maxZ - f.d / 2);
@@ -131,17 +164,25 @@ export function validatePlacement(items, c, h = HOUSE) {
   if (def.layer === 'wall') {
     const line = wallLine(c.rot, h);
     const v = line.axis === 'z' ? c.z : c.x;
-    if (Math.abs(v - line.value) > eps) return { ok: false, error: 'LED şerit duvara monte edilmeli.' };
+    if (Math.abs(v - line.value) > eps) return { ok: false, error: `${def.name} duvara monte edilmeli.` };
     const along = line.axis === 'z' ? [box.minX, box.maxX, I.minX, I.maxX] : [box.minZ, box.maxZ, I.minZ, I.maxZ];
     if (along[0] < along[2] - eps || along[1] > along[3] + eps) return { ok: false, error: 'Duvara sığmıyor.' };
     if (c.rot === 2 && box.minX < h.door.to + 0.65 && box.maxX > h.door.from - 0.1) {
-      return { ok: false, error: 'Kapının üstüne LED takılamaz.' };
+      return { ok: false, error: `Kapının üstüne ${def.name.toLocaleLowerCase('tr-TR')} takılamaz.` };
     }
     for (const o of items) {
       const od = FURNITURE_BY_ID[o.type];
-      if (od?.layer === 'wall' && o.rot === c.rot && overlaps(box, itemBox(od, o))) {
-        return { ok: false, error: 'Bu duvarda başka bir LED var.' };
+      if (od?.layer === 'wall' && od.slot === def.slot && o.rot === c.rot && overlaps(box, itemBox(od, o))) {
+        return { ok: false, error: 'Duvarın bu kısmı dolu.' };
       }
+    }
+    return { ok: true };
+  }
+
+  if (def.layer === 'ceiling') {
+    // Tavan LED'leri birbirini kesebilir (çapraz desenler); yalnızca tavana sığmalı
+    if (box.minX < I.minX - eps || box.maxX > I.maxX + eps || box.minZ < I.minZ - eps || box.maxZ > I.maxZ + eps) {
+      return { ok: false, error: 'Tavana sığmıyor.' };
     }
     return { ok: true };
   }
@@ -152,7 +193,7 @@ export function validatePlacement(items, c, h = HOUSE) {
   if (def.layer === 'floor' && overlaps(box, doorZone(h))) return { ok: false, error: 'Kapının önü boş kalmalı.' };
   for (const o of items) {
     const od = FURNITURE_BY_ID[o.type];
-    if (!od || od.layer === 'wall') continue;
+    if (!od || od.layer === 'wall' || od.layer === 'ceiling') continue;
     if (od.layer !== def.layer) continue; // halılar eşyaların altına girebilir
     if (overlaps(box, itemBox(od, o))) return { ok: false, error: 'Başka bir eşyayla çakışıyor.' };
   }
@@ -176,8 +217,9 @@ export function blocksPlayer(def, c, x, z, margin = 0) {
 /**
  * Zemindeki noktanın üstündeki / yakınındaki eşya (kaldırma hedefi).
  * Öncelik: katı eşya (küçük eşyalar için 0.3 m tolerans, en yakını) → duvar → halı.
+ * ceiling: true → tavandaki nokta; yalnızca tavan LED'leri (şeride en yakın olan).
  */
-export function itemAtPoint(items, px, pz) {
+export function itemAtPoint(items, px, pz, { ceiling = false } = {}) {
   const TOL = 0.3;
   let best = null;
   let bestD = Infinity;
@@ -186,6 +228,20 @@ export function itemAtPoint(items, px, pz) {
   for (const it of items) {
     const def = FURNITURE_BY_ID[it.type];
     if (!def) continue;
+    // Tavana bakarken yalnızca tavan eşyaları, zemine bakarken yalnızca diğerleri
+    if ((def.layer === 'ceiling') !== ceiling) continue;
+    if (def.layer === 'ceiling') {
+      const ry = itemRotationY(def, it.rot);
+      const ax = Math.cos(ry);
+      const az = -Math.sin(ry);
+      const t = Math.min(Math.max((px - it.x) * ax + (pz - it.z) * az, -def.w / 2), def.w / 2);
+      const d = Math.hypot(it.x + ax * t - px, it.z + az * t - pz);
+      if (d < 0.35 && d < bestD) {
+        bestD = d;
+        best = it;
+      }
+      continue;
+    }
     const b = itemBox(def, it);
     if (def.layer === 'wall') {
       const m = 0.6; // duvara bakarken zemindeki nokta duvarın dibinde olur
@@ -205,6 +261,40 @@ export function itemAtPoint(items, px, pz) {
     }
   }
   return best || wall || rug;
+}
+
+// ---- Ev bahçesi --------------------------------------------------------------
+// Kendi evindeki saksıya tohum ekilir; bitki oyun saatiyle (gece ve uyku dahil) kendiliğinden
+// büyür. Olgunlaşınca hasat edilir ve ürün Bloemenmarkt'a (çiçek pazarı) satılır → cüzdan.
+
+export const PLANTS = Object.freeze([
+  { id: 'mint', name: 'Nane', icon: '🌿', seed: 2, days: 1, count: 6, unit: 'demet', price: 1, color: '#4fae4a' },
+  { id: 'strawberry', name: 'Çilek', icon: '🍓', seed: 2, days: 2, count: 6, unit: 'kase', price: 2, color: '#e23a4e' },
+  { id: 'tulip', name: 'Lale', icon: '🌷', seed: 2, days: 3, count: 14, unit: 'dal', price: 2, color: '#e8384f' },
+]);
+export const PLANT_BY_ID = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(PLANTS.map((p) => [p.id, p]))));
+export const GARDEN_RULES = Object.freeze({ RANGE: 1.8 });
+const DAY_MIN = 24 * 60;
+
+/** Büyüme oranı 0..1 (total: mutlak oyun dakikası) */
+export function plantProgress(plant, total) {
+  const def = PLANT_BY_ID[plant?.kind];
+  if (!def) return 0;
+  return Math.min(1, Math.max(0, (total - plant.at) / (def.days * DAY_MIN)));
+}
+
+/** 0 tohum · 1 filiz · 2 büyüyor · 3 hasada hazır */
+export function plantStage(plant, total) {
+  const t = plantProgress(plant, total);
+  if (t >= 1) return 3;
+  if (t >= 0.5) return 2;
+  if (t >= 0.12) return 1;
+  return 0;
+}
+
+export function harvestValue(kind) {
+  const def = PLANT_BY_ID[kind];
+  return def ? def.count * def.price : 0;
 }
 
 // ---- YouTube --------------------------------------------------------------

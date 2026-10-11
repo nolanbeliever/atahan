@@ -87,6 +87,22 @@ export const EVT = Object.freeze({
   BAR_ACT: 'bar:act', // istemci → sunucu (ack): { act, ing?, stool?, food? }
   BAR_STATE: 'bar:state', // sunucu → herkes: tabureler, siparişler, raf, tezgâhtaki bardaklar
   PLAYER_BAR: 'player:bar', // sunucu → herkes: { id, hold, color, act, until } (uzaktan el animasyonu)
+  // Gece döngüsü: evde yatakta uyuma
+  SLEEP: 'sleep', // istemci → sunucu (ack): { on: boolean }
+  SLEEP_STATE: 'sleep:state', // sunucu → herkes: { ids: [uyuyan oyuncu id], total }
+  // Ev bahçesi (saksı + tohum)
+  GARDEN: 'garden', // istemci → sunucu (ack): { act: 'plant' | 'harvest', itemId, kind? }
+  HOUSE_ITEM: 'house:item', // sunucu → herkes: { itemId, plant } (saksı durumu)
+});
+
+// ---- Gece döngüsü ---------------------------------------------------------
+// 23:00'te otel kapanır ve gece başlar. Oyuncular Achterstraat'taki evlerine gidip
+// yatağa yatar (E); çevrimiçi herkes uyuyunca sabah olur. Kimse uyumazsa gece
+// NIGHT_LENGTH_SEC gerçek saniyede kendiliğinden biter (biri AFK kalırsa oyun kilitlenmesin).
+export const NIGHT = Object.freeze({
+  SLEEP_FROM_MIN: 21 * 60, // bu saatten sonra yatağa yatılabilir
+  BED_RANGE: 1.6, // yatağın kenarına en fazla uzaklık (m)
+  WAKE_MOVE: 0.6, // uyuyan oyuncu bu kadar yürürse uyanır (m)
 });
 
 // ---- Coffee shop -------------------------------------------------------

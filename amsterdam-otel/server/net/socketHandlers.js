@@ -149,6 +149,14 @@ export function attachSocketHandlers(io, sim) {
       if (barGuard(ack)) reply(ack, sim.barAct(player.id, data));
     });
 
+    // ---- Gece (yatakta uyuma) ve ev bahçesi ----
+    on(EVT.SLEEP, (data, ack) => {
+      if (houseGuard(ack)) reply(ack, sim.sleep(player.id, data?.on));
+    });
+    on(EVT.GARDEN, (data, ack) => {
+      if (houseGuard(ack)) reply(ack, sim.gardenAct(player.id, data));
+    });
+
     on('disconnect', () => {
       if (player) {
         sockets.delete(player.id);

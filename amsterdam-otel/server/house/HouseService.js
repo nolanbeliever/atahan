@@ -1,9 +1,9 @@
-import { EVT, START_WALLET, possessive } from '../../shared/constants.js';
+import { EVT, START_WALLET, NIGHT, possessive } from '../../shared/constants.js';
 import {
   HOUSES, PLAYER_HOUSES, HOUSE_BY_ID, SHARED_HOUSE_ID, houseAt, isInsideHouseDef,
 } from '../../shared/layout.js';
 import {
-  FURNITURE_BY_ID, HOUSE_RULES, validatePlacement, blocksPlayer, parseYouTubeId, isYouTubeId,
+  FURNITURE_BY_ID, HOUSE_RULES, validatePlacement, blocksPlayer, parseYouTubeId, isYouTubeId, itemBox, PLANT_BY_ID,
 } from '../../shared/house.js';
 
 const round2 = (v) => Math.round(v * 100) / 100;
@@ -93,6 +93,11 @@ export class HouseService {
         by: typeof raw.by === 'string' ? raw.by.slice(0, 16) : '',
         video: null,
       };
+      if (raw.starter === true) it.starter = true; // eve hediye gelen yatak (iadesi yok)
+      // Saksıdaki bitki: bilinen tür ve sonlu ekim zamanı (mutlak oyun dakikası)
+      if (it.type === 'pot' && raw.plant && PLANT_BY_ID[raw.plant.kind] && Number.isFinite(raw.plant.at) && raw.plant.at >= 0) {
+        it.plant = { kind: raw.plant.kind, at: raw.plant.at };
+      }
       if (!Number.isInteger(it.id) || it.id < 1 || this.items.some((o) => o.id === it.id)) continue;
       if (!validatePlacement(this.itemsIn(def.id), it, def).ok) continue;
       if (it.type === 'tv' && raw.video && isYouTubeId(raw.video.id)) {
@@ -121,6 +126,7 @@ export class HouseService {
         name: typeof o.name === 'string' ? o.name.slice(0, 16) : '',
         seenAt: Number.isFinite(o.seenAt) ? o.seenAt : this.sim.now(),
       };
+      if (o.bed === true) this.owners[h.id].bed = true; // hediye yatağı verildi
     }
 
     // Otel durumu (kasa, oyun günü/saati): HotelSimulation açılışta uygular
@@ -145,7 +151,7 @@ export class HouseService {
     const owners = {};
     for (const h of PLAYER_HOUSES) {
       const o = this.owners[h.id];
-      if (o) owners[h.id] = { hash: o.hash, name: o.name, seenAt: this.onlineOwner(h.id) ? now : o.seenAt };
+      if (o) owners[h.id] = { hash: o.hash, name: o.name, seenAt: this.onlineOwner(h.id) ? now : o.seenAt, ...(o.bed ? { bed: true } : {}) };
     }
     return {
       version: SAVE_VERSION,
@@ -239,10 +245,70 @@ export class HouseService {
       id = oldest;
     }
     if (!id) return null;
+    const prev = this.owners[id];
     this.owners[id] = { hash: p.keyHash, name: p.name, seenAt: now };
+    if (prev?.hash === p.keyHash && prev.bed) this.owners[id].bed = true;
+    this.giveStarterBed(id);
     this.broadcastOwners();
     this.scheduleSave();
     return id;
+  }
+
+  /**
+   * Yeni ev sahibine bir kez hediye yatak (gece uyuyabilsin). Yatak satılırsa yenisi
+   * verilmez; hediye yatağın iadesi de yoktur (para basma döngüsü olmasın).
+   */
+  giveStarterBed(houseId) {
+    const o = this.owners[houseId];
+    if (!o || o.bed || this.sim.config.starterBed === false) return;
+    const def = HOUSE_BY_ID[houseId];
+    const items = this.itemsIn(houseId);
+    o.bed = true;
+    if (items.some((it) => it.type === 'bed') || items.length >= def.maxItems) return;
+    const I = def.inner;
+    const bed = FURNITURE_BY_ID.bed;
+    // Arka duvar köşeleri (başucu duvarda), sonra yan duvar boyunca
+    const spots = [
+      { x: I.maxX - bed.w / 2, z: I.maxZ - bed.d / 2, rot: 2 },
+      { x: I.minX + bed.w / 2, z: I.maxZ - bed.d / 2, rot: 2 },
+      { x: I.maxX - bed.d / 2, z: (I.minZ + I.maxZ) / 2, rot: 3 },
+    ];
+    for (const sp of spots) {
+      const c = { type: 'bed', x: round2(sp.x), z: round2(sp.z), rot: sp.rot, color: 0 };
+      if (!validatePlacement(items, c, def).ok) continue;
+      const item = { id: this.nextId++, houseId, ...c, by: o.name, video: null, starter: true };
+      this.items.push(item);
+      this.sim.out(EVT.HOUSE_ADDED, item);
+      return;
+    }
+  }
+
+  // ---- Yatak / uyku -------------------------------------------------------------
+
+  /**
+   * Oyuncu şu an yatabileceği bir yatağın yanında mı: kendi evi, Bizim Ev ya da içeri alındığı ev.
+   * @returns {{ ok: true, item } | { ok: false, error }}
+   */
+  bedFor(p) {
+    const def = this.houseFor(p.x, p.z);
+    if (!def) return { ok: false, error: 'Uyumak için evine git (Achterstraat).' };
+    if (def.owned && !this.isOwner(p, def.id) && !p.houseAccess?.has(def.id)) {
+      return { ok: false, error: 'Burası senin evin değil.' };
+    }
+    let best = null;
+    let bestD = Infinity;
+    for (const it of this.itemsIn(def.id)) {
+      if (it.type !== 'bed') continue;
+      const b = itemBox(FURNITURE_BY_ID.bed, it);
+      const d = Math.hypot(p.x - Math.min(Math.max(p.x, b.minX), b.maxX), p.z - Math.min(Math.max(p.z, b.minZ), b.maxZ));
+      if (d < bestD) {
+        bestD = d;
+        best = it;
+      }
+    }
+    if (!best) return { ok: false, error: 'Bu evde yatak yok — dekor modundan bir yatak al.' };
+    if (bestD > NIGHT.BED_RANGE + 0.5) return { ok: false, error: 'Yatağa yaklaş.' };
+    return { ok: true, item: best };
   }
 
   /** Evi boşalt: eşyalar silinir (her biri yayınlanır), eski sahibin verdiği misafir erişimleri düşer */
@@ -383,7 +449,7 @@ export class HouseService {
     if (Math.hypot(p.x - it.x, p.z - it.z) > HOUSE_RULES.REACH) return { ok: false, error: 'Eşyaya yaklaş.' };
     const fdef = FURNITURE_BY_ID[it.type];
     // Oyuncu evinde iade sahibine (cüzdanı kalıcı); Bizim Ev'de yalnızca bu oturumda alana
-    const refund = def.owned || it.byId === p.id ? Math.floor(fdef.price * HOUSE_RULES.REFUND) : 0;
+    const refund = !it.starter && (def.owned || it.byId === p.id) ? Math.floor(fdef.price * HOUSE_RULES.REFUND) : 0;
     this.items.splice(this.items.indexOf(it), 1);
     if (refund) {
       p.wallet += refund;

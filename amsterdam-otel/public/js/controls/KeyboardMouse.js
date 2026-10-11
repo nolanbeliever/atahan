@@ -29,6 +29,7 @@ export class KeyboardMouse {
       else if (e.code === 'KeyY') input.command('ringYes'); // kapı zili: içeri al
       else if (e.code === 'KeyN') input.command('ringNo'); // kapı zili: alma
       else if (/^Digit[1-9]$/.test(e.code)) input.command(`select:${Number(e.code.slice(5)) - 1}`);
+      else if (e.code === 'Digit0') input.command('select:9');
       else input.setKey(e.code, true);
     });
     window.addEventListener('keyup', (e) => input.setKey(e.code, false));
@@ -61,6 +62,15 @@ export class KeyboardMouse {
     });
     window.addEventListener('mouseup', () => { this.dragging = false; });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Fare tekerleği: dekor modunda eşya kataloğunda gezinme (9'dan fazla eşya var)
+    let wheelAcc = 0;
+    canvas.addEventListener('wheel', (e) => {
+      if (!input.enabled || !(this.locked || this.dragFallback)) return;
+      wheelAcc += e.deltaY;
+      if (Math.abs(wheelAcc) < 60) return;
+      input.command(wheelAcc > 0 ? 'selNext' : 'selPrev');
+      wheelAcc = 0;
+    }, { passive: true });
   }
 
   get locked() { return document.pointerLockElement === this.canvas; }

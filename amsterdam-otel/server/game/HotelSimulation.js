@@ -1,7 +1,8 @@
 import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 import {
-  EVT, DAY_NAMES, INTERACT_RANGE, TRASH_SPOT_COUNT, PLAYER_KEY_RE, DAY_START_MIN, DAY_END_MIN, formatMoney,
+  EVT, DAY_NAMES, INTERACT_RANGE, TRASH_SPOT_COUNT, PLAYER_KEY_RE, DAY_START_MIN, DAY_END_MIN, MINUTES_PER_DAY,
+  NIGHT, formatMoney,
 } from '../../shared/constants.js';
 import { POINTS, ROOM_BY_ID, WORLD_BOUNDS, pointInBounds } from '../../shared/layout.js';
 import { GameClock } from './GameClock.js';
@@ -10,6 +11,7 @@ import { GuestManager } from './GuestManager.js';
 import { CoffeeShopService } from './CoffeeShopService.js';
 import { HouseService } from '../house/HouseService.js';
 import { BarService } from './BarService.js';
+import { GardenService } from '../house/GardenService.js';
 
 const PLAYER_COLORS = ['#e4572e', '#29a3a3', '#f3a712', '#6a4c93', '#3a86ff', '#8ac926', '#ff595e', '#c77dff'];
 
@@ -53,6 +55,7 @@ export class HotelSimulation extends EventEmitter {
     this.clock = new GameClock({
       dayLengthSec: config.dayLengthSec,
       weekendSpeed: config.weekendSpeed,
+      nightLengthSec: config.nightLengthSec ?? 0,
       startDay: config.startDay ?? 0,
       startMinute: (config.startHour ?? 7) * 60,
     });
@@ -61,6 +64,7 @@ export class HotelSimulation extends EventEmitter {
     this.shop = new CoffeeShopService(this);
     this.house = new HouseService(this, house);
     this.bar = new BarService(this);
+    this.garden = new GardenService(this, this.house);
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -71,6 +75,7 @@ export class HotelSimulation extends EventEmitter {
     this.pausedAt = null;
     this.lastClockBroadcast = 0;
     this.lastCheckinOpen = this.clock.checkinOpen;
+    this.lastNight = this.clock.night;
     this.dirtyPlayers = new Set();
   }
 
@@ -112,7 +117,9 @@ export class HotelSimulation extends EventEmitter {
     }
     if (Number.isInteger(h.day) && h.day >= 0 && h.day < 1e6 && Number.isFinite(h.minute)) {
       this.clock.dayCount = h.day;
-      this.clock.minute = Math.min(Math.max(h.minute, DAY_START_MIN), DAY_END_MIN - 1);
+      // Gece kaydedildiyse gece sürer (gece kapalıysa gün sonuna sıkıştırılır)
+      const max = this.clock.nightLengthSec > 0 ? MINUTES_PER_DAY + DAY_START_MIN - 1 : DAY_END_MIN - 1;
+      this.clock.minute = Math.min(Math.max(h.minute, DAY_START_MIN), max);
     }
   }
 
@@ -153,6 +160,11 @@ export class HotelSimulation extends EventEmitter {
     const prevDay = this.clock.dayOfWeek;
     if (this.clock.advance(dt)) this.onNewDay(prevDay, now);
 
+    if (this.clock.night !== this.lastNight) {
+      this.lastNight = this.clock.night;
+      if (this.lastNight) this.onNightStart(now);
+    }
+
     const open = this.clock.checkinOpen;
     if (open !== this.lastCheckinOpen) {
       this.lastCheckinOpen = open;
@@ -171,7 +183,15 @@ export class HotelSimulation extends EventEmitter {
     this.flushPlayers();
   }
 
-  onNewDay(prevDay, now) {
+  /** 23:00: otel kapanır, gece başlar */
+  onNightStart(now) {
+    this.notify('🌙 Saat 23:00 — otel kapandı! Achterstraat\'taki evine git ve yatağında uyu (E). Herkes uyuyunca sabah olur.', 'day');
+    this.broadcastClock(now);
+    this.house.scheduleSave();
+  }
+
+  onNewDay(prevDay, now, { slept = false } = {}) {
+    this.wakeAll();
     const t = this.today;
     const drinks = t.served ? ` · ${t.served} içecek` : '';
     let text = `${DAY_NAMES[prevDay]} bitti: ${t.guests} misafir, ${formatMoney(t.earned)} gelir, ${t.cleaned} oda temizlendi${drinks}.`;
@@ -180,6 +200,7 @@ export class HotelSimulation extends EventEmitter {
     if (day === 5) text += ' Hafta sonu başladı — otel kapalı. 🏠 Bizim Ev\'de takılma zamanı!';
     else if (day === 0) text += ' Yeni hafta! Otel misafirlere açık.';
     else text += ` ${DAY_NAMES[day]} başladı.`;
+    if (slept) text = `☀️ Günaydın! Herkes uyudu, sabah oldu. ${text}`;
     this.notify(text, 'day');
     this.out(EVT.ECONOMY, this.economy());
     this.broadcastClock(now);
@@ -219,6 +240,7 @@ export class HotelSimulation extends EventEmitter {
       z: POINTS.playerSpawn[1] + (this.rng() - 0.5),
       yaw: Math.PI,
       keyHash, // yalnızca sunucuda; hiçbir yayına girmez
+      sleeping: null, // { x, z } yatağa yattığı yer (uyanıkken null)
     };
     this.shop.initPlayer(p);
     this.bar.initPlayer(p);
@@ -238,7 +260,71 @@ export class HotelSimulation extends EventEmitter {
     this.players.delete(id);
     this.dirtyPlayers.delete(id);
     this.out(EVT.PLAYER_LEAVE, id);
-    if (this.players.size === 0) this.stop();
+    if (this.players.size === 0) {
+      this.stop();
+      return;
+    }
+    if (p.sleeping) this.sleepChanged();
+    else this.checkAllAsleep(); // kalanların hepsi uyuyorsa sabah olur
+  }
+
+  // ---- Gece / uyku -----------------------------------------------------------
+
+  /**
+   * Yatağa yat / kalk. Yatmak için akşam (21:00+) ya da gece olmalı ve oyuncu yatabileceği
+   * bir evde yatağın yanında olmalı. Çevrimiçi herkes uyuyunca sabah olur.
+   */
+  sleep(playerId, on) {
+    const p = this.players.get(playerId);
+    if (!p) return { ok: false };
+    if (typeof on !== 'boolean') return { ok: false, error: 'Geçersiz istek.' };
+    if (!on) {
+      if (p.sleeping) {
+        p.sleeping = null;
+        this.sleepChanged();
+      }
+      return { ok: true };
+    }
+    if (!this.clock.night && this.clock.minute < NIGHT.SLEEP_FROM_MIN) {
+      return { ok: false, error: 'Henüz uykun yok — 21:00\'den sonra yatabilirsin.' };
+    }
+    const bed = this.house.bedFor(p);
+    if (!bed.ok) return bed;
+    if (!p.sleeping) {
+      p.sleeping = { x: p.x, z: p.z };
+      this.sleepChanged();
+      this.checkAllAsleep();
+    }
+    return { ok: true };
+  }
+
+  sleepState() {
+    const ids = [];
+    for (const p of this.players.values()) if (p.sleeping) ids.push(p.id);
+    return { ids, total: this.players.size };
+  }
+
+  sleepChanged() {
+    this.out(EVT.SLEEP_STATE, this.sleepState());
+  }
+
+  checkAllAsleep() {
+    if (!this.players.size) return;
+    for (const p of this.players.values()) if (!p.sleeping) return;
+    const prevDay = this.clock.dayOfWeek;
+    this.clock.sleepThrough();
+    this.lastNight = false;
+    this.onNewDay(prevDay, this.now(), { slept: true });
+  }
+
+  wakeAll() {
+    let any = false;
+    for (const p of this.players.values()) {
+      if (!p.sleeping) continue;
+      p.sleeping = null;
+      any = true;
+    }
+    if (any) this.sleepChanged();
   }
 
   publicPlayer(p) {
@@ -257,6 +343,11 @@ export class HotelSimulation extends EventEmitter {
     p.z = Math.min(Math.max(z, b.minZ), b.maxZ);
     p.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
     this.dirtyPlayers.add(id);
+    // Yataktan kalkıp yürüyen oyuncu uyanır
+    if (p.sleeping && Math.hypot(p.x - p.sleeping.x, p.z - p.sleeping.z) > NIGHT.WAKE_MOVE) {
+      p.sleeping = null;
+      this.sleepChanged();
+    }
   }
 
   flushPlayers() {
@@ -356,6 +447,10 @@ export class HotelSimulation extends EventEmitter {
 
   barAct(playerId, data) { return this.withPlayer(playerId, (p) => this.bar.act(p, data, this.now())); }
 
+  // ---- Ev bahçesi --------------------------------------------------------------
+
+  gardenAct(playerId, data) { return this.withPlayer(playerId, (p) => this.garden.act(p, data)); }
+
   emote(playerId, type) {
     const p = this.players.get(playerId);
     return p ? this.shop.emote(p, type, this.now()) : false;
@@ -374,6 +469,7 @@ export class HotelSimulation extends EventEmitter {
       self: this.players.has(selfId) ? this.shop.privateState(this.players.get(selfId)) : null,
       house: this.house.serialize(),
       bar: this.bar.serialize(),
+      sleep: this.sleepState(),
     };
   }
 }

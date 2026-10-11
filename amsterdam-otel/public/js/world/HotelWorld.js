@@ -52,7 +52,13 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
   const playerHouses = buildPlayerHouses({ batcher: b, collision, scene, mats, factory, engine });
 
   b.build(mats, scene);
-  addLights(scene, quality);
+  const lights = addLights(scene, quality);
+  const sky = { day: new THREE.Color(0x9cc6e6), night: new THREE.Color(0x0a1430) };
+  const glass = { day: mats.glassDay.color.clone(), night: new THREE.Color(0x1c2a44) };
+  const hemiDay = { sky: lights.hemi.color.clone(), int: lights.hemi.intensity };
+  const hemiNight = new THREE.Color(0x8fa6d8);
+  const sunDay = { color: lights.sun.color.clone(), int: lights.sun.intensity };
+  const moon = new THREE.Color(0x9fb4ff);
 
   let weekend = false;
 
@@ -64,6 +70,20 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
     house,
     bar,
     playerHouses,
+
+    /**
+     * Gece karanlığı 0 (gündüz) … 1 (gece). Yalnızca ışık şiddeti / renkleri değişir:
+     * gölge haritası statik kalır (yeniden çizim yok), mobilde ek maliyet yok.
+     */
+    setNightLevel(t) {
+      scene.background.copy(sky.day).lerp(sky.night, t);
+      mats.glassDay.color.copy(glass.day).lerp(glass.night, t);
+      lights.hemi.color.copy(hemiDay.sky).lerp(hemiNight, t);
+      lights.hemi.intensity = hemiDay.int * (1 - 0.62 * t);
+      lights.sun.color.copy(sunDay.color).lerp(moon, t);
+      lights.sun.intensity = sunDay.int * (1 - 0.8 * t);
+      engine.requestRender();
+    },
 
     setWeekend(on) {
       if (weekend === on) return;
@@ -313,7 +333,8 @@ function buildEntrance(scene, mats) {
 }
 
 function addLights(scene, quality) {
-  scene.add(new THREE.HemisphereLight(0xfff4e2, 0x6e5a46, 2.1));
+  const hemi = new THREE.HemisphereLight(0xfff4e2, 0x6e5a46, 2.1);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff0d8, 1.5);
   sun.position.set(4, 20, 8);
   sun.target.position.set(0, 0, 13);
@@ -332,4 +353,5 @@ function addLights(scene, quality) {
     sun.shadow.bias = -0.0006;
     sun.shadow.normalBias = 0.03;
   }
+  return { hemi, sun };
 }

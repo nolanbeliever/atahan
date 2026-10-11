@@ -70,7 +70,7 @@ attachSocketHandlers(io, sim);
 
 server.listen(config.port, () => {
   console.log(`Amsterdam Otel sunucusu hazır → http://localhost:${config.port}`);
-  console.log(`Gün uzunluğu: ${config.dayLengthSec} sn, hafta sonu hızı: x${config.weekendSpeed}`);
+  console.log(`Gün uzunluğu: ${config.dayLengthSec} sn, gece: ${config.nightLengthSec} sn, hafta sonu hızı: x${config.weekendSpeed}`);
 });
 
 let closing = false;

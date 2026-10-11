@@ -96,7 +96,17 @@
         <button type="button" id="build-remove" aria-label="Kaldır">🗑<span class="lbl"> Kaldır</span></button>
         <button type="button" id="build-close" aria-label="Dekorasyon modundan çık">✕</button>
       </div>
-      <div id="build-hint">1-9 eşya · C renk · R döndür · E yerleştir · X kaldır · B çık</div>
+      <div id="build-hint">1-9 / tekerlek eşya · C renk · R döndür · E yerleştir · X kaldır · B çık</div>
+    </div>
+  </div>
+
+  <!-- Gece: yatakta uyurken ekran kararır -->
+  <div id="sleep-overlay" hidden>
+    <div class="sleep-card">
+      <div class="sleep-moon">🌙</div>
+      <div id="sleep-text">💤 Uyuyorsun…</div>
+      <div id="sleep-sub"></div>
+      <button type="button" id="sleep-wake" class="secondary">☀️ Kalk</button>
     </div>
   </div>
 
@@ -118,6 +128,20 @@
         <button type="button" class="secondary" id="tv-stop">⏹ Kapat (herkes için)</button>
         <button type="button" class="secondary" id="tv-close">Geri dön</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Ev bahçesi: saksıya tohum ek -->
+  <div id="garden-panel" class="overlay" hidden>
+    <div class="card wide">
+      <h2>🪴 Saksıya ne ekelim?</h2>
+      <p class="sub">Bitkiler oyun saatiyle kendiliğinden büyür — gece ve sen uyurken de. Olgunlaşınca hasat et, çiçek pazarına (Bloemenmarkt) sat.</p>
+      <div id="garden-list" class="shop-list"></div>
+      <div class="shop-foot">
+        <span>🎒 Cüzdan: <b id="garden-wallet">€ 0</b></span>
+      </div>
+      <p class="note" id="garden-msg"></p>
+      <button type="button" class="primary" id="garden-close">Kapat</button>
     </div>
   </div>
 
@@ -183,18 +207,21 @@
         <li><b>B</b> Bizim Ev'de dekorasyon modu · <b>T</b> TV yayınına katıl / kapat</li>
         <li>Barda <b>E</b>: bardak al · koy · çalkala · servis · topla · yıka · <b>F</b> yiyeceği ısır</li>
         <li>Achterstraat'ta başkasının kapısında <b>E</b>: zili çal · kapıda biri varsa <b>Y</b> / <b>N</b>: içeri al / alma</li>
+        <li>Gece (23:00) evindeki yatakta <b>E</b>: uyu · saksıda <b>E</b>: tohum ek / hasat et · dekor modunda <b>tekerlek</b>: eşya seç</li>
         <li><b>Esc</b> duraklat</li>
       </ul>
       <ul class="help touch-only">
         <li><b>Sol taraf</b>: parmağını bastır, joystick çıkar</li>
         <li><b>Sağ taraf</b>: sürükleyerek etrafa bak</li>
         <li><b>Aksiyon</b> butonu: yatak düzelt / çöp topla / barda koy, çalkala, servis et / ısır</li>
+        <li>Gece evindeki yatakta <b>Aksiyon</b>: uyu · saksıda: tohum ek / hasat et</li>
       </ul>
       <p class="goal">Misafirler resepsiyona gelir ve boş odaya yerleşir. Çıkış yapınca oda <b>Kirli</b> olur:
         içeri gir, yatağı düzelt, çöpleri topla. Hafta içi otel açık, hafta sonu kapalıdır.
         Lobinin doğusundaki alkolsüz <b>Bar De Tulp</b>'ta barmenlik yapıp bahşiş toplayabilir, brownie
         ve stroopwafel yiyebilirsin. Otelin arka kapısından çıkınca <b>Achterstraat</b>'ta sana ait bir ev var:
-        dekore et, arkadaşların zili çalınca içeri al. Bahşişlerini sokaktaki <b>coffee shop</b>'ta (18+) ya da otelin
+        dekore et, saksılarda nane, çilek ve lale yetiştir, arkadaşların zili çalınca içeri al. Saat 23:00'te otel
+        kapanır: evine git ve yatağında uyu; herkes uyuyunca sabah olur. Bahşişlerini sokaktaki <b>coffee shop</b>'ta (18+) ya da otelin
         batısındaki <b>Bizim Ev</b>'i dekore etmeye harcayabilirsin; evdeki TV'de YouTube açabilirsin.</p>
       <div id="conn-status">Sunucuya bağlanılıyor…</div>
     </div>

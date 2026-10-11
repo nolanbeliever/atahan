@@ -1,5 +1,5 @@
 import {
-  ROOM_IDS, ROOM_STATUS, DAY_START_MIN, DAY_END_MIN, CHECKIN_OPEN_MIN, CHECKIN_CLOSE_MIN,
+  ROOM_IDS, ROOM_STATUS, DAY_START_MIN, DAY_END_MIN, CHECKIN_OPEN_MIN, CHECKIN_CLOSE_MIN, MINUTES_PER_DAY,
 } from '/shared/constants.js';
 
 /** Sunucu durumunun istemcideki aynası (odalar, saat, kasa) */
@@ -28,8 +28,9 @@ export class GameState {
     const c = this.clock;
     if (!c) return DAY_START_MIN;
     const m = c.minute + ((serverNow - c.st) / 1000) * c.rate;
-    // Gün değişimi sunucudan gelir; o zamana kadar gün sonunda bekle
-    return Math.min(m, DAY_END_MIN - 1);
+    // Gece başlangıcı ve gün değişimi sunucudan gelir; o zamana kadar sınırda bekle
+    // (gece dakikası 23:00'ten 31:00'e — ertesi 07:00 — kadar sayar)
+    return Math.min(m, c.night ? MINUTES_PER_DAY + DAY_START_MIN - 1 : DAY_END_MIN - 1);
   }
 
   isOpenAt(minute) {

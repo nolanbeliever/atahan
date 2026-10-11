@@ -9,7 +9,7 @@ import { FURNITURE_BY_ID, HOUSE_RULES } from '../shared/house.js';
 
 const config = {
   dayLengthSec: 240, weekendSpeed: 2, tickMs: 100, spawnMinMin: 40, spawnMaxMin: 90,
-  stayMinMin: 150, stayMaxMin: 420, clockBroadcastMs: 5000, maxPlayers: 16,
+  stayMinMin: 150, stayMaxMin: 420, clockBroadcastMs: 5000, maxPlayers: 16, starterBed: false,
 };
 const DAY_MS = 86_400_000;
 

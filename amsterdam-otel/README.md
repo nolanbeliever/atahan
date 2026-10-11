@@ -36,6 +36,7 @@ Bu klasörde oyuna özel bir Blueprint dosyası var: [`render.yaml`](render.yaml
 | --- | --- | --- |
 | `PORT` | `3000` | Sunucu portu |
 | `DAY_LENGTH_SEC` | `240` | Bir oyun gününün (07:00 → 23:00) gerçek süresi |
+| `NIGHT_LENGTH_SEC` | `150` | Gecenin (23:00 → 07:00) gerçek süresi; herkes uyursa erken biter. `0` → gece atlanır |
 | `WEEKEND_SPEED` | `2` | Hafta sonu (otel kapalı) günleri kaç kat hızlı aksın |
 | `START_DAY` | `0` | Başlangıç günü (0 = Pazartesi … 5 = Cumartesi, 6 = Pazar) |
 | `START_HOUR` | `7` | Başlangıç saati (7–22) |
@@ -70,7 +71,9 @@ eski kaydın üstüne yazmasın diye başlamaz (Render yeniden dener). `DATABASE
 | **Fare**: etrafa bak (Pointer Lock) | **Sağ taraf**: dokunup sürükleyerek kamera çevir |
 | **E** / **Space** / **Sol tık**: aksiyon | Tek, şeffaf **Aksiyon** butonu |
 | **F**: seçili ürünü tüket · **Q** / **1–4**: ürün seç | Hedef yokken **Aksiyon**: seçili ürünü tüket · envanterde dokunarak seç |
-| **B**: dekorasyon modu (evde) · **1–9 / C / R / X** | **🛠 Dekor** butonu ve alt çubuk |
+| **B**: dekorasyon modu (evde) · **1–9 / 0 / fare tekerleği / C / R / X** | **🛠 Dekor** butonu ve alt çubuk |
+| Gece evindeki yatakta **E**: uyu · yürüyünce ya da tekrar **E** ile kalk | **Uyu** / **Kalk** |
+| Saksıda **E**: tohum ek · hasat et | **Ek** / **Hasat** |
 | **T**: TV yayınına katıl / kendi ekranında kapat | **▶ Katıl** çipi |
 | Barda **E**: bardak al · koy · çalkala · servis et · topla · yıka | **Aksiyon** (butonun etiketi bakılan şeye göre değişir: Al, Koy, Çalkala, Servis…) |
 | **F** / **E**: elindeki yiyeceği ısır (her ısırık 2 sn) | **Aksiyon**: ısır |
@@ -86,7 +89,38 @@ Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir
 - **Temizlik:** kirli odaya gir, yatağı düzelt, 2–3 çöpü topla → oda **Boş** olur. Dolu odaların kapısı kilitlidir (misafir mahremiyeti).
 - **Zarar verme / kırma mekaniği yoktur.**
 - **Bahşiş:** odayı bitiren görevli misafirin bıraktığı **€4–12** bahşişi kişisel **cüzdanına** alır (otel kasasından ayrı; başlangıç cüzdanı €30).
-- **Zaman:** Pazartesi–Cuma otel açık (misafir kabulü 08:00–19:00). **Cumartesi–Pazar otel kapalı:** giriş kapısı kapanır, tabela "KAPALI · Gesloten" olur, yeni misafir gelmez, zaman 2 kat hızlı akar. Gece yarısını aşan konaklamalar ertesi sabah 07:00'de çıkış yapar (Cumartesi sabahı son misafirler ayrılır → hafta sonu temizlik zamanı). Her gün sonunda günlük özet bildirimi gelir.
+- **Zaman:** Pazartesi–Cuma otel açık (misafir kabulü 08:00–19:00). **Cumartesi–Pazar otel kapalı:** giriş kapısı kapanır, tabela "KAPALI · Gesloten" olur, yeni misafir gelmez, zaman 2 kat hızlı akar. Konaklamalar gece de sürer; gece yarısını aşanlar gece ya da ertesi sabah çıkış yapar (Cumartesi sabahı son misafirler ayrılır → hafta sonu temizlik zamanı). 23:00'te otel kapanır (bkz. Gece döngüsü). Her gün sonunda günlük özet bildirimi gelir.
+
+## Gece döngüsü — eve dön, yatağında uyu
+
+- Saat **23:00**'te otel kapanır ve gece başlar: gökyüzü kararır, pencereler lacivert olur, HUD'da **🌙 GECE · EVE GİT** yazar.
+  21:00'den itibaren alacakaranlık başlar. Işık geçişi birkaç saniyelik tek seferlik bir animasyondur; gölge haritası
+  yeniden çizilmez, gece boyunca karede ek iş yoktur.
+- Achterstraat'taki evine git, yatağa bakıp **E** → yatarsın, ekran kararır ve kaç oyuncunun uyuduğu yazar.
+  **Çevrimiçi herkes uyuyunca sabah 07:00 olur** ve yeni gün başlar. 21:00'den sonra erkenden de yatılabilir.
+- Biri hiç yatmazsa gece `NIGHT_LENGTH_SEC` (varsayılan 150 sn) sonunda kendiliğinden biter (AFK oyuncu kimseyi kilitlemez).
+  Uyumayan son oyuncu oyundan çıkarsa ve kalanların hepsi uyuyorsa sabah hemen olur.
+- Her yeni ev sahibine bir kez **hediye yatak** verilir (arka köşede). Taşıyıp satabilirsin ama hediye yatağın iadesi yoktur;
+  yeni yatak dekor marketinden €15. Kendi evinde, Bizim Ev'de ya da içeri alındığın evde uyuyabilirsin.
+- Sunucu doğrular: saat, evde olmak, yatağın yanında olmak; yürüyen oyuncu uyanır.
+
+## Ev bahçesi — nane, çilek, lale
+
+- Dekor marketinden **saksı** (€5) al ve kendi evine koy. Saksıya bakıp **E** → tohum seç (her biri €2):
+
+  | Tohum | Olgunlaşma | Hasat | Bloemenmarkt'ta |
+  | --- | --- | --- | --- |
+  | 🌿 Nane | 1 oyun günü | 6 demet | €6 |
+  | 🍓 Çilek | 2 oyun günü | 6 kase | €12 |
+  | 🌷 Lale | 3 oyun günü | 14 dal | €28 |
+
+- Bitki oyun saatiyle kendiliğinden büyür (gece ve uyurken de): tohum → filiz → yapraklanma → olgun (laleler açar, çilekler
+  kızarır). Saksıya bakınca yüzde ve kalan süre görünür. Olgunlaşınca **E** → hasat et, ürün çiçek pazarına satılır ve
+  para cüzdanına girer; saksı yeni tohuma hazırdır.
+- Bahçe yalnızca kendi evinde ve yalnızca ev sahibine açık (misafirler başkasının emeğini hasat edemez). Saksılar ve
+  bitkiler evle birlikte kaydedilir.
+- Pil: evre değişimi saniyede bir saat güncellemesinde kontrol edilir; değişince yalnızca o evin birleştirilmiş mobilya
+  geometrisi yeniden kurulur.
 
 ## Bizim Ev — dekorasyon, LED'ler ve YouTube TV
 
@@ -99,8 +133,15 @@ hafta sonları otel kapalıyken takılmak için ideal.
   kendi aldığın eşyaysa fiyatının yarısı cüzdana döner (başkasının ya da önceki oturumun eşyası para getirmez — cüzdan her
   girişte yenilendiği için ev, sınırsız para aktarma yolu olmasın).
 - **Eşyalar (kişisel cüzdandan):** kanepe €18, berjer €10, armut koltuk €7, televizyon €25, sehpa €8, halı €6, bitki €4,
-  ayaklı lamba €6, LED şerit €5 (8 renk). Halılar eşyaların altına serilebilir; LED'ler duvara monte edilir.
-  Kapının önü boş kalmalı; evde en fazla 80 eşya olabilir.
+  ayaklı lamba €6, LED şerit €5 (8 renk), **tavan RGB LED €6**, **yatak €15**, **köşe koltuk €24**, **kitaplık €12**,
+  **duvar rafı €5**, **tablo €6** (6 eser: Mondriaan, Lale tarlası, Kanal evleri, Yıldızlı gece, Yel değirmeni, Ayçiçekleri —
+  renk seçimi eseri değiştirir), **saksı €5**. Halılar eşyaların altına serilebilir; LED şerit duvarın üst kenarına,
+  tablo ve raf göz hizasına monte edilir (ikisi aynı duvarda üst üste durabilir).
+  Kapının önü boş kalmalı; evde en fazla 80 eşya olabilir (oyuncu evlerinde 30). 9'dan fazla eşya olduğu için katalogda
+  fare tekerleğiyle ya da tıklayarak gezinilir.
+- **Tavan RGB LED:** seçip **tavana bak** → istediğin yere yapışır. **R** ile yön: düz (X), düz (Z), çapraz ╱, çapraz ╲.
+  Tavan şeritleri birbirini kesebilir (yıldız / ızgara desenleri) ve tavana renkli ışık vurur. Kaldırmak için tavandaki
+  şeride bakıp **X**.
 - **LED partisi:** kapının yanındaki anahtara bakıp **E** → tavan ışığı kapanır, oda kararır, LED şeritler duvara renkli ışık
   vurur. Işık durumu herkes için ortaktır.
 - **Televizyon / YouTube:** TV'ye bakıp **E** → YouTube linkini yapıştır → **▶ Oynat**. Video YouTube'un resmi gömülü oynatıcısıyla
@@ -204,15 +245,16 @@ amsterdam-otel/
 │   ├── net/socketHandlers.js    # Socket olayları, hız sınırlama, doğrulama
 │   └── game/
 │       ├── HotelSimulation.js   # Simülasyon (ağdan bağımsız, test edilebilir)
-│       ├── GameClock.js         # Gün döngüsü: hafta içi açık / hafta sonu kapalı
+│       ├── GameClock.js         # Gün döngüsü: hafta içi açık / hafta sonu kapalı, gece (23:00–07:00)
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
 │       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları
 │       └── CoffeeShopService.js # Cüzdan, envanter, trip zarı, slot, bahşiş
-│   └── house/                   # Bizim Ev: HouseService, FileStore (JSON kayıt), YouTube oEmbed + küçük resim vekili
+│   └── house/                   # Evler: HouseService (yatak/uyku kontrolü dahil), GardenService (saksı, ekim, hasat),
+│                                #   FileStore / PgStore (kayıt), YouTube oEmbed + küçük resim vekili
 ├── shared/                      # Sunucu + istemci ortak kodu (ESM)
 │   ├── constants.js             # Durumlar, olay adları, fiyat, saatler, ürünler, trip/slot
 │   ├── layout.js                # Otel + coffee shop + ev yerleşimi: duvarlar, odalar, rota noktaları
-│   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları, YouTube link ayrıştırma
+│   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları (duvar slotları, tavan), bitkiler, YouTube link ayrıştırma
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
@@ -230,14 +272,16 @@ amsterdam-otel/
 │       │   ├── InteractiveTV.js     # YouTube paneli, CSS3DRenderer ile TV ekranında video, senkron katılım
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
 │       │   ├── ViewModel.js         # Birinci şahıs eller (dökme, çalkalama, ısırma, toplama…)
+│       │   ├── NightCycle.js        # Gece görünümü, yatakta uyuma, uyku ekranı
+│       │   ├── HerbalBotanySystem.js # Ev bahçesi: tohum paneli, büyüme evreleri, hasat
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar, gece + bahçe
 ```
 
 ## Sonraki aşamalar için notlar
 
-- Kalıcılık yok: kasa ve oda durumları sunucu yeniden başlayınca sıfırlanır.
+- Oda durumları, misafirler ve envanter kalıcı değil (kasa, cüzdanlar, evler, bitkiler ve oyun saati kalıcı).
 - Otel kasasındaki para henüz harcanmıyor (yükseltmeler / personel / dekor için ekonomi sonraki aşamada); kişisel cüzdan coffee shop'ta harcanıyor.
 - Ses, resepsiyonda oyuncu etkileşimi, misafir memnuniyeti ve oda yükseltmeleri planlanabilir.

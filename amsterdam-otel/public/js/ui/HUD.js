@@ -67,14 +67,14 @@ export class HUD {
     }
   }
 
-  setClock(day, minute, weekend, open) {
+  setClock(day, minute, weekend, open, night = false) {
     this.set('day', this.el.day, DAY_NAMES[day] ?? '');
     this.set('clock', this.el.clock, formatClock(minute));
-    const chip = weekend ? 'KAPALI' : open ? 'AÇIK' : 'RESEPSİYON KAPALI';
+    const chip = night ? 'GECE' : weekend ? 'KAPALI' : open ? 'AÇIK' : 'RESEPSİYON KAPALI';
     if (this.cache.get('chip') !== chip) {
       this.cache.set('chip', chip);
-      this.el.open.textContent = weekend ? 'HAFTA SONU' : open ? 'AÇIK' : 'KABUL YOK';
-      this.el.open.className = `chip ${weekend ? 'closed' : open ? 'open' : 'night'}`;
+      this.el.open.textContent = night ? '🌙 GECE · EVE GİT' : weekend ? 'HAFTA SONU' : open ? 'AÇIK' : 'KABUL YOK';
+      this.el.open.className = `chip ${night ? 'night' : weekend ? 'closed' : open ? 'open' : 'night'}`;
     }
     this.el.weekend.hidden = !weekend;
   }

@@ -19,6 +19,8 @@ import { TripEffects } from './game/TripEffects.js';
 import { HouseSystem } from './game/HouseSystem.js';
 import { InteractiveTV } from './game/InteractiveTV.js';
 import { HouseVisitingSystem } from './game/HouseVisitingSystem.js';
+import { NightCycle } from './game/NightCycle.js';
+import { HerbalBotanySystem } from './game/HerbalBotanySystem.js';
 import { BarSystem } from './game/BarSystem.js';
 import { ViewModel } from './game/ViewModel.js';
 import { Sfx } from './core/Sfx.js';
@@ -149,6 +151,13 @@ const bar = new BarSystem({
   engine, net, hud, interaction, player, remotes, guests, settings, sfx, vm,
   view: world.bar, device, getWallet: () => shop.wallet,
 });
+// Gece döngüsü (yatakta uyuma) ve ev bahçesi (saksı + tohum)
+const night = new NightCycle({
+  engine, net, hud, interaction, player, house, state, world, device, sfx, settings,
+});
+const botany = new HerbalBotanySystem({
+  engine, net, hud, interaction, house, state, modal, device, sfx, settings, vm,
+});
 // Otel odasında çöp toplarken birinci şahıs toplama animasyonu
 const TRASH_ITEMS = ['paper', 'can', 'box', 'bottle'];
 interaction.onRoomAction = (room, t) => {
@@ -169,6 +178,7 @@ engine.addSystem((dt) => remotes.update(dt));
 engine.addSystem((dt) => trip.update(dt));
 engine.addSystem((dt) => house.update(dt));
 engine.addSystem((dt) => visits.update(dt));
+engine.addSystem((dt) => night.update(dt));
 engine.addSystem(() => bar.update());
 engine.addSystem((dt) => vm.update(dt));
 engine.addSystem((dt) => {
@@ -330,6 +340,8 @@ net.on(EVT.WELCOME, (snap) => {
   visits.applySelf(snap.self);
   house.applySnapshot(snap.house);
   visits.setOwners(snap.house?.owners ?? []);
+  night.reset(snap.selfId);
+  night.onSleepState(snap.sleep);
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
   hud.setRooms(state.rooms);
@@ -429,6 +441,9 @@ net.on(EVT.HOUSE_OWNERS, (list) => {
   visits.setOwners(list);
 });
 net.on(EVT.HOUSE_RING_REQ, (req) => visits.onRingRequest(req));
+// Gece ve bahçe
+net.on(EVT.SLEEP_STATE, (s) => night.onSleepState(s));
+net.on(EVT.HOUSE_ITEM, (s) => botany.onItemState(s));
 net.on(EVT.HOUSE_ACCESS, (a) => visits.onAccess(a));
 
 // Bar De Tulp
@@ -442,7 +457,9 @@ net.on(EVT.PLAYER_BAR, (b) => {
 function updateClock() {
   if (!state.clock) return;
   const minute = state.minuteAt(net.serverNow());
-  hud.setClock(state.clock.day, minute, state.weekend, state.isOpenAt(minute));
+  hud.setClock(state.clock.day, minute, state.weekend, state.isOpenAt(minute), !!state.clock.night);
+  night.onClock(minute);
+  botany.onClock();
 }
 setInterval(updateClock, 1000);
 
@@ -479,5 +496,5 @@ navigator.getBattery?.().then((battery) => {
 
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
-  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits,
+  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany,
 };
