@@ -125,9 +125,22 @@
       </div>
       <p class="note" id="tv-msg"></p>
       <div class="tv-actions">
+        <button type="button" class="primary" id="tv-sound" hidden>🔊 Sesi aç</button>
         <button type="button" class="secondary" id="tv-stop">⏹ Kapat (herkes için)</button>
         <button type="button" class="secondary" id="tv-close">Geri dön</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Bar müdavimleriyle arkadaşlık: diyalog -->
+  <div id="friend-panel" class="overlay" hidden>
+    <div class="card">
+      <h2 id="friend-name">🍹</h2>
+      <p class="sub" id="friend-bio"></p>
+      <div class="friend-bar" aria-hidden="true"><i id="friend-fill"></i></div>
+      <div class="friend-pct" id="friend-pct"></div>
+      <p class="friend-reply" id="friend-reply" aria-live="polite"></p>
+      <div class="friend-actions" id="friend-actions"></div>
     </div>
   </div>
 
@@ -207,6 +220,7 @@
         <li><b>B</b> Bizim Ev'de dekorasyon modu · <b>T</b> TV yayınına katıl / kapat</li>
         <li>Barda <b>E</b>: bardak al · koy · çalkala · servis · topla · yıka · <b>F</b> yiyeceği ısır</li>
         <li>Achterstraat'ta başkasının kapısında <b>E</b>: zili çal · kapıda biri varsa <b>Y</b> / <b>N</b>: içeri al / alma</li>
+        <li>Barda oturan müşterinin önünde <b>E</b>: sohbet et, espri yap, içecek ısmarla · %80 arkadaşlıkta eve davet et</li>
         <li>Gece (23:00) evindeki yatakta <b>E</b>: uyu · saksıda <b>E</b>: tohum ek / hasat et · dekor modunda <b>tekerlek</b>: eşya seç</li>
         <li><b>Esc</b> duraklat</li>
       </ul>

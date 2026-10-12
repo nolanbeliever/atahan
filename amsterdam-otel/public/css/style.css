@@ -757,3 +757,14 @@ body.touch #crosshair { width: 4px; height: 4px; margin: -2px 0 0 -2px; }
 @keyframes sleep-float { 50% { transform: translateY(-8px); } }
 @media (prefers-reduced-motion: reduce) { .sleep-moon { animation: none; } }
 body.sleeping #prompt, body.sleeping #btn-action { visibility: hidden; }
+
+/* ---- Bar müdavimleriyle arkadaşlık ---- */
+.friend-bar { height: 12px; border-radius: 6px; background: rgba(255,255,255,.12); overflow: hidden; margin: 4px 0 4px; }
+.friend-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f3a712, #ff7a1a); transition: width .5s ease; }
+.friend-bar i.max { background: linear-gradient(90deg, #3cc46a, #2bd1a0); }
+.friend-pct { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+.friend-reply { white-space: pre-line; min-height: 2.6em; font-size: 14px; background: rgba(255,255,255,.05); border-radius: 8px; padding: 8px 10px; margin: 0 0 10px; text-align: left; }
+.friend-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.friend-actions button { margin: 0; width: 100%; padding: 10px 8px; font-size: 14px; }
+.friend-actions button:disabled { opacity: .45; cursor: default; }
+@media (max-width: 420px) { .friend-actions { grid-template-columns: 1fr; } }

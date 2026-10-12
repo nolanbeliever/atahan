@@ -129,6 +129,9 @@ export class HouseService {
       if (o.bed === true) this.owners[h.id].bed = true; // hediye yatağı verildi
     }
 
+    // Bar müdavimleriyle arkadaşlıklar: RelationshipService açılışta uygular
+    this.friendsData = data.friends && typeof data.friends === 'object' && !Array.isArray(data.friends) ? data.friends : null;
+
     // Otel durumu (kasa, oyun günü/saati): HotelSimulation açılışta uygular
     this.hotelData = data.hotel && typeof data.hotel === 'object' && !Array.isArray(data.hotel) ? data.hotel : null;
 
@@ -160,6 +163,7 @@ export class HouseService {
       owners,
       wallets: Object.fromEntries(this.wallets),
       hotel: this.sim.hotelState?.(),
+      friends: this.sim.relations?.persisted(),
     };
   }
 

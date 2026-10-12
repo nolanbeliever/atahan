@@ -12,6 +12,7 @@ import { CoffeeShopService } from './CoffeeShopService.js';
 import { HouseService } from '../house/HouseService.js';
 import { BarService } from './BarService.js';
 import { GardenService } from '../house/GardenService.js';
+import { RelationshipService } from './RelationshipService.js';
 
 const PLAYER_COLORS = ['#e4572e', '#29a3a3', '#f3a712', '#6a4c93', '#3a86ff', '#8ac926', '#ff595e', '#c77dff'];
 
@@ -65,6 +66,7 @@ export class HotelSimulation extends EventEmitter {
     this.house = new HouseService(this, house);
     this.bar = new BarService(this);
     this.garden = new GardenService(this, this.house);
+    this.relations = new RelationshipService(this);
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -185,6 +187,7 @@ export class HotelSimulation extends EventEmitter {
 
   /** 23:00: otel kapanır, gece başlar */
   onNightStart(now) {
+    this.relations.onNightStart();
     this.notify('🌙 Saat 23:00 — otel kapandı! Achterstraat\'taki evine git ve yatağında uyu (E). Herkes uyuyunca sabah olur.', 'day');
     this.broadcastClock(now);
     this.house.scheduleSave();
@@ -202,6 +205,7 @@ export class HotelSimulation extends EventEmitter {
     else text += ` ${DAY_NAMES[day]} başladı.`;
     if (slept) text = `☀️ Günaydın! Herkes uyudu, sabah oldu. ${text}`;
     this.notify(text, 'day');
+    this.relations.onNewDay();
     this.out(EVT.ECONOMY, this.economy());
     this.broadcastClock(now);
     this.house.scheduleSave(); // yeni gün kayda geçsin
@@ -245,6 +249,7 @@ export class HotelSimulation extends EventEmitter {
     this.shop.initPlayer(p);
     this.bar.initPlayer(p);
     this.house.initPlayer(p); // oturumluk ev erişimi + kayıtlı cüzdan
+    this.relations.initPlayer(p); // kayıtlı arkadaşlık seviyeleri
     this.players.set(p.id, p);
     if (this.players.size === 1) this.start();
     this.out(EVT.PLAYER_JOIN, this.publicPlayer(p));
@@ -256,6 +261,7 @@ export class HotelSimulation extends EventEmitter {
     const p = this.players.get(id);
     if (!p) return;
     this.bar.removePlayer(p); // elindeki bardaklar rafa döner
+    this.relations.removePlayer(p); // evdeki misafiri gider
     this.house.removePlayer(p); // bekleyen ziller, cüzdan ve ev sahibi kaydı
     this.players.delete(id);
     this.dirtyPlayers.delete(id);
@@ -451,6 +457,10 @@ export class HotelSimulation extends EventEmitter {
 
   gardenAct(playerId, data) { return this.withPlayer(playerId, (p) => this.garden.act(p, data)); }
 
+  // ---- Bar müdavimleriyle arkadaşlık --------------------------------------------
+
+  friendAct(playerId, data) { return this.withPlayer(playerId, (p) => this.relations.act(p, data, this.now())); }
+
   emote(playerId, type) {
     const p = this.players.get(playerId);
     return p ? this.shop.emote(p, type, this.now()) : false;
@@ -470,6 +480,7 @@ export class HotelSimulation extends EventEmitter {
       house: this.house.serialize(),
       bar: this.bar.serialize(),
       sleep: this.sleepState(),
+      visits: this.relations.serializeVisits(),
     };
   }
 }

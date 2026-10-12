@@ -35,6 +35,7 @@ export class CoffeeShopService {
       trip: this.publicTrip(p),
       bar: this.sim.bar?.privateState(p),
       houseId: this.sim.house?.houseIdOf(p) ?? null,
+      friends: this.sim.relations?.privateState(p) ?? null,
     };
   }
 
@@ -121,7 +122,9 @@ export class CoffeeShopService {
   tip(p) {
     const base = TIP_MIN + Math.floor(this.rng() * (TIP_MAX - TIP_MIN + 1));
     const lucky = this.isLucky(p);
-    const amount = Math.round(base * (lucky ? TRIP.TIP_LUCK : 1));
+    // Moral bonusu: dün akşam evinde bir arkadaşınla keyifli vakit geçirdiysen +%20
+    const mood = this.sim.relations?.tipMultiplier(p) ?? 1;
+    const amount = Math.round(base * (lucky ? TRIP.TIP_LUCK : 1) * mood);
     p.wallet += amount;
     this.sendSelf(p);
     return { amount, lucky };

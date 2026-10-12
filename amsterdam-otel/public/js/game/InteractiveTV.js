@@ -3,6 +3,7 @@ import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer
 import { EVT } from '/shared/constants.js';
 import { parseYouTubeId, isYouTubeId } from '/shared/house.js';
 import { SHARED_HOUSE_ID } from '/shared/layout.js';
+import { YouTubeBridge, embedUrl } from './InteractiveTVFix.js';
 
 // iframe'in CSS piksel boyutu. YouTube kaliteyi oynatıcı boyutuna göre seçer:
 // telefonda (ya da "Düşük" kalitede) 640×360 → ~360p, daha az veri ve kod çözme.
@@ -31,10 +32,11 @@ const _px = new THREE.Matrix4();
  *    evin içindeyken görünür. Aynı anda en fazla bir iframe vardır.
  *  - 3D TV ekranında (video yüklenmemişken) videonun küçük resmi görünür
  *    (sunucu vekili üzerinden).
- *  - Sunucu her TV için { videoId, başlangıç zamanı } tutar; evdeki diğer
- *    oyuncular "▶ Katıl" ile aynı saniyeden izler (otomatik sesli oynatma
- *    tarayıcılarca engellendiği için iframe yalnızca bir kullanıcı hareketiyle
- *    — T, panel açılışı, Katıl dokunuşu — oluşturulur).
+ *  - Sunucu her TV için { videoId, başlangıç zamanı } tutar. Eve giren herkesin
+ *    ekranında video KENDİLİĞİNDEN ve hareketli başlar (InteractiveTVFix: önce sessiz
+ *    otomatik oynatma, sonra sesi açma denemesi; tarayıcı izin vermezse "🔇 Sesi aç"
+ *    çipi). Sapma olursa sunucu zamanına sarılır → evdeki herkes aynı anı izler.
+ *    T / çip videoyu yalnızca kendin için kapatır; tekrar T geri açar.
  *  - Evden çıkınca iframe tamamen kaldırılır (ses kesilir, pil/veri harcamaz).
  */
 export class InteractiveTV {
@@ -50,7 +52,8 @@ export class InteractiveTV {
     this.houseId = null; // içinde bulunulan ev (onEnterHouse)
     this.panelItem = null; // panel açıkken hangi TV
     this.current = null; // { itemId, houseId, videoId, title, obj } — yüklü oynatıcı
-    this.offer = null; // { itemId, video } — katılma önerisi
+    this.offer = null; // { itemId, video } — katılma önerisi (yalnızca kendin kapattıysan)
+    this.dismissed = null; // kendi ekranında kapattığın yayın (aynı yayın kendiliğinden açılmasın)
     this.thumbMats = new Map(); // videoId → material
     this.frame = device?.phone || settings?.quality === 'low' ? FRAME_SMALL : FRAME_LARGE;
 
@@ -62,8 +65,13 @@ export class InteractiveTV {
       now: $('tv-now'),
       play: $('tv-play'),
       stop: $('tv-stop'),
+      sound: $('tv-sound'),
       chip: document.createElement('button'),
     };
+    this.el.sound?.addEventListener('click', () => {
+      this.current?.bridge.unmuteFromGesture();
+      this.renderUi();
+    });
 
     // "▶ Katıl (T)" / "📺 … · T: kapat" çipi (HUD katmanında, tıklanabilir)
     const chip = this.el.chip;
@@ -85,6 +93,18 @@ export class InteractiveTV {
       if (e.key !== 'Escape') e.stopPropagation();
       if (e.key === 'Enter') this.play();
     });
+    // Yapıştırılan link anında gömme biçimine çevrilir (youtube.com/watch, youtu.be, shorts, music…)
+    this.el.link.addEventListener('input', () => {
+      const v = this.el.link.value.trim();
+      if (!v) {
+        this.el.msg.textContent = '';
+        return;
+      }
+      const id = parseYouTubeId(v);
+      this.el.msg.textContent = id
+        ? `✓ Oynatılacak: youtube.com/embed/${id} — Enter ya da ▶ Oynat`
+        : 'Bu bir YouTube linki gibi görünmüyor.';
+    });
 
     // CSS3D katmanı: ana sahneden ayrı, yalnızca iframe'i taşıyan küçük bir sahne
     const root = document.createElement('div');
@@ -105,18 +125,38 @@ export class InteractiveTV {
    */
   command(cmd) {
     if (cmd !== 'tv') return false;
-    if (this.current) {
+    if (this.current?.bridge.blocked) {
+      // Tarayıcı sesi engelledi: bu tuş / dokunuş kullanıcı hareketi → sesi aç
+      this.current.bridge.unmuteFromGesture();
+    } else if (this.current) {
+      this.dismissed = this.keyOf(this.current.itemId, this.current.video);
+      this.offer = { itemId: this.current.itemId, video: this.current.video };
       this.unload();
-      this.offer = null;
     } else {
       // Kapatılan yayına T ile geri dönülebilsin: öneri yoksa evde çalan en son TV
       const o = this.inside ? (this.offer || this.latestPlaying()) : null;
+      this.dismissed = null;
       if (o) this.load(o.itemId, o.video);
       else if (this.inside) this.hud.toast('Bu evde açık bir TV yok. Televizyona bakıp E ile YouTube aç.', 'info');
       else this.hud.toast('Açık bir TV yok. Bir evdeki televizyona bakıp E ile YouTube aç.', 'info');
     }
     this.renderUi();
     return true;
+  }
+
+  keyOf(itemId, video) {
+    return video ? `${itemId}:${video.id}:${video.startedAt}` : null;
+  }
+
+  /** Evdeki yayını kendiliğinden aç (kendin kapatmadıysan) */
+  autoLoad(o) {
+    if (!o) return;
+    if (this.dismissed === this.keyOf(o.itemId, o.video)) {
+      this.offer = o;
+      return;
+    }
+    if (this.current?.itemId === o.itemId && this.current.videoId === o.video.id) return;
+    this.load(o.itemId, o.video);
   }
 
   /** Evde en son açılan video { itemId, video } ya da null */
@@ -213,12 +253,16 @@ export class InteractiveTV {
       if (this.offer?.itemId === item.id) this.offer = null;
     } else if (this.current?.itemId === item.id) {
       if (this.current.videoId !== v.id) this.load(item.id, v);
-      else this.current.title = v.title;
-    } else if (this.panelItem === item.id) {
-      this.load(item.id, v);
+      else {
+        this.current.title = v.title;
+        this.current.video = v;
+      }
     } else {
-      this.offer = { itemId: item.id, video: v };
-      this.hud.toast(`📺 ${v.by || 'Biri'} TV'de bir şey açtı: ${v.title || v.id}`, 'info');
+      // Yeni yayın: herkesin ekranında kendiliğinden başlar
+      this.dismissed = null;
+      this.offer = null;
+      this.load(item.id, v);
+      if (this.panelItem !== item.id) this.hud.toast(`📺 ${v.by || 'Biri'} TV'de bir şey açtı: ${v.title || v.id}`, 'info');
     }
     this.renderUi();
   }
@@ -240,7 +284,8 @@ export class InteractiveTV {
     if (this.current && this.current.houseId !== houseId) this.unload();
     this.inside = true;
     this.houseId = houseId ?? null;
-    this.offer = this.current ? null : this.latestPlaying(tvs ?? this.house?.tvItems(this.houseId) ?? []);
+    this.offer = null;
+    if (!this.current) this.autoLoad(this.latestPlaying(tvs ?? this.house?.tvItems(this.houseId) ?? []));
     this.renderUi();
   }
 
@@ -264,9 +309,10 @@ export class InteractiveTV {
       if (!it?.video) this.unload();
       else if (it.video.id !== this.current.videoId) this.load(it.id, it.video);
     }
-    this.offer = this.inside && !this.current
-      ? this.latestPlaying([...items.values()].filter((it) => it.type === 'tv' && this.houseOf(it) === this.houseId))
-      : null;
+    this.offer = null;
+    if (this.inside && !this.current) {
+      this.autoLoad(this.latestPlaying([...items.values()].filter((it) => it.type === 'tv' && this.houseOf(it) === this.houseId)));
+    }
     this.renderUi();
   }
 
@@ -283,14 +329,11 @@ export class InteractiveTV {
 
   load(itemId, video) {
     if (!isYouTubeId(video.id)) return;
-    const start = Math.max(0, Math.floor((this.net.serverNow() - (video.startedAt || 0)) / 1000));
-    const params = new URLSearchParams({
-      autoplay: '1', playsinline: '1', rel: '0', modestbranding: '1', start: String(start),
-      // iframe tıklanmaz (pointer-events: none): kontrol çubuğu / klavye / tam ekran gereksiz
-      controls: '0', disablekb: '1', fs: '0', iv_load_policy: '3',
-    });
+    const startedAt = video.startedAt || this.net.serverNow();
+    const expectedTime = () => Math.max(0, (this.net.serverNow() - startedAt) / 1000);
     const iframe = document.createElement('iframe');
-    iframe.src = `https://www.youtube-nocookie.com/embed/${video.id}?${params}`;
+    // iframe tıklanmaz (pointer-events: none): kontrol çubuğu / klavye / tam ekran yok
+    iframe.src = embedUrl(video.id, expectedTime());
     iframe.title = 'YouTube oynatıcı';
     iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
     iframe.referrerPolicy = 'strict-origin-when-cross-origin'; // YouTube gömme için gerekli
@@ -309,7 +352,12 @@ export class InteractiveTV {
     this.cssScene.add(obj);
     const item = this.house?.items.get(itemId);
     const houseId = item ? this.houseOf(item) : this.houseId;
-    this.current = { itemId, houseId, videoId: video.id, title: video.title, obj };
+    const bridge = new YouTubeBridge(iframe, {
+      expectedTime,
+      wantSound: () => this.settings?.sound !== false,
+      onChange: () => this.renderUi(),
+    });
+    this.current = { itemId, houseId, videoId: video.id, title: video.title, video, obj, bridge };
     if (this.offer?.itemId === itemId) this.offer = null;
     // Hemen DOM'a eklensin (kullanıcı hareketi anında; motor duraklatılmış olabilir: panel)
     this.renderCss();
@@ -320,6 +368,7 @@ export class InteractiveTV {
     const cur = this.current;
     this.current = null;
     if (!cur) return;
+    cur.bridge.dispose();
     // 'removed' olayı elemanı DOM'dan söker → iframe kapanır, ses kesilir
     this.cssScene.remove(cur.obj);
     cur.obj.element.remove();
@@ -363,9 +412,14 @@ export class InteractiveTV {
     const touch = this.device?.touch;
     const showOffer = !this.current && !!this.offer && this.inside;
     const showNow = !!this.current && this.panelItem === null;
+    const blocked = !!this.current?.bridge.blocked;
+    if (this.el.sound) this.el.sound.hidden = !blocked;
     chip.hidden = !(showOffer || showNow);
-    chip.classList.toggle('join', showOffer);
-    if (showOffer) {
+    chip.classList.toggle('join', showOffer || (showNow && blocked));
+    if (showNow && blocked) {
+      chip.textContent = touch ? '🔇 Sesi aç' : '🔇 Sesi aç (T)';
+      chip.title = 'Tarayıcı sesli oynatmayı engelledi — dokun, ses açılsın';
+    } else if (showOffer) {
       chip.textContent = `${touch ? '▶ Katıl' : '▶ Katıl (T)'} — ${this.offer.video.title || 'TV açık'}`;
       chip.title = 'Evdeki TV yayınına katıl';
     } else if (showNow) {

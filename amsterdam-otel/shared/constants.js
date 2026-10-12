@@ -93,6 +93,9 @@ export const EVT = Object.freeze({
   // Ev bahçesi (saksı + tohum)
   GARDEN: 'garden', // istemci → sunucu (ack): { act: 'plant' | 'harvest', itemId, kind? }
   HOUSE_ITEM: 'house:item', // sunucu → herkes: { itemId, plant } (saksı durumu)
+  // Bar müdavimleriyle arkadaşlık
+  FRIEND_ACT: 'friend:act', // istemci → sunucu (ack): { act, customer?, topic?, drink? }
+  FRIEND_VISITS: 'friend:visits', // sunucu → herkes: evlerdeki misafir müdavimler
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

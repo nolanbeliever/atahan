@@ -156,6 +156,10 @@ export function attachSocketHandlers(io, sim) {
     on(EVT.GARDEN, (data, ack) => {
       if (houseGuard(ack)) reply(ack, sim.gardenAct(player.id, data));
     });
+    // Bar müdavimleriyle arkadaşlık (tipler RelationshipService'te doğrulanır)
+    on(EVT.FRIEND_ACT, (data, ack) => {
+      if (barGuard(ack)) reply(ack, sim.friendAct(player.id, data));
+    });
 
     on('disconnect', () => {
       if (player) {

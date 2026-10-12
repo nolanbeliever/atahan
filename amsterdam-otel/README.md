@@ -144,10 +144,14 @@ hafta sonları otel kapalıyken takılmak için ideal.
   şeride bakıp **X**.
 - **LED partisi:** kapının yanındaki anahtara bakıp **E** → tavan ışığı kapanır, oda kararır, LED şeritler duvara renkli ışık
   vurur. Işık durumu herkes için ortaktır.
-- **Televizyon / YouTube:** TV'ye bakıp **E** → YouTube linkini yapıştır → **▶ Oynat**. Video YouTube'un resmi gömülü oynatıcısıyla
-  (youtube-nocookie.com) çalar ve Three.js `CSS3DRenderer` ile doğrudan TV'nin ekranında görünür (panel alttan açılır, TV
-  görünür kalır). Evdeki diğer oyuncular **▶ Katıl** (masaüstünde **T**) ile aynı saniyeden izler; **T** kendi ekranında
-  kapatır, tekrar **T** geri getirir. Evden çıkınca oynatıcı kapanır. Bağlantı koparsa geri gelince TV durumu sunucuyla
+- **Televizyon / YouTube:** TV'ye bakıp **E** → YouTube linkini yapıştır (watch, youtu.be, shorts, music linkleri
+  yazarken gömme biçimine çevrilir) → **▶ Oynat**. Video YouTube'un resmi gömülü oynatıcısıyla (youtube-nocookie.com)
+  çalar ve Three.js `CSS3DRenderer` ile doğrudan TV'nin ekranında hareketli oynar. Evdeki herkesin ekranında video
+  **kendiliğinden** başlar: önce sessiz başlar (sessiz otomatik oynatma iPad/iPhone dahil her tarayıcıda serbesttir),
+  sonra sesi açmayı dener; tarayıcı izin vermezse **🔇 Sesi aç** çipi çıkar (masaüstünde **T**). Oynatıcı sunucudaki
+  başlangıç zamanına göre 4 sn'de bir denetlenir; 2.5 sn'den fazla kayarsa o ana sarılır → herkes aynı anı izler.
+  **T** videoyu kendi ekranında kapatır, tekrar **T** geri getirir. (YouTube videosu çapraz kökenli bir iframe'de
+  oynadığı için WebGL dokusuna — `VideoTexture` — çizilemez; CSS3D tek yoldur.) Evden çıkınca oynatıcı kapanır. Bağlantı koparsa geri gelince TV durumu sunucuyla
   eşitlenir. Not: video katmanı 3D sahnenin üstünde olduğu için TV'nin önünden geçen biri videonun arkasında kalır.
   Sahibi başka sitelerde oynatılmaya izin vermeyen videolar açılmaz (sunucu YouTube oEmbed ile kontrol eder).
 - **Kalıcılık:** ev `data/house.json` dosyasına kaydedilir (`HOUSE_FILE` ile değiştirilebilir). Render'ın ücretsiz planında
@@ -200,6 +204,22 @@ otel kapalıyken de müşteri gelir.
   sabır çubukları CSS geçişiyle akar (kare başı DOM yazımı yok). Ayarlardaki "sallanma/dalgalanmayı azalt" el
   animasyonlarının genliğini de kısar.
 
+## Bar müdavimleriyle arkadaşlık
+
+Bar De Tulp'un müşterileri 12 kişilik sabit bir müdavim kadrosundan gelir (Sanne, Daan, Emma, Lars…); her birinin
+kısa bir biyografisi, sevdiği / sıkıldığı konular, espri anlayışı ve en sevdiği içeceği vardır.
+
+- Oturan bir müşterinin önüne (tezgâhın müşteri tarafı) gelip **E** → diyalog paneli:
+  - **💬 Sohbet et:** üç konudan birini seç. En sevdiği konu +15, sevdiği +8, sıkıldığı −6 (biyografi ipucu verir).
+  - **😄 Espri yap:** esprilere bayılan +12 · bazen gülen +5 ya da 0 · espriden hoşlanmayan −4.
+  - **🥤 İçecek ısmarla:** cüzdandan öde; en sevdiği içecek +16, diğerleri +7.
+  - Her eylem müşterinin her ziyaretinde bir kez yapılabilir. Seviye kişi başına %0–100'dür ve kalıcıdır.
+- **%80'de 🏠 Eve davet et:** müdavim bardan kalkar ve Achterstraat'taki evinde belirir (herkes görür).
+  Evde yanına gidip **E** → **💬 Sohbet et**, **📺 Birlikte TV izle** (TV'de bir video açıkken), **👋 Uğurla**.
+- Misafir 23:00'te (otel kapanınca) "iyi geceler" deyip gider. Ziyaret keyifli geçtiyse (sohbet ya da TV)
+  arkadaşlık +5 artar ve ertesi gün **moral bonusu** gelir: oda bahşişleri +%20.
+- Sunucu doğrular: mesafe, seviye, para, ev sahipliği; aynı anda tek misafir, bir müdavim tek eve.
+
 ## Coffee Shop ve Trip Sistemi (18+)
 
 > Kurgusal içerik. Bu bölüm uyuşturucu kullanımını ve etkilerini tasvir ettiği için oyunun yaş sınırını yükseltir
@@ -245,6 +265,7 @@ amsterdam-otel/
 │   ├── net/socketHandlers.js    # Socket olayları, hız sınırlama, doğrulama
 │   └── game/
 │       ├── HotelSimulation.js   # Simülasyon (ağdan bağımsız, test edilebilir)
+│       ├── RelationshipService.js # Müdavimlerle arkadaşlık: diyalog etkileri, eve davet, moral bonusu
 │       ├── GameClock.js         # Gün döngüsü: hafta içi açık / hafta sonu kapalı, gece (23:00–07:00)
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
 │       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları
@@ -254,6 +275,7 @@ amsterdam-otel/
 ├── shared/                      # Sunucu + istemci ortak kodu (ESM)
 │   ├── constants.js             # Durumlar, olay adları, fiyat, saatler, ürünler, trip/slot
 │   ├── layout.js                # Otel + coffee shop + ev yerleşimi: duvarlar, odalar, rota noktaları
+│   ├── friends.js               # Müdavimler, konular, espriler, arkadaşlık kuralları
 │   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları (duvar slotları, tavan), bitkiler, YouTube link ayrıştırma
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
@@ -270,6 +292,8 @@ amsterdam-otel/
 │       │   ├── HouseSystem.js       # Evler: birleştirilmiş mobilya, dekorasyon modu (yetkili), ışık, kapı
 │       │   ├── HouseVisitingSystem.js # Achterstraat: kapılar, kapı zili, misafir erişimi, ışınlama
 │       │   ├── InteractiveTV.js     # YouTube paneli, CSS3DRenderer ile TV ekranında video, senkron katılım
+│       │   ├── InteractiveTVFix.js  # YouTube oynatıcı köprüsü: sessiz başlat → sesi aç, sapma düzeltme
+│       │   ├── NpcRelationshipSystem.js # Bar müdavimleriyle diyalog, arkadaşlık çubuğu, evdeki misafir
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
 │       │   ├── ViewModel.js         # Birinci şahıs eller (dökme, çalkalama, ısırma, toplama…)
 │       │   ├── NightCycle.js        # Gece görünümü, yatakta uyuma, uyku ekranı
