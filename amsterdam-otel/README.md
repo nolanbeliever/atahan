@@ -271,6 +271,26 @@ Herkes tüm cepheleri görür; yalnızca ev sahibi kendi cephesini düzenler (su
   Neon parıltısı statiktir (kare başı animasyon yok); gece yalnızca parıltı malzemesinin opaklığı artar. Mod kapalıyken
   ve sprey sürmezken kare başına iş yoktur.
 
+## Yeraltı Kart Kulübü — blackjack, poker, zar (18+, yalnızca oyun parası)
+
+Steeg'de (coffee shop'un doğusundaki ara sokak), barın arkasındaki tabelasız kapı — önünde bir kapı görevlisi ve
+küçük pirinç "♣" levha. İçeride loş, perdeli bir oda: yeşil çuha masalar, sarkıt lambalar, raf. Masaya yaklaşıp **E**
+ile oturulur; ilk seferde coffee shop'taki **18+ onayı** istenir (aynı onay ikisinde de geçerli). Gerçek para yoktur:
+bahisler oyun içi euro ile oynanır.
+
+- **Blackjack** (krupiyeye karşı, 4 koltuk): €2–100 bahis, 12 sn bahis süresi, sıra başına 15 sn (süre dolarsa
+  durur). Kart Çek / Dur / İkiye Katla; krupiye 17'de durur. Blackjack 3:2, kazanç 1:1, eşitlikte bahis geri.
+- **Poker** (Texas Hold'em, sabit limit, 4 koltuk): boş koltuklarda NPC oyuncular oturur, birden çok oyuncu aynı
+  masada oynayabilir. Körler €1/€2, bahis €2/€4, sokak başına en fazla 3 artırma; masaya €20 fişle oturulur,
+  kalkınca fişler bozdurulur. Yan pot ve bölünmüş pot desteklenir; kimsenin kapalı kartı showdown'dan önce
+  başkasına gönderilmez.
+- **Zar düellosu:** oturanlar (ve 1–2 NPC) pota pay koyar, herkes iki zar atar, en yüksek toplam potun tamamını alır;
+  beraberlikte yalnızca berabere kalanlar yeniden atar.
+- **Kaynak:** her bahis 🎒 **cüzdandan** ya da 🏦 **otel kasasından** (kasada en az €500 varsa, el başına en fazla
+  €50) — kazanç aynı kaynağa döner.
+- Odadan çıkan masadan kalkar; blackjack'te kart dağıtıldıktan sonra kalkan bahsini kaybeder, pokerde kalkan
+  pas geçmiş sayılır. Masada insan oyuncu kalmayınca masa sıfırlanır (zamanlayıcı çalışmaz).
+
 ## Bar De Tulp — alkolsüz bar, barmenlik ve yiyecekler
 
 Lobinin doğu duvarındaki kapıdan girilen küçük bar (coffee shop'un arkasında). Her gün 10:00–23:00 açık; hafta sonu
@@ -366,8 +386,9 @@ amsterdam-otel/
 │       ├── WorkerService.js     # Temizlikçi NPC'ler: iş seçimi, süreli işler, seviye, bahşiş kasaya
 │       ├── InspectionService.js # Belediye denetimi: planlama, geri sayım, tüp / şurup kontrolü, sonuç
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
+│       ├── CasinoService.js     # Kart Kulübü: blackjack, poker (NPC'li), zar düellosu; cüzdan / kasa bahisleri
 │       └── CoffeeShopService.js # Cüzdan, envanter, trip zarı, slot, bahşiş
-│   └── house/                   # Evler: HouseService (yatak/uyku kontrolü dahil), GardenService (saksı, ekim, hasat),
+│   └── house/                   # Evler: HouseService (yatak/uyku kontrolü dahil), GardenService (saksı, ekim, hasat), ExteriorService (dış cephe),
 │                                #   FileStore / PgStore (kayıt), YouTube oEmbed + küçük resim vekili
 ├── shared/                      # Sunucu + istemci ortak kodu (ESM)
 │   ├── constants.js             # Durumlar, olay adları, fiyat, saatler, ürünler, trip/slot
@@ -377,6 +398,8 @@ amsterdam-otel/
 │   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri, denetim kuralları
+│   ├── casino.js                # Deste, blackjack puanı, poker el değerlendirici, masa kuralları
+│   ├── exterior.js              # Dış cephe kataloğu (graffiti, neon, balkon) ve yerleşim doğrulaması
 │   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları (duvar slotları, tavan), bitkiler, YouTube link ayrıştırma
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
@@ -401,6 +424,8 @@ amsterdam-otel/
 │       │   ├── ReceptionPC.js       # Resepsiyon bilgisayarı paneli, asansör, yıldız tabelası, kat filtresi
 │       │   ├── HotelWorkerSystem.js # Temizlikçi görünümü (kova/paspas) ve Çalışanlar sekmesi
 │       │   ├── HotelInspectionSystem.js # Denetim bandı, yangın tüpleri, şurup lekesi, plaketler
+│       │   ├── UndergroundCasino.js # Kart Kulübü: kapı / koltuk etkileşimi, masa panelleri, NPC'ler
+│       │   ├── ExteriorCustomization.js # Ev cephesi: sprey graffiti (nişan + önizleme), neon tabela, balkon
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
 │       │   ├── ViewModel.js         # Birinci şahıs eller (dökme, çalkalama, ısırma, toplama…)
 │       │   ├── NightCycle.js        # Gece görünümü, yatakta uyuma, uyku ekranı
