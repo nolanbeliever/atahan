@@ -15,6 +15,7 @@ import { GardenService } from '../house/GardenService.js';
 import { RelationshipService } from './RelationshipService.js';
 import { VehicleService } from './VehicleService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
+import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
 const PLAYER_COLORS = ['#e4572e', '#29a3a3', '#f3a712', '#6a4c93', '#3a86ff', '#8ac926', '#ff595e', '#c77dff'];
 
@@ -82,6 +83,7 @@ export class HotelSimulation extends EventEmitter {
     this.lastCheckinOpen = this.clock.checkinOpen;
     this.lastNight = this.clock.night;
     this.dirtyPlayers = new Set();
+    this.chatLog = []; // son sohbet mesajları (yeni bağlanana gönderilir; kaydedilmez)
   }
 
   // ---- Çıkış (yayın) yardımcıları --------------------------------------
@@ -464,6 +466,29 @@ export class HotelSimulation extends EventEmitter {
     return { ok: true, finished: !!res.finished };
   }
 
+  // ---- Sohbet -------------------------------------------------------------------
+
+  /**
+   * Oyuncu mesajı: temizlenir, kaba kelimeler yıldızlanır, aynı mesajın art arda tekrarı
+   * engellenir; herkese yayınlanır ve son CHAT_RULES.HISTORY mesaj saklanır.
+   */
+  chat(playerId, raw) {
+    const p = this.players.get(playerId);
+    if (!p) return { ok: false };
+    const text = cleanChat(raw);
+    if (!text) return { ok: false, error: 'Boş mesaj gönderilemez.' };
+    const now = this.now();
+    if (p.lastChat && p.lastChat.text === text && now - p.lastChat.t < CHAT_RULES.REPEAT_MS) {
+      return { ok: false, error: 'Aynı mesajı tekrar tekrar gönderme.' };
+    }
+    p.lastChat = { text, t: now };
+    const msg = { id: p.id, name: p.name, color: p.color, text, t: now };
+    this.chatLog.push(msg);
+    if (this.chatLog.length > CHAT_RULES.HISTORY) this.chatLog.shift();
+    this.out(EVT.CHAT, msg);
+    return { ok: true, text };
+  }
+
   // ---- Şehir içi ulaşım ----------------------------------------------------------
 
   vehicleAct(playerId, data) { return this.withPlayer(playerId, (p) => this.vehicles.act(p, data)); }
@@ -545,6 +570,7 @@ export class HotelSimulation extends EventEmitter {
       sleep: this.sleepState(),
       visits: this.relations.serializeVisits(),
       vehicles: this.vehicles.serialize(),
+      chat: this.chatLog.slice(),
     };
   }
 }

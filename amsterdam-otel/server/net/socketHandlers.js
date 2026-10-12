@@ -53,6 +53,7 @@ export function attachSocketHandlers(io, sim) {
     const allowShop = rateLimiter(4, 6);
     const allowHouse = rateLimiter(6, 10);
     const allowBar = rateLimiter(8, 12);
+    const allowChat = rateLimiter(0.7, 4); // en fazla 4 mesajlık seri, sonra ~1.4 sn'de bir
     const reply = (ack, res) => { if (typeof ack === 'function') ack(res); };
 
     // Saat senkronu: istemci gecikmeyi ölçüp sunucu saatine hizalanır
@@ -155,6 +156,12 @@ export function attachSocketHandlers(io, sim) {
     });
     on(EVT.GARDEN, (data, ack) => {
       if (houseGuard(ack)) reply(ack, sim.gardenAct(player.id, data));
+    });
+    // Sohbet (metin shared/chat.js ile temizlenir)
+    on(EVT.CHAT_SEND, (data, ack) => {
+      if (!player) return reply(ack, { ok: false });
+      if (!allowChat()) return reply(ack, { ok: false, error: 'Çok hızlı yazıyorsun — biraz bekle.' });
+      reply(ack, sim.chat(player.id, data?.text));
     });
     // Şehir içi ulaşım ve oda tamiratı (tipler servislerde doğrulanır)
     on(EVT.VEHICLE_ACT, (data, ack) => {

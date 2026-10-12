@@ -85,6 +85,16 @@
     </div>
     <div id="fps" hidden></div>
     <div id="vehicle-hud" class="panel" hidden></div>
+
+    <!-- Sohbet: son mesajlar + yazma kutusu (Enter / 💬) -->
+    <div id="chat">
+      <div id="chat-log" aria-live="polite"></div>
+      <form id="chat-form" hidden autocomplete="off">
+        <input id="chat-input" type="text" enterkeyhint="send" placeholder="Mesaj yaz… (Enter gönder, Esc kapat)" aria-label="Sohbet mesajı">
+        <button type="submit" class="primary">Gönder</button>
+      </form>
+    </div>
+    <button id="btn-chat" type="button" aria-label="Sohbet">💬</button>
     <button id="btn-settings" type="button" aria-label="Ayarlar">⚙</button>
     <button id="btn-build" type="button" hidden>🛠 Dekor</button>
 
@@ -248,6 +258,7 @@
         <li>Kirli odada leke, ampul, musluk ve sigorta arızalarına <b>E</b>: mini oyun (ovala, sök-tak, zamanla sık, şalter kaldır)</li>
         <li>Barda oturan müşterinin önünde <b>E</b>: sohbet et, espri yap, içecek ısmarla · %80 arkadaşlıkta eve davet et</li>
         <li>Gece (23:00) evindeki yatakta <b>E</b>: uyu · saksıda <b>E</b>: tohum ek / hasat et · dekor modunda <b>tekerlek</b>: eşya seç</li>
+        <li><b>Enter</b> sohbet: yaz, Enter ile gönder (Esc kapatır)</li>
         <li><b>Esc</b> duraklat</li>
       </ul>
       <ul class="help touch-only">
@@ -255,6 +266,7 @@
         <li><b>Sağ taraf</b>: sürükleyerek etrafa bak</li>
         <li><b>Aksiyon</b> butonu: yatak düzelt / çöp topla / barda koy, çalkala, servis et / ısır</li>
         <li>Gece evindeki yatakta <b>Aksiyon</b>: uyu · saksıda: tohum ek / hasat et</li>
+        <li><b>💬</b> butonu: sohbet</li>
       </ul>
       <p class="goal">Misafirler resepsiyona gelir ve boş odaya yerleşir. Çıkış yapınca oda <b>Kirli</b> olur:
         içeri gir, yatağı düzelt, çöpleri topla. Hafta içi otel açık, hafta sonu kapalıdır.

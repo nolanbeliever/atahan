@@ -80,6 +80,7 @@ eski kaydın üstüne yazmasın diye başlamaz (Render yeniden dener). `DATABASE
 | Araca bakıp **E**: bin (sahibi sürer, arkadaşı arkaya biner) · sürerken **W/S** gaz-fren, **A/D** direksiyon, **E** in ve park et | **Bin** / **Arkaya** / **Park** · joystick: gaz ve direksiyon |
 | Kirli odada arızaya bakıp **E**: mini oyun (ovala, basılı tut, zamanla, şalter kaldır) | **Aksiyon** · mini oyun dokunarak |
 | Achterstraat'ta başkasının kapısında **E**: zili çal · ev sahibiysen **Y** / **N**: içeri al / alma | **Zil** butonu · istemdeki **Evet** / **Hayır** |
+| **Enter**: sohbet (yaz, Enter gönder, Esc kapat) | **💬** butonu: sohbet |
 | **Esc**: duraklat / paneli kapat | ⚙ butonu: ayarlar |
 
 Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir ve ekranın altında ipucu çıkar.
@@ -123,6 +124,15 @@ Misafir çıkınca odada dağınık yatak ve çöplere ek olarak 1–2 arıza ç
   bakarsın. Sürücü park edince iner, aracın yanına bırakılırsın.
 - **Park:** sokakta, steeg'de ya da Achterstraat'ta istediğin yerde **E** → inip park edersin (otelin ve evlerin
   önünde P tabelaları var). Araçlar ve son park yerleri hesabına bağlı olarak kaydedilir.
+
+## Sohbet
+
+- Masaüstünde **Enter**, mobilde **💬** sohbet kutusunu açar; yaz ve Enter / **Gönder**. Yazarken oyun tuşları
+  çalışmaz; Esc ya da boş Enter kapatır. Mobilde kutu klavyenin kapatmaması için ekranın üstüne çıkar.
+- Son mesajlar sol altta görünür, 12 sn sonra solar; yeni bağlanan son 30 mesajı görür.
+- Yazanın başının üstünde 6 sn konuşma balonu çıkar.
+- Sunucu mesajları temizler (en fazla 160 karakter), kaba kelimeleri yıldızlar (Türkçe + İngilizce),
+  hızlı mesaj serisini ve aynı mesajın tekrarını engeller. Mesajlar kaydedilmez.
 
 ## Gece döngüsü — eve dön, yatağında uyu
 
@@ -311,6 +321,7 @@ amsterdam-otel/
 │   ├── layout.js                # Otel + coffee shop + ev yerleşimi: duvarlar, odalar, rota noktaları
 │   ├── friends.js               # Müdavimler, konular, espriler, arkadaşlık kuralları
 │   ├── vehicles.js              # Araç türleri, hız / ivme, yolcu koltuğu
+│   ├── chat.js                  # Sohbet mesajı temizleme ve kaba kelime filtresi
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları (duvar slotları, tavan), bitkiler, YouTube link ayrıştırma
 │   └── path.js                  # Deterministik rota örnekleme
@@ -330,6 +341,7 @@ amsterdam-otel/
 │       │   ├── InteractiveTV.js     # YouTube paneli, CSS3DRenderer ile TV ekranında video, senkron katılım
 │       │   ├── InteractiveTVFix.js  # YouTube oynatıcı köprüsü: sessiz başlat → sesi aç, sapma düzeltme
 │       │   ├── NpcRelationshipSystem.js # Bar müdavimleriyle diyalog, arkadaşlık çubuğu, evdeki misafir
+│       │   ├── ChatSystem.js        # Sohbet kutusu, mesaj geçmişi, konuşma balonları
 │       │   ├── CityVehicleSystem.js # Araç modelleri, FPV sürüş, arkaya binme, büfe, hız göstergesi
 │       │   ├── HotelMaintenanceSystem.js # Arıza görselleri ve 4 mini oyun (leke, ampul, musluk, sigorta)
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları

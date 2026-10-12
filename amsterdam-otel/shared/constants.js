@@ -102,6 +102,9 @@ export const EVT = Object.freeze({
   VEHICLE_SEAT: 'vehicle:seat', // sunucu → yolcu: { seat: null, x, z } (sürücü inince)
   // Oda tamiratı (mini oyunlar)
   MAINT: 'maint', // istemci → sunucu (ack): { act: 'begin' | 'finish', roomId, issue }
+  // Oyuncular arası sohbet
+  CHAT_SEND: 'chat:send', // istemci → sunucu (ack): { text }
+  CHAT: 'chat', // sunucu → herkes: { id, name, color, text, t }
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

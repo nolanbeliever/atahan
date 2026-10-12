@@ -390,7 +390,10 @@ export class CityVehicleSystem {
     }
     const v = this.byId.get(this.seat?.id);
     const label = v?.driver != null ? this.remotes.get(v.driver)?.label : null;
-    if (label === this.hiddenLabel) return;
+    if (label === this.hiddenLabel) {
+      if (label) label.visible = false; // sohbet balonu kalkınca etiket geri gelmiş olabilir
+      return;
+    }
     if (this.hiddenLabel) this.hiddenLabel.visible = true;
     this.hiddenLabel = label ?? null;
     if (label) label.visible = false;

@@ -24,6 +24,7 @@ import { HerbalBotanySystem } from './game/HerbalBotanySystem.js';
 import { NpcRelationshipSystem } from './game/NpcRelationshipSystem.js';
 import { CityVehicleSystem } from './game/CityVehicleSystem.js';
 import { HotelMaintenanceSystem } from './game/HotelMaintenanceSystem.js';
+import { ChatSystem } from './game/ChatSystem.js';
 import { BarSystem } from './game/BarSystem.js';
 import { ViewModel } from './game/ViewModel.js';
 import { Sfx } from './core/Sfx.js';
@@ -147,7 +148,7 @@ const visits = new HouseVisitingSystem({
 });
 // Dekorasyon modu komutları (B, R, C, X, 1-9) coffee shop'tan ÖNCE işlenir
 // Bar 'consume' (F) komutunu elde yiyecek varsa sahiplenir (coffee shop'a gitmez)
-input.onCommand((cmd) => house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd));
+input.onCommand((cmd) => house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd));
 const shop = new CoffeeShopSystem({ net, hud, interaction, input, modal, device });
 // Shop'tan SONRA: boşta ipucu zincirini (idleHint) sarar
 const bar = new BarSystem({
@@ -172,6 +173,8 @@ const vehicles = new CityVehicleSystem({
 const maint = new HotelMaintenanceSystem({
   engine, net, hud, interaction, player, collision, modal, device, settings, sfx, vm,
 });
+// Oyuncular arası sohbet (Enter / 💬) ve konuşma balonları
+const chat = new ChatSystem({ engine, net, hud, input, remotes, device, settings, sfx });
 // Otel odasında çöp toplarken birinci şahıs toplama animasyonu
 const TRASH_ITEMS = ['paper', 'can', 'box', 'bottle'];
 interaction.onRoomAction = (room, t) => {
@@ -372,6 +375,8 @@ net.on(EVT.WELCOME, (snap) => {
   vehicles.applySelf(snap.self?.vehicles);
   vehicles.setVehicles(snap.vehicles);
   maint.onRooms(snap.rooms);
+  chat.reset(snap.selfId);
+  chat.setHistory(snap.chat);
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
   hud.setRooms(state.rooms);
@@ -434,6 +439,7 @@ net.on(EVT.PLAYER_JOIN, (p) => {
   engine.requestRender();
 });
 net.on(EVT.PLAYER_LEAVE, (id) => {
+  chat.removeBubble(id);
   bar.removeRemote(id);
   remotes.remove(id);
   engine.requestRender();
@@ -480,6 +486,7 @@ net.on(EVT.HOUSE_ITEM, (s) => botany.onItemState(s));
 net.on(EVT.FRIEND_VISITS, (list) => friends.setVisits(list));
 net.on(EVT.VEHICLES, (list) => vehicles.setVehicles(list));
 net.on(EVT.VEHICLE_SEAT, (s) => vehicles.onSeat(s));
+net.on(EVT.CHAT, (m) => chat.onMessage(m));
 net.on(EVT.HOUSE_ACCESS, (a) => visits.onAccess(a));
 
 // Bar De Tulp
@@ -532,5 +539,5 @@ navigator.getBattery?.().then((battery) => {
 
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
-  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint,
+  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat,
 };
