@@ -131,8 +131,9 @@ Misafir çıkınca odada dağınık yatak ve çöplere ek olarak 1–2 arıza ç
   çalışmaz; Esc ya da boş Enter kapatır. Mobilde kutu klavyenin kapatmaması için ekranın üstüne çıkar.
 - Son mesajlar sol altta görünür, 12 sn sonra solar; yeni bağlanan son 30 mesajı görür.
 - Yazanın başının üstünde 6 sn konuşma balonu çıkar.
-- Sunucu mesajları temizler (en fazla 160 karakter), kaba kelimeleri yıldızlar (Türkçe + İngilizce),
-  hızlı mesaj serisini ve aynı mesajın tekrarını engeller. Mesajlar kaydedilmez.
+- Küfür filtresi yok. Sunucu yalnızca mesajı temizler (en fazla 160 karakter, görünmez kontrol karakterleri),
+  ırkçı / homofobik hakaret kelimelerini yıldızlar, hızlı mesaj serisini ve aynı mesajın tekrarını engeller.
+  Mesajlar kaydedilmez.
 
 ## Gece döngüsü — eve dön, yatağında uyu
 
@@ -321,7 +322,7 @@ amsterdam-otel/
 │   ├── layout.js                # Otel + coffee shop + ev yerleşimi: duvarlar, odalar, rota noktaları
 │   ├── friends.js               # Müdavimler, konular, espriler, arkadaşlık kuralları
 │   ├── vehicles.js              # Araç türleri, hız / ivme, yolcu koltuğu
-│   ├── chat.js                  # Sohbet mesajı temizleme ve kaba kelime filtresi
+│   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları (duvar slotları, tavan), bitkiler, YouTube link ayrıştırma
 │   └── path.js                  # Deterministik rota örnekleme

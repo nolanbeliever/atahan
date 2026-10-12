@@ -33,7 +33,7 @@ test('sohbet: mesaj herkese yayınlanır, isim ve renkle; yeni gelen son mesajla
   assert.equal(sim.snapshot(b.id).chat.at(-1).text, 'merhaba herkes');
 });
 
-test('sohbet: boş / bozuk / tekrar mesaj reddedilir; geçmiş sınırlı; kaba kelimeler yıldızlanır', () => {
+test('sohbet: boş / bozuk / tekrar mesaj reddedilir; geçmiş sınırlı; küfür filtresi yok', () => {
   const { sim, advance } = setup();
   const a = sim.addPlayer('Ayşe');
   for (const bad of ['', '   ', null, 42, {}, ['x'], { toString: () => 'x' }, '‮​']) {
@@ -46,8 +46,7 @@ test('sohbet: boş / bozuk / tekrar mesaj reddedilir; geçmiş sınırlı; kaba 
   for (let i = 0; i < CHAT_RULES.HISTORY + 10; i++) sim.chat(a.id, `mesaj ${i}`);
   assert.equal(sim.chatLog.length, CHAT_RULES.HISTORY);
   assert.equal(sim.chat(a.id, 'x'.repeat(500)).text.length, CHAT_RULES.MAX_LEN);
-  assert.equal(sim.chat(a.id, 'naber amk <script>').text, 'naber *** script');
-  assert.equal(cleanChat('Siktir git'), '****** git');
-  assert.equal(cleanChat('sıkıcı bir gün, ağaç, müsiki, götürdüm'), 'sıkıcı bir gün, ağaç, müsiki, götürdüm');
-  assert.equal(cleanChat('FUCK'), '****');
+  assert.equal(sim.chat(a.id, 'naber amk <script>').text, 'naber amk script');
+  assert.equal(cleanChat('Siktir git'), 'Siktir git');
+  assert.equal(cleanChat('FUCK'), 'FUCK');
 });
