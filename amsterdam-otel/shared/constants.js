@@ -96,6 +96,12 @@ export const EVT = Object.freeze({
   // Bar müdavimleriyle arkadaşlık
   FRIEND_ACT: 'friend:act', // istemci → sunucu (ack): { act, customer?, topic?, drink? }
   FRIEND_VISITS: 'friend:visits', // sunucu → herkes: evlerdeki misafir müdavimler
+  // Şehir içi ulaşım (bisiklet / scooter)
+  VEHICLE_ACT: 'vehicle:act', // istemci → sunucu (ack): { act: 'buy' | 'mount' | 'dismount', type?, id? }
+  VEHICLES: 'vehicles', // sunucu → herkes: araçlar (konum, sürücü, yolcu)
+  VEHICLE_SEAT: 'vehicle:seat', // sunucu → yolcu: { seat: null, x, z } (sürücü inince)
+  // Oda tamiratı (mini oyunlar)
+  MAINT: 'maint', // istemci → sunucu (ack): { act: 'begin' | 'finish', roomId, issue }
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

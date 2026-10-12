@@ -22,6 +22,8 @@ import { HouseVisitingSystem } from './game/HouseVisitingSystem.js';
 import { NightCycle } from './game/NightCycle.js';
 import { HerbalBotanySystem } from './game/HerbalBotanySystem.js';
 import { NpcRelationshipSystem } from './game/NpcRelationshipSystem.js';
+import { CityVehicleSystem } from './game/CityVehicleSystem.js';
+import { HotelMaintenanceSystem } from './game/HotelMaintenanceSystem.js';
 import { BarSystem } from './game/BarSystem.js';
 import { ViewModel } from './game/ViewModel.js';
 import { Sfx } from './core/Sfx.js';
@@ -163,6 +165,13 @@ const botany = new HerbalBotanySystem({
 const friends = new NpcRelationshipSystem({
   engine, net, hud, interaction, house, bar, modal, device, settings, sfx,
 });
+// Şehir içi ulaşım (bisiklet / scooter, arkaya yolcu) ve oda tamiratı (mini oyunlar)
+const vehicles = new CityVehicleSystem({
+  engine, net, hud, interaction, player, remotes, collision, modal, device, settings, sfx, getWallet: () => shop.wallet,
+});
+const maint = new HotelMaintenanceSystem({
+  engine, net, hud, interaction, player, collision, modal, device, settings, sfx, vm,
+});
 // Otel odasında çöp toplarken birinci şahıs toplama animasyonu
 const TRASH_ITEMS = ['paper', 'can', 'box', 'bottle'];
 interaction.onRoomAction = (room, t) => {
@@ -184,6 +193,7 @@ engine.addSystem((dt) => trip.update(dt));
 engine.addSystem((dt) => house.update(dt));
 engine.addSystem((dt) => visits.update(dt));
 engine.addSystem((dt) => night.update(dt));
+engine.addSystem(() => vehicles.update());
 engine.addSystem(() => bar.update());
 engine.addSystem((dt) => vm.update(dt));
 engine.addSystem((dt) => {
@@ -350,6 +360,10 @@ net.on(EVT.WELCOME, (snap) => {
   friends.reset(snap.selfId);
   friends.applySelf(snap.self?.friends);
   friends.setVisits(snap.visits);
+  vehicles.reset(snap.selfId);
+  vehicles.applySelf(snap.self?.vehicles);
+  vehicles.setVehicles(snap.vehicles);
+  maint.onRooms(snap.rooms);
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
   hud.setRooms(state.rooms);
@@ -382,6 +396,7 @@ net.on(EVT.CLOCK, (c) => {
 
 net.on(EVT.ROOMS, (rooms) => {
   state.setRooms(rooms);
+  maint.onRooms(rooms);
   world.applyRooms(rooms);
   hud.setRooms(state.rooms);
   interaction.invalidate();
@@ -426,6 +441,7 @@ net.on(EVT.SELF, (self) => {
   shop.applySelf(self);
   visits.applySelf(self);
   friends.applySelf(self.friends);
+  vehicles.applySelf(self.vehicles);
   bar.applySelf(self.bar);
   if (house.build.active) engine.requestRender(); // önizleme rengi (yeterli para var mı) güncellensin
 });
@@ -454,6 +470,8 @@ net.on(EVT.HOUSE_RING_REQ, (req) => visits.onRingRequest(req));
 net.on(EVT.SLEEP_STATE, (s) => night.onSleepState(s));
 net.on(EVT.HOUSE_ITEM, (s) => botany.onItemState(s));
 net.on(EVT.FRIEND_VISITS, (list) => friends.setVisits(list));
+net.on(EVT.VEHICLES, (list) => vehicles.setVehicles(list));
+net.on(EVT.VEHICLE_SEAT, (s) => vehicles.onSeat(s));
 net.on(EVT.HOUSE_ACCESS, (a) => visits.onAccess(a));
 
 // Bar De Tulp
@@ -506,5 +524,5 @@ navigator.getBattery?.().then((battery) => {
 
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
-  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends,
+  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint,
 };

@@ -57,7 +57,7 @@ export class HUD {
       if (!e) continue;
       let label = ROOM_STATUS_LABEL[r.status] ?? r.status;
       if (r.status === ROOM_STATUS.DIRTY) {
-        const left = (r.bedMade ? 0 : 1) + r.trash.filter(Boolean).length;
+        const left = (r.bedMade ? 0 : 1) + r.trash.filter(Boolean).length + Object.values(r.issues ?? {}).filter(Boolean).length;
         label += ` · ${left} iş`;
       }
       if (this.cache.get(`room:${r.id}`) === label) continue;

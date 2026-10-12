@@ -8,6 +8,7 @@ import { buildCoffeeShop } from './CoffeeShopBuilding.js';
 import { buildHouse } from './HouseBuilding.js';
 import { buildBar } from './BarBuilding.js';
 import { buildPlayerHouses } from './PlayerHouses.js';
+import { buildSteeg } from './Steeg.js';
 import {
   addPlanter, addBike, addTree, addBollard, addStreetLamp, addWindow, addPainting,
   addArmchair, addSideTable, makePanel,
@@ -50,6 +51,8 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
   const bar = buildBar({ batcher: b, collision, scene, mats, factory });
   // Achterstraat + 8 oyuncu evi (phWall vb. malzemeler b.build'den önce mats'e eklenir)
   const playerHouses = buildPlayerHouses({ batcher: b, collision, scene, mats, factory, engine });
+  // Sokaktan Achterstraat'a açık hava geçidi (bisiklet / scooter yolu) ve araç büfesi
+  buildSteeg({ batcher: b, collision, scene });
 
   b.build(mats, scene);
   const lights = addLights(scene, quality);
@@ -200,7 +203,7 @@ function buildExterior(b, collision, scene, mats) {
     b.add('skyline', g, { position: [x, y, z], rotation: [0, rotY, 0], cast: false, receive: false });
   };
   skyPlane(7.9, 12, -20.05, 6, -0.05, Math.PI, 7.9 / 24, 0.1); // Bizim Ev'in batısı
-  skyPlane(7.9, 12, 20.05, 6, -0.05, Math.PI, 7.9 / 24, 0.55); // coffee shop'un doğusu
+  skyPlane(5.9, 12, 21.05, 6, -0.05, Math.PI, 5.9 / 24, 0.55); // steeg'in doğusu
   skyPlane(60, 13.7, 0, 6.15, -16, 0, 60 / 27.4, 0.3);
   skyPlane(16, 13.7, -24, 6.15, -8, Math.PI / 2, 16 / 27.4, 0.7);
   skyPlane(16, 13.7, 24, 6.15, -8, -Math.PI / 2, 16 / 27.4, 0.2);
@@ -223,7 +226,7 @@ function buildExterior(b, collision, scene, mats) {
   collision.add(-30, -18, -20, 0.1);
   collision.add(18, 30, -20, 0.1);
   collision.add(-30, -16, -0.15, 0.1); // komşu cepheler
-  collision.add(16, 30, -0.15, 0.1);
+  collision.add(18, 30, -0.15, 0.1); // (16–18 arası: steeg girişi)
 }
 
 function buildLobby(b, collision, scene, mats) {

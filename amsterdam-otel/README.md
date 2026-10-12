@@ -77,6 +77,8 @@ eski kaydın üstüne yazmasın diye başlamaz (Render yeniden dener). `DATABASE
 | **T**: TV yayınına katıl / kendi ekranında kapat | **▶ Katıl** çipi |
 | Barda **E**: bardak al · koy · çalkala · servis et · topla · yıka | **Aksiyon** (butonun etiketi bakılan şeye göre değişir: Al, Koy, Çalkala, Servis…) |
 | **F** / **E**: elindeki yiyeceği ısır (her ısırık 2 sn) | **Aksiyon**: ısır |
+| Araca bakıp **E**: bin (sahibi sürer, arkadaşı arkaya biner) · sürerken **W/S** gaz-fren, **A/D** direksiyon, **E** in ve park et | **Bin** / **Arkaya** / **Park** · joystick: gaz ve direksiyon |
+| Kirli odada arızaya bakıp **E**: mini oyun (ovala, basılı tut, zamanla, şalter kaldır) | **Aksiyon** · mini oyun dokunarak |
 | Achterstraat'ta başkasının kapısında **E**: zili çal · ev sahibiysen **Y** / **N**: içeri al / alma | **Zil** butonu · istemdeki **Evet** / **Hayır** |
 | **Esc**: duraklat / paneli kapat | ⚙ butonu: ayarlar |
 
@@ -86,10 +88,41 @@ Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir
 
 - **Lobi + koridor + 4 oda (101–104).** Sağ üstteki pano her odanın durumunu gösterir: **Boş / Dolu / Kirli** (kirli odalarda kalan iş sayısıyla). Koridorda her kapının yanında aynı renkte bir durum lambası vardır.
 - **Misafir akışı:** sokaktan gelir → resepsiyonda kayıt (oda ücreti **€95** kasaya girer) → boş odaya yürür → konaklama süresi bitince çıkar, oda **Kirli** olur. Boş oda yoksa lobideki kanepede bekler; süre dolarsa ayrılır.
-- **Temizlik:** kirli odaya gir, yatağı düzelt, 2–3 çöpü topla → oda **Boş** olur. Dolu odaların kapısı kilitlidir (misafir mahremiyeti).
+- **Temizlik:** kirli odaya gir, yatağı düzelt, 2–3 çöpü topla ve 1–2 arızayı gider (bkz. Detaylı temizlik ve tamirat) → oda **Boş** olur. Dolu odaların kapısı kilitlidir (misafir mahremiyeti).
 - **Zarar verme / kırma mekaniği yoktur.**
 - **Bahşiş:** odayı bitiren görevli misafirin bıraktığı **€4–12** bahşişi kişisel **cüzdanına** alır (otel kasasından ayrı; başlangıç cüzdanı €30).
 - **Zaman:** Pazartesi–Cuma otel açık (misafir kabulü 08:00–19:00). **Cumartesi–Pazar otel kapalı:** giriş kapısı kapanır, tabela "KAPALI · Gesloten" olur, yeni misafir gelmez, zaman 2 kat hızlı akar. Konaklamalar gece de sürer; gece yarısını aşanlar gece ya da ertesi sabah çıkış yapar (Cumartesi sabahı son misafirler ayrılır → hafta sonu temizlik zamanı). 23:00'te otel kapanır (bkz. Gece döngüsü). Her gün sonunda günlük özet bildirimi gelir.
+
+## Detaylı temizlik ve tamirat (mini oyunlar)
+
+Misafir çıkınca odada dağınık yatak ve çöplere ek olarak 1–2 arıza çıkar; hepsi 3D'de görünür. Arızaya bakıp
+**E** → mini oyun paneli açılır:
+
+| Arıza | Görünüşü | Mini oyun |
+| --- | --- | --- |
+| 🧽 Yerde / duvarda leke | kahverengi içecek / çamur lekesi | Fare ya da parmakla lekenin üstünde ov; %85'i silinince biter |
+| 💡 Patlak ampul | tavan lambası karanlık, kırık ampul sarkıyor | Patlak ampulü basılı tutarak sök → kutudan yenisini al → basılı tutarak tak |
+| 🔧 Damlayan musluk | lavabodan damla, yerde su birikintisi | Gidip gelen ibre yeşil bölgedeyken **Sık!** (Boşluk / E), 3 kez — bölge her seferinde daralır |
+| ⚡ Atan sigorta | sigorta kutusunda kırmızı ışık | İnen (kırmızı) şalterleri kaldır, sonra ana şalteri kaldır |
+
+- Oda yalnızca tüm işler (arızalar dahil) bitince **Boş** olur. İşi bitiren oyuncuya misafirin bahşişine ek olarak
+  **tamir edilen her arıza için +€2** ve oda ilk işten itibaren **90 sn içinde** bittiyse **+€5 hız bonusu** verilir.
+- Sunucu doğrular: odanın içinde ve arızanın yanında olmak, mini oyunun en kısa süresi (anında bitirme yok).
+
+## Şehir içi ulaşım — bisiklet ve scooter
+
+- **Steeg:** coffee shop ile barın doğusundan geçen açık hava ara sokağı, sokağı Achterstraat'a bağlar (sokak
+  ucunda kemerli giriş, Achterstraat ucunda komşu binanın altındaki kemer). Artık otelin içinden geçmeden evine
+  gidebilirsin.
+- **Büfe:** steeg ağzının yanındaki "Fiets & Scooter" büfesinden satın al: 🚲 bisiklet €35 (25 km/sa, arkasında
+  bagaj minderi) · 🛵 elektrikli scooter €60 (34 km/sa, iki kişilik uzun sele). Araç büfenin önündeki P'ye park edilir.
+- **Sürüş (FPV):** araca bakıp **E** → sürücü koltuğu. **W/S** gaz-fren-geri, **A/D** direksiyon (mobilde joystick),
+  fare / sağ taraf bakış. Hız yumuşak artar, bırakınca süzülür, virajda kamera hafifçe eğilir; altta hız göstergesi.
+  Binalara sürülmez (kapılarda yalnızca sürücüye özel engeller).
+- **Co-op:** başka bir oyuncunun aracına bakıp **E** → arkaya binersin. Sürücü nereye, sen oraya; etrafa serbestçe
+  bakarsın. Sürücü park edince iner, aracın yanına bırakılırsın.
+- **Park:** sokakta, steeg'de ya da Achterstraat'ta istediğin yerde **E** → inip park edersin (otelin ve evlerin
+  önünde P tabelaları var). Araçlar ve son park yerleri hesabına bağlı olarak kaydedilir.
 
 ## Gece döngüsü — eve dön, yatağında uyu
 
@@ -266,6 +299,7 @@ amsterdam-otel/
 │   └── game/
 │       ├── HotelSimulation.js   # Simülasyon (ağdan bağımsız, test edilebilir)
 │       ├── RelationshipService.js # Müdavimlerle arkadaşlık: diyalog etkileri, eve davet, moral bonusu
+│       ├── VehicleService.js    # Bisiklet / scooter: satın alma, sürücü + yolcu, park, kalıcılık
 │       ├── GameClock.js         # Gün döngüsü: hafta içi açık / hafta sonu kapalı, gece (23:00–07:00)
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
 │       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları
@@ -276,6 +310,8 @@ amsterdam-otel/
 │   ├── constants.js             # Durumlar, olay adları, fiyat, saatler, ürünler, trip/slot
 │   ├── layout.js                # Otel + coffee shop + ev yerleşimi: duvarlar, odalar, rota noktaları
 │   ├── friends.js               # Müdavimler, konular, espriler, arkadaşlık kuralları
+│   ├── vehicles.js              # Araç türleri, hız / ivme, yolcu koltuğu
+│   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları (duvar slotları, tavan), bitkiler, YouTube link ayrıştırma
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
@@ -284,7 +320,7 @@ amsterdam-otel/
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
-│       ├── world/               # Otel, coffee shop, bar, Bizim Ev, Achterstraat evleri; dokular, malzemeler, çarpışma
+│       ├── world/               # Otel, coffee shop, bar, Bizim Ev, Achterstraat evleri, steeg + araç büfesi; dokular, malzemeler, çarpışma
 │       ├── controls/            # Klavye/fare, dokunmatik joystick, FPV oyuncu
 │       ├── game/                # Misafirler, diğer oyuncular, etkileşim, durum
 │       │   ├── CoffeeShopSystem.js  # Tezgâh/slot etkileşimi, paneller, envanter, tüketim
@@ -294,6 +330,8 @@ amsterdam-otel/
 │       │   ├── InteractiveTV.js     # YouTube paneli, CSS3DRenderer ile TV ekranında video, senkron katılım
 │       │   ├── InteractiveTVFix.js  # YouTube oynatıcı köprüsü: sessiz başlat → sesi aç, sapma düzeltme
 │       │   ├── NpcRelationshipSystem.js # Bar müdavimleriyle diyalog, arkadaşlık çubuğu, evdeki misafir
+│       │   ├── CityVehicleSystem.js # Araç modelleri, FPV sürüş, arkaya binme, büfe, hız göstergesi
+│       │   ├── HotelMaintenanceSystem.js # Arıza görselleri ve 4 mini oyun (leke, ampul, musluk, sigorta)
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
 │       │   ├── ViewModel.js         # Birinci şahıs eller (dökme, çalkalama, ısırma, toplama…)
 │       │   ├── NightCycle.js        # Gece görünümü, yatakta uyuma, uyku ekranı
@@ -301,7 +339,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar, gece + bahçe
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar, gece + bahçe, arkadaşlık, ulaşım + tamirat
 ```
 
 ## Sonraki aşamalar için notlar

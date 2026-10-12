@@ -132,6 +132,31 @@ export function isInsideAlley(x, z) {
   return x > -17.9 && x < 17.9 && z > 26.1 && z < 32.9;
 }
 
+// ---- Steeg: sokaktan Achterstraat'a açık hava ara sokağı ----------------------
+// Coffee shop ve barın doğusundan geçen dar geçit (bisiklet / scooter yolu). Sokak ucunda
+// komşu cephesinin altından, Achterstraat ucunda komşu binanın altındaki kemerden geçilir.
+export const STEEG = Object.freeze({
+  bounds: { minX: 16.1, maxX: 17.9, minZ: -0.15, maxZ: 26.2 },
+  gate: { from: 16.1, to: 17.9, top: 2.8 }, // Achterstraat'taki kemer (z = 26)
+});
+
+export function isInsideSteeg(x, z) {
+  return x > 16.05 && x < 17.95 && z > -0.2 && z < 26.25;
+}
+
+/** Açık hava: sokak, steeg, Achterstraat — araç sürülebilir / park edilebilir yerler */
+export function isOutdoors(x, z) {
+  if (isInsideSteeg(x, z) || isInsideAlley(x, z)) return true;
+  return z < -0.12 && z > -7.6 && x > -18 && x < 18;
+}
+
+// Bisiklet / scooter kiralama-satış büfesi (sokakta, steeg ağzının yanında)
+export const VEHICLE_KIOSK = Object.freeze({
+  pos: [14.7, -1.15], // büfenin önü (etkileşim noktası)
+  range: 1.9,
+  spawn: [15.6, -2.9], // satın alınan aracın park edildiği yer
+});
+
 // Bar De Tulp — otelin doğusunda, coffee shop'un arkasındaki ek bina (alkolsüz bar).
 // Girişi lobinin doğu duvarındaki kapıdan (x = 8). Müşteriler tezgâhın güneyindeki
 // taburelere oturur; barmen tezgâhla arka tezgâh arasındaki koridorda çalışır
@@ -303,7 +328,10 @@ export function buildWallSegments() {
   wallAlongZ(w, 16, 8.1, 14, [], 'barWall');
   // Achterstraat: güneyde komşu binaların arka duvarları, iki uçta duvar
   wallAlongX(w, 26, -18, -8.2, [], 'brick');
-  wallAlongX(w, 26, 8.2, 18, [], 'brick');
+  wallAlongX(w, 26, 8.2, 18, [STEEG.gate], 'brick'); // steeg kemeri
+  // Steeg: doğuda komşu bina, batıda (barın arkasında) avlu duvarı
+  wallAlongZ(w, 18, 0.1, 25.9, [], 'brick');
+  wallAlongZ(w, 16, 14.1, 25.9, [], 'brick');
   wallAlongZ(w, -18, 26.1, 33, [], 'brick');
   wallAlongZ(w, 18, 26.1, 33, [], 'brick');
   // Oyuncu evleri: sokağa bakan cephe (her evin kapısıyla), aralarındaki ve arka duvarlar
@@ -319,6 +347,7 @@ export function areaAt(x, z) {
   if (isInsideHouse(x, z)) return 'house';
   if (isInsideBar(x, z)) return 'bar';
   if (isInsideAlley(x, z)) return 'alley';
+  if (isInsideSteeg(x, z)) return 'steeg';
   for (const h of PLAYER_HOUSES) if (isInsideHouseDef(h, x, z)) return h.id;
   for (const r of ROOMS) if (isInsideRoom(r, x, z)) return r.id;
   if (pointInBounds(x, z, AREAS.corridor) && Math.abs(x) < 1.4) return 'corridor';

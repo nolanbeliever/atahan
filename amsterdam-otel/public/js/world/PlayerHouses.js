@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { WALL_H, DOOR_H, ALLEY, PLAYER_HOUSES } from '/shared/layout.js';
+import { WALL_H, DOOR_H, ALLEY, PLAYER_HOUSES, STEEG } from '/shared/layout.js';
 import { UV } from './Materials.js';
 import { drawPlanks, signDrawer } from './Textures.js';
 import { addWindow, addPlanter, addBike, addTree, addStreetLamp } from './Props.js';
@@ -58,7 +58,7 @@ const NEIGHBOURS = Object.freeze([
   { x0: -11.0, x1: -8.1, top: 7.6, tint: '#4a3a33', door: -9.6 },
   { x0: 8.1, x1: 11.6, top: 7.0, tint: '#7a3a2a', door: 10.0 },
   { x0: 11.6, x1: 15.0, top: 7.8, tint: '#7f8a78', door: 13.6 },
-  { x0: 15.0, x1: 18.1, top: 6.9, tint: '#9c6b4a' },
+  { x0: 15.0, x1: 18.1, top: 6.9, tint: '#9c6b4a', gate: STEEG.gate }, // altında steeg kemeri
 ]);
 const HOTEL_TOP = 8.6; // otelin arka cephesi (ön cepheyle aynı yükseklik)
 const END_TOP = 6.6; // sokağın iki ucundaki köşe binaları
@@ -256,7 +256,18 @@ export function buildPlayerHouses({ batcher: b, collision, scene, mats, factory,
 
     // ---- Komşu binaların arka cepheleri (güney) ----------------------------------
     for (const n of NEIGHBOURS) {
-      fbox(n.tint, n.x0, n.x1, 0, n.top, BACK - 0.1, BACK + 0.12);
+      if (n.gate) {
+        // Kemerli geçit: binanın altından steeg'e geçilir
+        const g = n.gate;
+        fbox(n.tint, n.x0, g.from, 0, n.top, BACK - 0.1, BACK + 0.12);
+        fbox(n.tint, g.to, n.x1, 0, n.top, BACK - 0.1, BACK + 0.12);
+        fbox(n.tint, g.from, g.to, g.top, n.top, BACK - 0.1, BACK + 0.12);
+        b.box('stone', g.from, g.to, g.top - 0.14, g.top, BACK + 0.1, BACK + 0.16, flat);
+        b.box('stone', g.from - 0.14, g.from, 0, g.top, BACK + 0.1, BACK + 0.16, flat);
+        b.box('stone', g.to, g.to + 0.14, 0, g.top, BACK + 0.1, BACK + 0.16, flat);
+      } else {
+        fbox(n.tint, n.x0, n.x1, 0, n.top, BACK - 0.1, BACK + 0.12);
+      }
       b.box('white', n.x0, n.x1, n.top - 0.1, n.top + 0.04, BACK + 0.04, BACK + 0.2, flat);
       const cols = Math.max(1, Math.round((n.x1 - n.x0) / 1.7));
       const step = (n.x1 - n.x0) / cols;
@@ -315,8 +326,8 @@ export function buildPlayerHouses({ batcher: b, collision, scene, mats, factory,
     // Çiçek kasaları
     addFlowerCrate(b, collision, -10.9, 26.36, 3);
     addFlowerCrate(b, collision, 11.3, 26.36, 5);
-    // Köşelerde küçük ağaçlar (taş çerçeveli toprak)
-    for (const x of [-16.45, 16.45]) {
+    // Köşelerde küçük ağaçlar (taş çerçeveli toprak); doğudaki, steeg kemerinin önünü kapatmasın
+    for (const x of [-16.45, 13.9]) {
       addTree(b, collision, x, 27.6, 0.62);
       b.floor('soil', x - 0.45, x + 0.45, 27.15, 28.05, 0.012);
       for (const [x0, x1, z0, z1] of [[-0.5, 0.5, -0.5, -0.45], [-0.5, 0.5, 0.45, 0.5], [-0.5, -0.45, -0.45, 0.45], [0.45, 0.5, -0.45, 0.45]]) {

@@ -287,7 +287,7 @@ body.touch .inv-hint { display: none; }
 #splatter.fade { opacity: 0; transition: opacity 1.8s ease-in; }
 
 .card.wide { width: min(560px, 100%); }
-#shop-list, #garden-list { display: grid; gap: 8px; text-align: left; margin-bottom: 10px; }
+#shop-list, #garden-list, #vehicle-list { display: grid; gap: 8px; text-align: left; margin-bottom: 10px; }
 .product {
   display: grid;
   grid-template-columns: 40px 1fr auto;
@@ -768,3 +768,32 @@ body.sleeping #prompt, body.sleeping #btn-action { visibility: hidden; }
 .friend-actions button { margin: 0; width: 100%; padding: 10px 8px; font-size: 14px; }
 .friend-actions button:disabled { opacity: .45; cursor: default; }
 @media (max-width: 420px) { .friend-actions { grid-template-columns: 1fr; } }
+
+/* ---- Araç hız göstergesi ---- */
+#vehicle-hud { left: 50%; transform: translateX(-50%); bottom: calc(118px + var(--safe-b)); font-size: 15px; font-weight: 700; padding: 5px 14px; border-radius: 16px; }
+
+/* ---- Oda tamiratı mini oyunları ---- */
+#maint-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 6px 0 10px; min-height: 150px; justify-content: center; user-select: none; -webkit-user-select: none; }
+.maint-bar { margin: 0 0 12px; }
+.maint-scrub { position: relative; width: min(360px, 78vw); aspect-ratio: 3 / 2; border-radius: 10px; overflow: hidden; touch-action: none; cursor: crosshair; box-shadow: inset 0 0 0 2px rgba(255,255,255,.15); }
+.maint-scrub canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.maint-bulb { position: relative; width: 120px; height: 150px; display: flex; flex-direction: column; align-items: center; }
+.maint-bulb .socket { width: 70px; height: 26px; border-radius: 0 0 10px 10px; background: #6b6f76; box-shadow: 0 -40px 0 -26px #3b3d42; }
+.maint-bulb .bulb { font-size: 64px; line-height: 1; cursor: grab; touch-action: none; filter: grayscale(1) brightness(.55); transition: filter .3s; }
+.maint-bulb .bulb.lit { filter: drop-shadow(0 0 18px #ffe27a) brightness(1.2); }
+.maint-bulb .bulb:not(.broken):not(.lit) { filter: none; }
+.maint-drops { font-size: 26px; min-height: 32px; }
+.maint-timing { position: relative; width: min(340px, 76vw); height: 26px; border-radius: 13px; background: rgba(255,255,255,.12); overflow: hidden; }
+.maint-timing .zone { position: absolute; top: 0; bottom: 0; background: rgba(60,207,110,.55); border-left: 2px solid #3ecf6e; border-right: 2px solid #3ecf6e; }
+.maint-timing .needle { position: absolute; top: -2px; bottom: -2px; width: 4px; margin-left: -2px; background: #fff; border-radius: 2px; box-shadow: 0 0 6px #fff; }
+.maint-timing.miss { animation: maint-shake .3s; }
+@keyframes maint-shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.maint-fuse { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 10px; border-radius: 10px; background: #3b3d42; }
+.maint-fuse .sw { width: 38px; height: 62px; border-radius: 6px; border: 2px solid rgba(0,0,0,.35); font-weight: 700; color: #fff; cursor: pointer; }
+.maint-fuse .sw.up { background: linear-gradient(#3ecf6e 50%, #20262e 50%); }
+.maint-fuse .sw.down { background: linear-gradient(#20262e 50%, #e5534b 50%); }
+.maint-fuse + .main, button.main { margin-top: 4px; padding: 12px 18px; border-radius: 8px; border: 0; font-weight: 800; color: #fff; cursor: pointer; }
+button.main.down { background: #e5534b; }
+button.main.up { background: #3ecf6e; }
+button.main:disabled { opacity: .45; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .maint-timing.miss { animation: none; } }

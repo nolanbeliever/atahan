@@ -87,7 +87,8 @@ export class Interaction {
       if (room.state.status === ROOM_STATUS.DIRTY) best = this.findRoomTarget(room, px, pz, f);
       break;
     }
-    if (!best && !roomHere) {
+    // Sağlayıcılar odaların içinde de sorulur (oda tamiratı, araçtan inme…); oda hedefi önceliklidir
+    if (!best) {
       for (const p of this.providers) {
         const ext = p.find(px, pz, f);
         if (ext) {
@@ -112,7 +113,9 @@ export class Interaction {
         const parts = [];
         if (!st.bedMade) parts.push('dağınık yatak');
         const trash = st.trash.filter(Boolean).length;
+        const issues = Object.values(st.issues ?? {}).filter(Boolean).length;
         if (trash) parts.push(`${trash} çöp`);
+        if (issues) parts.push(`${issues} arıza (leke / ampul / musluk / sigorta)`);
         this.hud.setPrompt({ info: `Oda ${roomHere.id} kirli: ${parts.join(', ')}. Yaklaş ve bak.` });
       } else {
         // İpucu metin ya da { text, short } olabilir (short: dokunmatik buton etiketi)

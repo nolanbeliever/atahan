@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 import {
-  EVT, DAY_NAMES, INTERACT_RANGE, TRASH_SPOT_COUNT, PLAYER_KEY_RE, DAY_START_MIN, DAY_END_MIN, MINUTES_PER_DAY,
+  EVT, DAY_NAMES, ROOM_STATUS, INTERACT_RANGE, TRASH_SPOT_COUNT, PLAYER_KEY_RE, DAY_START_MIN, DAY_END_MIN, MINUTES_PER_DAY,
   NIGHT, formatMoney,
 } from '../../shared/constants.js';
 import { POINTS, ROOM_BY_ID, WORLD_BOUNDS, pointInBounds } from '../../shared/layout.js';
@@ -13,6 +13,8 @@ import { HouseService } from '../house/HouseService.js';
 import { BarService } from './BarService.js';
 import { GardenService } from '../house/GardenService.js';
 import { RelationshipService } from './RelationshipService.js';
+import { VehicleService } from './VehicleService.js';
+import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 
 const PLAYER_COLORS = ['#e4572e', '#29a3a3', '#f3a712', '#6a4c93', '#3a86ff', '#8ac926', '#ff595e', '#c77dff'];
 
@@ -67,6 +69,7 @@ export class HotelSimulation extends EventEmitter {
     this.bar = new BarService(this);
     this.garden = new GardenService(this, this.house);
     this.relations = new RelationshipService(this);
+    this.vehicles = new VehicleService(this);
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -250,10 +253,13 @@ export class HotelSimulation extends EventEmitter {
     this.bar.initPlayer(p);
     this.house.initPlayer(p); // oturumluk ev erişimi + kayıtlı cüzdan
     this.relations.initPlayer(p); // kayıtlı arkadaşlık seviyeleri
+    this.vehicles.initPlayer(p); // sahip olduğu araçlar son park yerinde belirir
+    p.maint = null; // süren tamirat mini oyunu { roomId, issue, at }
     this.players.set(p.id, p);
     if (this.players.size === 1) this.start();
     this.out(EVT.PLAYER_JOIN, this.publicPlayer(p));
     this.house.assignHouse(p); // değişirse HOUSE_OWNERS yayınlanır
+    if (p.ownedVehicles.size) this.vehicles.broadcast();
     return p;
   }
 
@@ -262,6 +268,7 @@ export class HotelSimulation extends EventEmitter {
     if (!p) return;
     this.bar.removePlayer(p); // elindeki bardaklar rafa döner
     this.relations.removePlayer(p); // evdeki misafiri gider
+    this.vehicles.removePlayer(p); // sürüyorsa park eder; araçları kayda geçer
     this.house.removePlayer(p); // bekleyen ziller, cüzdan ve ev sahibi kaydı
     this.players.delete(id);
     this.dirtyPlayers.delete(id);
@@ -344,11 +351,14 @@ export class HotelSimulation extends EventEmitter {
   movePlayer(id, x, z, yaw) {
     const p = this.players.get(id);
     if (!p || !Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(yaw)) return;
+    // Araçta yolcuysa konumu sürücü belirler (yalnızca bakış yönü alınır)
+    if (!this.vehicles.onMove(p, x, z, Math.atan2(Math.sin(yaw), Math.cos(yaw)))) return;
     const b = WORLD_BOUNDS;
     p.x = Math.min(Math.max(x, b.minX), b.maxX);
     p.z = Math.min(Math.max(z, b.minZ), b.maxZ);
     p.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
     this.dirtyPlayers.add(id);
+    this.vehicles.afterMove(p);
     // Yataktan kalkıp yürüyen oyuncu uyanır
     if (p.sleeping && Math.hypot(p.x - p.sleeping.x, p.z - p.sleeping.z) > NIGHT.WAKE_MOVE) {
       p.sleeping = null;
@@ -393,18 +403,70 @@ export class HotelSimulation extends EventEmitter {
 
     const res = this.rooms.clean(room, target);
     if (!res.ok) return false;
+    room.startedAt ??= this.now();
     this.roomsChanged();
-    if (res.finished) {
-      this.today.cleaned += 1;
-      this.notify(`Oda ${room.id} temizlendi ✓ (${p.name})`, 'clean');
-      const tip = this.shop.tip(p);
-      this.toPlayer(p.id, EVT.NOTIFY, {
-        text: `Misafir odada €${tip.amount} bahşiş bırakmış!${tip.lucky ? ' 🍀 Şans bonusu +%20' : ''}`,
-        kind: 'money',
-      });
-    }
+    if (res.finished) this.finishRoom(room, p);
     return true;
   }
+
+  /**
+   * Oda tamamen temizlendi: misafirin bahşişi + her tamir için teşekkür + hızlı bitirme bonusu
+   * (ilk işten itibaren MAINT_RULES.FAST_MS içinde). Hepsi işi bitiren oyuncunun cüzdanına.
+   */
+  finishRoom(room, p) {
+    this.today.cleaned += 1;
+    this.notify(`Oda ${room.id} temizlendi ✓ (${p.name})`, 'clean');
+    const tip = this.shop.tip(p);
+    const repair = room.repairs * MAINT_RULES.REPAIR_BONUS;
+    const fast = room.startedAt != null && this.now() - room.startedAt <= MAINT_RULES.FAST_MS ? MAINT_RULES.FAST_BONUS : 0;
+    if (repair + fast > 0) {
+      p.wallet += repair + fast;
+      this.shop.sendSelf(p);
+    }
+    let text = `Misafir odada €${tip.amount} bahşiş bırakmış!${tip.lucky ? ' 🍀 Şans bonusu +%20' : ''}`;
+    if (repair) text += ` 🔧 Tamirat teşekkürü +€${repair}`;
+    if (fast) text += ` ⚡ Hızlı ve eksiksiz +€${fast}`;
+    this.toPlayer(p.id, EVT.NOTIFY, { text, kind: 'money' });
+    room.startedAt = null;
+    room.repairs = 0;
+  }
+
+  /**
+   * Oda tamiratı (mini oyun): 'begin' arızanın yanında başlatır, 'finish' en az
+   * ISSUE.minMs sonra arızayı giderir (mini oyunu atlayıp anında bitirme olmasın).
+   */
+  maint(playerId, data) {
+    const p = this.players.get(playerId);
+    if (!p) return { ok: false };
+    const act = data?.act;
+    const layout = typeof data?.roomId === 'string' ? ROOM_BY_ID[data.roomId] : undefined;
+    const def = typeof data?.issue === 'string' ? ISSUE_BY_ID[data.issue] : undefined;
+    if ((act !== 'begin' && act !== 'finish') || !layout || !def) return { ok: false, error: 'Geçersiz işlem.' };
+    const room = this.rooms.get(layout.id);
+    if (room.status !== ROOM_STATUS.DIRTY || !room.issues[def.id]) return { ok: false, error: 'Bu iş zaten yapılmış.' };
+    if (!pointInBounds(p.x, p.z, layout.bounds, 0.3)) return { ok: false, error: 'Odanın içinde olmalısın.' };
+    const spot = issueSpots(layout)[def.id];
+    if (Math.hypot(p.x - spot.x, p.z - spot.z) > MAINT_RULES.RANGE + 1) return { ok: false, error: 'Biraz daha yaklaş.' };
+    const now = this.now();
+    if (act === 'begin') {
+      p.maint = { roomId: layout.id, issue: def.id, at: now };
+      room.startedAt ??= now;
+      return { ok: true, game: def.game };
+    }
+    const m = p.maint;
+    if (!m || m.roomId !== layout.id || m.issue !== def.id) return { ok: false, error: 'Önce işe başla.' };
+    if (now - m.at < def.minMs - MAINT_RULES.SLACK_MS) return { ok: false, error: 'Bu kadar hızlı olmaz — işi düzgün yap!' };
+    p.maint = null;
+    const res = this.rooms.repair(room, def.id);
+    if (!res.ok) return { ok: false, error: 'Bu iş zaten yapılmış.' };
+    this.roomsChanged();
+    if (res.finished) this.finishRoom(room, p);
+    return { ok: true, finished: !!res.finished };
+  }
+
+  // ---- Şehir içi ulaşım ----------------------------------------------------------
+
+  vehicleAct(playerId, data) { return this.withPlayer(playerId, (p) => this.vehicles.act(p, data)); }
 
   // ---- Coffee shop (kişisel cüzdan / envanter / trip) -------------------
 
@@ -481,6 +543,7 @@ export class HotelSimulation extends EventEmitter {
       bar: this.bar.serialize(),
       sleep: this.sleepState(),
       visits: this.relations.serializeVisits(),
+      vehicles: this.vehicles.serialize(),
     };
   }
 }

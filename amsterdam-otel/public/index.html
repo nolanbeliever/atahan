@@ -84,6 +84,7 @@
       <div id="ring-timer"><i></i></div>
     </div>
     <div id="fps" hidden></div>
+    <div id="vehicle-hud" class="panel" hidden></div>
     <button id="btn-settings" type="button" aria-label="Ayarlar">⚙</button>
     <button id="btn-build" type="button" hidden>🛠 Dekor</button>
 
@@ -129,6 +130,29 @@
         <button type="button" class="secondary" id="tv-stop">⏹ Kapat (herkes için)</button>
         <button type="button" class="secondary" id="tv-close">Geri dön</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Şehir içi ulaşım: bisiklet / scooter büfesi -->
+  <div id="vehicle-panel" class="overlay" hidden>
+    <div class="card wide">
+      <h2>🚲 Fiets & Scooter</h2>
+      <p class="sub">Otelle Achterstraat arasında hızlı ulaşım. Steeg'den (coffee shop'un doğusundaki ara sokak) geçip evinin kapısına park et. Arkaya bir arkadaşın binebilir.</p>
+      <div id="vehicle-list" class="shop-list"></div>
+      <div class="shop-foot"><span>🎒 Cüzdan: <b id="vehicle-wallet">€ 0</b></span></div>
+      <p class="note" id="vehicle-msg"></p>
+      <button type="button" class="primary" id="vehicle-close">Kapat</button>
+    </div>
+  </div>
+
+  <!-- Oda tamiratı: mini oyunlar -->
+  <div id="maint-panel" class="overlay" hidden>
+    <div class="card">
+      <h2 id="maint-title">🔧</h2>
+      <p class="sub" id="maint-hint"></p>
+      <div id="maint-stage"></div>
+      <div class="friend-bar maint-bar" aria-hidden="true"><i id="maint-fill"></i></div>
+      <button type="button" class="secondary" id="maint-cancel">Vazgeç</button>
     </div>
   </div>
 
@@ -220,6 +244,8 @@
         <li><b>B</b> Bizim Ev'de dekorasyon modu · <b>T</b> TV yayınına katıl / kapat</li>
         <li>Barda <b>E</b>: bardak al · koy · çalkala · servis · topla · yıka · <b>F</b> yiyeceği ısır</li>
         <li>Achterstraat'ta başkasının kapısında <b>E</b>: zili çal · kapıda biri varsa <b>Y</b> / <b>N</b>: içeri al / alma</li>
+        <li>Sokaktaki büfeden bisiklet / scooter al · araca bakıp <b>E</b>: bin · sürerken <b>W/S</b> gaz-fren, <b>A/D</b> direksiyon, <b>E</b> park et · arkadaşının aracına <b>E</b>: arkaya bin</li>
+        <li>Kirli odada leke, ampul, musluk ve sigorta arızalarına <b>E</b>: mini oyun (ovala, sök-tak, zamanla sık, şalter kaldır)</li>
         <li>Barda oturan müşterinin önünde <b>E</b>: sohbet et, espri yap, içecek ısmarla · %80 arkadaşlıkta eve davet et</li>
         <li>Gece (23:00) evindeki yatakta <b>E</b>: uyu · saksıda <b>E</b>: tohum ek / hasat et · dekor modunda <b>tekerlek</b>: eşya seç</li>
         <li><b>Esc</b> duraklat</li>

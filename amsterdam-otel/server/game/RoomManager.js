@@ -1,8 +1,12 @@
 import { ROOM_IDS, ROOM_STATUS, TRASH_SPOT_COUNT } from '../../shared/constants.js';
+import { ISSUE_IDS, MAINT_RULES } from '../../shared/maintenance.js';
+
+const noIssues = () => Object.fromEntries(ISSUE_IDS.map((id) => [id, false]));
 
 /**
  * 4 odanın durumunu tutar: Boş / Dolu / Kirli.
- * Kirli bir oda; dağınık yatak ve birkaç çöpten oluşan temizlik işleri içerir.
+ * Kirli bir oda; dağınık yatak, birkaç çöp ve 1–2 arızadan (leke, ampul, musluk,
+ * sigorta — shared/maintenance.js) oluşan işler içerir.
  * Tüm işler bitince oda yeniden "Boş" (temiz) olur.
  */
 export class RoomManager {
@@ -14,7 +18,10 @@ export class RoomManager {
         status: ROOM_STATUS.EMPTY,
         bedMade: true,
         trash: new Array(TRASH_SPOT_COUNT).fill(false),
+        issues: noIssues(),
         guestId: null,
+        startedAt: null, // ilk temizlik / tamirat işinin zamanı (hız bonusu)
+        repairs: 0, // bu kirlilikte tamir edilen arıza sayısı
       }]),
     );
   }
@@ -42,10 +49,35 @@ export class RoomManager {
       const pick = Math.floor(this.rng() * spots.length);
       room.trash[spots.splice(pick, 1)[0]] = true;
     }
+    // Arızalar: iki leke birden çıkmaz
+    room.issues = noIssues();
+    const n = MAINT_RULES.MIN_ISSUES + Math.floor(this.rng() * (MAINT_RULES.MAX_ISSUES - MAINT_RULES.MIN_ISSUES + 1));
+    const pool = ['stain', 'bulb', 'faucet', 'fuse'];
+    for (let i = 0; i < n && pool.length; i++) {
+      const kind = pool.splice(Math.floor(this.rng() * pool.length), 1)[0];
+      const id = kind === 'stain' ? (this.rng() < 0.6 ? 'stainFloor' : 'stainWall') : kind;
+      room.issues[id] = true;
+    }
+    room.startedAt = null;
+    room.repairs = 0;
   }
 
   remainingTasks(room) {
-    return (room.bedMade ? 0 : 1) + room.trash.filter(Boolean).length;
+    return (room.bedMade ? 0 : 1) + room.trash.filter(Boolean).length
+      + ISSUE_IDS.filter((id) => room.issues[id]).length;
+  }
+
+  /**
+   * Arıza giderildi (süre ve konum HotelSimulation'da doğrulanır).
+   * @returns {{ok: boolean, finished?: boolean}}
+   */
+  repair(room, issue) {
+    if (room.status !== ROOM_STATUS.DIRTY || !room.issues[issue]) return { ok: false };
+    room.issues[issue] = false;
+    room.repairs += 1;
+    const finished = this.remainingTasks(room) === 0;
+    if (finished) room.status = ROOM_STATUS.EMPTY;
+    return { ok: true, finished };
   }
 
   /**
@@ -69,7 +101,7 @@ export class RoomManager {
 
   serialize() {
     return [...this.rooms.values()].map((r) => ({
-      id: r.id, status: r.status, bedMade: r.bedMade, trash: [...r.trash],
+      id: r.id, status: r.status, bedMade: r.bedMade, trash: [...r.trash], issues: { ...r.issues },
     }));
   }
 }

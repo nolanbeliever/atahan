@@ -126,12 +126,14 @@ test('bahşiş: odayı bitiren oyuncunun cüzdanına girer, iyi trip +%20', () =
   const layout = ROOM_BY_ID['102'];
   sim.rooms.makeDirty(room);
   room.trash.fill(false);
+  for (const k of Object.keys(room.issues)) room.issues[k] = false;
   p.trip = { type: TRIP.GOOD, endsAt: Infinity };
   sim.movePlayer(p.id, layout.bed.x - 1.6, layout.bed.z, 0);
   const before = p.wallet;
   assert.equal(sim.interact(p.id, '102', 'bed'), true);
   const gained = p.wallet - before;
-  assert.ok(gained >= Math.round(TIP_MIN * TRIP.TIP_LUCK) && gained <= Math.round(TIP_MAX * TRIP.TIP_LUCK));
+  // + hızlı bitirme bonusu (oda anında bitti)
+  assert.ok(gained >= Math.round(TIP_MIN * TRIP.TIP_LUCK) + 5 && gained <= Math.round(TIP_MAX * TRIP.TIP_LUCK) + 5, String(gained));
   assert.ok(to.some((m) => m.event === EVT.NOTIFY && /bahşiş/.test(m.payload.text) && /Şans/.test(m.payload.text)));
 });
 

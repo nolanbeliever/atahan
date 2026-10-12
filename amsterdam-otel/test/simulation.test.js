@@ -8,6 +8,22 @@ import {
 } from '../shared/constants.js';
 import { ROOM_BY_ID } from '../shared/layout.js';
 import { samplePath, pathLength } from '../shared/path.js';
+import { ISSUE_IDS, issueSpots } from '../shared/maintenance.js';
+
+/** Odadaki arızaları mini oyun süresine uyarak gider (begin → bekle → finish) */
+function fixIssues(sim, p, roomId, advance) {
+  const layout = ROOM_BY_ID[roomId];
+  const room = sim.rooms.get(roomId);
+  const spots = issueSpots(layout);
+  for (const id of ISSUE_IDS) {
+    if (!room.issues[id]) continue;
+    sim.movePlayer(p.id, spots[id].x, spots[id].z, 0);
+    assert.equal(sim.maint(p.id, { act: 'begin', roomId, issue: id }).ok, true);
+    advance(2000);
+    sim.movePlayer(p.id, spots[id].x, spots[id].z, 0);
+    assert.equal(sim.maint(p.id, { act: 'finish', roomId, issue: id }).ok, true);
+  }
+}
 
 const baseConfig = {
   dayLengthSec: 240,
@@ -78,14 +94,23 @@ test('oda: kirlenir ve tüm işler bitince Boş olur', () => {
   assert.equal(room.bedMade, false);
   const trash = room.trash.map((v, i) => (v ? i : -1)).filter((i) => i >= 0);
   assert.ok(trash.length >= 2 && trash.length <= 3);
+  const issues = Object.keys(room.issues).filter((k) => room.issues[k]);
+  assert.ok(issues.length >= 1 && issues.length <= 2, 'kirli odada 1-2 arıza');
   assert.equal(rm.clean(room, 'bed').finished, false);
   assert.equal(rm.clean(room, 'bed').ok, false, 'aynı iş iki kez yapılamaz');
-  trash.forEach((i, k) => {
+  trash.forEach((i) => {
     const res = rm.clean(room, i);
     assert.equal(res.ok, true);
-    assert.equal(res.finished, k === trash.length - 1);
+    assert.equal(res.finished, false, 'arızalar giderilmeden oda bitmez');
+  });
+  issues.forEach((id, k) => {
+    const res = rm.repair(room, id);
+    assert.equal(res.ok, true);
+    assert.equal(res.finished, k === issues.length - 1);
+    assert.equal(rm.repair(room, id).ok, false);
   });
   assert.equal(room.status, ROOM_STATUS.EMPTY);
+  assert.equal(room.repairs, issues.length);
 });
 
 test('yol örnekleme: başlangıç, ara nokta ve bitiş', () => {
@@ -133,6 +158,8 @@ test('tam döngü: misafir gelir, ödeme yapar, odaya yerleşir, çıkınca oda 
     sim.movePlayer(p.id, x, z, 0);
     assert.equal(sim.interact(p.id, roomId, i), true);
   });
+  assert.equal(room.status, ROOM_STATUS.DIRTY, 'arızalar duruyor');
+  fixIssues(sim, p, roomId, advance);
   assert.equal(room.status, ROOM_STATUS.EMPTY, 'temizlenen oda Boş olmalı');
   assert.ok(events.some((e) => e.event === EVT.NOTIFY && /temizlendi/.test(e.payload.text)));
 });
@@ -186,6 +213,7 @@ test('oda yoksa misafir lobide bekler, oda temizlenince yerleşir', () => {
     sim.movePlayer(p.id, x, z, 0);
     sim.interact(p.id, '101', i);
   });
+  fixIssues(sim, p, '101', advance);
   assert.equal(room.status, ROOM_STATUS.EMPTY);
   advance(100);
   assert.equal(waiting.phase, GUEST_PHASE.TO_ROOM);
