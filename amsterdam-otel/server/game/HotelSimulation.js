@@ -14,6 +14,7 @@ import { BarService } from './BarService.js';
 import { GardenService } from '../house/GardenService.js';
 import { RelationshipService } from './RelationshipService.js';
 import { VehicleService } from './VehicleService.js';
+import { ExteriorService } from '../house/ExteriorService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -71,6 +72,7 @@ export class HotelSimulation extends EventEmitter {
     this.garden = new GardenService(this, this.house);
     this.relations = new RelationshipService(this);
     this.vehicles = new VehicleService(this);
+    this.exterior = new ExteriorService(this); // ev dış cepheleri (kayıt: this.house.exteriorData)
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -548,6 +550,10 @@ export class HotelSimulation extends EventEmitter {
 
   friendAct(playerId, data) { return this.withPlayer(playerId, (p) => this.relations.act(p, data, this.now())); }
 
+  // ---- Ev dış cephesi (graffiti, neon tabela, balkon) ---------------------------------
+
+  exteriorAct(playerId, data) { return this.withPlayer(playerId, (p) => this.exterior.act(p, data)); }
+
   emote(playerId, type) {
     const p = this.players.get(playerId);
     return p ? this.shop.emote(p, type, this.now()) : false;
@@ -571,6 +577,7 @@ export class HotelSimulation extends EventEmitter {
       visits: this.relations.serializeVisits(),
       vehicles: this.vehicles.serialize(),
       chat: this.chatLog.slice(),
+      exterior: this.exterior.serialize(), // { [houseId]: { sprays, tags, neon, balcony } } (boş cepheler yok)
     };
   }
 }

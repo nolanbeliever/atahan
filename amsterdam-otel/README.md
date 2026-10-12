@@ -223,6 +223,29 @@ bir sahibin evi yeni oyuncuya verilir.
 - **Pil:** CSS3D katmanı yalnızca motor bir kare çizdiğinde güncellenir (ayrı döngü yok). Telefonda iframe
   640×360 boyutunda; mobil/tablette render ölçeği 1.0 ve FPS kilidi bu katman için de geçerli.
 
+## Dış cephe — graffiti, neon tabela ve balkon
+
+Achterstraat'ta **kendi evinin önünde** **B** (mobilde **🛠 Dekor**) → dış cephe modu (evin içinde B yine iç
+dekorasyon modunu açar). Alttaki çubukta üç sekme var (**Q** ile geçilir): **🎨 Graffiti · 💡 Neon · 🏗️ Balkon**.
+Herkes tüm cepheleri görür; yalnızca ev sahibi kendi cephesini düzenler (sunucu doğrular).
+
+- **Graffiti (sprey):** önce **🧴 sprey kutusu** al: **€3 = 4 sıkım** (sıkımlar evin stoğunda durur, en fazla 40).
+  Duvara bak → şablon duvarda önizlenir (yeşil olur / kırmızı olmaz), **E / Aksiyon'u ~0.8 sn basılı tut** →
+  "pssst", ilerleme halkası, boya zerrecikleri → graffiti çıkar (her biri 1 sıkım). 12 şablon: kalp, lale, yıldız,
+  taç, gülen yüz, dalga, şimşek, XXX (Amsterdam haçları), AMSTERDAM, HOI!, balon harflerle **isim etiketi** ve
+  **serbest yazı** (**T** / ✏️, en fazla 12 karakter). 8 renk (**C**), 3 boyut (**R**: S / M / L).
+  Kapı, pencere, zil / isim levhası ve fenerin üstüne boya olmaz; cephe sınırı (zeminden 0.2–3.0 m) dışına taşmaz;
+  cephe başına en fazla 16 graffiti (üst üste binebilir). Bakılan graffiti'yi **X** siler (iade yok).
+- **Neon tabela (€12):** üç yer — kapı üstü, üst kat penceresi, balkon korkuluğu (balkon gerekir). Yazı en fazla
+  14 karakter (**T**), 9 renk + gökkuşağı. Aynı yere yeni yazı / renk yine €12; **X** kaldırır (iade yok).
+- **Balkon (€25, bir kez):** üst kat penceresinin altında döşeme + korkuluk (siyah ferforje / beyaz / kanal yeşili).
+  Eşyalar: masa + 2 sandalye €8, lale kutuları €5, ışık zinciri €6, şemsiye €7. Süs amaçlı (üstüne çıkılmaz).
+- **Kalıcılık:** cephe ev kaydının `exterior` alanında saklanır; ev boşaltılınca (3 gün gelmeyen sahip) cephe de silinir.
+- **Pil:** her evin TÜM graffiti'leri tek bir kanvas dokusunda ve tek düzlemde; balkon + eşyalar tek mesh, ampuller
+  tek mesh, neon / ampul parıltıları tek additive mesh. Yalnızca o evin cephesi değişince yeniden kurulur.
+  Neon parıltısı statiktir (kare başı animasyon yok); gece yalnızca parıltı malzemesinin opaklığı artar. Mod kapalıyken
+  ve sprey sürmezken kare başına iş yoktur.
+
 ## Bar De Tulp — alkolsüz bar, barmenlik ve yiyecekler
 
 Lobinin doğu duvarındaki kapıdan girilen küçük bar (coffee shop'un arkasında). Her gün 10:00–23:00 açık; hafta sonu

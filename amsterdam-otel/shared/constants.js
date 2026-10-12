@@ -105,6 +105,9 @@ export const EVT = Object.freeze({
   // Oyuncular arası sohbet
   CHAT_SEND: 'chat:send', // istemci → sunucu (ack): { text }
   CHAT: 'chat', // sunucu → herkes: { id, name, color, text, t }
+  // ---- Ev dış cephesi: graffiti (sprey), neon tabela, balkon — server/house/ExteriorService.js ----
+  EXTERIOR_ACT: 'exterior:act', // istemci → sunucu (ack): { act: 'buyCans' | 'tag' | 'untag' | 'neon' | 'unneon' | 'balcony' | 'item' | 'unitem', ... }
+  EXTERIOR_STATE: 'exterior:state', // sunucu → herkes: { houseId, exterior: { sprays, tags, neon, balcony } }
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

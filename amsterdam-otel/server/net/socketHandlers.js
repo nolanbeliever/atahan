@@ -175,6 +175,11 @@ export function attachSocketHandlers(io, sim) {
       if (barGuard(ack)) reply(ack, sim.friendAct(player.id, data));
     });
 
+    // Ev dış cephesi: graffiti, neon tabela, balkon (tipler ExteriorService'te doğrulanır)
+    on(EVT.EXTERIOR_ACT, (data, ack) => {
+      if (houseGuard(ack)) reply(ack, sim.exteriorAct(player.id, data));
+    });
+
     on('disconnect', () => {
       if (player) {
         sockets.delete(player.id);

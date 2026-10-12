@@ -10,6 +10,7 @@
   <title>Amsterdam Otel</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/interactive-tv.css">
+  <link rel="stylesheet" href="/css/exterior.css">
   <script type="importmap">
     {
       "imports": {
@@ -109,6 +110,27 @@
       </div>
       <div id="build-hint">1-9 / tekerlek eşya · C renk · R döndür · E yerleştir · X kaldır · B çık</div>
     </div>
+
+    <!-- Oyuncu evleri: dış cephe modu (Achterstraat'ta kendi evinin önünde B / 🛠 Dekor) -->
+    <div id="ext-bar" hidden>
+      <div id="ext-tabs">
+        <button type="button" data-tab="graffiti">🎨 Graffiti</button>
+        <button type="button" data-tab="neon">💡 Neon</button>
+        <button type="button" data-tab="balcony">🏗️ Balkon</button>
+        <span id="ext-info"></span>
+      </div>
+      <div id="ext-items"></div>
+      <div class="build-row">
+        <div id="ext-colors"></div>
+        <div id="ext-sizes" aria-label="Boyut"></div>
+        <button type="button" id="ext-text" aria-label="Yazı">✏️<span class="lbl"> Yazı</span></button>
+        <button type="button" id="ext-cans" aria-label="Sprey kutusu al">🧴<span class="lbl"> +4 · €3</span></button>
+        <button type="button" id="ext-remove" aria-label="Sil">🗑<span class="lbl"> Sil</span></button>
+        <button type="button" id="ext-close" aria-label="Dış cephe modundan çık">✕</button>
+      </div>
+      <div id="ext-hint"></div>
+    </div>
+    <div id="ext-spray" hidden aria-hidden="true"></div>
   </div>
 
   <!-- Gece: yatakta uyurken ekran kararır -->
@@ -140,6 +162,19 @@
         <button type="button" class="secondary" id="tv-stop">⏹ Kapat (herkes için)</button>
         <button type="button" class="secondary" id="tv-close">Geri dön</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Dış cephe: graffiti / neon tabela yazısı -->
+  <div id="ext-text-panel" class="overlay" hidden>
+    <div class="card">
+      <h2 id="ext-text-title">✍️ Yazı</h2>
+      <p class="sub" id="ext-text-sub"></p>
+      <div class="ext-input">
+        <input id="ext-text-input" type="text" maxlength="14" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-label="Yazı">
+      </div>
+      <button type="button" class="primary" id="ext-text-save">Kaydet</button>
+      <button type="button" class="secondary" id="ext-text-cancel">Vazgeç</button>
     </div>
   </div>
 
@@ -252,6 +287,7 @@
         <li><b>Fare</b> etrafa bak</li>
         <li><b>E</b> / <b>Sol tık</b> aksiyon · <b>F</b> tüket · <b>Q</b> ürün değiştir</li>
         <li><b>B</b> Bizim Ev'de dekorasyon modu · <b>T</b> TV yayınına katıl / kapat</li>
+        <li>Achterstraat'ta evinin önünde <b>B</b>: dış cephe — graffiti (<b>E</b> basılı tut), neon tabela, balkon</li>
         <li>Barda <b>E</b>: bardak al · koy · çalkala · servis · topla · yıka · <b>F</b> yiyeceği ısır</li>
         <li>Achterstraat'ta başkasının kapısında <b>E</b>: zili çal · kapıda biri varsa <b>Y</b> / <b>N</b>: içeri al / alma</li>
         <li>Sokaktaki büfeden bisiklet / scooter al · araca bakıp <b>E</b>: bin · sürerken <b>W/S</b> gaz-fren, <b>A/D</b> direksiyon, <b>E</b> park et · arkadaşının aracına <b>E</b>: arkaya bin</li>

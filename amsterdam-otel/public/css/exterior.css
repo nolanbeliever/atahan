@@ -1,0 +1,145 @@
+/*
+ * Oyuncu evlerinin dış cephesi: graffiti / neon tabela / balkon modu.
+ * Görünüm Bizim Ev'in #build-bar çubuğuyla aynı; pil için animasyon / blur yok.
+ * Sprey halkası yalnızca sprey sürerken görünür (değer --p ile, kare başına tek stil yazımı).
+ */
+
+#ext-bar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(8px + var(--safe-b));
+  transform: translateX(-50%);
+  width: min(640px, 94vw);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 6px 8px;
+  pointer-events: auto;
+}
+#ext-tabs { display: flex; gap: 4px; align-items: center; margin-bottom: 5px; }
+#ext-tabs button {
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#ext-tabs button.sel { border-color: var(--accent); background: rgba(255,122,26,.3); }
+#ext-info { margin-left: auto; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+
+#ext-items { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+#ext-items::-webkit-scrollbar { display: none; }
+#ext-items button {
+  flex: 0 0 auto;
+  min-width: 62px;
+  max-width: 96px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  padding: 3px 4px;
+  cursor: pointer;
+}
+#ext-items button.sel { border-color: var(--accent); background: rgba(255,122,26,.25); }
+#ext-items canvas { display: block; width: 58px; height: 32px; margin: 0 auto; background: rgba(120,70,50,.55); border-radius: 4px; }
+#ext-items .ic { display: block; font-size: 20px; line-height: 1.2; }
+#ext-items .pr { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+#ext-colors { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; min-width: 0; }
+#ext-colors .sw {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.35);
+  padding: 0;
+  cursor: pointer;
+}
+#ext-colors .sw.sel { border-color: #fff; outline: 2px solid var(--accent); }
+#ext-colors .sw.rainbow { background: conic-gradient(#ff3344, #ff9a1a, #ffe23f, #3cff7a, #00e5ff, #3d7bff, #c03cff, #ff3344); }
+#ext-sizes { display: flex; gap: 2px; }
+#ext-sizes[hidden] { display: none; }
+#ext-sizes button {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,.2);
+  background: rgba(255,255,255,.08);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+}
+#ext-sizes button.sel { border-color: var(--accent); background: rgba(255,122,26,.3); }
+#ext-bar .build-row > button[hidden] { display: none; }
+#ext-hint { font-size: 11px; color: var(--muted); margin-top: 4px; text-align: center; }
+
+/* Sprey ilerleme halkası (nişangâhın etrafında) */
+#ext-spray {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 50%;
+  background: conic-gradient(var(--c, var(--accent)) calc(var(--p, 0) * 1turn), rgba(255,255,255,.2) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  pointer-events: none;
+}
+#ext-spray[hidden] { display: none; }
+
+/* Yazı paneli */
+.ext-input { margin: 4px 0 14px; }
+.ext-input input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.25);
+  background: #121a24;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: .04em;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Dış cephe modunda ipucu ve Aksiyon butonu çubuğun üstünde (çubuk build-bar'dan biraz yüksek) */
+body.ext-building #prompt { bottom: calc(176px + var(--safe-b)); }
+body.touch.ext-building #btn-action { bottom: calc(176px + var(--safe-b)); }
+
+@media (max-height: 480px), (max-width: 560px) {
+  #ext-items button { min-width: 54px; }
+  #ext-items canvas { width: 50px; height: 28px; }
+  #ext-tabs button { padding: 3px 8px; font-size: 11.5px; }
+  body.ext-building #prompt { bottom: calc(166px + var(--safe-b)); }
+  body.touch.ext-building #btn-action { bottom: calc(166px + var(--safe-b)); width: 64px; height: 64px; }
+}
+/* Dikey telefon: Aksiyon çubuğun hemen üstünde, ipucu onun da üstünde */
+@media (max-width: 560px) {
+  #ext-bar .lbl { display: none; }
+  body.ext-building #prompt { bottom: calc(244px + var(--safe-b)); }
+  body.touch.ext-building #btn-action { bottom: calc(172px + var(--safe-b)); }
+}
+/* Yatay telefon: çubuk sağ yarıda (soldaki joystick bölgesini kapatmaz), Aksiyon sağ kenarda */
+@media (max-height: 480px) {
+  body.touch #ext-bar {
+    left: auto;
+    right: calc(102px + var(--safe-r));
+    transform: none;
+    width: min(460px, calc(55vw - 102px - var(--safe-r)));
+    padding: 4px 6px;
+  }
+  body.touch.ext-building #btn-action { bottom: calc(26px + var(--safe-b)); width: 74px; height: 74px; }
+  body.touch #ext-bar .lbl { display: none; }
+  body.touch #ext-colors .sw { width: 20px; height: 20px; }
+  body.touch #ext-hint { display: none; }
+  body.touch.ext-building #prompt { bottom: calc(150px + var(--safe-b)); }
+}
