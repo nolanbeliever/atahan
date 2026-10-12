@@ -17,6 +17,7 @@ import { Interaction } from './game/Interaction.js';
 import { CoffeeShopSystem } from './game/CoffeeShopSystem.js';
 import { TripEffects } from './game/TripEffects.js';
 import { HouseSystem } from './game/HouseSystem.js';
+import { ExteriorCustomization } from './game/ExteriorCustomization.js';
 import { InteractiveTV } from './game/InteractiveTV.js';
 import { HouseVisitingSystem } from './game/HouseVisitingSystem.js';
 import { NightCycle } from './game/NightCycle.js';
@@ -89,6 +90,8 @@ const interaction = new Interaction({
 input.onAction((source) => {
   // Dekorasyon modunda Aksiyon/E/tık = eşyayı yerleştir
   if (house.build.active) house.place();
+  // Dış cephe modunda: sprey (basılı tut) / tabela / balkon
+  else if (exterior.active) exterior.action();
   // Bar: eylem sürerken girdi yutulur; elde yiyecek varsa ve hedef yoksa ısırır
   else if (!bar.onAction(source)) interaction.trigger(source);
 });
@@ -151,7 +154,7 @@ const visits = new HouseVisitingSystem({
 });
 // Dekorasyon modu komutları (B, R, C, X, 1-9) coffee shop'tan ÖNCE işlenir
 // Bar 'consume' (F) komutunu elde yiyecek varsa sahiplenir (coffee shop'a gitmez)
-input.onCommand((cmd) => house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd));
+input.onCommand((cmd) => exterior.command(cmd) || house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd));
 const shop = new CoffeeShopSystem({ net, hud, interaction, input, modal, device });
 // Shop'tan SONRA: boşta ipucu zincirini (idleHint) sarar
 const bar = new BarSystem({
@@ -187,6 +190,17 @@ reception.onChange.push((h) => workers.setState(h));
 const inspection = new HotelInspectionSystem({
   engine, net, hud, interaction, state, bar, reception,
 });
+// Oyuncu evlerinin dış cephesi: graffiti, neon tabela, balkon (evinin önünde B / 🛠 Dekor)
+const exterior = new ExteriorCustomization({
+  engine, net, hud, interaction, player, house, device, touch, modal, sfx, settings, getWallet: () => shop.wallet,
+});
+house.exterior = exterior;
+// Neon / ampul parıltısı gece güçlenir: dünyanın gece seviyesi değişince (tek seferlik geçiş) bildir
+const setNightLevel = world.setNightLevel;
+world.setNightLevel = (t) => {
+  setNightLevel.call(world, t);
+  exterior.setNight(t);
+};
 // Otel odasında çöp toplarken birinci şahıs toplama animasyonu
 const TRASH_ITEMS = ['paper', 'can', 'box', 'bottle'];
 interaction.onRoomAction = (room, t) => {
@@ -206,6 +220,7 @@ engine.addSystem((dt) => guests.update(dt, net.serverNow(), engine.camera));
 engine.addSystem((dt) => remotes.update(dt));
 engine.addSystem((dt) => trip.update(dt));
 engine.addSystem((dt) => house.update(dt));
+engine.addSystem(() => exterior.update());
 engine.addSystem((dt) => visits.update(dt));
 engine.addSystem((dt) => night.update(dt));
 engine.addSystem(() => vehicles.update());
@@ -305,6 +320,10 @@ window.addEventListener('keydown', (e) => {
     house.toggleBuild(false);
     return;
   }
+  if (exterior.active) {
+    exterior.toggle(false);
+    return;
+  }
   if (!started || !overlay.hidden) return;
   // Kilitliyse kilidi bırak (pointerlockchange → showPause), değilse doğrudan duraklat
   if (kbm.locked) document.exitPointerLock();
@@ -377,6 +396,7 @@ net.on(EVT.WELCOME, (snap) => {
   visits.reset(); // misafir izinleri oturumluk
   visits.applySelf(snap.self);
   house.applySnapshot(snap.house);
+  exterior.applySnapshot(snap.exterior);
   visits.setOwners(snap.house?.owners ?? []);
   night.reset(snap.selfId);
   night.onSleepState(snap.sleep);
@@ -477,6 +497,7 @@ net.on(EVT.SELF, (self) => {
   vehicles.applySelf(self.vehicles);
   bar.applySelf(self.bar);
   if (house.build.active) engine.requestRender(); // önizleme rengi (yeterli para var mı) güncellensin
+  exterior.onSelf();
 });
 net.on(EVT.PLAYER_TRIP, (t) => {
   if (t.id !== state.selfId) return; // başkalarının trip'i: yavaşlamaları ve animasyonları yeterli
@@ -507,6 +528,7 @@ net.on(EVT.VEHICLES, (list) => vehicles.setVehicles(list));
 net.on(EVT.VEHICLE_SEAT, (s) => vehicles.onSeat(s));
 net.on(EVT.CHAT, (m) => chat.onMessage(m));
 net.on(EVT.HOUSE_ACCESS, (a) => visits.onAccess(a));
+net.on(EVT.EXTERIOR_STATE, (s) => exterior.onState(s));
 
 // Bar De Tulp
 net.on(EVT.BAR_STATE, (s) => {
@@ -561,5 +583,6 @@ navigator.getBattery?.().then((battery) => {
 
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
-  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, reception, workers, inspection,
+  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
+  reception, workers, inspection,
 };

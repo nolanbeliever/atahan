@@ -112,6 +112,9 @@ export const EVT = Object.freeze({
   HOTEL_ACT: 'hotel:act', // istemci → sunucu (ack): { act: 'buyFloor'|'elevator'|'hire'|'fire'|'inspect'|'check'|'mop', ... }
   HOTEL_STATE: 'hotel:state', // sunucu → herkes: { growth, workers, inspection }
   INSPECTION_RESULT: 'inspection:result', // sunucu → herkes: { pass, checks, reward?, fine?, text }
+  // ---- Ev dış cephesi: graffiti (sprey), neon tabela, balkon — server/house/ExteriorService.js ----
+  EXTERIOR_ACT: 'exterior:act', // istemci → sunucu (ack): { act: 'buyCans' | 'tag' | 'untag' | 'neon' | 'unneon' | 'balcony' | 'item' | 'unitem', ... }
+  EXTERIOR_STATE: 'exterior:state', // sunucu → herkes: { houseId, exterior: { sprays, tags, neon, balcony } }
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

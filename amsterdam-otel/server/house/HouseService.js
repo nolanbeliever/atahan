@@ -135,6 +135,9 @@ export class HouseService {
     // Bar müdavimleriyle arkadaşlıklar: RelationshipService açılışta uygular
     this.friendsData = data.friends && typeof data.friends === 'object' && !Array.isArray(data.friends) ? data.friends : null;
 
+    // Ev dış cepheleri (graffiti, neon, balkon): ExteriorService açılışta her alanı doğrulayarak uygular
+    this.exteriorData = data.exterior && typeof data.exterior === 'object' && !Array.isArray(data.exterior) ? data.exterior : null;
+
     // Otel durumu (kasa, oyun günü/saati): HotelSimulation açılışta uygular
     this.hotelData = data.hotel && typeof data.hotel === 'object' && !Array.isArray(data.hotel) ? data.hotel : null;
 
@@ -168,6 +171,7 @@ export class HouseService {
       hotel: this.sim.hotelState?.(),
       friends: this.sim.relations?.persisted(),
       vehicles: this.sim.vehicles?.persisted(),
+      exterior: this.sim.exterior?.persisted(),
     };
   }
 
@@ -326,6 +330,7 @@ export class HouseService {
       this.sim.out(EVT.HOUSE_REMOVED, it.id);
     }
     for (const o of this.sim.players.values()) o.houseAccess?.delete(houseId);
+    this.sim.exterior?.clear(houseId); // dış cephe (graffiti, neon, balkon) da gider
     this.owners[houseId] = null;
   }
 

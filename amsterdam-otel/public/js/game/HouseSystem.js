@@ -92,7 +92,8 @@ export class HouseSystem {
       colors: $('build-colors'),
       hint: $('build-hint'),
     };
-    this.el.btn.addEventListener('click', () => this.toggleBuild());
+    this.exterior = null; // ExteriorCustomization (main.js bağlar): evin önündeyken 🛠 dış cephe modunu açar
+    this.el.btn.addEventListener('click', () => this.exterior?.command('build') || this.toggleBuild());
     $('build-rotate').addEventListener('click', () => this.command('rotate'));
     $('build-remove').addEventListener('click', () => this.command('remove'));
     $('build-close').addEventListener('click', () => this.toggleBuild(false));
@@ -420,7 +421,7 @@ export class HouseSystem {
         const name = this.ownerName(this.houseId);
         this.hud.toast(`🔒 Bu ev ${name ? possessive(name) : 'başkasının'} — yalnızca ev sahibi düzenleyebilir.`, 'warn');
       } else {
-        this.hud.toast('Dekorasyon için kendi evinde (Achterstraat) ya da Bizim Ev\'de olmalısın.', 'info');
+        this.hud.toast('Dekorasyon için kendi evinde (Achterstraat) ya da Bizim Ev\'de olmalısın. Dış cephe için evinin önünde dur.', 'info');
       }
       return;
     }
