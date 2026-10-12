@@ -242,6 +242,18 @@ export function isInsideBar(x, z) {
   return x > 8.15 && x < 15.85 && z > 8.15 && z < 13.85;
 }
 
+// Yeraltı Kart Kulübü — barın kuzeyindeki kapalı avlu (102/104'ün doğusu). Girişi steeg'deki
+// tabelasız kapıdan (x = 16 duvarında). Masalar ve kurallar: shared/casino.js
+export const CASINO = Object.freeze({
+  bounds: { minX: 8.2, maxX: 16, minZ: 14.1, maxZ: 25.9 },
+  door: { from: 19.45, to: 20.55 }, // steeg'in batı duvarında (z aralığı)
+  doorPoint: [16.55, 20], // kapının önü (steeg tarafı)
+});
+
+export function isInsideCasino(x, z) {
+  return x > 8.25 && x < 15.95 && z > 14.15 && z < 25.85;
+}
+
 export const RECEPTION = Object.freeze({
   desk: { minX: -7.0, maxX: -6.2, minZ: 5.2, maxZ: 8.8 },
   clerk: [-7.45, 7.0],
@@ -381,7 +393,7 @@ export function buildWallSegments() {
   wallAlongX(w, 26, 8.2, 18, [STEEG.gate], 'brick'); // steeg kemeri
   // Steeg: doğuda komşu bina, batıda (barın arkasında) avlu duvarı
   wallAlongZ(w, 18, 0.1, 25.9, [], 'brick');
-  wallAlongZ(w, 16, 14.1, 25.9, [], 'brick');
+  wallAlongZ(w, 16, 14.1, 25.9, [{ from: CASINO.door.from, to: CASINO.door.to, top: DOOR_H }], 'brick'); // Kart Kulübü kapısı
   wallAlongZ(w, -18, 26.1, 33, [], 'brick');
   wallAlongZ(w, 18, 26.1, 33, [], 'brick');
   // Oyuncu evleri: sokağa bakan cephe (her evin kapısıyla), aralarındaki ve arka duvarlar
@@ -424,6 +436,7 @@ export function areaAt(x, z) {
   if (isInsideShop(x, z)) return 'shop';
   if (isInsideHouse(x, z)) return 'house';
   if (isInsideBar(x, z)) return 'bar';
+  if (isInsideCasino(x, z)) return 'casino';
   if (isInsideAlley(x, z)) return 'alley';
   if (isInsideSteeg(x, z)) return 'steeg';
   for (const h of PLAYER_HOUSES) if (isInsideHouseDef(h, x, z)) return h.id;

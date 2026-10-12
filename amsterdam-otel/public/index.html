@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/css/interactive-tv.css">
   <link rel="stylesheet" href="/css/hotel.css">
   <link rel="stylesheet" href="/css/exterior.css">
+  <link rel="stylesheet" href="/css/casino.css">
   <script type="importmap">
     {
       "imports": {
@@ -303,6 +304,24 @@
       </div>
       <button type="button" class="primary" id="slot-spin">Çevir</button>
       <button type="button" class="secondary" id="slot-close">Kapat</button>
+    </div>
+  </div>
+
+  <!-- Yeraltı Kart Kulübü: masa paneli (blackjack / poker / zar) -->
+  <div id="casino-panel" class="overlay" hidden>
+    <div class="card wide casino-card">
+      <div class="cz-head">
+        <h2 id="cz-title">🃏 Kart Kulübü</h2>
+        <div class="cz-money"><span>🎒 <b id="cz-wallet">€ 0</b></span> <span>🏦 <b id="cz-kasa">€ 0</b></span></div>
+        <button type="button" class="secondary cz-leave" data-a="leave">Kalk</button>
+      </div>
+      <div id="cz-table" class="cz-felt"></div>
+      <div class="cz-statusline">
+        <p id="cz-status" class="cz-status" aria-live="polite"></p>
+        <div id="cz-timer" class="cz-timer" hidden><i></i><span id="cz-time"></span></div>
+      </div>
+      <div id="cz-controls"></div>
+      <p class="note" id="cz-msg" aria-live="polite"></p>
     </div>
   </div>
 

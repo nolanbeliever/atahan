@@ -10,6 +10,7 @@ import { buildBar } from './BarBuilding.js';
 import { buildPlayerHouses } from './PlayerHouses.js';
 import { buildSteeg } from './Steeg.js';
 import { buildHotelFloors } from './HotelFloors.js';
+import { buildCasino } from './CasinoBuilding.js';
 import {
   addPlanter, addBike, addTree, addBollard, addStreetLamp, addWindow, addPainting,
   addArmchair, addSideTable, makePanel,
@@ -56,6 +57,8 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
   buildSteeg({ batcher: b, collision, scene });
   // Lobideki asansör ve üst katlar (sahanlık, koridor, dekor)
   buildHotelFloors({ batcher: b, collision, scene, factory });
+  // Yeraltı Kart Kulübü: steeg'deki tabelasız kapının arkasındaki gizli oda
+  const casino = buildCasino({ batcher: b, collision, scene, mats, factory });
 
   b.build(mats, scene);
   const lights = addLights(scene, quality);
@@ -76,6 +79,7 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
     house,
     bar,
     playerHouses,
+    casino,
 
     /**
      * Gece karanlığı 0 (gündüz) … 1 (gece). Yalnızca ışık şiddeti / renkleri değişir:

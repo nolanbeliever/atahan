@@ -115,6 +115,10 @@ export const EVT = Object.freeze({
   // ---- Ev dış cephesi: graffiti (sprey), neon tabela, balkon — server/house/ExteriorService.js ----
   EXTERIOR_ACT: 'exterior:act', // istemci → sunucu (ack): { act: 'buyCans' | 'tag' | 'untag' | 'neon' | 'unneon' | 'balcony' | 'item' | 'unitem', ... }
   EXTERIOR_STATE: 'exterior:state', // sunucu → herkes: { houseId, exterior: { sprays, tags, neon, balcony } }
+  // ---- Yeraltı Kart Kulübü (blackjack, poker, zar — server/game/CasinoService.js) ----
+  CASINO_ACT: 'casino:act', // istemci → sunucu (ack): { act, table, seat?, amount?, source?: 'wallet' | 'kasa' }
+  CASINO_STATE: 'casino:state', // sunucu → herkes: tek masanın açık durumu (başkalarının kapalı kartları YOK)
+  CASINO_PRIVATE: 'casino:private', // sunucu → yalnızca o oyuncu: { table: 'poker', handNo, cards } kendi kartları
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

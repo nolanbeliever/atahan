@@ -29,6 +29,7 @@ import { ChatSystem } from './game/ChatSystem.js';
 import { ReceptionPC } from './game/ReceptionPC.js';
 import { HotelWorkerSystem } from './game/HotelWorkerSystem.js';
 import { HotelInspectionSystem } from './game/HotelInspectionSystem.js';
+import { UndergroundCasino } from './game/UndergroundCasino.js';
 import { BarSystem } from './game/BarSystem.js';
 import { ViewModel } from './game/ViewModel.js';
 import { Sfx } from './core/Sfx.js';
@@ -175,6 +176,10 @@ const friends = new NpcRelationshipSystem({
 // Şehir içi ulaşım (bisiklet / scooter, arkaya yolcu) ve oda tamiratı (mini oyunlar)
 const vehicles = new CityVehicleSystem({
   engine, net, hud, interaction, player, remotes, collision, modal, device, settings, sfx, getWallet: () => shop.wallet,
+});
+// Yeraltı Kart Kulübü (steeg'deki gizli kapı: blackjack, poker, zar — 18+ onayı coffee shop'la ortak)
+const casino = new UndergroundCasino({
+  engine, net, hud, interaction, player, modal, device, sfx, shop, state, world, vehicles, collision,
 });
 const maint = new HotelMaintenanceSystem({
   engine, net, hud, interaction, player, collision, modal, device, settings, sfx, vm,
@@ -409,6 +414,8 @@ net.on(EVT.WELCOME, (snap) => {
   maint.onRooms(snap.rooms);
   chat.reset(snap.selfId);
   chat.setHistory(snap.chat);
+  casino.reset(snap.selfId);
+  casino.applySnapshot(snap.casino);
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
   reception.setState(snap.hotel);
@@ -529,6 +536,9 @@ net.on(EVT.VEHICLE_SEAT, (s) => vehicles.onSeat(s));
 net.on(EVT.CHAT, (m) => chat.onMessage(m));
 net.on(EVT.HOUSE_ACCESS, (a) => visits.onAccess(a));
 net.on(EVT.EXTERIOR_STATE, (s) => exterior.onState(s));
+// Yeraltı Kart Kulübü
+net.on(EVT.CASINO_STATE, (s) => casino.onState(s));
+net.on(EVT.CASINO_PRIVATE, (p) => casino.onPrivate(p));
 
 // Bar De Tulp
 net.on(EVT.BAR_STATE, (s) => {
@@ -584,5 +594,5 @@ navigator.getBattery?.().then((battery) => {
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
-  reception, workers, inspection,
+  reception, workers, inspection, casino,
 };

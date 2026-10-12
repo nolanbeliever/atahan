@@ -5,10 +5,11 @@ import { COFFEESHOP, isInsideShop } from '/shared/layout.js';
 
 const AGE_KEY = 'amsterdam-otel:age18:v1';
 
-function ageConfirmed() {
+/** 18+ onayı (coffee shop ve Kart Kulübü aynı bayrağı paylaşır) */
+export function ageConfirmed() {
   try { return localStorage.getItem(AGE_KEY) === '1'; } catch { return false; }
 }
-function confirmAge() {
+export function confirmAge() {
   try { localStorage.setItem(AGE_KEY, '1'); } catch { /* yalnızca bu oturum */ }
 }
 
@@ -63,7 +64,9 @@ export class CoffeeShopSystem {
       confirmAge();
       const kind = this.pendingPanel;
       this.pendingPanel = null;
-      if (kind) this.openPanel(kind); // önce paneli aç, sonra onayı kapat (oyun arada devam etmesin)
+      // önce paneli aç, sonra onayı kapat (oyun arada devam etmesin); başka sistemler geri çağırma verir
+      if (typeof kind === 'function') kind();
+      else if (kind) this.openPanel(kind);
       modal.close(this.el.age);
     });
     $('age-no').addEventListener('click', () => {
@@ -139,12 +142,24 @@ export class CoffeeShopSystem {
   // ---- Paneller -------------------------------------------------------------
 
   open(kind) {
-    if (!ageConfirmed()) {
-      this.pendingPanel = kind;
-      this.modal.open(this.el.age);
+    this.requireAge(kind);
+  }
+
+  /**
+   * 18+ onayı gerektiren içerik: onaylıysa hemen, değilse onaydan sonra açılır.
+   * @param next 'shop' | 'slot' ya da geri çağırma (Kart Kulübü) · note: onay ekranındaki açıklama
+   */
+  requireAge(next, note = null) {
+    if (ageConfirmed()) {
+      if (typeof next === 'function') next();
+      else this.openPanel(next);
       return;
     }
-    this.openPanel(kind);
+    const sub = this.el.age.querySelector('.sub');
+    this.ageNote ??= sub.textContent;
+    sub.textContent = note ?? this.ageNote;
+    this.pendingPanel = next;
+    this.modal.open(this.el.age);
   }
 
   openPanel(kind) {

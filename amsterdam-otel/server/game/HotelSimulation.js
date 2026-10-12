@@ -19,6 +19,7 @@ import { WorkerService } from './WorkerService.js';
 import { InspectionService } from './InspectionService.js';
 import { REPUTATION } from '../../shared/hotel.js';
 import { ExteriorService } from '../house/ExteriorService.js';
+import { CasinoService } from './CasinoService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -80,6 +81,7 @@ export class HotelSimulation extends EventEmitter {
     this.workers = new WorkerService(this); // temizlikçi NPC'ler
     this.inspection = new InspectionService(this); // belediye denetimi
     this.exterior = new ExteriorService(this); // ev dış cepheleri (kayıt: this.house.exteriorData)
+    this.casino = new CasinoService(this); // Yeraltı Kart Kulübü
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -223,6 +225,7 @@ export class HotelSimulation extends EventEmitter {
     this.inspection.update(now);
     this.shop.update(now);
     this.bar.update(now);
+    this.casino.update(now);
     this.house.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
@@ -310,6 +313,7 @@ export class HotelSimulation extends EventEmitter {
     if (!p) return;
     this.bar.removePlayer(p); // elindeki bardaklar rafa döner
     this.inspection.removePlayer(p);
+    this.casino.removePlayer(p); // masadan kalkar: fişleri bozdurulur (cüzdan kaydından önce)
     this.relations.removePlayer(p); // evdeki misafiri gider
     this.vehicles.removePlayer(p); // sürüyorsa park eder; araçları kayda geçer
     this.house.removePlayer(p); // bekleyen ziller, cüzdan ve ev sahibi kaydı
@@ -552,6 +556,10 @@ export class HotelSimulation extends EventEmitter {
 
   vehicleAct(playerId, data) { return this.withPlayer(playerId, (p) => this.vehicles.act(p, data)); }
 
+  // ---- Yeraltı Kart Kulübü ---------------------------------------------------------
+
+  casinoAct(playerId, data) { return this.withPlayer(playerId, (p) => this.casino.act(p, data, this.now())); }
+
   // ---- Coffee shop (kişisel cüzdan / envanter / trip) -------------------
 
   buy(playerId, productId) {
@@ -639,6 +647,7 @@ export class HotelSimulation extends EventEmitter {
       chat: this.chatLog.slice(),
       hotel: this.hotelPublic(),
       exterior: this.exterior.serialize(), // { [houseId]: { sprays, tags, neon, balcony } } (boş cepheler yok)
+      casino: this.casino.serialize(selfId),
     };
   }
 }

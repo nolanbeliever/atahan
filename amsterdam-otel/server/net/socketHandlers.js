@@ -185,6 +185,12 @@ export function attachSocketHandlers(io, sim) {
     on(EVT.EXTERIOR_ACT, (data, ack) => {
       if (houseGuard(ack)) reply(ack, sim.exteriorAct(player.id, data));
     });
+    // ---- Yeraltı Kart Kulübü (tipler ve tutarlar CasinoService'te doğrulanır) ----
+    const allowCasino = rateLimiter(6, 10);
+    on(EVT.CASINO_ACT, (data, ack) => {
+      if (!player || !allowCasino()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.casinoAct(player.id, data));
+    });
 
     on('disconnect', () => {
       if (player) {
