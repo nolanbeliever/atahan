@@ -14,6 +14,7 @@ import { BarService } from './BarService.js';
 import { GardenService } from '../house/GardenService.js';
 import { RelationshipService } from './RelationshipService.js';
 import { VehicleService } from './VehicleService.js';
+import { CasinoService } from './CasinoService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -71,6 +72,7 @@ export class HotelSimulation extends EventEmitter {
     this.garden = new GardenService(this, this.house);
     this.relations = new RelationshipService(this);
     this.vehicles = new VehicleService(this);
+    this.casino = new CasinoService(this); // Yeraltı Kart Kulübü
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -184,6 +186,7 @@ export class HotelSimulation extends EventEmitter {
     this.guests.update(now);
     this.shop.update(now);
     this.bar.update(now);
+    this.casino.update(now);
     this.house.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
@@ -269,6 +272,7 @@ export class HotelSimulation extends EventEmitter {
     const p = this.players.get(id);
     if (!p) return;
     this.bar.removePlayer(p); // elindeki bardaklar rafa döner
+    this.casino.removePlayer(p); // masadan kalkar: fişleri bozdurulur (cüzdan kaydından önce)
     this.relations.removePlayer(p); // evdeki misafiri gider
     this.vehicles.removePlayer(p); // sürüyorsa park eder; araçları kayda geçer
     this.house.removePlayer(p); // bekleyen ziller, cüzdan ve ev sahibi kaydı
@@ -493,6 +497,10 @@ export class HotelSimulation extends EventEmitter {
 
   vehicleAct(playerId, data) { return this.withPlayer(playerId, (p) => this.vehicles.act(p, data)); }
 
+  // ---- Yeraltı Kart Kulübü ---------------------------------------------------------
+
+  casinoAct(playerId, data) { return this.withPlayer(playerId, (p) => this.casino.act(p, data, this.now())); }
+
   // ---- Coffee shop (kişisel cüzdan / envanter / trip) -------------------
 
   buy(playerId, productId) {
@@ -571,6 +579,7 @@ export class HotelSimulation extends EventEmitter {
       visits: this.relations.serializeVisits(),
       vehicles: this.vehicles.serialize(),
       chat: this.chatLog.slice(),
+      casino: this.casino.serialize(selfId),
     };
   }
 }

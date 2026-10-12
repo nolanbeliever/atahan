@@ -105,6 +105,10 @@ export const EVT = Object.freeze({
   // Oyuncular arası sohbet
   CHAT_SEND: 'chat:send', // istemci → sunucu (ack): { text }
   CHAT: 'chat', // sunucu → herkes: { id, name, color, text, t }
+  // ---- Yeraltı Kart Kulübü (blackjack, poker, zar — server/game/CasinoService.js) ----
+  CASINO_ACT: 'casino:act', // istemci → sunucu (ack): { act, table, seat?, amount?, source?: 'wallet' | 'kasa' }
+  CASINO_STATE: 'casino:state', // sunucu → herkes: tek masanın açık durumu (başkalarının kapalı kartları YOK)
+  CASINO_PRIVATE: 'casino:private', // sunucu → yalnızca o oyuncu: { table: 'poker', handNo, cards } kendi kartları
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------
