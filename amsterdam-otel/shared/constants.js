@@ -2,7 +2,10 @@
 // Bu dosya hem Node.js (ESM) hem tarayıcı tarafından doğrudan import edilir;
 // bu yüzden yalnızca saf JavaScript içerir, hiçbir ortama özgü API kullanmaz.
 
-export const ROOM_IDS = Object.freeze(['101', '102', '103', '104']);
+// Kat başına 4 oda; 1. kat hep açık, üst katlar Resepsiyon PC'den satın alınır (shared/hotel.js)
+export const ROOM_IDS = Object.freeze([1, 2, 3, 4].flatMap((f) => [1, 2, 3, 4].map((n) => `${f}0${n}`)));
+/** Odanın katı ('203' → 2) */
+export const roomFloor = (id) => Number(id[0]);
 
 export const ROOM_STATUS = Object.freeze({
   EMPTY: 'bos',
@@ -105,6 +108,10 @@ export const EVT = Object.freeze({
   // Oyuncular arası sohbet
   CHAT_SEND: 'chat:send', // istemci → sunucu (ack): { text }
   CHAT: 'chat', // sunucu → herkes: { id, name, color, text, t }
+  // Otelin büyümesi: Resepsiyon PC (kat, temizlikçi), asansör, belediye denetimi
+  HOTEL_ACT: 'hotel:act', // istemci → sunucu (ack): { act: 'buyFloor'|'elevator'|'hire'|'fire'|'inspect'|'check'|'mop', ... }
+  HOTEL_STATE: 'hotel:state', // sunucu → herkes: { growth, workers, inspection }
+  INSPECTION_RESULT: 'inspection:result', // sunucu → herkes: { pass, checks, reward?, fine?, text }
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

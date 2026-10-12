@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { makeCharacter } from './Characters.js';
 
-function makeLabel(text, color) {
+export function makeLabel(text, color) {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 64;

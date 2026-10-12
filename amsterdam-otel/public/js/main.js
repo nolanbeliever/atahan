@@ -25,6 +25,9 @@ import { NpcRelationshipSystem } from './game/NpcRelationshipSystem.js';
 import { CityVehicleSystem } from './game/CityVehicleSystem.js';
 import { HotelMaintenanceSystem } from './game/HotelMaintenanceSystem.js';
 import { ChatSystem } from './game/ChatSystem.js';
+import { ReceptionPC } from './game/ReceptionPC.js';
+import { HotelWorkerSystem } from './game/HotelWorkerSystem.js';
+import { HotelInspectionSystem } from './game/HotelInspectionSystem.js';
 import { BarSystem } from './game/BarSystem.js';
 import { ViewModel } from './game/ViewModel.js';
 import { Sfx } from './core/Sfx.js';
@@ -175,6 +178,15 @@ const maint = new HotelMaintenanceSystem({
 });
 // Oyuncular arası sohbet (Enter / 💬) ve konuşma balonları
 const chat = new ChatSystem({ engine, net, hud, input, remotes, device, settings, sfx });
+// Otelin büyümesi: Resepsiyon PC (yıldız, kat, çalışan), asansör, temizlikçiler, belediye denetimi
+const workers = new HotelWorkerSystem({ guests, hud });
+const reception = new ReceptionPC({
+  engine, net, hud, interaction, player, modal, device, sfx, state, workers,
+});
+reception.onChange.push((h) => workers.setState(h));
+const inspection = new HotelInspectionSystem({
+  engine, net, hud, interaction, state, bar, reception,
+});
 // Otel odasında çöp toplarken birinci şahıs toplama animasyonu
 const TRASH_ITEMS = ['paper', 'can', 'box', 'bottle'];
 interaction.onRoomAction = (room, t) => {
@@ -379,6 +391,7 @@ net.on(EVT.WELCOME, (snap) => {
   chat.setHistory(snap.chat);
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
+  reception.setState(snap.hotel);
   hud.setRooms(state.rooms);
   hud.setMoney(snap.economy.money);
   guests.clear();
@@ -412,6 +425,8 @@ net.on(EVT.ROOMS, (rooms) => {
   maint.onRooms(rooms);
   world.applyRooms(rooms);
   hud.setRooms(state.rooms);
+  reception.refresh();
+  inspection.refresh();
   interaction.invalidate();
   engine.wake();
 });
@@ -420,7 +435,11 @@ net.on(EVT.ECONOMY, (e) => {
   state.economy = e;
   hud.setMoney(e.money);
   if (e.delta > 0) hud.toast(`+${formatMoney(e.delta)} · ${e.reason}`, 'money');
+  else if (e.delta < 0) hud.toast(`−${formatMoney(-e.delta)} · ${e.reason}`, 'warn');
+  reception.refresh();
 });
+net.on(EVT.HOTEL_STATE, (h) => reception.setState(h));
+net.on(EVT.INSPECTION_RESULT, (r) => inspection.onResult(r));
 
 net.on(EVT.GUEST_UPSERT, (g) => {
   guests.upsert(g);
@@ -490,7 +509,10 @@ net.on(EVT.CHAT, (m) => chat.onMessage(m));
 net.on(EVT.HOUSE_ACCESS, (a) => visits.onAccess(a));
 
 // Bar De Tulp
-net.on(EVT.BAR_STATE, (s) => bar.onState(s));
+net.on(EVT.BAR_STATE, (s) => {
+  bar.onState(s);
+  inspection.refresh();
+});
 net.on(EVT.PLAYER_BAR, (b) => {
   if (b.id !== state.selfId) bar.onRemoteBar(b.id, b);
 });
@@ -539,5 +561,5 @@ navigator.getBattery?.().then((battery) => {
 
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
-  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat,
+  engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, reception, workers, inspection,
 };

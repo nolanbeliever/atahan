@@ -1,5 +1,5 @@
 import {
-  ROOM_IDS, ROOM_STATUS, ROOM_STATUS_LABEL, DAY_NAMES, formatClock, formatMoney,
+  ROOM_IDS, ROOM_STATUS, ROOM_STATUS_LABEL, DAY_NAMES, formatClock, formatMoney, roomFloor,
 } from '/shared/constants.js';
 
 const MAX_TOASTS = 4;
@@ -26,23 +26,55 @@ export class HUD {
       crosshair: $('crosshair'),
       fps: $('fps'),
       conn: $('conn-status'),
+      stars: $('hud-stars'),
     };
     this.cache = new Map();
     this.roomEls = new Map();
+    this.floorHeads = new Map();
     for (const id of ROOM_IDS) {
+      const floor = roomFloor(id);
+      // Üst katlar açılınca liste kat kat gruplanır (kapalı katlar gizli)
+      if (!this.floorHeads.has(floor)) {
+        const head = document.createElement('li');
+        head.className = 'floor-head';
+        head.textContent = `${floor}. kat`;
+        head.hidden = true;
+        this.el.rooms.append(head);
+        this.floorHeads.set(floor, head);
+      }
       const li = document.createElement('li');
       li.className = ROOM_STATUS.EMPTY;
       const dot = document.createElement('span');
       dot.className = 'dot';
       const name = document.createElement('span');
-      name.textContent = `Oda ${id}`;
+      const pre = document.createElement('span');
+      pre.className = 'pre';
+      pre.textContent = 'Oda ';
+      name.append(pre, id);
       const state = document.createElement('span');
       state.className = 'state';
       state.textContent = ROOM_STATUS_LABEL[ROOM_STATUS.EMPTY];
       li.append(dot, name, state);
+      li.hidden = floor > 1;
       this.el.rooms.append(li);
-      this.roomEls.set(id, { li, state });
+      this.roomEls.set(id, { li, state, floor });
     }
+  }
+
+  /** Açık kat sayısı: kapalı katların odaları listede görünmez; birden çok katta başlıklar çıkar */
+  setFloors(n) {
+    if (this.cache.get('floors') === n) return;
+    this.cache.set('floors', n);
+    for (const e of this.roomEls.values()) e.li.hidden = e.floor > n;
+    for (const [f, head] of this.floorHeads) head.hidden = n < 2 || f > n;
+    this.el.rooms.classList.toggle('multi', n > 1);
+  }
+
+  /** Yıldız göstergesi (★★★☆☆) + itibar */
+  setStars(stars, reputation, next) {
+    const text = `${'★'.repeat(stars)}${'☆'.repeat(Math.max(0, 5 - stars))}`;
+    this.set('stars', this.el.stars, text);
+    this.el.stars.title = next ? `İtibar ${reputation} / ${next} (sonraki yıldız)` : `İtibar ${reputation} — en yüksek seviye`;
   }
 
   set(key, el, text) {
@@ -63,6 +95,10 @@ export class HUD {
       if (this.cache.get(`room:${r.id}`) === label) continue;
       this.cache.set(`room:${r.id}`, label);
       e.li.className = r.status;
+      e.li.title = `Oda ${r.id}: ${label}`;
+      // Kompakt (çok katlı) görünümde kirli odanın kalan iş sayısı rozet olarak
+      if (r.status === ROOM_STATUS.DIRTY) e.li.dataset.left = label.replace(/\D+/g, '');
+      else delete e.li.dataset.left;
       e.state.textContent = label;
     }
   }

@@ -10,6 +10,7 @@
   <title>Amsterdam Otel</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/interactive-tv.css">
+  <link rel="stylesheet" href="/css/hotel.css">
   <script type="importmap">
     {
       "imports": {
@@ -45,6 +46,10 @@
         <small class="lbl">🎒 Cüzdan</small>
         <span id="hud-wallet">€ 0</span>
       </div>
+      <div class="row">
+        <small class="lbl">Otel</small>
+        <span id="hud-stars" class="stars">★☆☆☆☆</span>
+      </div>
     </div>
 
     <!-- Envanter (coffee shop ürünleri) — dokunarak seçilir -->
@@ -59,6 +64,11 @@
     </div>
 
     <div id="top-center">
+      <!-- Belediye denetimi: geri sayım + kontrol listesi -->
+      <div id="insp-banner" class="insp" hidden aria-live="polite">
+        <div class="insp-head"><b id="insp-title">🏛️ Belediye denetimi</b><span id="insp-time"></span></div>
+        <ul id="insp-list"></ul>
+      </div>
       <div id="weekend-banner" hidden>Hafta Sonu — Otel Kapalı</div>
       <div id="trip-banner" hidden></div>
       <div id="toasts" aria-live="polite"></div>
@@ -154,6 +164,32 @@
       <button type="button" class="primary" id="vehicle-close">Kapat</button>
     </div>
   </div>
+
+  <!-- Resepsiyon bilgisayarı: genel durum, yükseltmeler (kat), çalışanlar -->
+  <div id="pc-panel" class="overlay" hidden>
+    <div class="card wide pc-card">
+      <h2>💻 Hotel Amsterdam · Yönetim</h2>
+      <div id="pc-tabs" class="pc-tabs" role="tablist">
+        <button type="button" data-tab="overview" class="on">Genel</button>
+        <button type="button" data-tab="upgrades">🏗️ Yükseltmeler</button>
+        <button type="button" data-tab="workers">🧹 Çalışanlar</button>
+      </div>
+      <div id="pc-body"></div>
+      <p class="note" id="pc-msg"></p>
+      <button type="button" class="primary" id="pc-close">Kapat</button>
+    </div>
+  </div>
+
+  <!-- Asansör: kat seçimi -->
+  <div id="lift-panel" class="overlay" hidden>
+    <div class="card lift-card">
+      <h2>🛗 Asansör</h2>
+      <div id="lift-floors"></div>
+      <p class="note" id="lift-msg"></p>
+      <button type="button" class="secondary" id="lift-close">Vazgeç</button>
+    </div>
+  </div>
+  <div id="lift-fade" hidden></div>
 
   <!-- Oda tamiratı: mini oyunlar -->
   <div id="maint-panel" class="overlay" hidden>

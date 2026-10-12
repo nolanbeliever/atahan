@@ -3,6 +3,8 @@ import {
 } from '../../shared/constants.js';
 import { POINTS, RECEPTION, SEATS, ROOM_BY_ID } from '../../shared/layout.js';
 import { pathLength } from '../../shared/path.js';
+import { REPUTATION, roomPrice, spawnFactor } from '../../shared/hotel.js';
+import { lobbyToRoom, roomToLobby } from './routes.js';
 
 /**
  * Misafir yaşam döngüsü:
@@ -48,8 +50,9 @@ export class GuestManager {
       if (clock.total >= this.nextSpawnAt) {
         if (this.canSpawn()) {
           this.spawn(now);
-          this.nextSpawnAt = clock.total + config.spawnMinMin
-            + this.rng() * (config.spawnMaxMin - config.spawnMinMin);
+          // Üst katlar açıldıkça misafirler daha sık gelir
+          this.nextSpawnAt = clock.total + (config.spawnMinMin
+            + this.rng() * (config.spawnMaxMin - config.spawnMinMin)) * spawnFactor(this.sim.growth.floors);
         } else {
           this.nextSpawnAt = clock.total + 15;
         }
@@ -110,7 +113,12 @@ export class GuestManager {
     this.sim.notify('Yeni misafir geldi, resepsiyona yöneliyor.', 'info');
   }
 
-  walk(g, phase, path, now) {
+  /**
+   * @param legs  asansörle kat değiştiren rotanın kalan bacakları: bu bacak bitince misafir
+   *              bir sonrakinin başına ışınlanır (aynı fazda devam eder)
+   */
+  walk(g, phase, path, now, legs = null) {
+    g.legs = legs?.length ? legs : null;
     g.phase = phase;
     g.path = path.map((p) => [p[0], p[1]]);
     g.t0 = now;
@@ -119,7 +127,13 @@ export class GuestManager {
     this.broadcast(g);
   }
 
+  /** Bacak listesiyle yürüyüş (ilk bacak hemen başlar) */
+  walkLegs(g, phase, legs, now) {
+    this.walk(g, phase, legs[0], now, legs.slice(1));
+  }
+
   stand(g, phase, point, face, now, durationMs = 0, sit = false) {
+    g.legs = null;
     g.phase = phase;
     g.path = [[point[0], point[1]]];
     g.t0 = now;
@@ -141,7 +155,8 @@ export class GuestManager {
   lastPoint(g) { return g.path[g.path.length - 1]; }
 
   pickRoom() {
-    const empty = this.sim.rooms.emptyRooms();
+    // Yalnızca açık katlardaki boş odalar
+    const empty = this.sim.rooms.emptyRooms(this.sim.growth.floors);
     if (!empty.length) return null;
     return empty[Math.floor(this.rng() * empty.length)];
   }
@@ -156,10 +171,11 @@ export class GuestManager {
     this.sim.rooms.occupy(room, g.id);
     g.roomId = room.id;
     g.seat = -1;
-    this.sim.earn(ROOM_PRICE, `Oda ${room.id} kiralandı`);
+    this.sim.earn(roomPrice(ROOM_PRICE, this.sim.growth.stars), `Oda ${room.id} kiralandı`);
+    this.sim.growth.addReputation(REPUTATION.GUEST_CHECKIN);
     this.sim.roomsChanged();
-    const rp = ROOM_BY_ID[room.id].path;
-    this.walk(g, P.TO_ROOM, [...fromPath, POINTS.hub, rp.corridor, rp.doorOut, rp.doorIn, rp.stand], now);
+    const layout = ROOM_BY_ID[room.id];
+    this.walkLegs(g, P.TO_ROOM, lobbyToRoom(fromPath, layout, [layout.path.stand]), now);
   }
 
   leave(g, fromPath, now) {
@@ -177,6 +193,7 @@ export class GuestManager {
     }
     if (this.sim.clock.total >= g.waitUntil || !this.sim.clock.checkinOpen) {
       this.sim.notify('Bir misafir boş oda bulamadığı için ayrıldı. Odaları hızlı temizleyin!', 'warn');
+      this.sim.growth.addReputation(REPUTATION.GUEST_LOST);
       this.leave(g, [seat.seat, seat.approach], now);
     }
   }
@@ -188,6 +205,11 @@ export class GuestManager {
       return;
     }
     if (now < g.phaseEndsAt) return;
+    // Asansör: bir sonraki bacağın başına geç
+    if (g.legs) {
+      this.walk(g, g.phase, g.legs[0], now, g.legs.slice(1));
+      return;
+    }
 
     switch (g.phase) {
       case P.ARRIVE:
@@ -240,15 +262,12 @@ export class GuestManager {
 
   checkout(g, now) {
     const room = this.sim.rooms.get(g.roomId);
-    const rp = ROOM_BY_ID[g.roomId].path;
+    const layout = ROOM_BY_ID[g.roomId];
     this.sim.rooms.makeDirty(room);
     this.sim.roomsChanged();
     this.sim.notify(`Oda ${room.id} boşaltıldı — temizlik gerekiyor!`, 'dirty');
     const street = this.rng() < 0.5 ? POINTS.streetWest : POINTS.streetEast;
     g.roomId = null;
-    this.walk(g, P.CHECKOUT, [
-      rp.stand, rp.doorIn, rp.doorOut, rp.corridor, POINTS.hub,
-      POINTS.doorInside, POINTS.doorOutside, street,
-    ], now);
+    this.walkLegs(g, P.CHECKOUT, roomToLobby([layout.path.stand], layout, [POINTS.doorInside, POINTS.doorOutside, street]), now);
   }
 }

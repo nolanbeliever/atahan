@@ -14,6 +14,10 @@ import { BarService } from './BarService.js';
 import { GardenService } from '../house/GardenService.js';
 import { RelationshipService } from './RelationshipService.js';
 import { VehicleService } from './VehicleService.js';
+import { HotelGrowthService } from './HotelGrowthService.js';
+import { WorkerService } from './WorkerService.js';
+import { InspectionService } from './InspectionService.js';
+import { REPUTATION } from '../../shared/hotel.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -71,6 +75,9 @@ export class HotelSimulation extends EventEmitter {
     this.garden = new GardenService(this, this.house);
     this.relations = new RelationshipService(this);
     this.vehicles = new VehicleService(this);
+    this.growth = new HotelGrowthService(this); // yıldız / itibar, üst katlar, asansör
+    this.workers = new WorkerService(this); // temizlikçi NPC'ler
+    this.inspection = new InspectionService(this); // belediye denetimi
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -110,13 +117,39 @@ export class HotelSimulation extends EventEmitter {
     this.house.scheduleSave(); // kasa kalıcı
   }
 
-  /** Kalıcı kayda giden otel durumu: kasa, bugünün özeti, oyun günü ve saati */
+  /** Kasadan harcama (kat, temizlikçi, ceza); kasa eksiye düşmez */
+  spend(amount, reason) {
+    const v = Math.min(amount, this.money);
+    this.money -= v;
+    this.out(EVT.ECONOMY, this.economy(-v, reason));
+    this.house.scheduleSave();
+  }
+
+  /** Otelin büyüme durumu (Resepsiyon PC, HUD yıldızları, denetim bandı) */
+  hotelPublic() {
+    return { growth: this.growth.serialize(), workers: this.workers.serialize(), inspection: this.inspection.serialize() };
+  }
+
+  hotelChanged() { this.out(EVT.HOTEL_STATE, this.hotelPublic()); }
+
+  /** Kalıcı kayda giden otel durumu: kasa, bugünün özeti, oyun günü ve saati, büyüme */
   hotelState() {
-    return { money: this.money, today: { ...this.today }, day: this.clock.dayCount, minute: Math.round(this.clock.minute) };
+    return {
+      money: this.money,
+      today: { ...this.today },
+      day: this.clock.dayCount,
+      minute: Math.round(this.clock.minute),
+      growth: this.growth.persisted(),
+      workers: this.workers.persisted(),
+      inspection: this.inspection.persisted(),
+    };
   }
 
   restoreHotel(h) {
     if (!h) return;
+    this.growth.restore(h.growth);
+    this.workers.restore(h.workers);
+    this.inspection.restore(h.inspection);
     if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
     const t = h.today;
     if (t && typeof t === 'object') {
@@ -146,6 +179,8 @@ export class HotelSimulation extends EventEmitter {
       // Duraklama süresince yürüyen misafirlerin zaman damgalarını kaydır
       this.guests.shiftTime(now - this.pausedAt);
       this.bar.shiftTime(now - this.pausedAt);
+      this.workers.shiftTime(now - this.pausedAt);
+      this.inspection.shiftTime(now - this.pausedAt);
       this.pausedAt = null;
     }
     this.lastTick = now;
@@ -182,6 +217,8 @@ export class HotelSimulation extends EventEmitter {
     }
 
     this.guests.update(now);
+    this.workers.update(now);
+    this.inspection.update(now);
     this.shop.update(now);
     this.bar.update(now);
     this.house.update(now);
@@ -211,6 +248,7 @@ export class HotelSimulation extends EventEmitter {
     if (slept) text = `☀️ Günaydın! Herkes uyudu, sabah oldu. ${text}`;
     this.notify(text, 'day');
     this.relations.onNewDay();
+    this.inspection.onNewDay();
     this.out(EVT.ECONOMY, this.economy());
     this.broadcastClock(now);
     this.house.scheduleSave(); // yeni gün kayda geçsin
@@ -269,6 +307,7 @@ export class HotelSimulation extends EventEmitter {
     const p = this.players.get(id);
     if (!p) return;
     this.bar.removePlayer(p); // elindeki bardaklar rafa döner
+    this.inspection.removePlayer(p);
     this.relations.removePlayer(p); // evdeki misafiri gider
     this.vehicles.removePlayer(p); // sürüyorsa park eder; araçları kayda geçer
     this.house.removePlayer(p); // bekleyen ziller, cüzdan ve ev sahibi kaydı
@@ -417,6 +456,7 @@ export class HotelSimulation extends EventEmitter {
    */
   finishRoom(room, p) {
     this.today.cleaned += 1;
+    this.growth.addReputation(REPUTATION.ROOM_CLEANED);
     this.notify(`Oda ${room.id} temizlendi ✓ (${p.name})`, 'clean');
     const tip = this.shop.tip(p);
     const repair = room.repairs * MAINT_RULES.REPAIR_BONUS;
@@ -487,6 +527,23 @@ export class HotelSimulation extends EventEmitter {
     if (this.chatLog.length > CHAT_RULES.HISTORY) this.chatLog.shift();
     this.out(EVT.CHAT, msg);
     return { ok: true, text };
+  }
+
+  // ---- Otelin büyümesi: Resepsiyon PC, asansör, denetim ------------------------------
+
+  hotelAct(playerId, data) {
+    return this.withPlayer(playerId, (p) => {
+      switch (data?.act) {
+        case 'buyFloor': return this.growth.buyFloor(p, data);
+        case 'elevator': return this.growth.elevator(p, data);
+        case 'hire': return this.workers.hire(p);
+        case 'fire': return this.workers.fire(p, data);
+        case 'inspect': return this.inspection.request(p);
+        case 'check':
+        case 'mop': return this.inspection.act(p, data, this.now());
+        default: return { ok: false, error: 'Geçersiz işlem.' };
+      }
+    });
   }
 
   // ---- Şehir içi ulaşım ----------------------------------------------------------
@@ -561,7 +618,10 @@ export class HotelSimulation extends EventEmitter {
       serverTime: now,
       clock: this.clock.snapshot(now),
       rooms: this.rooms.serialize(),
-      guests: [...this.guests.serialize(), ...this.bar.serializeCustomers()],
+      guests: [
+        ...this.guests.serialize(), ...this.bar.serializeCustomers(), ...this.workers.serializeWires(),
+        ...[this.inspection.inspectorWire()].filter(Boolean),
+      ],
       players: [...this.players.values()].map((p) => this.publicPlayer(p)),
       economy: this.economy(),
       self: this.players.has(selfId) ? this.shop.privateState(this.players.get(selfId)) : null,
@@ -571,6 +631,7 @@ export class HotelSimulation extends EventEmitter {
       visits: this.relations.serializeVisits(),
       vehicles: this.vehicles.serialize(),
       chat: this.chatLog.slice(),
+      hotel: this.hotelPublic(),
     };
   }
 }

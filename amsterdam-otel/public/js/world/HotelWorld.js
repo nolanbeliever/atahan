@@ -9,17 +9,18 @@ import { buildHouse } from './HouseBuilding.js';
 import { buildBar } from './BarBuilding.js';
 import { buildPlayerHouses } from './PlayerHouses.js';
 import { buildSteeg } from './Steeg.js';
+import { buildHotelFloors } from './HotelFloors.js';
 import {
   addPlanter, addBike, addTree, addBollard, addStreetLamp, addWindow, addPainting,
   addArmchair, addSideTable, makePanel,
 } from './Props.js';
 import { makeCharacter } from '../game/Characters.js';
 
-const BLANKET_COLORS = { 101: 'fabricBlue', 102: 'fabricRed', 103: 'fabricGreen', 104: 'fabricOrange' };
+const BLANKET_COLORS = ['fabricBlue', 'fabricRed', 'fabricGreen', 'fabricOrange']; // k01..k04
 const ENTRANCE_OPEN = Math.PI / 2 * 0.9;
 
 /**
- * Otelin tamamını kurar: lobi, koridor, 4 oda, Amsterdam sokağı ve kanal;
+ * Otelin tamamını kurar: lobi, koridor, odalar (üst katlar dahil), Amsterdam sokağı ve kanal;
  * arka kapıdan Achterstraat ve oyuncu evleri (PlayerHouses).
  * Statik her şey StaticBatcher ile malzeme başına tek mesh'e birleştirilir.
  */
@@ -39,7 +40,7 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
     scene,
     mats,
     collision,
-    blanketMat: mats[BLANKET_COLORS[layout.id]],
+    blanketMat: mats[BLANKET_COLORS[(Number(layout.id) % 100) - 1] ?? 'fabricBlue'],
     plateMat: new THREE.MeshLambertMaterial({
       map: factory.make(signDrawer({ title: layout.id, sub: 'Oda · Kamer', bg: '#b08d57', fg: '#2a1d0e', border: '#6b5330' }), { w: 1, h: 0.45, repeat: false }),
     }),
@@ -53,6 +54,8 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
   const playerHouses = buildPlayerHouses({ batcher: b, collision, scene, mats, factory, engine });
   // Sokaktan Achterstraat'a açık hava geçidi (bisiklet / scooter yolu) ve araç büfesi
   buildSteeg({ batcher: b, collision, scene });
+  // Lobideki asansör ve üst katlar (sahanlık, koridor, dekor)
+  buildHotelFloors({ batcher: b, collision, scene, factory });
 
   b.build(mats, scene);
   const lights = addLights(scene, quality);
@@ -153,7 +156,9 @@ function buildShell(b, collision) {
   // Doğu lambrisi bar kapısının kasasında kesilir (kasa: BarBuilding)
   b.box('wainscot', 7.87, 7.9, 0, wh, 0.1, BAR.door.from - 0.12, lam);
   b.box('wainscot', 7.87, 7.9, 0, wh, BAR.door.to + 0.12, 11.9, lam);
-  b.box('wainscot', -7.9, -1.6, 0, wh, 11.87, 11.9, lam);
+  // Kuzey lambrisi asansör kapısında kesilir (x −5.3..−3.9)
+  b.box('wainscot', -7.9, -5.32, 0, wh, 11.87, 11.9, lam);
+  b.box('wainscot', -3.88, -1.6, 0, wh, 11.87, 11.9, lam);
   b.box('wainscot', 1.6, 7.9, 0, wh, 11.87, 11.9, lam);
   b.box('wainscot', -7.9, -1.32, 0, wh, 0.1, 0.13, lam);
   b.box('wainscot', 1.32, 7.9, 0, wh, 0.1, 0.13, lam);

@@ -87,12 +87,37 @@ Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir
 
 ## Oyun döngüsü
 
-- **Lobi + koridor + 4 oda (101–104).** Sağ üstteki pano her odanın durumunu gösterir: **Boş / Dolu / Kirli** (kirli odalarda kalan iş sayısıyla). Koridorda her kapının yanında aynı renkte bir durum lambası vardır.
+- **Lobi + koridor + 4 oda (101–104)** — Resepsiyon PC'den 4 kata (16 oda) kadar büyür. Sağ üstteki pano her odanın durumunu gösterir: **Boş / Dolu / Kirli** (kirli odalarda kalan iş sayısıyla). Koridorda her kapının yanında aynı renkte bir durum lambası vardır.
 - **Misafir akışı:** sokaktan gelir → resepsiyonda kayıt (oda ücreti **€95** kasaya girer) → boş odaya yürür → konaklama süresi bitince çıkar, oda **Kirli** olur. Boş oda yoksa lobideki kanepede bekler; süre dolarsa ayrılır.
 - **Temizlik:** kirli odaya gir, yatağı düzelt, 2–3 çöpü topla ve 1–2 arızayı gider (bkz. Detaylı temizlik ve tamirat) → oda **Boş** olur. Dolu odaların kapısı kilitlidir (misafir mahremiyeti).
 - **Zarar verme / kırma mekaniği yoktur.**
 - **Bahşiş:** odayı bitiren görevli misafirin bıraktığı **€4–12** bahşişi kişisel **cüzdanına** alır (otel kasasından ayrı; başlangıç cüzdanı €30).
 - **Zaman:** Pazartesi–Cuma otel açık (misafir kabulü 08:00–19:00). **Cumartesi–Pazar otel kapalı:** giriş kapısı kapanır, tabela "KAPALI · Gesloten" olur, yeni misafir gelmez, zaman 2 kat hızlı akar. Konaklamalar gece de sürer; gece yarısını aşanlar gece ya da ertesi sabah çıkış yapar (Cumartesi sabahı son misafirler ayrılır → hafta sonu temizlik zamanı). 23:00'te otel kapanır (bkz. Gece döngüsü). Her gün sonunda günlük özet bildirimi gelir.
+
+## Otelin büyümesi — yıldızlar, üst katlar, çalışanlar, belediye denetimi
+
+- **Yıldız / itibar (1★–5★).** Temizlenen oda **+2**, odasına yerleşen misafir **+1**, boş oda bulamayıp giden misafir **−2**
+  itibar. Eşikler 0 / 40 / 120 / 250 / 450. Her yıldız oda ücretini **+€15** artırır (1★ €95 … 5★ €155). Yıldızlar
+  sol üstteki panelde ve otelin cephesinde (HOTEL tabelasının sağında) görünür.
+- **💻 Resepsiyon bilgisayarı** (resepsiyon masasının kuzey ucundaki monitör, **E**): **Genel** (yıldız, itibar çubuğu,
+  kasa, oda durumu, plaketler, denetim), **🏗️ Yükseltmeler** ve **🧹 Çalışanlar** sekmeleri.
+- **Üst katlar:** kasa parasıyla **2. kat €1.500 (2★)**, **3. kat €3.500 (3★)**, **4. kat €7.000 (4★)** — sırayla. Her kat
+  4 oda ekler (201–204, 301–304, 401–404) ve misafirleri daha sık getirir. Lobinin kuzey duvarındaki (resepsiyonun
+  karşısı) **🛗 asansörle** katlar arasında gidilir; misafirler ve temizlikçiler de asansörü kullanır. Oda panosu
+  birden çok katta kompakt görünüme geçer (kat başına bir satır, kirli odada kalan iş rozeti).
+- **🧹 Temizlikçi (HotelWorkerSystem):** **€200** (kasadan, bir kerelik; 1★'de bile), en fazla 6. Kirli odaları kendisi
+  bulur, yatağı düzeltir, çöpleri toplar, arızaları giderir. Bir iş **1★'de 10 sn → 5★'de 2 sn**; her 12 işte bir
+  **seviye** atlar (seviye başına %6 daha hızlı). Odada bulduğu bahşiş ve tamirat teşekkürü **otelin kasasına** gider.
+  Başında isim etiketi (🧹 Fatma · Sv.2), elinde kova ve paspas vardır; gece lobiye döner.
+- **🏛️ Belediye denetimi (HotelInspectionSystem):** otel **2★** olunca hafta içi 10:00–17:00 arasında habersiz bir müfettiş
+  gelebilir (yıldız ve kat arttıkça daha sık; günde en fazla bir kez) — Resepsiyon PC'den de çağrılabilir. Müfettiş
+  resepsiyona varınca **90 sn** geri sayım başlar; ekranın üstündeki liste canlı güncellenir:
+  - **Odalar:** açık katlarda kirli oda kalmamalı.
+  - **Yangın tüpleri:** göstergesi **kırmızı** yanan tüplerin (en az 2; her ek kat +1) önünde **E** → 1.5 sn basınç kontrolü.
+  - **Bar hijyeni:** tezgâhta kirli bardak kalmamalı ve bar zeminine dökülen çilek şurubu **E** ile silinmeli (2 sn).
+  - Başarılı → kasaya **€150 + yıldız başına €25**, **+20 itibar** ve lobinin batı duvarına bir **Belediye Onay Plaketi**.
+    Başarısız → kasadan **€300 ceza** ve otel **bir yıldız kaybeder**.
+- Hepsi kalıcıdır (itibar, katlar, plaketler, temizlikçiler ve seviyeleri, günün denetimi).
 
 ## Detaylı temizlik ve tamirat (mini oyunlar)
 
@@ -313,7 +338,11 @@ amsterdam-otel/
 │       ├── VehicleService.js    # Bisiklet / scooter: satın alma, sürücü + yolcu, park, kalıcılık
 │       ├── GameClock.js         # Gün döngüsü: hafta içi açık / hafta sonu kapalı, gece (23:00–07:00)
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
-│       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları
+│       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları (üst kata asansörle iki bacak)
+│       ├── HotelGrowthService.js # İtibar / yıldız, kat satın alma, asansör, plaketler
+│       ├── WorkerService.js     # Temizlikçi NPC'ler: iş seçimi, süreli işler, seviye, bahşiş kasaya
+│       ├── InspectionService.js # Belediye denetimi: planlama, geri sayım, tüp / şurup kontrolü, sonuç
+│       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
 │       └── CoffeeShopService.js # Cüzdan, envanter, trip zarı, slot, bahşiş
 │   └── house/                   # Evler: HouseService (yatak/uyku kontrolü dahil), GardenService (saksı, ekim, hasat),
 │                                #   FileStore / PgStore (kayıt), YouTube oEmbed + küçük resim vekili
@@ -324,6 +353,7 @@ amsterdam-otel/
 │   ├── vehicles.js              # Araç türleri, hız / ivme, yolcu koltuğu
 │   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
+│   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri, denetim kuralları
 │   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları (duvar slotları, tavan), bitkiler, YouTube link ayrıştırma
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
@@ -345,6 +375,9 @@ amsterdam-otel/
 │       │   ├── ChatSystem.js        # Sohbet kutusu, mesaj geçmişi, konuşma balonları
 │       │   ├── CityVehicleSystem.js # Araç modelleri, FPV sürüş, arkaya binme, büfe, hız göstergesi
 │       │   ├── HotelMaintenanceSystem.js # Arıza görselleri ve 4 mini oyun (leke, ampul, musluk, sigorta)
+│       │   ├── ReceptionPC.js       # Resepsiyon bilgisayarı paneli, asansör, yıldız tabelası, kat filtresi
+│       │   ├── HotelWorkerSystem.js # Temizlikçi görünümü (kova/paspas) ve Çalışanlar sekmesi
+│       │   ├── HotelInspectionSystem.js # Denetim bandı, yangın tüpleri, şurup lekesi, plaketler
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
 │       │   ├── ViewModel.js         # Birinci şahıs eller (dökme, çalkalama, ısırma, toplama…)
 │       │   ├── NightCycle.js        # Gece görünümü, yatakta uyuma, uyku ekranı
@@ -352,7 +385,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar, gece + bahçe, arkadaşlık, ulaşım + tamirat
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar, gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi, denetim)
 ```
 
 ## Sonraki aşamalar için notlar

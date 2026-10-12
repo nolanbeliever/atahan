@@ -1,10 +1,10 @@
-import { ROOM_IDS, ROOM_STATUS, TRASH_SPOT_COUNT } from '../../shared/constants.js';
+import { ROOM_IDS, ROOM_STATUS, TRASH_SPOT_COUNT, roomFloor } from '../../shared/constants.js';
 import { ISSUE_IDS, MAINT_RULES } from '../../shared/maintenance.js';
 
 const noIssues = () => Object.fromEntries(ISSUE_IDS.map((id) => [id, false]));
 
 /**
- * 4 odanın durumunu tutar: Boş / Dolu / Kirli.
+ * Odaların (kat başına 4; kapalı katlarınkiler hep boş kalır) durumunu tutar: Boş / Dolu / Kirli.
  * Kirli bir oda; dağınık yatak, birkaç çöp ve 1–2 arızadan (leke, ampul, musluk,
  * sigorta — shared/maintenance.js) oluşan işler içerir.
  * Tüm işler bitince oda yeniden "Boş" (temiz) olur.
@@ -28,8 +28,9 @@ export class RoomManager {
 
   get(id) { return this.rooms.get(id); }
 
-  emptyRooms() {
-    return [...this.rooms.values()].filter((r) => r.status === ROOM_STATUS.EMPTY);
+  /** @param maxFloor yalnızca bu kata kadar (açık katlar) */
+  emptyRooms(maxFloor = Infinity) {
+    return [...this.rooms.values()].filter((r) => r.status === ROOM_STATUS.EMPTY && roomFloor(r.id) <= maxFloor);
   }
 
   occupy(room, guestId) {

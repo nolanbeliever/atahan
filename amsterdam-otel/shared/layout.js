@@ -28,8 +28,55 @@ export const AREAS = Object.freeze({
 });
 
 // Oyuncunun gidebileceği en geniş alan (sunucu konum doğrulaması için);
-// kuzeyde otelin arkasındaki Achterstraat ve oyuncu evleri (z 26..39.8)
-export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 18, minZ: -7.6, maxZ: 40 });
+// kuzeyde otelin arkasındaki Achterstraat ve oyuncu evleri (z 26..39.8), onun da kuzeyinde
+// (dünyanın görünmeyen bir köşesinde) asansörle çıkılan üst katlar (z 48..106)
+export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 18, minZ: -7.6, maxZ: 106.2 });
+
+// ---- Üst katlar --------------------------------------------------------------
+// Fizik / çarpışma 2B olduğu için üst katlar gerçekten üst üste değil: her kat zemin katın
+// oda kanadının (koridor + 4 oda) dz kadar kuzeye kaydırılmış bir kopyasıdır ve önünde küçük
+// bir asansör sahanlığı vardır. Lobideki asansör oyuncuyu (ve misafirleri) sahanlığa ışınlar.
+//
+//   z=26+dz ┌──────┬───┬──────┐
+//           │ k03  │ K │ k04  │
+//   z=19+dz ├──────┤ O ├──────┤
+//           │ k01  │ R │ k02  │
+//   z=12+dz └────┬─┘   └─┬────┘
+//                │ SAHANLIK│
+//   z=8+dz       └──[▤]───┘   ← asansör kapısı (x = 0)
+export const FLOOR_DZ = Object.freeze({ 1: 0, 2: 40, 3: 60, 4: 80 });
+export const FLOOR_NUMBERS = Object.freeze([1, 2, 3, 4]);
+export const LANDING = Object.freeze({ minX: -3.5, maxX: 3.5, minZ: 8, maxZ: 12 }); // dz eklenir
+
+export const ELEVATOR = Object.freeze({
+  // Lobi: kuzey duvarında (101'in güney duvarı), resepsiyonun karşısında
+  lobby: { x: -4.6, z: 12, point: [-4.6, 11.3], spawn: [-4.6, 10.9], yaw: Math.PI },
+  // Üst katlar: sahanlığın güney duvarında (x = 0); spawn: kapının önü, kuzeye bakar
+  floor: (f) => ({ x: 0, z: 8 + FLOOR_DZ[f], point: [0, 8.7 + FLOOR_DZ[f]], spawn: [0, 9.1 + FLOOR_DZ[f]], yaw: Math.PI }),
+  range: 1.7,
+  width: 1.2,
+});
+
+// Yangın tüpleri (belediye denetiminde basınç kontrolü): duvara asılı; point = önündeki zemin noktası.
+// floor: tüpün bulunduğu kat (yalnızca açık katlardakiler denetlenir)
+export const EXTINGUISHERS = Object.freeze([
+  { id: 'lobby', floor: 1, x: -7.88, z: 1.25, facing: 'x+', point: [-7.15, 1.25] },
+  { id: 'corridor', floor: 1, x: 1.38, z: 13.1, facing: 'x-', point: [0.65, 13.1] },
+  { id: 'bar', floor: 1, x: 15.45, z: 8.16, facing: 'z+', point: [15.45, 8.9] }, // sedirin doğusu
+  ...[2, 3, 4].map((f) => ({ id: `floor${f}`, floor: f, x: -3.38, z: 10 + FLOOR_DZ[f], facing: 'x+', point: [-2.65, 10 + FLOOR_DZ[f]] })),
+]);
+
+// Denetim sırasında bar zemininde dökülen şurup (paspasla silinir)
+export const BAR_SPILL = Object.freeze({ point: [11.6, 9.35], r: 0.55 });
+
+/** Üst kat sahanlığının hub noktası (misafir rotaları) */
+export const floorHub = (f) => [0, 10.6 + FLOOR_DZ[f]];
+
+/** (x, z) hangi katta (otelin oda kanadı / sahanlık için); dışarısı 1 */
+export function floorAt(x, z) {
+  if (z < 46) return 1;
+  return Math.min(4, Math.max(2, Math.floor((z - 46) / 20) + 2));
+}
 
 // Otelin doğusunda, sokağa açılan Amsterdam coffee shop'u
 export const COFFEESHOP = Object.freeze({
@@ -201,6 +248,9 @@ export const RECEPTION = Object.freeze({
   front: [-5.5, 7.0],
 });
 
+// Resepsiyon bilgisayarı (masanın kuzey ucundaki monitör): Resepsiyon PC paneli
+export const RECEPTION_PC = Object.freeze({ monitor: [-6.94, 8.1], point: [-5.85, 8.15], range: 1.3 });
+
 export const SOFA = Object.freeze({ minX: 6.9, maxX: 7.85, minZ: 3.6, maxZ: 7.6 });
 
 // Bekleyen misafirlerin oturduğu kanepe noktaları ve oraya yaklaşma noktaları
@@ -219,13 +269,14 @@ export const POINTS = Object.freeze({
   playerSpawn: [0, 3.0],
 });
 
-function makeRoom(id, side, z0) {
+function makeRoom(id, side, z0, floor = 1) {
   const s = side; // -1: batı (sol), +1: doğu (sağ)
   const xIn = 1.5 * s;
   const xOut = 8 * s;
   const doorZ = z0 + 3.5;
   return Object.freeze({
     id,
+    floor,
     side: s,
     bounds: { minX: Math.min(xIn, xOut), maxX: Math.max(xIn, xOut), minZ: z0, maxZ: z0 + 7 },
     door: { x: xIn, z: doorZ },
@@ -246,12 +297,16 @@ function makeRoom(id, side, z0) {
   });
 }
 
-export const ROOMS = Object.freeze([
-  makeRoom('101', -1, 12),
-  makeRoom('102', 1, 12),
-  makeRoom('103', -1, 19),
-  makeRoom('104', 1, 19),
-]);
+// Kat başına 4 oda: k01 (batı, ön), k02 (doğu, ön), k03 (batı, arka), k04 (doğu, arka)
+export const ROOMS = Object.freeze(FLOOR_NUMBERS.flatMap((f) => {
+  const dz = FLOOR_DZ[f];
+  return [
+    makeRoom(`${f}01`, -1, 12 + dz, f),
+    makeRoom(`${f}02`, 1, 12 + dz, f),
+    makeRoom(`${f}03`, -1, 19 + dz, f),
+    makeRoom(`${f}04`, 1, 19 + dz, f),
+  ];
+}));
 
 export const ROOM_BY_ID = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(ROOMS.map((r) => [r.id, r]))));
 
@@ -305,12 +360,7 @@ export function buildWallSegments() {
   wallAlongZ(w, 8, 0, 26, [{ from: BAR.door.from, to: BAR.door.to, top: DOOR_H }], 'wall');
   // Lobi kuzey duvarı (101/102'nin güney duvarı), ortada koridor ağzı
   wallAlongX(w, 12, -8, 8, [{ from: -1.5, to: 1.5, top: 2.7 }], 'wall');
-  // Koridor duvarları + oda kapıları
-  wallAlongZ(w, -1.5, 12, 26, [doorGap(15.5), doorGap(22.5)], 'wall');
-  wallAlongZ(w, 1.5, 12, 26, [doorGap(15.5), doorGap(22.5)], 'wall');
-  // Odalar arası duvarlar
-  wallAlongX(w, 19, -8, -1.5, [], 'wall');
-  wallAlongX(w, 19, 1.5, 8, [], 'wall');
+  roomWing(w, 0);
   // Arka duvar — koridorun sonunda Achterstraat'a açılan arka kapı
   wallAlongX(w, 26, -8, 8, [{ from: ALLEY.backDoor.from, to: ALLEY.backDoor.to, top: DOOR_H }], 'wall');
   // Coffee shop: ön cephe (kapılı), doğu ve arka duvar; batı duvarı otelin doğu duvarı
@@ -338,7 +388,35 @@ export function buildWallSegments() {
   wallAlongX(w, PH.z0, -18, 18, PLAYER_HOUSES.map((h) => ({ from: h.door.from, to: h.door.to, top: DOOR_H })), 'brick');
   for (let i = 0; i <= PH.count; i++) wallAlongZ(w, PH.x0 + i * PH.width, PH.z0 + 0.1, PH.z1, [], 'phWall');
   wallAlongX(w, PH.z1, PH.x0 + 0.1, -PH.x0 - 0.1, [], 'phWall');
+  // Üst katlar: sahanlık + oda kanadı (dış duvarlar ve arka duvar dahil, arka kapı yok)
+  for (const f of FLOOR_NUMBERS) {
+    if (f === 1) continue;
+    const dz = FLOOR_DZ[f];
+    const L = LANDING;
+    wallAlongX(w, L.minZ + dz, L.minX, L.maxX, [], 'wall'); // asansör kapısı duvara gömülü (dekor)
+    wallAlongZ(w, L.minX, L.minZ + dz, L.maxZ + dz, [], 'wall');
+    wallAlongZ(w, L.maxX, L.minZ + dz, L.maxZ + dz, [], 'wall');
+    wallAlongX(w, 12 + dz, -8, 8, [{ from: -1.5, to: 1.5, top: 2.7 }], 'wall');
+    wallAlongZ(w, -8, 12 + dz, 26 + dz, [], 'wall');
+    wallAlongZ(w, 8, 12 + dz, 26 + dz, [], 'wall');
+    wallAlongX(w, 26 + dz, -8, 8, [], 'wall');
+    roomWing(w, dz);
+  }
   return w;
+}
+
+/** Oda kanadının iç duvarları: koridor duvarları (oda kapılarıyla) ve odalar arası duvarlar */
+function roomWing(w, dz) {
+  wallAlongZ(w, -1.5, 12 + dz, 26 + dz, [doorGap(15.5 + dz), doorGap(22.5 + dz)], 'wall');
+  wallAlongZ(w, 1.5, 12 + dz, 26 + dz, [doorGap(15.5 + dz), doorGap(22.5 + dz)], 'wall');
+  wallAlongX(w, 19 + dz, -8, -1.5, [], 'wall');
+  wallAlongX(w, 19 + dz, 1.5, 8, [], 'wall');
+}
+
+/** Üst katın sahanlığında mı (asansör önü) */
+export function isOnLanding(f, x, z) {
+  const dz = FLOOR_DZ[f];
+  return f > 1 && x > LANDING.minX && x < LANDING.maxX && z > LANDING.minZ + dz && z < LANDING.maxZ + dz;
 }
 
 /** Oyuncunun bulunduğu bölge (halüsinasyonları aynı bölgede tutmak için) */
@@ -351,6 +429,7 @@ export function areaAt(x, z) {
   for (const h of PLAYER_HOUSES) if (isInsideHouseDef(h, x, z)) return h.id;
   for (const r of ROOMS) if (isInsideRoom(r, x, z)) return r.id;
   if (pointInBounds(x, z, AREAS.corridor) && Math.abs(x) < 1.4) return 'corridor';
+  if (z > 46) return `floor${floorAt(x, z)}`;
   if (pointInBounds(x, z, AREAS.lobby) && z > 0.1 && Math.abs(x) < 7.9) return 'lobby';
   if (z < -0.1 && pointInBounds(x, z, AREAS.street)) return 'street';
   return null;

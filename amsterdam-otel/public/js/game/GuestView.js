@@ -2,6 +2,14 @@ import * as THREE from 'three';
 import { GUEST_PHASE } from '/shared/constants.js';
 import { pathLength, samplePath } from '/shared/path.js';
 import { makeCharacter } from './Characters.js';
+import { makeLabel } from './RemotePlayers.js';
+
+// Otel personeli / müfettiş görünümü (misafirlerle aynı ağ biçimi, kind ile ayrılır)
+const KIND_OPTS = {
+  worker: { color: '#2b6d8a', staff: true, bag: false },
+  inspector: { color: '#2c2f38' },
+};
+const LABEL_COLOR = { worker: '#3ecf6e', inspector: '#e9a826' };
 
 const SIT_DROP = 0.4; // kanepe; bar taburesi kendi yüksekliğini (sitY) gönderir
 const _frustum = new THREE.Frustum();
@@ -25,10 +33,21 @@ export class GuestView {
   upsert(data) {
     let it = this.items.get(data.id);
     if (!it) {
-      const obj = makeCharacter(data.look);
+      const obj = makeCharacter(data.look, KIND_OPTS[data.kind] ?? {});
       this.scene.add(obj);
-      it = { obj, data: null, len: 0 };
+      it = { obj, data: null, len: 0, label: null, labelText: null };
       this.items.set(data.id, it);
+    }
+    // İsim etiketi (temizlikçi "🧹 Fatma · Sv.2", müfettiş): yalnızca metin değişince yeniden çizilir
+    if ((data.label ?? null) !== it.labelText) {
+      this.dropLabel(it);
+      it.labelText = data.label ?? null;
+      if (it.labelText) {
+        it.label = makeLabel(it.labelText, LABEL_COLOR[data.kind] ?? '#ffd27a');
+        it.label.scale.set(1.3, 0.33, 1);
+        it.label.position.y = 2.0;
+        it.obj.add(it.label);
+      }
     }
     it.data = data;
     it.len = pathLength(data.path);
@@ -46,9 +65,18 @@ export class GuestView {
     }
   }
 
+  dropLabel(it) {
+    if (!it.label) return;
+    it.obj.remove(it.label);
+    it.label.material.map.dispose();
+    it.label.material.dispose();
+    it.label = null;
+  }
+
   remove(id) {
     const it = this.items.get(id);
     if (!it) return;
+    this.dropLabel(it);
     this.scene.remove(it.obj);
     this.items.delete(id);
   }
