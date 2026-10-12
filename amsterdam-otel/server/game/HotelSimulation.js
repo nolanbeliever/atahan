@@ -532,6 +532,7 @@ export class HotelSimulation extends EventEmitter {
     const now = this.now();
     return {
       selfId,
+      build: this.config.build ?? null, // sunucu sürümü: değişirse açık sayfalar kendini yeniler
       serverTime: now,
       clock: this.clock.snapshot(now),
       rooms: this.rooms.serialize(),

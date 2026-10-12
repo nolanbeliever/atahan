@@ -586,6 +586,10 @@ body.building #bar-held { display: none; }
   padding: 16px;
   overflow-y: auto;
 }
+/* Kart ekrana sığmazsa (küçük pencere / yatay telefon) üstü kesilmesin, kaydırılabilsin:
+   flex 'center' taşan içeriğin üstünü erişilemez yapar; 'margin: auto' sığınca ortalar, sığmayınca kaydırır */
+.overlay:not(#tv-panel) { align-items: flex-start; }
+.overlay:not(#tv-panel) > .card { margin: auto; }
 .card {
   width: min(420px, 100%);
   background: #1f2a38;

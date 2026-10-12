@@ -341,7 +341,15 @@ net.on('connect_error', () => {
   hud.setConnection('Sunucuya ulaşılamıyor, tekrar deneniyor…', true);
 });
 
+let serverBuild = null; // ilk bağlantıdaki sunucu sürümü
 net.on(EVT.WELCOME, (snap) => {
+  // Oyun güncellendi (sayfa açıkken yeni sürüm yayına girdi): eski kodla devam etmek yerine yenile
+  if (serverBuild && snap.build && snap.build !== serverBuild) {
+    hud.setConnection('🔄 Oyun güncellendi — sayfa yenileniyor…', true);
+    setTimeout(() => window.location.reload(), 1200);
+    return;
+  }
+  serverBuild = snap.build ?? serverBuild;
   joined = true;
   state.selfId = snap.selfId;
   state.setClock(snap.clock);

@@ -27,8 +27,11 @@ app.use(compression());
 const vendorCache = { maxAge: '7d' };
 app.use('/vendor/three/addons', express.static(threeAddons, vendorCache));
 app.use('/vendor/three', express.static(threeBuild, vendorCache));
-app.use('/shared', express.static(path.join(root, 'shared')));
-app.use(express.static(path.join(root, 'public')));
+// Oyun dosyaları her açılışta sunucuya sorulur (ETag ile; değişmediyse 304, veri harcamaz):
+// güncellemeden sonra tarayıcı eski bir modülü önbellekten kullanmasın
+const revalidate = { setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') };
+app.use('/shared', express.static(path.join(root, 'shared'), revalidate));
+app.use(express.static(path.join(root, 'public'), revalidate));
 
 // TV ekranındaki video küçük resmi (aynı köken → WebGL dokusu olarak kullanılabilir)
 app.get('/yt/thumb/:id', thumbnailHandler());

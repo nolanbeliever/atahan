@@ -2,6 +2,14 @@ import * as THREE from 'three';
 import { ROOM_STATUS, INTERACT_RANGE } from '/shared/constants.js';
 import { isInsideRoom } from '/shared/layout.js';
 
+const ISSUE_TEXT = {
+  stainFloor: '🧽 yerde leke',
+  stainWall: '🧽 duvarda leke',
+  bulb: '💡 patlak ampul (tavan)',
+  faucet: '🔧 damlayan musluk (lavabo)',
+  fuse: '⚡ atan sigorta (kapının yanı)',
+};
+
 /**
  * Etkileşim: oyuncunun önündeki en yakın hedefi bulur, ipucunu gösterir ve
  * Aksiyon ile çalıştırır.
@@ -113,9 +121,11 @@ export class Interaction {
         const parts = [];
         if (!st.bedMade) parts.push('dağınık yatak');
         const trash = st.trash.filter(Boolean).length;
-        const issues = Object.values(st.issues ?? {}).filter(Boolean).length;
         if (trash) parts.push(`${trash} çöp`);
-        if (issues) parts.push(`${issues} arıza (leke / ampul / musluk / sigorta)`);
+        // Kalan arızaları adıyla göster (hangisini arayacağın belli olsun)
+        for (const [id, on] of Object.entries(st.issues ?? {})) {
+          if (on && ISSUE_TEXT[id]) parts.push(ISSUE_TEXT[id]);
+        }
         this.hud.setPrompt({ info: `Oda ${roomHere.id} kirli: ${parts.join(', ')}. Yaklaş ve bak.` });
       } else {
         // İpucu metin ya da { text, short } olabilir (short: dokunmatik buton etiketi)

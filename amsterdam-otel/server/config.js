@@ -7,6 +7,9 @@ function num(name, fallback, min = Number.MIN_VALUE) {
 }
 
 export const config = Object.freeze({
+  // Sunucu sürümü (Render her deploy'da commit'i verir; yoksa açılış zamanı). Açık bir sayfa yeni
+  // sürüme yeniden bağlanırsa kendini yeniler — eski istemci yeni sunucuyla çalışmaya çalışmasın.
+  build: process.env.RENDER_GIT_COMMIT || `t${Date.now()}`,
   port: num('PORT', 3000),
   // Bir oyun gününün (07:00 → 23:00) gerçek süresi (saniye)
   dayLengthSec: num('DAY_LENGTH_SEC', 240),
