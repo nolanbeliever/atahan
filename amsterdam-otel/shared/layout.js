@@ -30,7 +30,31 @@ export const AREAS = Object.freeze({
 // Oyuncunun gidebileceği en geniş alan (sunucu konum doğrulaması için);
 // kuzeyde otelin arkasındaki Achterstraat ve oyuncu evleri (z 26..39.8), onun da kuzeyinde
 // (dünyanın görünmeyen bir köşesinde) asansörle çıkılan üst katlar (z 48..106)
-export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 18, minZ: -7.6, maxZ: 106.2 });
+// Uzak bölgeler (ışınlanma / asansör / rampa ile gidilir, aynı 2B dünyada ama birbirinden uzak):
+//   üst katlar 2–12 + çatı (x −20..20, z 46..340) · yeraltı garajı (x 60..100) · drag pisti (x 140..190)
+export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 190, minZ: -460, maxZ: 340 });
+
+// Yeraltı otoparkı / garajı (otelin "altında": sokaktaki rampadan inilir; bkz. UndergroundGarage)
+export const GARAGE = Object.freeze({
+  bounds: { minX: 60, maxX: 100, minZ: -30, maxZ: 10 },
+  spawn: [64, 6], // ışınlanma / rampadan inişte oyuncunun belirdiği yer (kuzeye değil, garaja bakar)
+  yaw: Math.PI,
+});
+
+// Şehir kenarındaki drag pisti ve sürüş alanı (bkz. DragRaceTrack)
+export const DRAG = Object.freeze({
+  bounds: { minX: 140, maxX: 190, minZ: -460, maxZ: 40 },
+  spawn: [150, 30],
+  yaw: 0, // pistin başlangıcına (−Z) bakar
+});
+
+/** Hızlı ışınlanma hedefleri (ev hedefi oyuncunun kendi evinin girişidir; sunucu çözer) */
+export const TELEPORTS = Object.freeze([
+  { id: 'hotel', name: 'Otel lobisi', icon: '🏨', point: [0, 3.0], yaw: Math.PI },
+  { id: 'home', name: 'Evim', icon: '🏡', point: null, yaw: Math.PI },
+  { id: 'garage', name: 'Yeraltı garajı', icon: '🅿️', point: GARAGE.spawn, yaw: GARAGE.yaw },
+  { id: 'drag', name: 'Drag pisti', icon: '🏁', point: DRAG.spawn, yaw: DRAG.yaw },
+]);
 
 // ---- Üst katlar --------------------------------------------------------------
 // Fizik / çarpışma 2B olduğu için üst katlar gerçekten üst üste değil: her kat zemin katın
