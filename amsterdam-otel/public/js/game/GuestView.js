@@ -11,6 +11,33 @@ const KIND_OPTS = {
 };
 const LABEL_COLOR = { worker: '#3ecf6e', inspector: '#e9a826' };
 
+// Turist (InstaHotel kampanyası kafilesi): sırt çantası, boyunda fotoğraf makinesi, renkli güneş şapkası.
+// Geometri / malzemeler tüm turistlerde paylaşılır (ilk turistte bir kez üretilir).
+const HAT_COLORS = ['#f2c14e', '#e85d75', '#4fb3bf', '#f08a24', '#8bc34a'];
+let touristKit = null;
+function addTouristProps(obj, id) {
+  if (!touristKit) {
+    const lambert = (color) => new THREE.MeshLambertMaterial({ color });
+    touristKit = {
+      pack: new THREE.BoxGeometry(0.34, 0.42, 0.18).translate(0, 0.98, -0.3),
+      strap: new THREE.TorusGeometry(0.11, 0.012, 4, 12).translate(0, 1.18, 0.13),
+      cam: new THREE.BoxGeometry(0.16, 0.1, 0.07).translate(0, 1.03, 0.25),
+      lens: new THREE.CylinderGeometry(0.035, 0.035, 0.05, 10).rotateX(Math.PI / 2).translate(0, 1.03, 0.3),
+      hat: new THREE.CylinderGeometry(0.14, 0.24, 0.12, 14).translate(0, 1.53, 0),
+      packMat: lambert('#3d6b4f'),
+      camMat: lambert('#1c1c1f'),
+      hatMats: HAT_COLORS.map(lambert),
+    };
+  }
+  const k = touristKit;
+  const inner = obj.userData.inner;
+  inner.add(new THREE.Mesh(k.pack, k.packMat));
+  inner.add(new THREE.Mesh(k.strap, k.camMat));
+  inner.add(new THREE.Mesh(k.cam, k.camMat));
+  inner.add(new THREE.Mesh(k.lens, k.camMat));
+  inner.add(new THREE.Mesh(k.hat, k.hatMats[id % k.hatMats.length]));
+}
+
 const SIT_DROP = 0.4; // kanepe; bar taburesi kendi yüksekliğini (sitY) gönderir
 const _frustum = new THREE.Frustum();
 const _pv = new THREE.Matrix4();
@@ -34,6 +61,7 @@ export class GuestView {
     let it = this.items.get(data.id);
     if (!it) {
       const obj = makeCharacter(data.look, KIND_OPTS[data.kind] ?? {});
+      if (data.tourist === true) addTouristProps(obj, data.id | 0);
       this.scene.add(obj);
       it = { obj, data: null, len: 0, label: null, labelText: null };
       this.items.set(data.id, it);

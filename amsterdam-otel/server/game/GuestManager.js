@@ -2,9 +2,12 @@ import {
   GUEST_PHASE as P, GUEST_SPEED, CHECKIN_MS, MAX_WAITING, WAIT_LIMIT_MIN, ROOM_PRICE, EVT,
 } from '../../shared/constants.js';
 import { POINTS, RECEPTION, SEATS, ROOM_BY_ID } from '../../shared/layout.js';
-import { pathLength } from '../../shared/path.js';
+import { pathLength, samplePath } from '../../shared/path.js';
 import { REPUTATION, roomPrice, spawnFactor } from '../../shared/hotel.js';
 import { lobbyToRoom, roomToLobby } from './routes.js';
+import { TOURIST, queueSpot } from '../../shared/marketing.js';
+
+const QUEUE = TOURIST.PHASE; // resepsiyon sırasında (sıraya yürüyor ya da sırada bekliyor)
 
 /**
  * Misafir yaşam döngüsü:
@@ -19,6 +22,10 @@ export class GuestManager {
     this.nextId = 1;
     this.nextSpawnAt = null;
     this.fromWest = true;
+    // Turist akını (InstaHotel kampanyası): kafilenin henüz kapıdan girmemiş üyeleri (gerçek ms) ve
+    // resepsiyon kuyruğu (misafir id'leri; 0 = masanın hemen arkası, ilk gelen ilk kayıt olur)
+    this.pending = [];
+    this.queue = [];
   }
 
   get rng() { return this.sim.rng; }
@@ -31,6 +38,7 @@ export class GuestManager {
     return {
       id: g.id, look: g.look, phase: g.phase, path: g.path, t0: g.t0,
       speed: GUEST_SPEED, face: g.face, sit: g.sit, roomId: g.roomId,
+      ...(g.tourist ? { tourist: true } : {}), // istemci sırt çantası / fotoğraf makinesi / şapka ekler
     };
   }
 
@@ -40,6 +48,7 @@ export class GuestManager {
       g.t0 += deltaMs;
       g.phaseEndsAt += deltaMs;
     }
+    this.pending = this.pending.map((t) => t + deltaMs);
   }
 
   update(now) {
@@ -48,8 +57,10 @@ export class GuestManager {
     if (clock.checkinOpen) {
       if (this.nextSpawnAt === null) this.nextSpawnAt = clock.total + 5 + this.rng() * 15;
       if (clock.total >= this.nextSpawnAt) {
-        if (this.canSpawn()) {
-          this.spawn(now);
+        // Kampanya sürerken tek misafir yerine 2–4 kişilik turist kafilesi (kuyruk / oda kapasitesine göre)
+        const rush = !!this.sim.marketing?.rushActive;
+        if (rush ? this.spawnGroup(now) : this.canSpawn()) {
+          if (!rush) this.spawn(now);
           // Üst katlar açıldıkça misafirler daha sık gelir
           this.nextSpawnAt = clock.total + (config.spawnMinMin
             + this.rng() * (config.spawnMaxMin - config.spawnMinMin)) * spawnFactor(this.sim.growth.floors) / this.sim.boosts.guestSpawn;
@@ -57,9 +68,12 @@ export class GuestManager {
           this.nextSpawnAt = clock.total + 15;
         }
       }
+      this.spawnPending(now);
     } else {
       this.nextSpawnAt = null;
+      this.closeQueue(now); // 19:00 / hafta sonu / gece: sıradakiler ve gelmekte olan kafile döner
     }
+    this.updateQueue(now);
 
     // Bekleyenler önce (ilk gelen ilk yerleşir)
     for (const g of this.guests.values()) {
@@ -77,7 +91,7 @@ export class GuestManager {
       if (g.phase === P.ARRIVE || g.phase === P.CHECKIN) atDesk++;
       if (g.phase === P.TO_SEAT || g.phase === P.WAITING) waiting++;
     }
-    return atDesk === 0 && waiting < MAX_WAITING;
+    return atDesk === 0 && waiting < MAX_WAITING && this.queue.length < TOURIST.QUEUE_MAX;
   }
 
   randomLook() {
@@ -91,7 +105,11 @@ export class GuestManager {
     };
   }
 
-  spawn(now) {
+  /**
+   * @param tourist  turist kafilesinin üyesi (görünüm farkı; bildirimi kafile bir kez verir)
+   * Masa doluysa ya da kuyruk varsa misafir sıraya girer.
+   */
+  spawn(now, { tourist = false } = {}) {
     const street = this.fromWest ? POINTS.streetWest : POINTS.streetEast;
     this.fromWest = !this.fromWest;
     const g = {
@@ -107,10 +125,102 @@ export class GuestManager {
       seat: -1,
       waitUntil: 0,
       checkoutAt: 0,
+      tourist,
     };
+    if (tourist) g.look.hat = false; // turist şapkasını istemci takar
     this.guests.set(g.id, g);
-    this.walk(g, P.ARRIVE, [street, POINTS.doorOutside, POINTS.doorInside, RECEPTION.front], now);
-    this.sim.notify('Yeni misafir geldi, resepsiyona yöneliyor.', 'info');
+    if (this.queue.length || this.deskBusy()) {
+      this.queue.push(g.id);
+      this.walk(g, QUEUE, [street, POINTS.doorOutside, POINTS.doorInside, queueSpot(this.queue.length - 1)], now);
+    } else {
+      this.walk(g, P.ARRIVE, [street, POINTS.doorOutside, POINTS.doorInside, RECEPTION.front], now);
+    }
+    if (!tourist) this.sim.notify('Yeni misafir geldi, resepsiyona yöneliyor.', 'info');
+  }
+
+  // ---- Turist kafileleri ve resepsiyon kuyruğu ---------------------------------------
+
+  /** Masada (ona yürüyen ya da kayıt olan) misafir var mı */
+  deskBusy() {
+    for (const g of this.guests.values()) if (g.phase === P.ARRIVE || g.phase === P.CHECKIN) return true;
+    return false;
+  }
+
+  /**
+   * Kafile planla: üyeler STAGGER_MS arayla kapıdan girer. Kuyruk sınırı (QUEUE_MAX) ve boş oda
+   * sayısı aşılmaz — otel dolunca kafile gelmez (kanepede bekleyip itibar kaybettirmesinler).
+   * @returns {boolean} kafile planlandı mı
+   */
+  spawnGroup(now) {
+    let desk = 0;
+    let waiting = 0;
+    for (const g of this.guests.values()) {
+      if (g.phase === P.ARRIVE || g.phase === P.CHECKIN) desk++;
+      else if (g.phase === P.TO_SEAT || g.phase === P.WAITING) waiting++;
+    }
+    const line = this.queue.length + this.pending.length; // sıradakiler + kapıdan girecekler
+    const empty = this.sim.rooms.emptyRooms(this.sim.growth.floors).length;
+    // Masa ve sıra boşsa kafilenin ilki doğrudan masaya gider (sıraya +1 yer)
+    const queueCap = TOURIST.QUEUE_MAX - line + (desk === 0 && line === 0 ? 1 : 0);
+    const cap = Math.min(queueCap, empty - desk - line - waiting);
+    if (cap < 1 || waiting >= MAX_WAITING) return false;
+    const want = TOURIST.GROUP_MIN + Math.floor(this.rng() * (TOURIST.GROUP_MAX - TOURIST.GROUP_MIN + 1));
+    const n = Math.min(want, cap);
+    const t0 = Math.max(now, this.pending[this.pending.length - 1] ?? 0);
+    for (let i = 0; i < n; i++) this.pending.push(t0 + i * TOURIST.STAGGER_MS);
+    this.sim.notify(n > 1 ? `📸 ${n} kişilik turist kafilesi geldi! Resepsiyonda sıra oluşuyor.` : '📸 Bir turist daha geldi!', 'info');
+    return true;
+  }
+
+  spawnPending(now) {
+    while (this.pending.length && this.pending[0] <= now) {
+      this.pending.shift();
+      // Güvenlik: sıra bu arada dolduysa (ör. kampanya bitip normal misafir girdi) bu turist gelmez
+      if (this.queue.length >= TOURIST.QUEUE_MAX) continue;
+      this.spawn(now, { tourist: true });
+    }
+  }
+
+  /** Misafirin şu anki konumu (rotadan) */
+  posOf(g, now) {
+    const s = samplePath(g.path, Math.max(0, ((now - g.t0) / 1000) * GUEST_SPEED));
+    return [s.x, s.z];
+  }
+
+  /**
+   * Masa boşalınca sıranın başı (yerine varmışsa) masaya geçer; varmış diğerleri bir öne kayar.
+   * Yürümekte olanlar önce hedeflerine varır, sonraki tick'te doğru yerlerine geçer (rota hiç duvardan
+   * geçmez: sıradaki noktalar lobinin açık alanında, x ekseni boyunca).
+   */
+  updateQueue(now) {
+    if (!this.queue.length) return;
+    const head = this.guests.get(this.queue[0]);
+    if (head && now >= head.phaseEndsAt && !this.deskBusy()) {
+      this.queue.shift();
+      this.walk(head, P.ARRIVE, [this.lastPoint(head), RECEPTION.front], now);
+    }
+    this.queue.forEach((id, i) => {
+      const g = this.guests.get(id);
+      if (!g || now < g.phaseEndsAt) return;
+      const spot = queueSpot(i);
+      const [x, z] = this.lastPoint(g);
+      if (Math.abs(x - spot[0]) > 0.01 || Math.abs(z - spot[1]) > 0.01) this.walk(g, QUEUE, [[x, z], spot], now);
+    });
+  }
+
+  /** Kabul kapandı: planlanan kafile iptal, sıradakiler sokağa döner */
+  closeQueue(now) {
+    this.pending = [];
+    if (!this.queue.length) return;
+    for (const id of this.queue) {
+      const g = this.guests.get(id);
+      if (!g) continue;
+      const pos = this.posOf(g, now);
+      if (pos[1] < 0.5) this.walk(g, P.LEAVE, [pos, this.rng() < 0.5 ? POINTS.streetWest : POINTS.streetEast], now);
+      else this.leave(g, [pos], now);
+    }
+    this.queue = [];
+    this.sim.notify('Resepsiyon kapandı — sıradaki misafirler ayrıldı.', 'warn');
   }
 
   /**
@@ -214,7 +324,7 @@ export class GuestManager {
     switch (g.phase) {
       case P.ARRIVE:
         // Resepsiyon masası batıda; misafir batıya (-X) bakar
-        this.stand(g, P.CHECKIN, RECEPTION.front, -Math.PI / 2, now, CHECKIN_MS);
+        this.stand(g, P.CHECKIN, RECEPTION.front, -Math.PI / 2, now, g.tourist ? TOURIST.CHECKIN_MS : CHECKIN_MS);
         break;
 
       case P.CHECKIN: {
@@ -249,6 +359,11 @@ export class GuestManager {
         this.stand(g, P.IN_ROOM, this.lastPoint(g), 0, now);
         break;
       }
+
+      case QUEUE:
+        // Sıradaki yerine vardı: masaya (batıya) dönük bekler
+        if (g.path.length > 1) this.stand(g, QUEUE, this.lastPoint(g), -Math.PI / 2, now);
+        break;
 
       case P.CHECKOUT:
       case P.LEAVE:

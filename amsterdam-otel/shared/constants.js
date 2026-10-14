@@ -123,6 +123,10 @@ export const EVT = Object.freeze({
   // ---- Achterstraat Canlı Müzik Sahnesi (server/game/StageService.js, shared/stage.js) ----
   STAGE_ACT: 'stage:act', // istemci → sunucu (ack): { act: 'buy' } (Resepsiyon PC) | { act: 'hire', id: 'guitar' | 'dj' | 'jazz' } (sahnenin önü)
   STAGE_STATE: 'stage:state', // sunucu → herkes: { owned, booking, phase: 'idle'|'set'|'break'|'over', setNo, setAt, to, crowd }
+  // ---- Akıllı telefon + InstaHotel reklam kampanyaları (server/game/MarketingService.js, shared/marketing.js) ----
+  INSTA_ACT: 'insta:act', // istemci → sunucu (ack): { act: 'post', photo, caption, budget, place? } | { act: 'like' | 'photo', id } | { act: 'feed' }
+  INSTA_FEED: 'insta:feed', // sunucu → herkes: { post: { id, by, color, caption, place, budget, likes, t, photo }, followers } yeni gönderi
+  INSTA_STATS: 'insta:stats', // sunucu → herkes: { f: takipçi, p: [[postId, likes], ...] } (yalnızca sayaçlar)
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------
