@@ -1,6 +1,7 @@
 import {
   EVT, GUEST_SPEED, BAR_RULES as R, DRINKS, DRINK_BY_ID, FOOD_BY_ID, INGREDIENT_BY_ID, BAR_CUSTOMER_NAMES,
 } from '../../shared/constants.js';
+import { ORDER_WEIGHT, drinkDifficulty } from '../../shared/drinks.js';
 import { BAR, POINTS, pointInBounds } from '../../shared/layout.js';
 import { pathLength } from '../../shared/path.js';
 
@@ -25,13 +26,26 @@ const near = (p, [x, z], range) => Math.hypot(p.x - x, p.z - z) <= range;
 const clamp01 = (v) => Math.min(Math.max(v, 0), 1);
 
 const emptyStool = () => ({
-  state: S.EMPTY, customer: null, name: null, order: null, waitUntil: 0, drinkEndsAt: 0, glass: null, drink: null,
+  state: S.EMPTY, customer: null, name: null, order: null, waitUntil: 0, patienceMs: R.PATIENCE_MS, drinkEndsAt: 0, glass: null, drink: null,
 });
 
 /** Müşteri kalkınca tabureyi boşalt — tezgâhtaki bardak (glass/drink) yerinde kalır */
 function resetStool(s) {
-  Object.assign(s, { state: S.EMPTY, customer: null, name: null, order: null, waitUntil: 0, drinkEndsAt: 0 });
+  Object.assign(s, { state: S.EMPTY, customer: null, name: null, order: null, waitUntil: 0, patienceMs: R.PATIENCE_MS, drinkEndsAt: 0 });
 }
+
+/** Çok malzemeli içecek → daha uzun sabır (müşteri hazırlanmasının zaman aldığını bilir) */
+export const patienceFor = (d) => R.PATIENCE_MS + R.PATIENCE_PER_STEP_MS * Math.max(0, drinkDifficulty(d) - 2);
+
+/** Malzemenin alındığı istasyonun noktası (musluk / soğutucu dolap / fıçı kulesi) */
+function stationPoint(ing) {
+  if (ing.station === 'cooler') return BAR.cooler;
+  if (ing.station === 'taps') return BAR.taps;
+  return BAR.dispensers[ing.id];
+}
+const STATION_NAME = { dispenser: 'Malzeme musluklarına', cooler: 'Soğutucu dolaba', taps: 'Fıçı kulesine' };
+
+const ORDER_TOTAL = DRINKS.reduce((a, d) => a + ORDER_WEIGHT[d.cat], 0);
 
 /** Bardaktaki malzemelerin ortalama rengi (uzak oyuncunun elindeki bardak için) */
 function mixColor(pours) {
@@ -134,7 +148,7 @@ export class BarService {
         name: s.name,
         order: s.order,
         waitUntil: s.state === S.WAITING ? s.waitUntil : 0,
-        patienceMs: R.PATIENCE_MS,
+        patienceMs: s.patienceMs,
         glass: s.glass,
         drink: s.drink,
       })),
@@ -286,10 +300,21 @@ export class BarService {
     return true;
   }
 
+  /** 30 içecekten ağırlıklı rastgele sipariş (kategori ağırlıkları: shared/drinks.js ORDER_WEIGHT) */
+  pickDrink() {
+    let r = this.rng() * ORDER_TOTAL;
+    for (const d of DRINKS) {
+      r -= ORDER_WEIGHT[d.cat];
+      if (r < 0) return d;
+    }
+    return DRINKS[DRINKS.length - 1];
+  }
+
   /** Taburesine vardı: oturur (tezgâha, +Z'ye bakar) ve siparişini verir */
   seat(c, now) {
-    const drink = DRINKS[Math.floor(this.rng() * DRINKS.length)];
-    Object.assign(this.stools[c.stool], { state: S.WAITING, order: drink.id, waitUntil: now + R.PATIENCE_MS });
+    const drink = this.pickDrink();
+    const patienceMs = patienceFor(drink);
+    Object.assign(this.stools[c.stool], { state: S.WAITING, order: drink.id, waitUntil: now + patienceMs, patienceMs });
     c.phase = PH.SEAT;
     c.path = [[...BAR.stools[c.stool].seat]];
     c.t0 = now;
@@ -378,7 +403,7 @@ export class BarService {
     if (!ing) return { error: 'Böyle bir malzeme yok.' };
     if (h.pours.includes(ing.id)) return { error: `${ing.icon} ${ing.name} zaten koydun.` };
     if (h.pours.length >= R.MAX_POURS) return { error: `Bir bardağa en fazla ${R.MAX_POURS} malzeme koyabilirsin.` };
-    if (!near(p, BAR.dispensers[ing.id], REACH)) return { error: 'Malzeme dispenserlerine yaklaş.' };
+    if (!near(p, stationPoint(ing), REACH)) return { error: `${STATION_NAME[ing.station]} yaklaş.` };
     h.pours.push(ing.id);
     return {};
   }
@@ -405,16 +430,25 @@ export class BarService {
     const wrong = recipeError(h, drink);
     if (wrong) return { error: `${s.name}: "${wrong}"` };
 
-    // Hızlı servis → daha çok bahşiş (kalan sabır oranıyla doğrusal)
-    const tip = Math.round(R.TIP_MIN + (R.TIP_MAX - R.TIP_MIN) * clamp01((s.waitUntil - now) / R.PATIENCE_MS));
+    const tip = this.tipFor(drink, s, now);
     p.bar.hold = null;
     Object.assign(s, { state: S.DRINKING, waitUntil: 0, drinkEndsAt: now + R.DRINK_MS, glass: 'full', drink: drink.id });
     this.sim.today.served += 1;
-    this.sim.earn(drink.price, `Bar: ${drink.name}`, { guest: false });
-    p.wallet += tip;
-    this.sim.toPlayer(p.id, EVT.NOTIFY, { text: `${drink.icon} ${drink.name} servis edildi · +€${tip} bahşiş`, kind: 'money' });
+    // Satış + bahşiş otel kasasına
+    this.sim.earn(drink.price + tip, `Bar: ${drink.name} (+€${tip} bahşiş)`, { guest: false });
+    this.sim.toPlayer(p.id, EVT.NOTIFY, { text: `${drink.icon} ${drink.name} servis edildi · €${drink.price} + €${tip} bahşiş kasaya`, kind: 'money' });
     this.barChanged();
     return { tip };
+  }
+
+  /**
+   * Bahşiş: fiyatın %10'u (sabrın sonunda) … %35'i (hemen servis) × geçici bonus (konser kalabalığı,
+   * reklam kampanyası — sim.boosts.barTip). Zor kokteyller pahalı olduğundan bahşişleri de yüksek.
+   */
+  tipFor(drink, s, now) {
+    const speed = clamp01((s.waitUntil - now) / s.patienceMs);
+    const rate = R.TIP_RATE_MIN + (R.TIP_RATE_MAX - R.TIP_RATE_MIN) * speed;
+    return Math.max(1, Math.round(drink.price * rate * this.sim.boosts.barTip));
   }
 
   collect(p, data) {

@@ -180,23 +180,10 @@ export const SLOT = Object.freeze({
 
 const byId = (list) => Object.freeze(Object.assign(Object.create(null), Object.fromEntries(list.map((x) => [x.id, x]))));
 
-export const INGREDIENTS = Object.freeze([
-  { id: 'lemon', name: 'Limon suyu', icon: '🍋', color: '#f2df4a' },
-  { id: 'strawberry', name: 'Çilek şurubu', icon: '🍓', color: '#e23a4e' },
-  { id: 'milk', name: 'Süt', icon: '🥛', color: '#f3efe4' },
-  { id: 'cocoa', name: 'Kakao', icon: '🍫', color: '#6a3c20' },
-  { id: 'soda', name: 'Soda', icon: '🫧', color: '#cdeefb' },
-]);
-export const INGREDIENT_BY_ID = byId(INGREDIENTS);
-
-/** Malzemelerin sırası serbest; shake: true ise en az bir kez çalkalanmış olmalı */
-export const DRINKS = Object.freeze([
-  { id: 'lemonade', name: 'Limonata', icon: '🍋', price: 4, ingredients: ['lemon', 'soda'], shake: false, color: '#f4e46c' },
-  { id: 'mocktail', name: 'Çilekli Mocktail', icon: '🍹', price: 6, ingredients: ['strawberry', 'lemon', 'soda'], shake: true, color: '#ef5d6e' },
-  { id: 'milkshake', name: 'Çilekli Milkshake', icon: '🥤', price: 5, ingredients: ['milk', 'strawberry'], shake: true, color: '#f4a7b6' },
-  { id: 'chocolate', name: 'Sıcak Çikolata', icon: '☕', price: 4, ingredients: ['milk', 'cocoa'], shake: false, color: '#7b4a2b' },
-]);
-export const DRINK_BY_ID = byId(DRINKS);
+// 30 alkolsüz içecek, 26 malzeme ve kategoriler: shared/drinks.js (tarif kitabı ve sunucu aynı tabloyu kullanır)
+export {
+  INGREDIENTS, INGREDIENT_BY_ID, DRINKS, DRINK_BY_ID, DRINK_CATEGORIES, DRINK_CATEGORY_BY_ID, drinkDifficulty, recipeText,
+} from './drinks.js';
 
 export const FOOD = Object.freeze([
   { id: 'brownie', name: 'Brownie', icon: '🍫', price: 3, bites: 4 },
@@ -207,15 +194,17 @@ export const FOOD_BY_ID = byId(FOOD);
 export const BAR_RULES = Object.freeze({
   GLASSES: 6, // bardaki toplam bardak (raf + elde + tezgâhta)
   MAX_DIRTY_HELD: 3, // aynı anda taşınabilecek kirli bardak
-  MAX_POURS: 3,
+  MAX_POURS: 5, // kokteyller 5 malzemeye kadar (Virgin Mojito: misket + nane + şeker + soda + buz)
   OPEN_MIN: 10 * 60, // 10:00 — gün 23:00'te bittiği için kapanış = gün sonu
   CLOSE_MIN: 23 * 60,
   SPAWN_MIN_MS: 18_000, // yeni müşteri aralığı (gerçek ms)
   SPAWN_MAX_MS: 40_000,
-  PATIENCE_MS: 80_000, // oturduktan sonra siparişini bekleme süresi
+  PATIENCE_MS: 80_000, // oturduktan sonra siparişini bekleme süresi (basit içecek)
+  PATIENCE_PER_STEP_MS: 12_000, // 2'den fazla her malzeme / çalkalama için ek sabır
   DRINK_MS: 20_000, // içme süresi; sonra kirli bardak tezgâhta kalır
-  TIP_MIN: 2, // hızlı servis → daha çok bahşiş
-  TIP_MAX: 6,
+  // Bahşiş = fiyat × oran (yavaş servis %10 … hızlı servis %35) × bonus (konser / reklam); hepsi otel kasasına
+  TIP_RATE_MIN: 0.1,
+  TIP_RATE_MAX: 0.35,
   NET_SLACK_MS: 250, // zamanlı adımlarda ağ titremesi toleransı
   SIT_Y: 0.12, // taburede oturan müşterinin yükseltisi (istemci)
   // Zamanlı eylemler (ms) — sunucu doğrular, istemci animasyonu aynı süreyle oynatır

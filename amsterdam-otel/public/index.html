@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/interactive-tv.css">
   <link rel="stylesheet" href="/css/hotel.css">
+  <link rel="stylesheet" href="/css/bar-drinks.css">
   <link rel="stylesheet" href="/css/exterior.css">
   <link rel="stylesheet" href="/css/casino.css">
   <script type="importmap">
@@ -81,7 +82,7 @@
 
     <!-- Bar De Tulp: siparişler (sağ sütun), eylem ilerlemesi (nişangâh altı), eldeki bardak / yiyecek -->
     <div id="bar-orders" class="panel" hidden>
-      <div class="panel-title" id="bar-title">🍹 Bar De Tulp</div>
+      <div class="bar-head"><div class="panel-title" id="bar-title">🍹 Bar De Tulp</div><button type="button" id="bar-recipes" aria-label="Tarif kitabı">📖</button></div>
       <div id="bar-order-list"></div>
     </div>
     <div id="bar-progress" hidden><i></i></div>
@@ -199,6 +200,27 @@
       <div class="shop-foot"><span>🎒 Cüzdan: <b id="vehicle-wallet">€ 0</b></span></div>
       <p class="note" id="vehicle-msg"></p>
       <button type="button" class="primary" id="vehicle-close">Kapat</button>
+    </div>
+  </div>
+
+  <!-- Bar: tarif kitabı (30 alkolsüz içecek) -->
+  <div id="recipe-panel" class="overlay" hidden>
+    <div class="card wide recipe-card-wrap">
+      <h2>📖 Bar De Tulp · Tarif Kitabı</h2>
+      <div id="recipe-tabs" class="pc-tabs recipe-tabs" role="tablist"></div>
+      <div id="recipe-list"></div>
+      <button type="button" class="primary" id="recipe-close">Kapat</button>
+    </div>
+  </div>
+
+  <!-- Bar: soğutucu dolap / fıçı kulesi — malzeme seçimi -->
+  <div id="cooler-panel" class="overlay" hidden>
+    <div class="card">
+      <h2 id="cooler-title">🧊 Soğutucu dolap</h2>
+      <p class="sub" id="cooler-sub"></p>
+      <div id="cooler-grid"></div>
+      <p class="note" id="cooler-held"></p>
+      <button type="button" class="secondary" id="cooler-close">Vazgeç</button>
     </div>
   </div>
 

@@ -75,7 +75,8 @@ eski kaydın üstüne yazmasın diye başlamaz (Render yeniden dener). `DATABASE
 | Gece evindeki yatakta **E**: uyu · yürüyünce ya da tekrar **E** ile kalk | **Uyu** / **Kalk** |
 | Saksıda **E**: tohum ek · hasat et | **Ek** / **Hasat** |
 | **T**: TV yayınına katıl / kendi ekranında kapat | **▶ Katıl** çipi |
-| Barda **E**: bardak al · koy · çalkala · servis et · topla · yıka | **Aksiyon** (butonun etiketi bakılan şeye göre değişir: Al, Koy, Çalkala, Servis…) |
+| Barda **E**: bardak al · koy · çalkala · servis et · topla · yıka · soğutucu dolap / fıçıdan malzeme seç | **Aksiyon** (butonun etiketi bakılan şeye göre değişir: Al, Koy, Dolap, Fıçı, Servis…) |
+| Barda **K**: tarif kitabı (30 içecek) | Sipariş listesindeki **📖** |
 | **F** / **E**: elindeki yiyeceği ısır (her ısırık 2 sn) | **Aksiyon**: ısır |
 | Araca bakıp **E**: bin (sahibi sürer, arkadaşı arkaya biner) · sürerken **W/S** gaz-fren, **A/D** direksiyon, **E** in ve park et | **Bin** / **Arkaya** / **Park** · joystick: gaz ve direksiyon |
 | Kirli odada arızaya bakıp **E**: mini oyun (ovala, basılı tut, zamanla, şalter kaldır) | **Aksiyon** · mini oyun dokunarak |
@@ -298,12 +299,28 @@ otel kapalıyken de müşteri gelir.
 
 - **Müşteriler:** sokaktan gelip dört bar taburesinden birine oturur ve sipariş verir (başlarında sipariş baloncuğu,
   sağ üstte sabır çubuklu sipariş listesi). Sabırları tükenirse kalkıp giderler. Kirli bardak duran tabureye oturmazlar.
-- **İçecekler (hepsi alkolsüz):** 🍋 Limonata (limon + soda) · 🍹 Çilekli Mocktail (çilek + limon + soda, çalkala) ·
-  🥤 Çilekli Milkshake (süt + çilek, çalkala) · ☕ Sıcak Çikolata (süt + kakao). Malzemelerin sırası serbest.
-- **Barmenlik:** raftan temiz bardak al → arka tezgâhtaki dispenserlerden malzemeleri koy (dökme animasyonu, 1.5 sn) →
-  gerekiyorsa çalkalayıcıda çalkala (2 sn) → müşteriye servis et. Bardak siparişe uymuyorsa ipucu neyin eksik
-  olduğunu söyler; yanlış içeceği lavaboya dökebilirsin. Doğru servis: içeceğin fiyatı kasaya, hızına göre €2–6
-  bahşiş cüzdanına.
+- **30 içecek, hepsi alkolsüz** (`shared/drinks.js`), dört kategori:
+  - 🥃 **Şatlar** (€8–10): Espresso Shot, Zencefil Shot, Nar Shot, Vitamin Shot.
+  - 🫗 **Fıçı & Şişe** (€8–12): Fıçı Limonata, Zencefilli Gazoz, Köpüklü Elma (şampanya yerine), Kırmızı / Beyaz Üzüm
+    Suyu (şarap yerine).
+  - 🍹 **Kokteyller** (€25–40, ünlü kokteyllerin alkolsüz hâlleri): Virgin Mojito, Virgin Margarita, Virgin Piña Colada,
+    Plaj Günbatımı, Long Island Buzlu Çay, Virgin Spritz, Virgin Espresso Martini, Virgin Cosmopolitan, Tonik & Misket,
+    Zencefil Sour, Shirley Temple, Tropik Fırtına (5 malzeme, €40), Çilekli Mocktail.
+  - 🥤 **Soft & Klasikler** (€8–14): Kola, Portakal Suyu, Buzlu Çay, Enerji İçeceği, Soda & Misket, Limonata,
+    Çilekli Milkshake, Sıcak Çikolata.
+- **Malzeme istasyonları (26 malzeme):** arka tezgâhtaki 5 musluk (limon, çilek, süt, kakao, soda); barın batı ucundaki
+  **🧊 soğutucu dolap** (misket limonu, nane, buz, şeker şurubu, portakal / ananas / kızılcık / üzüm suları, hindistan
+  cevizi kreması, şeftali, nar şurubu, kola, tonik, zencefil, espresso, soğuk çay, enerji içeceği — E → seçim paneli);
+  tezgâhtaki **🫗 fıçı kulesi** (fıçı limonata, zencefilli gazoz, elma gazozu).
+- **📖 Tarif kitabı (RecipeBook):** doğu duvarındaki menü panosunun önündeki kürsüde **E**, barın içindeyken **K**, ya da
+  sipariş listesindeki 📖 (en uzun bekleyen siparişin tarifini açar). Her içecek için bardak, malzemeler ve hangi
+  istasyondan alındıkları, yöntem (çalkala / bardakta karıştır / doğrudan doldur), fiyat ve zorluk.
+- **Barmenlik:** raftan temiz bardak al → malzemeleri koy (sırası serbest, en fazla 5; dökme 1.5 sn) → gerekiyorsa
+  çalkalayıcıda çalkala (2 sn) → müşteriye servis et. Şat ve fıçı içecekleri doğrudan doldurulur. Bardak siparişe
+  uymuyorsa ipucu neyin eksik / fazla olduğunu söyler; yanlış içeceği lavaboya dökebilirsin.
+- **Siparişler ve gelir:** müşteriler 30 içecekten ağırlıklı rastgele sipariş verir; çok malzemeli içecekte daha sabırlıdırlar
+  (2'nin üstündeki her adım +12 sn). Doğru servis: **fiyat + bahşiş otel kasasına** — bahşiş fiyatın %10'u (geç) ile
+  %35'i (hemen) arası, yani kokteyllerde €4–14. Konser kalabalığı / reklam kampanyası bonusları bahşişi ayrıca artırır.
 - **Toplama ve yıkama:** müşteri içip gidince tezgâhta kirli bardak kalır. Topla (aynı anda en fazla 3), lavaboda yıka
   (2.2 sn) → bardaklar rafa döner. Barda toplam 6 bardak var; yıkamazsan temiz bardak biter.
 - **Yiyecekler:** 🍫 Brownie (€3, 4 ısırık) ve 🧇 Stroopwafel (€2, 3 ısırık) — tezgâhın ucundaki vitrinden al, her
@@ -383,6 +400,7 @@ amsterdam-otel/
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
 │       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları (üst kata asansörle iki bacak)
 │       ├── HotelGrowthService.js # İtibar / yıldız, kat satın alma, asansör, plaketler
+│       ├── BoostService.js      # Geçici bonuslar (konser kalabalığı, reklam): bar / misafir sıklığı, bahşiş
 │       ├── WorkerService.js     # Temizlikçi NPC'ler: iş seçimi, süreli işler, seviye, bahşiş kasaya
 │       ├── InspectionService.js # Belediye denetimi: planlama, geri sayım, tüp / şurup kontrolü, sonuç
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
@@ -392,6 +410,7 @@ amsterdam-otel/
 │                                #   FileStore / PgStore (kayıt), YouTube oEmbed + küçük resim vekili
 ├── shared/                      # Sunucu + istemci ortak kodu (ESM)
 │   ├── constants.js             # Durumlar, olay adları, fiyat, saatler, ürünler, trip/slot
+│   ├── drinks.js                # Bar: 30 alkolsüz içecek, 26 malzeme, kategoriler, istasyonlar
 │   ├── layout.js                # Otel + coffee shop + ev yerleşimi: duvarlar, odalar, rota noktaları
 │   ├── friends.js               # Müdavimler, konular, espriler, arkadaşlık kuralları
 │   ├── vehicles.js              # Araç türleri, hız / ivme, yolcu koltuğu
@@ -427,6 +446,8 @@ amsterdam-otel/
 │       │   ├── UndergroundCasino.js # Kart Kulübü: kapı / koltuk etkileşimi, masa panelleri, NPC'ler
 │       │   ├── ExteriorCustomization.js # Ev cephesi: sprey graffiti (nişan + önizleme), neon tabela, balkon
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
+│       │   ├── MixologyBarSystem.js # Soğutucu dolap + fıçı kulesi: malzeme seçimi (30 içecekli kütüphane)
+│       │   ├── RecipeBook.js        # Tarif kitabı paneli (kürsü / K / 📖)
 │       │   ├── ViewModel.js         # Birinci şahıs eller (dökme, çalkalama, ısırma, toplama…)
 │       │   ├── NightCycle.js        # Gece görünümü, yatakta uyuma, uyku ekranı
 │       │   ├── HerbalBotanySystem.js # Ev bahçesi: tohum paneli, büyüme evreleri, hasat

@@ -223,6 +223,10 @@ export const BAR = Object.freeze({
     soda: [13.4, 13.3],
   }),
   shaker: [14.2, 13.3],
+  // Batı ucundaki camlı soğutucu dolap (meyve suları, şuruplar, nane, buz, kahve) ve tezgâhtaki fıçı kulesi
+  cooler: [9.05, 13.25],
+  taps: [10.17, 11.75],
+  recipeBook: [15.55, 10.9], // doğu duvarındaki menü panosunun önünde kürsüde tarif kitabı
   sink: [15.1, 13.3],
   // Yiyecek vitrini tezgâhın doğu ucunda (iki taraftan da alınabilir)
   food: Object.freeze({ brownie: [13.95, 11.7], stroopwafel: [14.4, 11.7] }),

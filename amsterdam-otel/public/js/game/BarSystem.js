@@ -19,6 +19,8 @@ const BUSY_TEXT = {
 };
 const PATIENCE_URGENT = 0.35; // altında baloncuk ve çubuk kırmızı
 
+// Arka tezgâhtaki 5 musluk; diğer malzemeler soğutucu dolap / fıçı kulesinde (MixologyBarSystem)
+const DISPENSED = INGREDIENTS.filter((i) => i.station === 'dispenser');
 const recipeIcons = (d) => d.ingredients.map((i) => INGREDIENT_BY_ID[i].icon).join('') + (d.shake ? '🍸' : '');
 const sameSet = (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
 
@@ -201,9 +203,9 @@ export class BarSystem {
       S.stools.forEach((st, i) => {
         if (st.glass === 'dirty') add(stools[i].spot, '🫙 Kirli bardağı topla', 'Topla', () => this.act('collect', { stool: i }));
       });
-      for (const ing of INGREDIENTS) add(BAR.dispensers[ing.id], `${ing.icon} ${ing.name} — önce temiz bardak al`, ing.icon, () => this.hud.toast('Önce raftan temiz bir bardak al.', 'info'));
+      for (const ing of DISPENSED) add(BAR.dispensers[ing.id], `${ing.icon} ${ing.name} — önce temiz bardak al`, ing.icon, () => this.hud.toast('Önce raftan temiz bir bardak al.', 'info'));
     } else if (h.kind === 'glass') {
-      for (const ing of INGREDIENTS) {
+      for (const ing of DISPENSED) {
         const pt = BAR.dispensers[ing.id];
         if (h.pours.includes(ing.id)) add(pt, `${ing.icon} ${ing.name} — zaten koydun`, ing.icon, () => this.hud.toast(`${ing.name} zaten bardakta.`, 'info'));
         else if (h.pours.length >= BAR_RULES.MAX_POURS) add(pt, '🥛 Bardak dolu', ing.icon, () => this.hud.toast('Bardak dolu — servis et ya da lavaboda dök.', 'info'));
@@ -238,6 +240,8 @@ export class BarSystem {
       add(BAR.sink, `🧽 Bardakları yıka (${h.count})`, 'Yıka', () => this.act('wash'));
     }
     // h.kind === 'food': hedef yok → Aksiyon / F ısırır
+    // Soğutucu dolap, fıçı kulesi (MixologyBarSystem) — aynı puanlamayla yarışsın
+    this.extraTargets?.(add, h);
 
     let best = null;
     let bestScore = Infinity;
@@ -255,6 +259,15 @@ export class BarSystem {
       }
     }
     return best && { x: best.x, z: best.z, label: best.label, short: best.short, marker: false, use: best.use };
+  }
+
+  /** Tarif kitabı için: en uzun süredir bekleyen siparişin içeceği (yoksa null) */
+  waitingOrder() {
+    let best = null;
+    for (const st of this.state?.stools ?? []) {
+      if (st.state === 'waiting' && (!best || st.waitUntil < best.waitUntil)) best = st;
+    }
+    return best?.order ?? null;
   }
 
   /** Hedef yokken gösterilecek ipucu (yiyecek tutuyorsan: ısır) */

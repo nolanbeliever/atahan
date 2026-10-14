@@ -5,6 +5,7 @@ import {
   EVT, BAR_RULES, DRINK_BY_ID, FOOD_BY_ID, INGREDIENT_BY_ID, BAR_CUSTOMER_NAMES, START_WALLET,
 } from '../shared/constants.js';
 import { BAR, POINTS } from '../shared/layout.js';
+import { DRINKS, DRINK_CATEGORIES, DRINK_CATEGORY_BY_ID, INGREDIENTS } from '../shared/drinks.js';
 
 const T = BAR_RULES.T;
 
@@ -165,23 +166,24 @@ test('tam servis: bardak → malzemeler → çalkala → servis (kasa, bahşiş,
 
   at(BAR.stools[i].spot);
   const s = bar.stools[i];
-  const expectedTip = Math.round(BAR_RULES.TIP_MIN
-    + (BAR_RULES.TIP_MAX - BAR_RULES.TIP_MIN) * ((s.waitUntil - getNow()) / BAR_RULES.PATIENCE_MS));
+  const speed = (s.waitUntil - getNow()) / s.patienceMs;
+  const expectedTip = Math.max(1, Math.round(drink.price
+    * (BAR_RULES.TIP_RATE_MIN + (BAR_RULES.TIP_RATE_MAX - BAR_RULES.TIP_RATE_MIN) * speed)));
   r = act({ act: 'serve', stool: i });
   assert.equal(r.ok, true, r.error);
   assert.equal(r.hold, null);
   assert.equal(r.tip, expectedTip);
-  assert.ok(r.tip >= BAR_RULES.TIP_MIN && r.tip <= BAR_RULES.TIP_MAX);
-  assert.equal(sim.money, money0 + drink.price, 'içecek ücreti otel kasasına');
-  assert.equal(p.wallet, wallet0 + r.tip, 'bahşiş servis edenin cüzdanına');
+  assert.ok(r.tip >= drink.price * BAR_RULES.TIP_RATE_MIN - 1 && r.tip <= drink.price * BAR_RULES.TIP_RATE_MAX + 1);
+  assert.equal(sim.money, money0 + drink.price + r.tip, 'satış + bahşiş otel kasasına');
+  assert.equal(p.wallet, wallet0, 'oyuncunun cüzdanı değişmez');
   assert.equal(sim.today.guests, 0, 'bar satışı misafir sayılmaz');
   assert.equal(sim.today.served, 1);
   const eco = events(EVT.ECONOMY).pop();
-  assert.equal(eco.delta, drink.price);
-  assert.equal(eco.reason, `Bar: ${drink.name}`);
+  assert.equal(eco.delta, drink.price + r.tip);
+  assert.equal(eco.reason, `Bar: ${drink.name} (+€${r.tip} bahşiş)`);
   assert.equal(eco.today.served, 1);
   assert.ok(to.some((m) => m.id === p.id && m.event === EVT.NOTIFY && m.payload.kind === 'money'
-    && m.payload.text.includes(drink.name) && m.payload.text.includes(`+€${r.tip} bahşiş`)));
+    && m.payload.text.includes(drink.name) && m.payload.text.includes(`€${r.tip} bahşiş`)));
   assert.ok(!events(EVT.NOTIFY).some((n) => /bahşiş/.test(n.text)), 'bahşiş bildirimi kişisel');
   const after = lastBar().stools[i];
   assert.deepEqual(
@@ -241,11 +243,12 @@ test('yanlış tarif ve çalkalama hatası reddedilir, durum değişmez; yanlı�
   assert.match(act({ act: 'serve', stool: i }).error, /çalkalanması gerekiyordu/);
   at(BAR.shaker); step({ act: 'shake' });
   at(BAR.stools[i].spot);
-  assert.equal(step({ act: 'serve', stool: i }).ok, true, 'sıra serbest, çalkalanınca kabul');
-  assert.equal(sim.money, DRINK_BY_ID.milkshake.price);
+  const served = step({ act: 'serve', stool: i });
+  assert.equal(served.ok, true, 'sıra serbest, çalkalanınca kabul');
+  assert.equal(sim.money, DRINK_BY_ID.milkshake.price + served.tip);
 });
 
-test('adım kuralları: tekrar malzeme, en fazla 3 malzeme, çalkalama koşulları, boş el', () => {
+test('adım kuralları: tekrar malzeme, en fazla 5 malzeme, çalkalama koşulları, boş el', () => {
   const { at, act, step } = setup();
   at(BAR.dispensers.lemon);
   assert.match(act({ act: 'pour', ing: 'lemon' }).error, /bardak al/);
@@ -259,8 +262,9 @@ test('adım kuralları: tekrar malzeme, en fazla 3 malzeme, çalkalama koşullar
   assert.match(act({ act: 'pour', ing: 'lemon' }).error, /zaten koydun/);
   at(BAR.dispensers.strawberry); step({ act: 'pour', ing: 'strawberry' });
   at(BAR.dispensers.soda); step({ act: 'pour', ing: 'soda' });
-  at(BAR.dispensers.milk);
-  assert.match(act({ act: 'pour', ing: 'milk' }).error, /en fazla 3/);
+  at(BAR.dispensers.milk); step({ act: 'pour', ing: 'milk' });
+  at(BAR.cooler); step({ act: 'pour', ing: 'ice' });
+  assert.match(act({ act: 'pour', ing: 'mint' }).error, /en fazla 5/);
   at(BAR.shaker); step({ act: 'shake' });
   assert.match(act({ act: 'shake' }).error, /zaten çalkaladın/);
   at(BAR.sink);
@@ -516,7 +520,9 @@ test('mesafe ve konum: lobiden ya da istasyondan uzaktan yapılamaz', () => {
   assert.equal(bar.rack, BAR_RULES.GLASSES);
   at(BAR.glassRack); step({ act: 'take' });
   sim.movePlayer(p.id, 15.5, 9, 0);
-  assert.match(act({ act: 'pour', ing: 'lemon' }).error, /dispenser/);
+  assert.match(act({ act: 'pour', ing: 'lemon' }).error, /musluklarına yaklaş/);
+  assert.match(act({ act: 'pour', ing: 'mint' }).error, /Soğutucu dolaba yaklaş/);
+  assert.match(act({ act: 'pour', ing: 'tapApple' }).error, /Fıçı kulesine yaklaş/);
   at(BAR.dispensers.lemon); step({ act: 'pour', ing: 'lemon' });
   at(BAR.dispensers.soda); step({ act: 'pour', ing: 'soda' });
   sim.movePlayer(p.id, 15.5, 9, 0);
@@ -626,4 +632,86 @@ test('bar kapanınca bekleyen müşteri gider; gün sonu özetinde içecek sayı
   assert.match(day.text, /· 3 içecek/);
   assert.equal(sim.today.served, 0);
   assert.equal(bar.nextSpawnAt, null);
+});
+
+// ---- 30 içecekli kütüphane (shared/drinks.js) -----------------------------------------
+
+test('içecek kütüphanesi: 20+ içecek, 4 kategori, geçerli malzemeler, tarifler birbirinden ayırt edilir, fiyat aralıkları', () => {
+  assert.ok(DRINKS.length >= 20, `${DRINKS.length} içecek`);
+  const cats = new Set(DRINKS.map((d) => d.cat));
+  for (const c of DRINK_CATEGORIES) assert.ok(cats.has(c.id), `${c.id} kategorisi boş değil`);
+  const keys = new Set();
+  for (const d of DRINKS) {
+    assert.ok(DRINK_CATEGORY_BY_ID[d.cat], `${d.id} kategorisi`);
+    assert.ok(d.ingredients.length >= 1 && d.ingredients.length <= BAR_RULES.MAX_POURS, `${d.id} malzeme sayısı`);
+    assert.equal(new Set(d.ingredients).size, d.ingredients.length, `${d.id} malzeme tekrarı yok`);
+    for (const i of d.ingredients) assert.ok(INGREDIENT_BY_ID[i], `${d.id}: ${i} malzemesi var`);
+    const key = `${[...d.ingredients].sort().join(',')}|${d.shake}`;
+    assert.ok(!keys.has(key), `${d.id} başka bir tarifle aynı`);
+    keys.add(key);
+    assert.match(d.color, /^#[0-9a-f]{6}$/);
+    if (d.cat === 'mocktail') assert.ok(d.price >= 25 && d.price <= 40, `${d.id} kokteyl fiyatı`);
+    else assert.ok(d.price >= 8 && d.price <= 14, `${d.id} basit içecek fiyatı`);
+  }
+  for (const ing of INGREDIENTS) {
+    if (ing.station === 'dispenser') assert.ok(BAR.dispensers[ing.id], `${ing.id} musluğu var`);
+    else assert.ok(['cooler', 'taps'].includes(ing.station));
+  }
+  assert.ok(INGREDIENTS.some((i) => i.station === 'taps') && INGREDIENTS.some((i) => i.station === 'cooler'));
+});
+
+test('Virgin Mojito: soğutucu dolap + musluk, 5 malzeme, uzun sabır; bahşiş yüksek ve kasaya, bonus bahşişi artırır', () => {
+  const { sim, p, bar, at, act, step, seatCustomer, getNow } = setup();
+  const c = seatCustomer('virginMojito');
+  const i = c.stool;
+  const s = bar.stools[i];
+  const mojito = DRINK_BY_ID.virginMojito;
+  // Sabır sipariş verildiğinde belirlenir: seatCustomer siparişi sonradan değiştirdi; zor içecek için yeniden ayarla
+  s.patienceMs = BAR_RULES.PATIENCE_MS + BAR_RULES.PATIENCE_PER_STEP_MS * 3;
+  s.waitUntil = getNow() + s.patienceMs;
+  const money0 = sim.money;
+  at(BAR.glassRack); step({ act: 'take' });
+  for (const ing of mojito.ingredients) {
+    const st = INGREDIENT_BY_ID[ing].station;
+    at(st === 'cooler' ? BAR.cooler : st === 'taps' ? BAR.taps : BAR.dispensers[ing]);
+    step({ act: 'pour', ing });
+  }
+  at(BAR.stools[i].spot);
+  const r = step({ act: 'serve', stool: i });
+  assert.ok(r.tip >= 6, `kokteyl bahşişi yüksek (€${r.tip})`);
+  assert.equal(sim.money, money0 + mojito.price + r.tip);
+  assert.equal(p.wallet, 30);
+
+  // Fıçıdan doğrudan doldurma (tek malzeme) + konser bonusu bahşişi artırır
+  sim.boosts.add({ source: 'test', label: 'Test', minutes: 60, barTip: 2 });
+  const c2 = seatCustomer('appleFizz');
+  const s2 = bar.stools[c2.stool];
+  at(BAR.glassRack); step({ act: 'take' });
+  at(BAR.taps); step({ act: 'pour', ing: 'tapApple' });
+  at(BAR.stools[c2.stool].spot);
+  const speed = (s2.waitUntil - getNow()) / s2.patienceMs;
+  const base = DRINK_BY_ID.appleFizz.price * (BAR_RULES.TIP_RATE_MIN + (BAR_RULES.TIP_RATE_MAX - BAR_RULES.TIP_RATE_MIN) * speed);
+  assert.equal(step({ act: 'serve', stool: c2.stool }).tip, Math.round(base * 2));
+  assert.equal(act({ act: 'pour', ing: '__proto__' }).ok, false);
+  assert.equal(act({ act: 'pour', ing: { toString: () => 'ice' } }).ok, false);
+});
+
+test('siparişler: zor içecekte sabır daha uzun; 400 siparişte dört kategori de çıkar', () => {
+  const { bar, seatCustomer, tick, getNow } = setup();
+  const seen = new Set();
+  const counts = Object.create(null);
+  for (let k = 0; k < 400; k++) {
+    const d = bar.pickDrink();
+    seen.add(d.cat);
+    counts[d.id] = (counts[d.id] ?? 0) + 1;
+  }
+  assert.equal(seen.size, 4);
+  assert.ok(Object.keys(counts).length >= 20, 'çeşitlilik');
+  const c = seatCustomer();
+  const s = bar.stools[c.stool];
+  const d = DRINK_BY_ID[s.order];
+  assert.equal(s.waitUntil - getNow(), s.patienceMs);
+  assert.ok(s.patienceMs >= BAR_RULES.PATIENCE_MS);
+  assert.equal(s.patienceMs > BAR_RULES.PATIENCE_MS, d.ingredients.length + (d.shake ? 1 : 0) > 2);
+  tick(1);
 });

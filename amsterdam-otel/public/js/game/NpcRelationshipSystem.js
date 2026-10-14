@@ -206,7 +206,11 @@ export class NpcRelationshipSystem {
         b('back', '← Geri');
       } else if (this.view === 'drinks') {
         const wallet = this.house.getWallet();
-        for (const d of DRINKS) b('drink', `${d.icon} ${d.name} · €${d.price}`, { v: d.id, disabled: wallet < d.price });
+        // 30 içecekten kısa liste: soft / fıçı / şatlar + müdavimin en sevdiği (kokteyl olsa da)
+        const fav = REGULAR_BY_NAME[t.name]?.drink;
+        for (const d of DRINKS.filter((x) => x.cat !== 'mocktail' || x.id === fav)) {
+          b('drink', `${d.icon} ${d.name} · €${d.price}`, { v: d.id, disabled: wallet < d.price });
+        }
         b('back', '← Geri');
       } else {
         b('chat', '💬 Sohbet et');

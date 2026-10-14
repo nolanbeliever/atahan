@@ -31,6 +31,8 @@ import { HotelWorkerSystem } from './game/HotelWorkerSystem.js';
 import { HotelInspectionSystem } from './game/HotelInspectionSystem.js';
 import { UndergroundCasino } from './game/UndergroundCasino.js';
 import { BarSystem } from './game/BarSystem.js';
+import { RecipeBook } from './game/RecipeBook.js';
+import { MixologyBarSystem } from './game/MixologyBarSystem.js';
 import { ViewModel } from './game/ViewModel.js';
 import { Sfx } from './core/Sfx.js';
 import { Network } from './net/Network.js';
@@ -155,13 +157,16 @@ const visits = new HouseVisitingSystem({
 });
 // Dekorasyon modu komutları (B, R, C, X, 1-9) coffee shop'tan ÖNCE işlenir
 // Bar 'consume' (F) komutunu elde yiyecek varsa sahiplenir (coffee shop'a gitmez)
-input.onCommand((cmd) => exterior.command(cmd) || house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd));
+input.onCommand((cmd) => exterior.command(cmd) || house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd) || recipes.command(cmd));
 const shop = new CoffeeShopSystem({ net, hud, interaction, input, modal, device });
 // Shop'tan SONRA: boşta ipucu zincirini (idleHint) sarar
 const bar = new BarSystem({
   engine, net, hud, interaction, player, remotes, guests, settings, sfx, vm,
   view: world.bar, device, getWallet: () => shop.wallet,
 });
+// Bar: 30 alkolsüz içecek — tarif kitabı (K / kürsü / 📖) ve soğutucu dolap + fıçı kulesi
+const recipes = new RecipeBook({ interaction, modal, player });
+const mixology = new MixologyBarSystem({ bar, hud, modal, recipes });
 // Gece döngüsü (yatakta uyuma) ve ev bahçesi (saksı + tohum)
 const night = new NightCycle({
   engine, net, hud, interaction, player, house, state, world, device, sfx, settings,
@@ -603,5 +608,5 @@ navigator.getBattery?.().then((battery) => {
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
-  reception, workers, inspection, casino,
+  reception, workers, inspection, casino, recipes, mixology,
 };

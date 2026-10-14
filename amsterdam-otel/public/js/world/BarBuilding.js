@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { WALL_H, BAR } from '/shared/layout.js';
-import { FOOD, INGREDIENTS, BAR_RULES } from '/shared/constants.js';
+import { FOOD, INGREDIENTS, BAR_RULES, DRINKS } from '/shared/constants.js';
+
+const DRINK_COUNT = DRINKS.length;
 import { UV } from './Materials.js';
 import { addPlanter } from './Props.js';
 import { ATLAS, drawBarAtlas, drawBarWall } from './BarTextures.js';
@@ -106,6 +108,8 @@ export function buildBar({ batcher: b, collision, scene, mats, factory }) {
   buildCounter();
   buildBackBar();
   buildFood();
+  buildTaps();
+  buildRecipeLectern();
   buildStools();
   buildSeating();
   buildLamps();
@@ -304,8 +308,8 @@ export function buildBar({ batcher: b, collision, scene, mats, factory }) {
     fruitBowl(10.68, 13.58, '#f2df4a', 0.034);
     fruitBowl(13.8, 13.6, '#e23a4e', 0.022);
 
-    // Dispenserler (malzeme renginde hazne + üstte ikonlu etiket)
-    INGREDIENTS.forEach((ing, i) => {
+    // Dispenserler (malzeme renginde hazne + üstte ikonlu etiket) — yalnızca musluk malzemeleri
+    INGREDIENTS.filter((ing) => ing.station === 'dispenser').forEach((ing, i) => {
       const [dx, dz] = BAR.dispensers[ing.id];
       const zc = dz + 0.36;
       vbox(STEEL, dx - 0.085, dx + 0.085, top, top + 0.02, dz + 0.02, dz + 0.2);
@@ -447,6 +451,70 @@ export function buildBar({ batcher: b, collision, scene, mats, factory }) {
     vbox(trim, x1, x1 + 0.025, h - 0.3, h - 0.24, z0, z1);
     b.box('brass', x1 + 0.025, x1 + 0.045, 0.75, 1.25, z0 + 0.08, z0 + 0.1, { cast: false });
     collision.add(8.1, x1 + 0.05, z0 - 0.02, 13.9);
+  }
+
+  // ---- Fıçı kulesi (tezgâhın batı ucu): üç musluk, malzeme renginde kolları -----------
+  function buildTaps() {
+    const t = C.top;
+    const [x, z] = BAR.taps;
+    vbox(STEEL, x - 0.13, x + 0.13, t, t + 0.012, z - 0.12, z + 0.12); // damlalık
+    b.box('black', x - 0.11, x + 0.11, t + 0.012, t + 0.016, z - 0.1, z + 0.1, { cast: false });
+    cyl(STEEL, 0.035, 0.045, 0.34, x, t, z + 0.05, 10); // kule
+    vbox(STEEL, x - 0.03, x + 0.03, t + 0.33, t + 0.39, z - 0.1, z + 0.17); // musluk kolu taşıyıcısı
+    const taps = INGREDIENTS.filter((i) => i.station === 'taps');
+    taps.forEach((ing, k) => {
+      const dz = z - 0.06 + k * 0.09;
+      paint(STEEL, new THREE.CylinderGeometry(0.008, 0.008, 0.06, 6), { position: [x - 0.05, t + 0.33, dz], rotation: [0, 0, Math.PI / 2] });
+      cyl(STEEL, 0.008, 0.01, 0.04, x - 0.08, t + 0.29, dz, 6);
+      paint(ing.color, new THREE.CylinderGeometry(0.012, 0.016, 0.13, 8), { position: [x - 0.045, t + 0.43, dz], rotation: [0, 0, 0.25] });
+      paint('#2a2523', new THREE.SphereGeometry(0.018, 8, 6), { position: [x - 0.06, t + 0.5, dz] });
+    });
+    collision.addAround(x, z, 0.05);
+  }
+
+  // ---- Tarif kitabı kürsüsü (doğu duvarındaki menü panosunun önü) ---------------------
+  function buildRecipeLectern() {
+    const [x, z] = BAR.recipeBook;
+    const wood = '#5a3a22';
+    vbox(wood, x - 0.2, x + 0.2, 0, 0.04, z - 0.18, z + 0.18);
+    vbox(wood, x - 0.05, x + 0.05, 0.04, 1.0, z - 0.05, z + 0.05);
+    // Eğik okuma tablası (batıya, oyuncuya bakar) + açık kitap
+    const top = new THREE.Group();
+    top.position.set(x, 1.05, z);
+    top.rotation.z = 0.45;
+    const board = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.03, 0.5), new THREE.MeshLambertMaterial({ color: wood }));
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 192;
+    const g = c.getContext('2d');
+    g.fillStyle = '#f4ecd8';
+    g.fillRect(0, 0, 256, 192);
+    g.fillStyle = '#8a1c2b';
+    g.fillRect(126, 0, 4, 192);
+    g.fillStyle = '#3a2614';
+    g.textAlign = 'center';
+    g.font = '700 22px Georgia, serif';
+    g.fillText('Tarifler', 64, 40);
+    g.fillText('Bar De Tulp', 192, 40);
+    g.font = '40px serif';
+    g.fillText('🍹', 64, 110);
+    g.fillText('🌿', 192, 110);
+    g.font = 'italic 15px Georgia, serif';
+    g.fillText(`${DRINK_COUNT} içecek`, 64, 160);
+    g.fillText('alkolsüz', 192, 160);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const pages = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.34), new THREE.MeshLambertMaterial({ map: tex }));
+    pages.rotation.set(-Math.PI / 2, 0, -Math.PI / 2); // yazının üstü +X (okuyan batıda durur)
+    pages.position.y = 0.02;
+    top.add(board, pages);
+    top.traverse((o) => { o.matrixAutoUpdate = false; });
+    top.updateMatrix();
+    board.updateMatrix();
+    pages.updateMatrix();
+    top.updateMatrixWorld(true);
+    scene.add(top);
+    collision.addAround(x, z, 0.2);
   }
 
   // ---- Yiyecek vitrini (tezgâhın doğu ucu) -------------------------------------------

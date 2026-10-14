@@ -1,5 +1,8 @@
 import { WALL_H } from '/shared/layout.js';
-import { DRINKS, FOOD, INGREDIENTS, INGREDIENT_BY_ID } from '/shared/constants.js';
+import { DRINKS, FOOD, INGREDIENTS, DRINK_BY_ID, DRINK_CATEGORIES } from '/shared/constants.js';
+
+const DISPENSED = INGREDIENTS.filter((i) => i.station === 'dispenser');
+const FEATURED = DRINK_BY_ID.virginMojito; // lobideki tahtada "günün içeceği"
 import { signDrawer, drawSkyline } from './Textures.js';
 
 // Bar De Tulp'un prosedürel dokuları: tabela/menü/etiket atlası ve duvar dokusu.
@@ -114,14 +117,17 @@ function drawMenu(ctx, w, h, rnd) {
     ctx.fillText(`€${price}`, x1, y);
   };
 
-  // İçecekler (malzeme ikonlarıyla — tarifi panodan okuyabilesin)
+  // İçecekler: 4 kategori (30 içecek; tarifler kürsüdeki tarif kitabında)
   ctx.textAlign = 'left';
   ctx.fillStyle = CHALK_GOLD;
   ctx.font = `italic 700 ${Math.round(h * 0.062)}px ${SERIF}`;
-  ctx.fillText('İçecekler', w * 0.06, h * 0.32);
-  DRINKS.forEach((d, i) => {
-    const recipe = d.ingredients.map((id) => INGREDIENT_BY_ID[id].icon).join(' + ');
-    row(h * (0.43 + i * 0.128), d.icon, d.name, d.shake ? `${recipe} · çalkala` : recipe, d.price, w * 0.05, w * 0.585);
+  ctx.fillText(`İçecekler · ${DRINKS.length} çeşit`, w * 0.06, h * 0.32);
+  DRINK_CATEGORIES.forEach((c, i) => {
+    const list = DRINKS.filter((d) => d.cat === c.id);
+    const names = list.slice(0, 3).map((d) => d.name).join(', ') + (list.length > 3 ? '…' : '');
+    const lo = Math.min(...list.map((d) => d.price));
+    const hi = Math.max(...list.map((d) => d.price));
+    row(h * (0.42 + i * 0.112), c.icon, c.name, names, lo === hi ? lo : `${lo}–${hi}`, w * 0.05, w * 0.585);
   });
 
   // Atıştırmalıklar
@@ -153,13 +159,13 @@ function drawBoard(ctx, w, h, rnd) {
   ctx.font = `italic ${Math.round(w * 0.09)}px ${SERIF}`;
   ctx.fillText('Günün içeceği', w / 2, h * 0.25, w * 0.8);
   ctx.font = `${Math.round(w * 0.24)}px ${SERIF}`;
-  ctx.fillText(DRINKS[1].icon, w / 2, h * 0.42);
+  ctx.fillText(FEATURED.icon, w / 2, h * 0.42);
   ctx.fillStyle = CHALK;
   ctx.font = `600 ${Math.round(w * 0.1)}px ${SERIF}`;
-  ctx.fillText(DRINKS[1].name, w / 2, h * 0.58, w * 0.82);
+  ctx.fillText(FEATURED.name, w / 2, h * 0.58, w * 0.82);
   ctx.fillStyle = CHALK_GOLD;
   ctx.font = `700 ${Math.round(w * 0.14)}px ${SERIF}`;
-  ctx.fillText(`€${DRINKS[1].price}`, w / 2, h * 0.7);
+  ctx.fillText(`€${FEATURED.price}`, w / 2, h * 0.7);
   ctx.fillStyle = '#b9d8c3';
   ctx.font = `${Math.round(w * 0.07)}px ${SERIF}`;
   ctx.fillText('alkolsüz · içeride →', w / 2, h * 0.84, w * 0.74);
@@ -358,7 +364,7 @@ export function drawBarAtlas(ctx, W, H, rnd) {
     title: '🍹 BAR De Tulp', sub: 'Alkolsüz · Alcoholvrij', bg: '#2a1a10', fg: '#f6e7c1',
   })(ctx, w, h));
   inRegion(ctx, W, H, ATLAS.board, (w, h) => drawBoard(ctx, w, h, rnd));
-  INGREDIENTS.forEach((ing, i) => inRegion(ctx, W, H, ATLAS.label(i), (w, h) => drawLabel(ctx, w, h, ing)));
+  DISPENSED.forEach((ing, i) => inRegion(ctx, W, H, ATLAS.label(i), (w, h) => drawLabel(ctx, w, h, ing)));
   FOOD.forEach((f, i) => inRegion(ctx, W, H, ATLAS.tag(i), (w, h) => drawTag(ctx, w, h, f)));
   inRegion(ctx, W, H, ATLAS.tulips, (w, h) => drawTulipPoster(ctx, w, h));
   inRegion(ctx, W, H, ATLAS.canal, (w, h) => drawCanalPainting(ctx, w, h, rnd));
