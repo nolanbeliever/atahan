@@ -6,7 +6,7 @@ import { RoomManager } from '../server/game/RoomManager.js';
 import {
   EVT, ROOM_STATUS, DAY_START_MIN, CHECKIN_OPEN_MIN, GUEST_PHASE,
 } from '../shared/constants.js';
-import { ROOM_BY_ID } from '../shared/layout.js';
+import { ROOM_BY_ID, WORLD_BOUNDS } from '../shared/layout.js';
 import { samplePath, pathLength } from '../shared/path.js';
 import { ISSUE_IDS, issueSpots } from '../shared/maintenance.js';
 
@@ -224,13 +224,14 @@ test('oda yoksa misafir lobide bekler, oda temizlenince yerleşir', () => {
 test('oyuncu konumu dünya sınırına kırpılır ve toplu yayınlanır', () => {
   const { sim, events, advance } = makeSim();
   const p = sim.addPlayer('A');
-  sim.movePlayer(p.id, 999, -999, 10);
-  assert.equal(p.x, 18);
-  assert.equal(p.z, -7.6);
+  const b = WORLD_BOUNDS;
+  sim.movePlayer(p.id, 9999, -9999, 10);
+  assert.equal(p.x, b.maxX);
+  assert.equal(p.z, b.minZ);
   advance(100);
   const batch = events.filter((e) => e.event === EVT.PLAYERS).pop();
   assert.ok(batch);
-  assert.deepEqual(batch.payload[0].slice(0, 3), [p.id, 18, -7.6]);
+  assert.deepEqual(batch.payload[0].slice(0, 3), [p.id, b.maxX, b.minZ]);
   sim.movePlayer(p.id, NaN, 0, 0);
-  assert.equal(p.x, 18, 'geçersiz değer yok sayılmalı');
+  assert.equal(p.x, b.maxX, 'geçersiz değer yok sayılmalı');
 });
