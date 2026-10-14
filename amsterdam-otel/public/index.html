@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/css/hotel.css">
   <link rel="stylesheet" href="/css/exterior.css">
   <link rel="stylesheet" href="/css/casino.css">
+  <link rel="stylesheet" href="/css/stage.css">
   <script type="importmap">
     {
       "imports": {
@@ -405,6 +406,18 @@
       </label>
       <p class="note" id="set-note"></p>
       <button type="button" class="primary" id="btn-settings-close">Kapat</button>
+    </div>
+  </div>
+
+  <!-- Achterstraat Canlı Müzik Sahnesi: grup kiralama (LiveStageSystem) -->
+  <div id="stage-panel" class="overlay" hidden>
+    <div class="card wide stage-card">
+      <h2>🎤 Achterstraat Live</h2>
+      <p class="stage-status" id="stage-status"></p>
+      <div id="stage-acts" class="pc-list"></div>
+      <label class="stage-music"><input type="checkbox" id="stage-music"> <span>Sahne müziği (bu cihazda)</span></label>
+      <p class="note" id="stage-msg"></p>
+      <button type="button" class="primary" id="stage-close">Kapat</button>
     </div>
   </div>
 

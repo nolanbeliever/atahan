@@ -191,6 +191,12 @@ export function attachSocketHandlers(io, sim) {
       if (!player || !allowCasino()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
       reply(ack, sim.casinoAct(player.id, data));
     });
+    // ---- Achterstraat Canlı Müzik Sahnesi: satın alma, grup kiralama (tipler StageService'te doğrulanır) ----
+    const allowStage = rateLimiter(3, 6);
+    on(EVT.STAGE_ACT, (data, ack) => {
+      if (!player || !allowStage()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.stageAct(player.id, data));
+    });
 
     on('disconnect', () => {
       if (player) {

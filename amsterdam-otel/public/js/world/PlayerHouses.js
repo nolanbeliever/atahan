@@ -314,7 +314,7 @@ export function buildPlayerHouses({ batcher: b, collision, scene, mats, factory,
     addPlanter(b, collision, bd.from - 0.5, BACK_OUT + 0.33, 1);
     addPlanter(b, collision, bd.to + 0.5, BACK_OUT + 0.33, 2);
     // Sokak lambaları (güney kenar)
-    addStreetLamp(b, collision, -12.6, 26.48);
+    addStreetLamp(b, collision, -9.45, 26.48); // batıdaki: canlı müzik sahnesinin doğusunda (shared/stage.js)
     addStreetLamp(b, collision, 12.6, 26.48);
     // Bisikletler duvara dayalı
     addBike(b, collision, -5.4, 26.55, 0, 'paintGreen');
@@ -324,7 +324,7 @@ export function buildPlayerHouses({ batcher: b, collision, scene, mats, factory,
     // Bank (otel duvarının önünde)
     addBench(b, collision, -3.3, 26.42);
     // Çiçek kasaları
-    addFlowerCrate(b, collision, -10.9, 26.36, 3);
+    addFlowerCrate(b, collision, 3.0, 26.36, 3); // (sahne alanı x −14.9…−10.1 boş kalır)
     addFlowerCrate(b, collision, 11.3, 26.36, 5);
     // Köşelerde küçük ağaçlar (taş çerçeveli toprak); doğudaki, steeg kemerinin önünü kapatmasın
     for (const x of [-16.45, 13.9]) {
