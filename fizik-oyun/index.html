@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>FizikLab 9 – 9. Sınıf Fizik Oyunları</title>
+  <meta name="description" content="9. sınıf MEB fizik müfredatı için interaktif mini oyunlar: özkütle, sürtünme, enerji dönüşümü ve quiz." />
+  <meta name="theme-color" content="#070b16" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚛️</text></svg>" />
+  <script>
+    /* Tema: sayfa çizilmeden önce uygula (yanıp sönmeyi önler) */
+    (function () {
+      var t = 'dark';
+      try {
+        t = localStorage.getItem('fizik-theme') ||
+            (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      } catch (e) {}
+      document.documentElement.dataset.theme = t;
+      document.documentElement.classList.toggle('dark', t === 'dark');
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-fx" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
+
+  <!-- ============ ÜST MENÜ ============ -->
+  <header class="site-header">
+    <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
+      <a href="#/home" class="logo" aria-label="FizikLab 9 ana sayfa">
+        <span class="logo-atom">⚛</span>
+        <span class="font-display text-lg font-extrabold tracking-tight">Fizik<span class="neon-text">Lab</span> <span class="text-sm opacity-70">9</span></span>
+      </a>
+
+      <nav id="main-nav" class="main-nav" aria-label="Ana menü">
+        <a href="#/home" data-route="home">Ana Sayfa</a>
+        <a href="#/density" data-route="density">Özkütle</a>
+        <a href="#/friction" data-route="friction">Sürtünme</a>
+        <a href="#/coaster" data-route="coaster">Hız Treni</a>
+        <a href="#/quiz" data-route="quiz">Quiz</a>
+        <a href="#/scores" data-route="scores">Skorlar</a>
+      </nav>
+
+      <div class="flex items-center gap-2">
+        <span id="xp-badge" class="chip" title="Toplam deneyim puanı">⭐ 0 XP</span>
+        <button id="theme-toggle" class="icon-btn" aria-label="Aydınlık / karanlık tema değiştir" title="Tema değiştir">
+          <span class="theme-icon-dark">🌙</span><span class="theme-icon-light">☀️</span>
+        </button>
+        <button id="menu-btn" class="icon-btn md:hidden" aria-label="Menüyü aç" aria-expanded="false">☰</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-7xl px-4 pb-16 pt-6">
+
+    <!-- ============ ANA SAYFA ============ -->
+    <section id="view-home" class="view" data-view="home">
+      <div class="hero glass-card">
+        <div class="hero-text">
+          <span class="chip chip-accent">9. Sınıf MEB Fizik • İnteraktif Oyunlar</span>
+          <h1 class="font-display hero-title">Fiziği <span class="neon-text">oynayarak</span> keşfet!</h1>
+          <p class="muted max-w-xl">
+            Sıvıları özkütlesine göre diz, sürtünmeli parkurda bloğu hedefe durdur, hız trenini döngüden geçir
+            ve quiz ile bilgini sına. Her oyun gerçek fizik formülleriyle çalışır.
+          </p>
+          <div class="mt-5 flex flex-wrap gap-3">
+            <a href="#/density" class="btn btn-primary">🚀 Oynamaya Başla</a>
+            <a href="#/quiz" class="btn btn-ghost">🧠 Quiz'e Geç</a>
+          </div>
+          <div class="mt-6 grid max-w-md grid-cols-3 gap-3 text-center">
+            <div class="stat"><div class="stat-v" id="home-xp">0</div><div class="stat-l">Toplam XP</div></div>
+            <div class="stat"><div class="stat-v" id="home-stars">0</div><div class="stat-l">Kazanılan ★</div></div>
+            <div class="stat"><div class="stat-v" id="home-quiz">0</div><div class="stat-l">Quiz rekoru</div></div>
+          </div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="orbit o1"><span></span></div>
+          <div class="orbit o2"><span></span></div>
+          <div class="orbit o3"><span></span></div>
+          <div class="nucleus">⚛</div>
+        </div>
+      </div>
+
+      <h2 class="font-display section-title">Konular &amp; Oyunlar</h2>
+      <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <a class="topic-card glass-card" href="#/quiz/giris" style="--tc:#a78bfa">
+          <div class="topic-icon">📏</div>
+          <span class="chip">Ünite 1</span>
+          <h3 class="font-display">Fizik Bilimine Giriş</h3>
+          <p class="muted">Büyüklükler, birimler, vektör–skaler ayrımı ve bilimsel yöntem.</p>
+          <div class="topic-foot"><span class="formula">v = x / t</span><span class="go">Mini Quiz →</span></div>
+        </a>
+        <a class="topic-card glass-card" href="#/density" style="--tc:#22d3ee">
+          <div class="topic-icon">🧪</div>
+          <span class="chip">Ünite 2 • Oyun 1</span>
+          <h3 class="font-display">Özkütle &amp; Sıvı Kulesi</h3>
+          <p class="muted">Sıvıları ve cisimleri dereceli silindire sürükle; yoğun olan batar, hafif olan yüzer.</p>
+          <div class="topic-foot"><span class="formula">d = m / V</span><span class="go">Oyna →</span></div>
+        </a>
+        <a class="topic-card glass-card" href="#/friction" style="--tc:#34d399">
+          <div class="topic-icon">🧱</div>
+          <span class="chip">Ünite 3 • Oyun 2</span>
+          <h3 class="font-display">Sürtünme &amp; İvme Parkuru</h3>
+          <p class="muted">Buz, beton ve kumda bloğu it; hız, ivme ve sürtünmeyi canlı grafiklerle izle.</p>
+          <div class="topic-foot"><span class="formula">Fs = k · N</span><span class="go">Oyna →</span></div>
+        </a>
+        <a class="topic-card glass-card" href="#/coaster" style="--tc:#f472b6">
+          <div class="topic-icon">🎢</div>
+          <span class="chip">Ünite 4 • Oyun 3</span>
+          <h3 class="font-display">Enerji Dönüşüm Hız Treni</h3>
+          <p class="muted">Tepenin yüksekliğini ve kütleyi ayarla; vagon döngüyü geçebilecek mi?</p>
+          <div class="topic-foot"><span class="formula">Ep = mgh • Ek = ½mv²</span><span class="go">Oyna →</span></div>
+        </a>
+        <a class="topic-card glass-card" href="#/quiz" style="--tc:#fbbf24">
+          <div class="topic-icon">🏆</div>
+          <span class="chip">Tüm Üniteler</span>
+          <h3 class="font-display">Fizik Quiz</h3>
+          <p class="muted">Süreli 10 soruluk bilgi yarışması. Yüksek skorun tarayıcında saklanır.</p>
+          <div class="topic-foot"><span class="formula">+10 puan / doğru</span><span class="go">Başla →</span></div>
+        </a>
+        <a class="topic-card glass-card" href="#/scores" style="--tc:#60a5fa">
+          <div class="topic-icon">📊</div>
+          <span class="chip">İlerleme</span>
+          <h3 class="font-display">Skor Tablosu</h3>
+          <p class="muted">Oyunlardaki yıldızların, rekorların ve quiz liderlik tablon burada.</p>
+          <div class="topic-foot"><span class="formula">★★★</span><span class="go">Gör →</span></div>
+        </a>
+      </div>
+    </section>
+
+    <!-- ============ OYUN 1: ÖZKÜTLE ============ -->
+    <section id="view-density" class="view" data-view="density">
+      <div class="game-head">
+        <div>
+          <span class="chip">Madde ve Özellikleri</span>
+          <h2 class="font-display game-title">🧪 Özkütle &amp; Sıvı Kulesi</h2>
+          <p class="muted">Kartları (sürükle-bırak ya da dokun + bölmeye dokun) silindire yerleştir. <b>Özkütlesi büyük olan altta, küçük olan üstte</b> durur.</p>
+        </div>
+        <div id="dn-tabs" class="tabs" role="tablist" aria-label="Seviyeler"></div>
+      </div>
+
+      <div class="grid gap-5 lg:grid-cols-[1fr_320px_1fr]">
+        <div class="glass-card p-4">
+          <div class="flex items-center justify-between">
+            <h3 class="font-display panel-title">Malzeme Tezgâhı</h3>
+            <span class="formula">d = m / V</span>
+          </div>
+          <p class="muted small mb-3">“Hesapla” butonu özkütleyi gösterir (−5 puan). Önce kafadan hesapla!</p>
+          <div id="dn-tray" class="tray"></div>
+        </div>
+
+        <div class="glass-card p-4 flex flex-col items-center">
+          <h3 class="font-display panel-title self-start">Dereceli Silindir</h3>
+          <div id="dn-cyl-wrap" class="cyl-wrap"></div>
+        </div>
+
+        <div class="glass-card p-4">
+          <div class="grid grid-cols-3 gap-2 text-center">
+            <div class="stat"><div class="stat-v" id="dn-score">100</div><div class="stat-l">Puan</div></div>
+            <div class="stat"><div class="stat-v" id="dn-wrong">0</div><div class="stat-l">Hata</div></div>
+            <div class="stat"><div class="stat-v" id="dn-stars">☆☆☆</div><div class="stat-l">Yıldız</div></div>
+          </div>
+          <div id="dn-msg" class="msg msg-info mt-4" role="status" aria-live="polite">Bir kartı silindirdeki bölmelerden birine bırak.</div>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button id="dn-reset" class="btn btn-ghost">↺ Yeniden Başla</button>
+            <button id="dn-next" class="btn btn-primary hidden">Sonraki Seviye →</button>
+          </div>
+          <details class="mt-4 info-box">
+            <summary>📘 Bilgi: Özkütle nedir?</summary>
+            <p>Birim hacmin kütlesidir: <b>d = m / V</b>. Birimi g/cm³ veya kg/m³. Aynı sıcaklıkta bir maddenin özkütlesi sabittir; cismi bölmek özkütleyi değiştirmez. Karışmayan sıvılarda özkütlesi büyük olan dibe çöker.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ OYUN 2: SÜRTÜNME ============ -->
+    <section id="view-friction" class="view" data-view="friction">
+      <div class="game-head">
+        <div>
+          <span class="chip">Hareket ve Kuvvet</span>
+          <h2 class="font-display game-title">🧱 Sürtünme &amp; İvme Simülasyon Parkuru</h2>
+          <p class="muted">Kuvveti ayarla, <b>İT</b> düğmesine bas (ya da <kbd>Boşluk</kbd> tuşunu tut). Bloğu <span class="text-emerald-400 font-semibold">yeşil hedef bölgesinde</span> durdur!</p>
+        </div>
+        <div id="fr-surfaces" class="tabs" role="tablist" aria-label="Zemin türü">
+          <button class="tab" data-surface="ice">🧊 Buz</button>
+          <button class="tab" data-surface="concrete">🛣️ Beton</button>
+          <button class="tab" data-surface="sand">🏖️ Kum</button>
+        </div>
+      </div>
+
+      <div class="glass-card p-3 sm:p-4">
+        <div class="canvas-wrap"><canvas id="fr-canvas" width="960" height="360" aria-label="Sürtünme simülasyonu"></canvas></div>
+        <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+          <button id="fr-push" class="btn btn-primary btn-lg flex-1 select-none touch-none">👉 İT (basılı tut)</button>
+          <label class="toggle push-lock"><input id="fr-lock" type="checkbox" /><span>Sürekli it (kilitle)</span></label>
+        </div>
+        <div id="fr-msg" class="msg msg-info mt-3" role="status" aria-live="polite">Hedefe ulaşmak için bloğu it, sonra bırak ve sürtünmenin durdurmasını izle.</div>
+        <div class="hud mt-3">
+          <div class="stat"><div class="stat-l">Hız v</div><div class="stat-v"><span id="fr-v">0</span> <small>m/s</small></div></div>
+          <div class="stat"><div class="stat-l">İvme a</div><div class="stat-v"><span id="fr-a">0</span> <small>m/s²</small></div></div>
+          <div class="stat"><div class="stat-l">Uygulanan F</div><div class="stat-v text-emerald-400"><span id="fr-F">0</span> <small>N</small></div></div>
+          <div class="stat"><div class="stat-l">Sürtünme Fs</div><div class="stat-v text-rose-400"><span id="fr-fs">0</span> <small>N</small></div></div>
+          <div class="stat"><div class="stat-l">Net Kuvvet</div><div class="stat-v"><span id="fr-net">0</span> <small>N</small></div></div>
+          <div class="stat"><div class="stat-l">Konum x</div><div class="stat-v"><span id="fr-x">0</span> <small>m</small></div></div>
+        </div>
+      </div>
+
+      <div class="mt-5 grid gap-5 lg:grid-cols-[360px_1fr]">
+        <div class="glass-card p-4">
+          <h3 class="font-display panel-title">Kontrol Paneli</h3>
+
+          <label class="ctl" for="fr-force">
+            <span>Uygulanacak kuvvet F</span><b><span id="fr-force-v">60</span> N</b>
+          </label>
+          <input id="fr-force" class="range" type="range" min="0" max="150" step="1" value="60" />
+
+          <label class="ctl" for="fr-mass">
+            <span>Blok kütlesi m</span><b><span id="fr-mass-v">10</span> kg</b>
+          </label>
+          <input id="fr-mass" class="range" type="range" min="2" max="20" step="1" value="10" />
+
+          <div class="formula-box" id="fr-formula">Fs = k · N = 0,40 × 100 = 40 N</div>
+
+          <div class="mt-4 grid grid-cols-2 gap-2">
+            <button id="fr-new" class="btn btn-ghost">🎯 Yeni Hedef</button>
+            <button id="fr-reset" class="btn btn-ghost">↺ Başa Dön</button>
+          </div>
+          <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div class="stat"><div class="stat-v" id="fr-wins">0</div><div class="stat-l">Başarı</div></div>
+            <div class="stat"><div class="stat-v" id="fr-streak">0</div><div class="stat-l">Seri</div></div>
+            <div class="stat"><div class="stat-v" id="fr-best">0</div><div class="stat-l">En iyi</div></div>
+          </div>
+        </div>
+
+        <div class="glass-card p-3 sm:p-4">
+          <h3 class="font-display panel-title">Canlı Grafikler (son 12 saniye)</h3>
+          <div class="canvas-wrap"><canvas id="fr-graph" width="960" height="420" aria-label="Kuvvet, hız ve ivme grafikleri"></canvas></div>
+          <details class="info-box mt-3">
+            <summary>📘 Bilgi: Sürtünme ve ivme</summary>
+            <p>Yatay zeminde <b>N = m·g</b> (g = 10 m/s²). Kinetik sürtünme <b>Fs = k·N</b>'dir ve temas alanına bağlı değildir. Net kuvvet <b>Fnet = F − Fs</b>, ivme <b>a = Fnet / m</b>. F, Fs'den küçükken blok durgunsa hareket etmez (statik sürtünme F'ye eşit olur).</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ OYUN 3: HIZ TRENİ ============ -->
+    <section id="view-coaster" class="view" data-view="coaster">
+      <div class="game-head">
+        <div>
+          <span class="chip">Enerji</span>
+          <h2 class="font-display game-title">🎢 Enerji Dönüşüm Hız Treni</h2>
+          <p class="muted">Tepenin yüksekliğini, vagonun kütlesini ve ray sürtünmesini ayarla; vagon <b>döngüyü</b> geçip bitiş çizgisine ulaşabilecek mi?</p>
+        </div>
+      </div>
+
+      <div class="grid gap-5 lg:grid-cols-[1fr_340px]">
+        <div class="glass-card p-3 sm:p-4">
+          <div class="canvas-wrap"><canvas id="co-canvas" width="960" height="540" aria-label="Hız treni simülasyonu"></canvas></div>
+          <div class="mt-3 flex gap-2">
+            <button id="co-go" class="btn btn-primary btn-lg flex-1">🚀 Bırak!</button>
+            <button id="co-reset" class="btn btn-ghost btn-lg" aria-label="Sıfırla">↺ Sıfırla</button>
+          </div>
+          <div id="co-msg" class="msg msg-info mt-3" role="status" aria-live="polite">Döngü yarıçapı R = 5 m. Vagon tepeden serbest bırakılır.</div>
+          <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div class="stat"><div class="stat-l">Hız v</div><div class="stat-v"><span id="co-v">0</span> <small>m/s</small></div></div>
+            <div class="stat"><div class="stat-l">Yükseklik y</div><div class="stat-v"><span id="co-y">0</span> <small>m</small></div></div>
+            <div class="stat"><div class="stat-l">Koltuk baskısı</div><div class="stat-v"><span id="co-g">1,0</span> <small>×mg</small></div></div>
+            <div class="stat"><div class="stat-l">Tepede gereken</div><div class="stat-v"><span id="co-need">7,1</span> <small>m/s</small></div></div>
+          </div>
+          <div class="energy mt-4">
+            <div class="flex items-center justify-between text-sm"><b>Enerji Dağılımı</b><span class="muted small">Toplam başlangıç: <span id="co-etot">0</span> kJ</span></div>
+            <div class="ebar"><i id="eb-ep" class="ep"></i><i id="eb-ek" class="ek"></i><i id="eb-q" class="eq"></i></div>
+            <div class="legend">
+              <span><i class="dot ep"></i>Ep = <b id="co-ep">0</b> kJ</span>
+              <span><i class="dot ek"></i>Ek = <b id="co-ek">0</b> kJ</span>
+              <span><i class="dot eq"></i>Isı = <b id="co-q">0</b> kJ</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-5">
+          <div class="glass-card p-4">
+            <h3 class="font-display panel-title">Ayarlar</h3>
+            <label class="ctl" for="co-h"><span>Tepe yüksekliği h</span><b><span id="co-h-v">15</span> m</b></label>
+            <input id="co-h" class="range" type="range" min="4" max="30" step="0.5" value="15" />
+            <label class="ctl" for="co-m"><span>Vagon kütlesi m</span><b><span id="co-m-v">500</span> kg</b></label>
+            <input id="co-m" class="range" type="range" min="100" max="1000" step="50" value="500" />
+            <label class="ctl" for="co-mu"><span>Ray sürtünmesi</span><b><span id="co-mu-v">0,000</span></b></label>
+            <input id="co-mu" class="range" type="range" min="0" max="0.05" step="0.005" value="0" />
+            <div class="formula-box" id="co-formula">Ep = m·g·h = 500 × 10 × 15 = 75,0 kJ</div>
+            <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div class="stat"><div class="stat-v" id="co-wins">0</div><div class="stat-l">Başarı</div></div>
+              <div class="stat"><div class="stat-v" id="co-tries">0</div><div class="stat-l">Deneme</div></div>
+              <div class="stat"><div class="stat-v" id="co-best">0</div><div class="stat-l">En iyi</div></div>
+            </div>
+          </div>
+          <div class="glass-card p-3">
+            <h3 class="font-display panel-title">Enerji – Zaman</h3>
+            <div class="canvas-wrap"><canvas id="co-chart" width="360" height="240" aria-label="Enerji zaman grafiği"></canvas></div>
+          </div>
+        </div>
+      </div>
+      <details class="info-box mt-5 glass-card p-4">
+        <summary>📘 Bilgi: Döngüyü geçmenin şartı</summary>
+        <p>Sürtünmesiz ortamda mekanik enerji korunur: <b>m·g·h = m·g·(2R) + ½·m·v²</b>. Döngünün tepesinde vagonun raydan ayrılmaması için merkezcil kuvvet en az ağırlığa eşit olmalıdır: <b>v² ≥ g·R</b>. Bu iki şart birleşince <b>h ≥ 2,5·R</b> bulunur. Kütle her iki tarafta sadeleştiği için <b>geçişi kütle değil yükseklik belirler</b>; kütle yalnızca enerjinin büyüklüğünü değiştirir.</p>
+      </details>
+    </section>
+
+    <!-- ============ QUIZ ============ -->
+    <section id="view-quiz" class="view" data-view="quiz">
+      <div class="game-head">
+        <div>
+          <span class="chip">Bilgi Yarışması</span>
+          <h2 class="font-display game-title">🧠 Fizik Quiz</h2>
+          <p class="muted">10 soru • her soru için 20 saniye • doğru cevap 10 puan + hız bonusu (en fazla +5).</p>
+        </div>
+      </div>
+
+      <div class="mx-auto max-w-3xl">
+        <!-- Başlangıç -->
+        <div id="qz-start" class="glass-card p-6">
+          <h3 class="font-display panel-title">Konu seç</h3>
+          <div id="qz-cats" class="cat-grid"></div>
+          <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+            <div class="muted">🏅 Quiz rekorun: <b id="qz-high" class="neon-text">0</b></div>
+            <button id="qz-begin" class="btn btn-primary btn-lg">Yarışmayı Başlat</button>
+          </div>
+        </div>
+
+        <!-- Soru -->
+        <div id="qz-play" class="glass-card p-5 sm:p-6 hidden">
+          <div class="flex items-center justify-between text-sm">
+            <span class="chip" id="qz-progress">Soru 1/10</span>
+            <span class="chip chip-accent" id="qz-score">Puan: 0</span>
+            <span class="chip" id="qz-streak">🔥 0</span>
+          </div>
+          <div class="timer"><i id="qz-timer"></i></div>
+          <h3 id="qz-question" class="font-display qz-q"></h3>
+          <div id="qz-options" class="grid gap-3"></div>
+          <div id="qz-explain" class="msg msg-info mt-4 hidden"></div>
+          <div class="mt-4 text-right"><button id="qz-next" class="btn btn-primary hidden">Sonraki →</button></div>
+        </div>
+
+        <!-- Sonuç -->
+        <div id="qz-end" class="glass-card p-6 text-center hidden">
+          <div class="text-5xl" id="qz-end-emoji">🏆</div>
+          <h3 class="font-display game-title" id="qz-end-title">Sonuç</h3>
+          <p class="muted" id="qz-end-sub"></p>
+          <div class="mx-auto my-4 grid max-w-sm grid-cols-3 gap-2">
+            <div class="stat"><div class="stat-v" id="qz-end-score">0</div><div class="stat-l">Puan</div></div>
+            <div class="stat"><div class="stat-v" id="qz-end-correct">0/10</div><div class="stat-l">Doğru</div></div>
+            <div class="stat"><div class="stat-v" id="qz-end-high">0</div><div class="stat-l">Rekor</div></div>
+          </div>
+          <form id="qz-save" class="mx-auto flex max-w-sm gap-2">
+            <input id="qz-name" class="input" maxlength="16" placeholder="Adın (skor tablosu için)" aria-label="Adın" />
+            <button class="btn btn-primary" type="submit">Kaydet</button>
+          </form>
+          <div class="mt-5 flex flex-wrap justify-center gap-3">
+            <button id="qz-again" class="btn btn-ghost">↺ Tekrar Oyna</button>
+            <a href="#/scores" class="btn btn-ghost">📊 Skor Tablosu</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SKORLAR ============ -->
+    <section id="view-scores" class="view" data-view="scores">
+      <div class="game-head">
+        <div>
+          <span class="chip">İlerleme</span>
+          <h2 class="font-display game-title">📊 Skor Tablosu</h2>
+          <p class="muted">Tüm veriler yalnızca bu tarayıcıda (Local Storage) saklanır.</p>
+        </div>
+        <button id="sc-clear" class="btn btn-ghost">🗑️ Verileri Sıfırla</button>
+      </div>
+      <div class="grid gap-5 lg:grid-cols-2">
+        <div class="glass-card p-5">
+          <h3 class="font-display panel-title">🏆 Quiz Liderlik Tablosu</h3>
+          <ol id="sc-board" class="board"></ol>
+        </div>
+        <div class="glass-card p-5">
+          <h3 class="font-display panel-title">🎮 Oyun Rekorların</h3>
+          <div id="sc-games" class="space-y-3"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="mx-auto max-w-7xl px-4 pb-10 text-center text-sm muted">
+    FizikLab 9 • 9. sınıf MEB fizik müfredatı için eğitici oyunlar • Hesaplamalarda g = 10 m/s²
+  </footer>
+
+  <button id="fr-fab" class="fab btn btn-primary select-none touch-none" aria-label="İt (basılı tut)">👉<span>İT</span></button>
+  <div id="toast-root" aria-live="polite"></div>
+  <script src="script.js"></script>
+</body>
+</html>
