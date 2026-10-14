@@ -15,6 +15,7 @@ import { GardenService } from '../house/GardenService.js';
 import { RelationshipService } from './RelationshipService.js';
 import { VehicleService } from './VehicleService.js';
 import { HotelGrowthService } from './HotelGrowthService.js';
+import { BoostService } from './BoostService.js';
 import { WorkerService } from './WorkerService.js';
 import { InspectionService } from './InspectionService.js';
 import { REPUTATION } from '../../shared/hotel.js';
@@ -77,6 +78,7 @@ export class HotelSimulation extends EventEmitter {
     this.garden = new GardenService(this, this.house);
     this.relations = new RelationshipService(this);
     this.vehicles = new VehicleService(this);
+    this.boosts = new BoostService(this); // geçici bonuslar (konser kalabalığı, reklam kampanyası)
     this.growth = new HotelGrowthService(this); // yıldız / itibar, üst katlar, asansör
     this.workers = new WorkerService(this); // temizlikçi NPC'ler
     this.inspection = new InspectionService(this); // belediye denetimi
@@ -146,6 +148,7 @@ export class HotelSimulation extends EventEmitter {
       growth: this.growth.persisted(),
       workers: this.workers.persisted(),
       inspection: this.inspection.persisted(),
+      boosts: this.boosts.persisted(),
     };
   }
 
@@ -154,6 +157,7 @@ export class HotelSimulation extends EventEmitter {
     this.growth.restore(h.growth);
     this.workers.restore(h.workers);
     this.inspection.restore(h.inspection);
+    this.boosts.restore(h.boosts);
     if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
     const t = h.today;
     if (t && typeof t === 'object') {
@@ -220,6 +224,7 @@ export class HotelSimulation extends EventEmitter {
       this.broadcastClock(now);
     }
 
+    this.boosts.update();
     this.guests.update(now);
     this.workers.update(now);
     this.inspection.update(now);
@@ -646,6 +651,7 @@ export class HotelSimulation extends EventEmitter {
       vehicles: this.vehicles.serialize(),
       chat: this.chatLog.slice(),
       hotel: this.hotelPublic(),
+      boosts: this.boosts.serialize(),
       exterior: this.exterior.serialize(), // { [houseId]: { sprays, tags, neon, balcony } } (boş cepheler yok)
       casino: this.casino.serialize(selfId),
     };

@@ -199,7 +199,8 @@ export class BarService {
       if (now >= this.nextSpawnAt) {
         if (this.spawn(now)) {
           changed = true;
-          this.nextSpawnAt = now + R.SPAWN_MIN_MS + this.rng() * (R.SPAWN_MAX_MS - R.SPAWN_MIN_MS);
+          // Bonuslar (konser kalabalığı, reklam) müşterileri daha sık getirir
+          this.nextSpawnAt = now + (R.SPAWN_MIN_MS + this.rng() * (R.SPAWN_MAX_MS - R.SPAWN_MIN_MS)) / this.sim.boosts.barSpawn;
         } else {
           this.nextSpawnAt = now + RETRY_MS;
         }

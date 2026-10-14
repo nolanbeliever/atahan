@@ -146,3 +146,17 @@
   #room-list.multi li:not(.floor-head) { font-size: 10.5px; gap: 2px; }
   #room-list.multi li.floor-head { font-size: 9px; letter-spacing: 0; }
 }
+
+/* Geçici bonuslar (konser kalabalığı, reklam kampanyası) */
+#boost-chips {
+  white-space: pre-line;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2a1d0e;
+  background: linear-gradient(90deg, #ffd23f, #ff9f43);
+  border-radius: 10px;
+  padding: 4px 10px;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+}

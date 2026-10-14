@@ -27,6 +27,7 @@ export class HUD {
       fps: $('fps'),
       conn: $('conn-status'),
       stars: $('hud-stars'),
+      boosts: $('boost-chips'),
     };
     this.cache = new Map();
     this.roomEls = new Map();
@@ -68,6 +69,26 @@ export class HUD {
     for (const e of this.roomEls.values()) e.li.hidden = e.floor > n;
     for (const [f, head] of this.floorHeads) head.hidden = n < 2 || f > n;
     this.el.rooms.classList.toggle('multi', n > 1);
+  }
+
+  /**
+   * Geçici bonus çipleri (konser kalabalığı, reklam kampanyası): "🎸 Konser kalabalığı · bar ×2 · 1sa 20dk"
+   * @param list EVT.BOOSTS  @param nowTotal güncel mutlak oyun dakikası
+   */
+  setBoosts(list, nowTotal) {
+    const el = this.el.boosts;
+    const items = (list ?? []).filter((b) => b.untilTotal > nowTotal);
+    const text = items.map((b) => {
+      const left = Math.max(0, Math.round(b.untilTotal - nowTotal));
+      const fx = [];
+      if (b.guestSpawn > 1) fx.push(`misafir ×${+b.guestSpawn.toFixed(1)}`);
+      if (b.barSpawn > 1) fx.push(`bar ×${+b.barSpawn.toFixed(1)}`);
+      if (b.barTip > 1) fx.push(`bahşiş +%${Math.round((b.barTip - 1) * 100)}`);
+      const time = left >= 60 ? `${Math.floor(left / 60)}sa ${left % 60}dk` : `${left}dk`;
+      return `${b.icon} ${b.label}${fx.length ? ` · ${fx.join(' · ')}` : ''} · ${time}`;
+    }).join('\n');
+    el.hidden = !text;
+    this.set('boosts', el, text);
   }
 
   /** Yıldız göstergesi (★★★☆☆) + itibar */

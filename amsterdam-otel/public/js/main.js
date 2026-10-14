@@ -419,6 +419,7 @@ net.on(EVT.WELCOME, (snap) => {
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
   reception.setState(snap.hotel);
+  boostList = snap.boosts ?? [];
   hud.setRooms(state.rooms);
   hud.setMoney(snap.economy.money);
   guests.clear();
@@ -466,6 +467,13 @@ net.on(EVT.ECONOMY, (e) => {
   reception.refresh();
 });
 net.on(EVT.HOTEL_STATE, (h) => reception.setState(h));
+// Geçici bonuslar (konser kalabalığı, reklam kampanyası): üstte çip, saniyede bir kalan süre
+let boostList = [];
+const gameTotal = () => (state.clock ? (state.clock.days ?? 0) * 1440 + state.minuteAt(net.serverNow()) : 0);
+net.on(EVT.BOOSTS, (list) => {
+  boostList = list;
+  hud.setBoosts(boostList, gameTotal());
+});
 net.on(EVT.INSPECTION_RESULT, (r) => inspection.onResult(r));
 
 net.on(EVT.GUEST_UPSERT, (g) => {
@@ -556,6 +564,7 @@ function updateClock() {
   const minute = state.minuteAt(net.serverNow());
   hud.setClock(state.clock.day, minute, state.weekend, state.isOpenAt(minute), !!state.clock.night);
   night.onClock(minute);
+  hud.setBoosts(boostList, gameTotal());
   botany.onClock();
 }
 setInterval(updateClock, 1000);

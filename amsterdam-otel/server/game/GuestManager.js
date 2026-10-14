@@ -52,7 +52,7 @@ export class GuestManager {
           this.spawn(now);
           // Üst katlar açıldıkça misafirler daha sık gelir
           this.nextSpawnAt = clock.total + (config.spawnMinMin
-            + this.rng() * (config.spawnMaxMin - config.spawnMinMin)) * spawnFactor(this.sim.growth.floors);
+            + this.rng() * (config.spawnMaxMin - config.spawnMinMin)) * spawnFactor(this.sim.growth.floors) / this.sim.boosts.guestSpawn;
         } else {
           this.nextSpawnAt = clock.total + 15;
         }
