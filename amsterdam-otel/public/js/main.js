@@ -32,6 +32,8 @@ import { HotelInspectionSystem } from './game/HotelInspectionSystem.js';
 import { UndergroundCasino } from './game/UndergroundCasino.js';
 import { BarSystem } from './game/BarSystem.js';
 import { RecipeBook } from './game/RecipeBook.js';
+import { HomeCounterfeitSystem } from './game/HomeCounterfeitSystem.js';
+import { FastTravelSystem } from './game/FastTravelSystem.js';
 import { MixologyBarSystem } from './game/MixologyBarSystem.js';
 import { LiveStageSystem } from './game/LiveStageSystem.js';
 import { StreetEvents } from './game/StreetEvents.js';
@@ -163,7 +165,7 @@ const visits = new HouseVisitingSystem({
 });
 // Dekorasyon modu komutları (B, R, C, X, 1-9) coffee shop'tan ÖNCE işlenir
 // Bar 'consume' (F) komutunu elde yiyecek varsa sahiplenir (coffee shop'a gitmez)
-input.onCommand((cmd) => phone.command(cmd) || exterior.command(cmd) || house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd) || recipes.command(cmd));
+input.onCommand((cmd) => phone.command(cmd) || exterior.command(cmd) || house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd) || recipes.command(cmd) || travel.command(cmd));
 const shop = new CoffeeShopSystem({ net, hud, interaction, input, modal, device });
 // Shop'tan SONRA: boşta ipucu zincirini (idleHint) sarar
 const bar = new BarSystem({
@@ -218,6 +220,9 @@ const phone = new SmartphoneSystem({
   engine, input, player, modal, device, settings, sfx, state, net, hud, house, reception, touch,
 });
 const insta = new InstaHotelMarketing({ net, hud, phone, state, settings, sfx });
+// Ev matbaası + polis baskını ve hızlı ışınlanma (M / telefonda 🗺️ Işınlan)
+const press = new HomeCounterfeitSystem({ engine, net, hud, interaction, house, player, sfx, settings });
+const travel = new FastTravelSystem({ net, hud, modal, player, interaction, engine, phone, house });
 // Oyuncu evlerinin dış cephesi: graffiti, neon tabela, balkon (evinin önünde B / 🛠 Dekor)
 const exterior = new ExteriorCustomization({
   engine, net, hud, interaction, player, house, device, touch, modal, sfx, settings, getWallet: () => shop.wallet,
@@ -254,6 +259,7 @@ engine.addSystem((dt) => visits.update(dt));
 engine.addSystem((dt) => night.update(dt));
 engine.addSystem(() => vehicles.update());
 engine.addSystem(() => bar.update());
+engine.addSystem(() => press.update()); // polis lambası (yalnızca polis kapıdayken)
 engine.addSystem((dt) => stage.update(dt));
 engine.addSystem(() => street.update());
 engine.addSystem((dt) => vm.update(dt));
@@ -264,7 +270,10 @@ engine.addSystem((dt) => {
 });
 engine.addSystem(() => {
   interaction.update();
-  if (player.moved && joined) net.sendMove(player.pos.x, player.pos.z, player.yaw);
+  if (player.moved && joined) {
+    net.sendMove(player.pos.x, player.pos.z, player.yaw);
+    press.onMoved();
+  }
   if (player.moved) stage.onMoved(); // sahne müziği: dinleyici konumu + bölge (yalnızca hareket edince)
   return false;
 });
@@ -449,6 +458,8 @@ net.on(EVT.WELCOME, (snap) => {
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
   reception.setState(snap.hotel);
+  press.reset(snap.selfId);
+  press.setState(snap.counterfeit);
   stage.onState(snap.stage);
   boostList = snap.boosts ?? [];
   insta.applySnapshot(snap.insta);
@@ -502,6 +513,8 @@ net.on(EVT.HOTEL_STATE, (h) => reception.setState(h));
 // Geçici bonuslar (konser kalabalığı, reklam kampanyası): üstte çip, saniyede bir kalan süre
 let boostList = [];
 const gameTotal = () => (state.clock ? (state.clock.days ?? 0) * 1440 + state.minuteAt(net.serverNow()) : 0);
+net.on(EVT.COUNTERFEIT_STATE, (list) => press.setState(list));
+net.on(EVT.COUNTERFEIT_RAID, (r) => press.onRaid(r));
 net.on(EVT.BOOSTS, (list) => {
   boostList = list;
   hud.setBoosts(boostList, gameTotal());
@@ -641,5 +654,5 @@ navigator.getBattery?.().then((battery) => {
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
-  reception, workers, inspection, casino, recipes, mixology, stage, street, phone, insta,
+  reception, workers, inspection, casino, recipes, mixology, stage, street, phone, insta, press, travel,
 };

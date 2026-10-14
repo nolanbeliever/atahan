@@ -1,0 +1,56 @@
+/* Ev matbaası (polis baskını bandı, gizli bölme) ve hızlı ışınlanma paneli */
+
+#raid-banner {
+  width: 100%;
+  border-radius: 12px;
+  padding: 6px 10px;
+  color: #fff;
+  font-size: 13px;
+  border: 2px solid #ff3b30;
+  background: linear-gradient(90deg, rgba(150, 20, 20, .9), rgba(20, 40, 150, .9));
+  background-size: 200% 100%;
+  animation: raid-flash .5s steps(2) infinite;
+  pointer-events: none;
+}
+.raid-head { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; }
+#raid-time { font-weight: 800; font-variant-numeric: tabular-nums; }
+#raid-hint { margin-top: 2px; font-size: 12.5px; }
+@keyframes raid-flash { 50% { background-position: 100% 0; } }
+@media (prefers-reduced-motion: reduce) { #raid-banner { animation: none; } }
+
+#hide-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: calc(110px + var(--safe-b));
+  background: radial-gradient(ellipse at center, rgba(0,0,0,.35) 0%, rgba(0,0,0,.92) 70%);
+  pointer-events: none;
+}
+.hide-card { text-align: center; color: #ddd; font-size: 15px; pointer-events: auto; }
+.hide-icon { font-size: 34px; }
+#hide-exit { pointer-events: auto; min-height: 40px; }
+
+.travel-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px; }
+.travel-btn {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-height: 88px;
+  padding: 10px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.05);
+  color: var(--text);
+  cursor: pointer;
+}
+.travel-btn:disabled { opacity: .35; cursor: default; }
+.travel-btn .tv-ic { font-size: 26px; }
+.travel-btn b { font-size: 14px; }
+.travel-btn small { font-size: 11px; color: var(--muted); }
+/* Telefonun içinde (açık zemin) */
+#phone-app-body .travel-btn { background: #fff; border-color: #dfe3ea; color: #1b2230; }
+#phone-app-body .travel-btn small { color: #6b7280; }
+#phone-app-body .travel-grid { padding: 10px; }

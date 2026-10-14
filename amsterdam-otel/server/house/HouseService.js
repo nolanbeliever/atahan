@@ -331,6 +331,7 @@ export class HouseService {
     }
     for (const o of this.sim.players.values()) o.houseAccess?.delete(houseId);
     this.sim.exterior?.clear(houseId); // dış cephe (graffiti, neon, balkon) da gider
+    this.sim.counterfeit?.clear(houseId); // matbaa da gider
     this.owners[houseId] = null;
   }
 

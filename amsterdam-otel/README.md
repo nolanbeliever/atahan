@@ -82,6 +82,7 @@ eski kaydın üstüne yazmasın diye başlamaz (Render yeniden dener). `DATABASE
 | Kirli odada arızaya bakıp **E**: mini oyun (ovala, basılı tut, zamanla, şalter kaldır) | **Aksiyon** · mini oyun dokunarak |
 | Achterstraat'ta başkasının kapısında **E**: zili çal · ev sahibiysen **Y** / **N**: içeri al / alma | **Zil** butonu · istemdeki **Evet** / **Hayır** |
 | **Enter**: sohbet (yaz, Enter gönder, Esc kapat) | **💬** butonu: sohbet |
+| **M**: hızlı ışınlanma (otel, ev, garaj, drag pisti) | Telefonda **🗺️ Işınlan** |
 | **P**: akıllı telefon (📷 kamera: **Space** / tık çek, **P** / **Esc** telefona dön · 📸 InstaHotel · 🏨 Otel) | **📱** butonu: telefon · vizörde **📸 Çek** / **✕** · ana çubuğa dokun ya da yukarı kaydır: kapat |
 | **Esc**: duraklat / paneli kapat | ⚙ butonu: ayarlar |
 
@@ -205,6 +206,28 @@ ana ekranda uygulamalar). **Esc**, tekrar **P**, ana çubuğa dokunmak / yukarı
   (~0.7, hedef ≤ 60 KB). Sunucu beğeni / takipçi için yalnızca sayaç yayınlar (3 sn'de bir, simülasyon tick'inde);
   sayaç animasyonu kısa bir rAF ile ve yalnızca telefon açıkken. Yeni bağlanana yalnızca en yeni 4 gönderinin fotoğrafı
   gider; diğerleri akışta göründükçe tek tek istenir. Saat çubuğu yalnızca telefon açıkken saniyede bir güncellenir.
+
+## Ev matbaası (sahte para) ve polis baskını
+
+Achterstraat'taki **kendi evinde**, arka sol köşede **E** → **🖨️ Ev matbaası kur** (€600, cüzdandan, bir kez).
+Tamamen oyun içi para: basılan para otel kasasına değil **kişisel cüzdanına** gider.
+
+- **Para bas:** matbaanın başında **E** → 45 sn sonra **+€500** cüzdana (basılan desteler makinenin üstünde birikir,
+  kırmızı çalışma lambası yanar).
+- **Polis baskını:** her partide **%30** ihtimal; partinin ortalarında bir anda kırmızı-mavi yanıp sönen **🚨 POLİS
+  BASKINI** bandı ve siren — **15 saniyen var**:
+  - matbaanın başında **E: örtüyle gizle** (2 sn basılı tut) ya da
+  - evin **doğu duvarındaki kitaplıktan gizli bölmeye kaç** (ekran kararır; yürürsen bölmeden çıkarsın).
+  Polis kapıya gelir (iki polis + tepe lambası) ve arar. Gizlendiysen eli boş döner, baskı kaldığı yerden sürer.
+  Gizlenmediysen **cüzdandan €1.000'e kadar ceza**, parti yanar ve matbaa **1 oyun günü mühürlenir**.
+- Sunucu yetkili: kendi evinde ve matbaanın / bölmenin yanında olmak, gizleme süresi doğrulanır; polis kapındayken
+  ışınlanıp kaçamazsın. Matbaa ve mühür kalıcıdır; süren parti sunucu yeniden başlarsa iptal olur.
+
+## Hızlı ışınlanma
+
+Masaüstünde **M**, telefonda **🗺️ Işınlan** → **🏨 Otel lobisi · 🏡 Evim · 🅿️ Yeraltı garajı · 🏁 Drag pisti**.
+Konumu sunucu yazar; araçtayken, uyurken, gizli bölmedeyken ya da evinde polis baskını sürerken ışınlanılmaz
+(4 sn bekleme). Kısa bir kararma geçişi olur.
 
 ## Detaylı temizlik ve tamirat (mini oyunlar)
 
@@ -487,6 +510,7 @@ amsterdam-otel/
 │       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları (üst kata asansörle iki bacak), turist kafilesi + resepsiyon kuyruğu
 │       ├── HotelGrowthService.js # İtibar / yıldız, kat satın alma, asansör, plaketler
 │       ├── BoostService.js      # Geçici bonuslar (konser kalabalığı, reklam): bar / misafir sıklığı, bahşiş
+│       ├── TeleportService.js   # Hızlı ışınlanma: hedefler, doğrulama, bekleme
 │       ├── WorkerService.js     # Temizlikçi NPC'ler: iş seçimi, süreli işler, seviye, bahşiş kasaya
 │       ├── InspectionService.js # Belediye denetimi: planlama, geri sayım, tüp / şurup kontrolü, sonuç
 │       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
@@ -494,11 +518,12 @@ amsterdam-otel/
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
 │       ├── CasinoService.js     # Kart Kulübü: blackjack, poker (NPC'li), zar düellosu; cüzdan / kasa bahisleri
 │       └── CoffeeShopService.js # Cüzdan, envanter, trip zarı, slot, bahşiş
-│   └── house/                   # Evler: HouseService (yatak/uyku kontrolü dahil), GardenService (saksı, ekim, hasat), ExteriorService (dış cephe),
+│   └── house/                   # Evler: HouseService (yatak/uyku kontrolü dahil), GardenService (saksı, ekim, hasat), ExteriorService (dış cephe), CounterfeitService (ev matbaası + polis baskını),
 │                                #   FileStore / PgStore (kayıt), YouTube oEmbed + küçük resim vekili
 ├── shared/                      # Sunucu + istemci ortak kodu (ESM)
 │   ├── constants.js             # Durumlar, olay adları, fiyat, saatler, ürünler, trip/slot
 │   ├── drinks.js                # Bar: 30 alkolsüz içecek, 26 malzeme, kategoriler, istasyonlar
+│   ├── counterfeit.js           # Ev matbaası kuralları (fiyat, parti, baskın, ceza), evdeki noktalar, ışınlanma
 │   ├── layout.js                # Otel + coffee shop + ev yerleşimi: duvarlar, odalar, rota noktaları
 │   ├── friends.js               # Müdavimler, konular, espriler, arkadaşlık kuralları
 │   ├── vehicles.js              # Araç türleri, hız / ivme, yolcu koltuğu
@@ -543,6 +568,8 @@ amsterdam-otel/
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
 │       │   ├── MixologyBarSystem.js # Soğutucu dolap + fıçı kulesi: malzeme seçimi (30 içecekli kütüphane)
 │       │   ├── RecipeBook.js        # Tarif kitabı paneli (kürsü / K / 📖)
+│       │   ├── HomeCounterfeitSystem.js # Ev matbaası: kurulum, baskı, polis baskını bandı, gizli bölme, polis
+│       │   ├── FastTravelSystem.js  # Hızlı ışınlanma paneli (M / telefonda 🗺️)
 │       │   ├── ViewModel.js         # Birinci şahıs eller (dökme, çalkalama, ısırma, toplama…)
 │       │   ├── NightCycle.js        # Gece görünümü, yatakta uyuma, uyku ekranı
 │       │   ├── HerbalBotanySystem.js # Ev bahçesi: tohum paneli, büyüme evreleri, hasat

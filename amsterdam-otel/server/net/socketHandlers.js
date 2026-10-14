@@ -205,6 +205,17 @@ export function attachSocketHandlers(io, sim) {
       if (!player || !allowInsta()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
       reply(ack, sim.instaAct(player.id, data));
     });
+    // ---- Ev matbaası + polis baskını, hızlı ışınlanma (tipler servislerde doğrulanır) ----
+    const allowPress = rateLimiter(4, 8);
+    on(EVT.COUNTERFEIT_ACT, (data, ack) => {
+      if (!player || !allowPress()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.counterfeitAct(player.id, data));
+    });
+    const allowTeleport = rateLimiter(1, 3);
+    on(EVT.TELEPORT, (data, ack) => {
+      if (!player || !allowTeleport()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.teleportAct(player.id, data));
+    });
 
     on('disconnect', () => {
       if (player) {

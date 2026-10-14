@@ -16,6 +16,8 @@ import { RelationshipService } from './RelationshipService.js';
 import { VehicleService } from './VehicleService.js';
 import { HotelGrowthService } from './HotelGrowthService.js';
 import { BoostService } from './BoostService.js';
+import { CounterfeitService } from '../house/CounterfeitService.js';
+import { TeleportService } from './TeleportService.js';
 import { WorkerService } from './WorkerService.js';
 import { InspectionService } from './InspectionService.js';
 import { REPUTATION } from '../../shared/hotel.js';
@@ -80,6 +82,8 @@ export class HotelSimulation extends EventEmitter {
     this.garden = new GardenService(this, this.house);
     this.relations = new RelationshipService(this);
     this.vehicles = new VehicleService(this);
+    this.counterfeit = new CounterfeitService(this); // ev matbaası + polis baskını
+    this.teleport = new TeleportService(this); // hızlı ışınlanma
     this.boosts = new BoostService(this); // geçici bonuslar (konser kalabalığı, reklam kampanyası)
     this.growth = new HotelGrowthService(this); // yıldız / itibar, üst katlar, asansör
     this.workers = new WorkerService(this); // temizlikçi NPC'ler
@@ -155,6 +159,7 @@ export class HotelSimulation extends EventEmitter {
       boosts: this.boosts.persisted(),
       stage: this.stage.persisted(),
       insta: this.marketing.persisted(),
+      counterfeit: this.counterfeit.persisted(),
     };
   }
 
@@ -164,6 +169,7 @@ export class HotelSimulation extends EventEmitter {
     this.workers.restore(h.workers);
     this.inspection.restore(h.inspection);
     this.boosts.restore(h.boosts);
+    this.counterfeit.restore(h.counterfeit);
     this.stage.restore(h.stage);
     this.marketing.restore(h.insta);
     if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
@@ -234,6 +240,7 @@ export class HotelSimulation extends EventEmitter {
     }
 
     this.boosts.update();
+    this.counterfeit.update(now);
     this.guests.update(now);
     this.workers.update(now);
     this.inspection.update(now);
@@ -329,6 +336,7 @@ export class HotelSimulation extends EventEmitter {
     if (!p) return;
     this.bar.removePlayer(p); // elindeki bardaklar rafa döner
     this.inspection.removePlayer(p);
+    this.counterfeit.removePlayer(p); // saklanma biter; sahibi çıkarsa süren baskı iptal
     this.casino.removePlayer(p); // masadan kalkar: fişleri bozdurulur (cüzdan kaydından önce)
     this.relations.removePlayer(p); // evdeki misafiri gider
     this.vehicles.removePlayer(p); // sürüyorsa park eder; araçları kayda geçer
@@ -422,6 +430,7 @@ export class HotelSimulation extends EventEmitter {
     p.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
     this.dirtyPlayers.add(id);
     this.vehicles.afterMove(p);
+    this.counterfeit.onMove(p); // gizli bölmeden yürüyerek çıkış
     // Yataktan kalkıp yürüyen oyuncu uyanır
     if (p.sleeping && Math.hypot(p.x - p.sleeping.x, p.z - p.sleeping.z) > NIGHT.WAKE_MOVE) {
       p.sleeping = null;
@@ -551,6 +560,12 @@ export class HotelSimulation extends EventEmitter {
     return { ok: true, text };
   }
 
+  // ---- Ev matbaası + polis baskını, hızlı ışınlanma ------------------------------------
+
+  counterfeitAct(playerId, data) { return this.withPlayer(playerId, (p) => this.counterfeit.act(p, data, this.now())); }
+
+  teleportAct(playerId, data) { return this.withPlayer(playerId, (p) => this.teleport.go(p, data, this.now())); }
+
   // ---- Otelin büyümesi: Resepsiyon PC, asansör, denetim ------------------------------
 
   hotelAct(playerId, data) {
@@ -670,6 +685,7 @@ export class HotelSimulation extends EventEmitter {
       chat: this.chatLog.slice(),
       hotel: this.hotelPublic(),
       boosts: this.boosts.serialize(),
+      counterfeit: this.counterfeit.serialize(),
       exterior: this.exterior.serialize(), // { [houseId]: { sprays, tags, neon, balcony } } (boş cepheler yok)
       casino: this.casino.serialize(selfId),
       stage: this.stage.serialize(), // canlı müzik sahnesi: { owned, booking, phase, setAt… }

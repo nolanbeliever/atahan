@@ -127,6 +127,11 @@ export const EVT = Object.freeze({
   INSTA_ACT: 'insta:act', // istemci → sunucu (ack): { act: 'post', photo, caption, budget, place? } | { act: 'like' | 'photo', id } | { act: 'feed' }
   INSTA_FEED: 'insta:feed', // sunucu → herkes: { post: { id, by, color, caption, place, budget, likes, t, photo }, followers } yeni gönderi
   INSTA_STATS: 'insta:stats', // sunucu → herkes: { f: takipçi, p: [[postId, likes], ...] } (yalnızca sayaçlar)
+  // ---- Ev matbaası + polis baskını, hızlı ışınlanma (server/house/CounterfeitService.js, server/game/TeleportService.js) ----
+  COUNTERFEIT_ACT: 'counterfeit:act', // istemci → sunucu (ack): { act: 'buy'|'print'|'stash'|'hide'|'unhide', step? }
+  COUNTERFEIT_STATE: 'counterfeit:state', // sunucu → herkes: [{ houseId, seized, printing, raid }]
+  COUNTERFEIT_RAID: 'counterfeit:raid', // sunucu → herkes: { houseId, safe, x, z, until } (polis kapıda)
+  TELEPORT: 'teleport', // istemci → sunucu (ack): { to: 'hotel'|'home'|'garage'|'drag' }
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

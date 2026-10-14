@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/css/interactive-tv.css">
   <link rel="stylesheet" href="/css/hotel.css">
   <link rel="stylesheet" href="/css/bar-drinks.css">
+  <link rel="stylesheet" href="/css/counterfeit.css">
   <link rel="stylesheet" href="/css/exterior.css">
   <link rel="stylesheet" href="/css/casino.css">
   <link rel="stylesheet" href="/css/stage.css">
@@ -73,6 +74,11 @@
       <div id="insp-banner" class="insp" hidden aria-live="polite">
         <div class="insp-head"><b id="insp-title">🏛️ Belediye denetimi</b><span id="insp-time"></span></div>
         <ul id="insp-list"></ul>
+      </div>
+      <!-- Ev matbaası: polis baskını uyarısı -->
+      <div id="raid-banner" hidden aria-live="assertive">
+        <div class="raid-head"><b>🚨 POLİS BASKINI!</b><span id="raid-time"></span></div>
+        <div id="raid-hint"></div>
       </div>
       <div id="boost-chips" hidden aria-live="polite"></div>
       <div id="weekend-banner" hidden>Hafta Sonu — Otel Kapalı</div>
@@ -224,6 +230,25 @@
       <div id="cooler-grid"></div>
       <p class="note" id="cooler-held"></p>
       <button type="button" class="secondary" id="cooler-close">Vazgeç</button>
+    </div>
+  </div>
+
+  <!-- Gizli bölmede saklanırken -->
+  <div id="hide-overlay" hidden>
+    <div class="hide-card">
+      <div class="hide-icon">🤫</div>
+      <div>Gizli bölmedesin… nefesini tut.</div>
+      <button type="button" id="hide-exit" class="secondary">Bölmeden çık</button>
+    </div>
+  </div>
+
+  <!-- Hızlı ışınlanma (M / telefonda 🗺️) -->
+  <div id="travel-panel" class="overlay" hidden>
+    <div class="card">
+      <h2>🗺️ Hızlı ışınlanma</h2>
+      <div id="travel-list"></div>
+      <p class="note" id="travel-msg"></p>
+      <button type="button" class="secondary" id="travel-close">Vazgeç</button>
     </div>
   </div>
 
