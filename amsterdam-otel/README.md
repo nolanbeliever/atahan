@@ -81,6 +81,7 @@ eski kaydın üstüne yazmasın diye başlamaz (Render yeniden dener). `DATABASE
 | Kirli odada arızaya bakıp **E**: mini oyun (ovala, basılı tut, zamanla, şalter kaldır) | **Aksiyon** · mini oyun dokunarak |
 | Achterstraat'ta başkasının kapısında **E**: zili çal · ev sahibiysen **Y** / **N**: içeri al / alma | **Zil** butonu · istemdeki **Evet** / **Hayır** |
 | **Enter**: sohbet (yaz, Enter gönder, Esc kapat) | **💬** butonu: sohbet |
+| **P**: akıllı telefon (📷 kamera: **Space** / tık çek, **P** / **Esc** telefona dön · 📸 InstaHotel · 🏨 Otel) | **📱** butonu: telefon · vizörde **📸 Çek** / **✕** · ana çubuğa dokun ya da yukarı kaydır: kapat |
 | **Esc**: duraklat / paneli kapat | ⚙ butonu: ayarlar |
 
 Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir ve ekranın altında ipucu çıkar.
@@ -118,6 +119,50 @@ Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir
   - Başarılı → kasaya **€150 + yıldız başına €25**, **+20 itibar** ve lobinin batı duvarına bir **Belediye Onay Plaketi**.
     Başarısız → kasadan **€300 ceza** ve otel **bir yıldız kaybeder**.
 - Hepsi kalıcıdır (itibar, katlar, plaketler, temizlikçiler ve seviyeleri, günün denetimi).
+
+## Akıllı telefon ve InstaHotel reklamları
+
+Masaüstünde **P**, mobilde **📱** → ekranın ortasından bir telefon çıkar (çentik, saat çubuğunda oyun saati ve pil,
+ana ekranda uygulamalar). **Esc**, tekrar **P**, ana çubuğa dokunmak / yukarı kaydırmak ya da telefonun dışına dokunmak kapatır.
+
+- **📷 Kamera:** telefon küçük bir vizöre iner (ızgara, deklanşör, son fotoğraf). Etrafa bakabilirsin ama yürüyemezsin.
+  **Space** / tık / **📸 Çek** → beyaz flaş + deklanşör sesi. Fotoğrafın konusu durduğun yerden bulunur
+  (📍 Bar De Tulp, 📍 Oda 203, 📍 Senin evin, 📍 Achterstraat…). Sürerken kamera açılmaz.
+- **🖼️ Galeri:** en fazla **12** fotoğraf, yalnızca bu tarayıcıda (localStorage; yer yoksa yalnızca bellekte). Silinebilir,
+  doğrudan InstaHotel'de paylaşılabilir.
+- **📸 InstaHotel (@hotel.amsterdam):** tüm oyuncuların gönderileri (en yeni üstte), takipçi / gönderi sayısı, ❤️ beğeni
+  (gönderi başına oyuncu başına bir kez; çift dokunuş da beğenir). **＋ Yeni gönderi:** galeriden fotoğraf seç →
+  açıklama yaz (en fazla 200 karakter, sohbetle aynı temizlik) → **bütçe** seç → **Paylaş**.
+
+  | Bütçe (otel kasasından) | Beğeni / takipçi (1★, yıldızla artar) | Etki |
+  | --- | --- | --- |
+  | **Organik · €0** | 20–60 / 2–8 | — |
+  | **€50 · Yerel reklam** | 150–300 / 20–45 | 1 oyun günü turist akını: misafir ×2, bar ×1.5 |
+  | **€150 · Şehir kampanyası** | 500–900 / 60–120 | misafir ×3, bar ×2.2, bar bahşişi +%15 |
+  | **€300 · Viral kampanya** | 1200–2000 / 150–260 | misafir ×4, bar ×3, bar bahşişi +%30 |
+
+  Beğeni ve takipçiler gönderiden sonra **sunucuda** 45–90 sn boyunca adım adım artar (rastgele, otelin yıldızıyla
+  ×1 … ×2); telefon sayaçları canlı sayar. Eşiklerde bildirim gelir ("📸 Gönderin 500 beğeniye ulaştı!",
+  "📈 @hotel.amsterdam 1B takipçiye ulaştı!").
+- **Kurallar:** oyuncu başına **20 sn'de bir** gönderi; otel genelinde aynı anda **tek ücretli kampanya** (süren kampanya
+  bitmeden yenisi açılmaz — organik gönderi her zaman serbest); kasada bütçe kadar para olmalı. Sunucu her şeyi doğrular:
+  fotoğraf yalnızca katı biçimli `data:image/jpeg;base64,…` (JPEG imzası, ≤ ~90 KB), bütçe yalnızca 0 / 50 / 150 / 300
+  (sayı olarak), konum yalnızca bilinen bölge kimlikleri. Akışta fotoğraf yalnızca doğrulanmış `<img src>` olarak çizilir.
+- **Turist akını (ücretli kampanya, 1 oyun günü):** üstte 📸 bonus çipi çıkar. Misafirler **2–4 kişilik turist kafileleri**
+  hâlinde (sırt çantası, boyunda fotoğraf makinesi, renkli şapka) birlikte gelir ve **resepsiyonda sıra** oluşur: masa
+  doluyken gelen misafir masanın arkasından **+X yönünde** (0.8 m arayla, en fazla 6 kişi) sıraya girer, masa boşalınca
+  sıradaki öne geçer (ilk gelen ilk kayıt olur; turistin kaydı 4 sn). Kafileler boş oda sayısını aşmaz — akın oteli
+  **%100 doluluğa** kadar doldurur ama odasız kalıp itibar kaybettirmez. 19:00'da (ve hafta sonu / gece) kabul kapanınca
+  sıradakiler ve gelmekte olan kafile ayrılır. Bar müşterileri de daha sık gelir (barın tabureleri hızla dolar).
+- **🏨 Otel:** kasa, yıldız, katlar, doluluk, kirli oda ve günün geliri (salt okunur).
+- **Kalıcılık:** takipçiler ve son **6** gönderi (fotoğraflarıyla, toplam ~400 KB'a kadar; sığmayan eskilerin fotoğrafı
+  düşer), beğenenler (anahtar özeti) otel kaydında tutulur; bellekte son 20 gönderi. Kampanyanın kalan süresi BoostService
+  ile kalıcıdır; yarım kalmış beğeni artışı yeniden başlatmada kaydedilen toplamına tamamlanır.
+- **Pil / ağ:** telefon açıkken 3D motor tamamen durur (yalnızca DOM); yalnızca kamera vizörü motoru çalıştırır. Çekim tek
+  kare çizip aynı görevde tuvali kopyalar (`preserveDrawingBuffer` kapalı kalır), 16:9 kırpar, en fazla 640×360 JPEG
+  (~0.7, hedef ≤ 60 KB). Sunucu beğeni / takipçi için yalnızca sayaç yayınlar (3 sn'de bir, simülasyon tick'inde);
+  sayaç animasyonu kısa bir rAF ile ve yalnızca telefon açıkken. Yeni bağlanana yalnızca en yeni 4 gönderinin fotoğrafı
+  gider; diğerleri akışta göründükçe tek tek istenir. Saat çubuğu yalnızca telefon açıkken saniyede bir güncellenir.
 
 ## Detaylı temizlik ve tamirat (mini oyunlar)
 
@@ -381,10 +426,11 @@ amsterdam-otel/
 │       ├── VehicleService.js    # Bisiklet / scooter: satın alma, sürücü + yolcu, park, kalıcılık
 │       ├── GameClock.js         # Gün döngüsü: hafta içi açık / hafta sonu kapalı, gece (23:00–07:00)
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
-│       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları (üst kata asansörle iki bacak)
+│       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları (üst kata asansörle iki bacak), turist kafilesi + resepsiyon kuyruğu
 │       ├── HotelGrowthService.js # İtibar / yıldız, kat satın alma, asansör, plaketler
 │       ├── WorkerService.js     # Temizlikçi NPC'ler: iş seçimi, süreli işler, seviye, bahşiş kasaya
 │       ├── InspectionService.js # Belediye denetimi: planlama, geri sayım, tüp / şurup kontrolü, sonuç
+│       ├── MarketingService.js  # InstaHotel: gönderi doğrulama, beğeni / takipçi artışı, kampanya → turist akını (boost)
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
 │       ├── CasinoService.js     # Kart Kulübü: blackjack, poker (NPC'li), zar düellosu; cüzdan / kasa bahisleri
 │       └── CoffeeShopService.js # Cüzdan, envanter, trip zarı, slot, bahşiş
@@ -398,13 +444,14 @@ amsterdam-otel/
 │   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri, denetim kuralları
+│   ├── marketing.js             # InstaHotel: bütçeler, fotoğraf / açıklama doğrulama, konum etiketleri, turist kafilesi + kuyruk
 │   ├── casino.js                # Deste, blackjack puanı, poker el değerlendirici, masa kuralları
 │   ├── exterior.js              # Dış cephe kataloğu (graffiti, neon, balkon) ve yerleşim doğrulaması
 │   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları (duvar slotları, tavan), bitkiler, YouTube link ayrıştırma
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, phone.css: telefon, vizör, InstaHotel)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
@@ -424,6 +471,8 @@ amsterdam-otel/
 │       │   ├── ReceptionPC.js       # Resepsiyon bilgisayarı paneli, asansör, yıldız tabelası, kat filtresi
 │       │   ├── HotelWorkerSystem.js # Temizlikçi görünümü (kova/paspas) ve Çalışanlar sekmesi
 │       │   ├── HotelInspectionSystem.js # Denetim bandı, yangın tüpleri, şurup lekesi, plaketler
+│       │   ├── SmartphoneSystem.js  # Akıllı telefon (P / 📱): ana ekran, kamera vizörü + çekim, galeri, Otel uygulaması
+│       │   ├── InstaHotelMarketing.js # InstaHotel: akış, beğeni, yeni gönderi + reklam bütçesi, canlı sayaçlar
 │       │   ├── UndergroundCasino.js # Kart Kulübü: kapı / koltuk etkileşimi, masa panelleri, NPC'ler
 │       │   ├── ExteriorCustomization.js # Ev cephesi: sprey graffiti (nişan + önizleme), neon tabela, balkon
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
@@ -433,7 +482,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar, gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi, denetim)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar, gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi, denetim), InstaHotel (gönderi, kampanya, kuyruk)
 ```
 
 ## Sonraki aşamalar için notlar

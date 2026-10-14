@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/css/hotel.css">
   <link rel="stylesheet" href="/css/exterior.css">
   <link rel="stylesheet" href="/css/casino.css">
+  <link rel="stylesheet" href="/css/phone.css">
   <script type="importmap">
     {
       "imports": {
@@ -109,6 +110,7 @@
     </div>
     <button id="btn-chat" type="button" aria-label="Sohbet">💬</button>
     <button id="btn-settings" type="button" aria-label="Ayarlar">⚙</button>
+    <button id="btn-phone" type="button" aria-label="Telefon">📱</button>
     <button id="btn-build" type="button" hidden>🛠 Dekor</button>
 
     <!-- Bizim Ev: dekorasyon modu (oyun durmaz, yürüyerek yerleştirirsin) -->
@@ -351,6 +353,7 @@
         <li>Barda oturan müşterinin önünde <b>E</b>: sohbet et, espri yap, içecek ısmarla · %80 arkadaşlıkta eve davet et</li>
         <li>Gece (23:00) evindeki yatakta <b>E</b>: uyu · saksıda <b>E</b>: tohum ek / hasat et · dekor modunda <b>tekerlek</b>: eşya seç</li>
         <li><b>Enter</b> sohbet: yaz, Enter ile gönder (Esc kapatır)</li>
+        <li><b>P</b> telefon: 📷 kamera (Space / tık: çek), 📸 InstaHotel'de paylaş, reklam kampanyası başlat</li>
         <li><b>Esc</b> duraklat</li>
       </ul>
       <ul class="help touch-only">
@@ -358,7 +361,7 @@
         <li><b>Sağ taraf</b>: sürükleyerek etrafa bak</li>
         <li><b>Aksiyon</b> butonu: yatak düzelt / çöp topla / barda koy, çalkala, servis et / ısır</li>
         <li>Gece evindeki yatakta <b>Aksiyon</b>: uyu · saksıda: tohum ek / hasat et</li>
-        <li><b>💬</b> butonu: sohbet</li>
+        <li><b>💬</b> butonu: sohbet · <b>📱</b> butonu: telefon (kamera, InstaHotel)</li>
       </ul>
       <p class="goal">Misafirler resepsiyona gelir ve boş odaya yerleşir. Çıkış yapınca oda <b>Kirli</b> olur:
         içeri gir, yatağı düzelt, çöpleri topla. Hafta içi otel açık, hafta sonu kapalıdır.
@@ -407,6 +410,46 @@
       <button type="button" class="primary" id="btn-settings-close">Kapat</button>
     </div>
   </div>
+
+  <!-- Akıllı telefon (P / 📱): ana ekran + uygulamalar (Kamera, Galeri, InstaHotel, Otel) -->
+  <div id="phone" class="phone-overlay" hidden>
+    <div class="phone-frame" role="dialog" aria-label="Telefon">
+      <div class="phone-notch" aria-hidden="true"></div>
+      <div class="phone-status">
+        <span id="phone-time">07:00</span>
+        <span class="phone-icons" aria-hidden="true"><span class="phone-signal"><i></i><i></i><i></i><i></i></span><span id="phone-battery" class="phone-battery"><i></i></span></span>
+      </div>
+      <div id="phone-screen">
+        <div id="phone-home" class="phone-view">
+          <div class="phone-big-time" id="phone-big-time">07:00</div>
+          <div class="phone-date" id="phone-date"></div>
+          <div id="phone-apps" class="phone-apps"></div>
+        </div>
+        <div id="phone-app" class="phone-view" hidden>
+          <div class="phone-appbar">
+            <button type="button" id="phone-back" aria-label="Ana ekran">‹</button>
+            <b id="phone-app-title"></b>
+          </div>
+          <div id="phone-app-body"></div>
+        </div>
+      </div>
+      <div id="phone-homebar" class="phone-homebar" role="button" tabindex="0" aria-label="Telefonu kapat (yukarı kaydır)"><i></i></div>
+    </div>
+  </div>
+  <!-- Telefon kamerası: vizör (oyun çizilmeye devam eder, yürünmez) -->
+  <div id="phone-cam" hidden>
+    <div class="cam-grid" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="cam-top">
+      <span id="cam-place">📍</span>
+      <button type="button" id="cam-close" aria-label="Telefona dön">✕</button>
+    </div>
+    <div class="cam-bottom">
+      <button type="button" id="cam-gallery" aria-label="Galeri"><img id="cam-thumb" alt="" hidden></button>
+      <button type="button" id="cam-shutter" aria-label="Fotoğraf çek"><span>📸 Çek</span></button>
+      <span id="cam-hint" class="cam-hint"></span>
+    </div>
+  </div>
+  <div id="cam-flash" hidden></div>
 
   <noscript>Bu oyun için JavaScript gereklidir.</noscript>
   <script type="module" src="/js/main.js"></script>

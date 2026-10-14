@@ -120,6 +120,10 @@ export const EVT = Object.freeze({
   CASINO_ACT: 'casino:act', // istemci → sunucu (ack): { act, table, seat?, amount?, source?: 'wallet' | 'kasa' }
   CASINO_STATE: 'casino:state', // sunucu → herkes: tek masanın açık durumu (başkalarının kapalı kartları YOK)
   CASINO_PRIVATE: 'casino:private', // sunucu → yalnızca o oyuncu: { table: 'poker', handNo, cards } kendi kartları
+  // ---- Akıllı telefon + InstaHotel reklam kampanyaları (server/game/MarketingService.js, shared/marketing.js) ----
+  INSTA_ACT: 'insta:act', // istemci → sunucu (ack): { act: 'post', photo, caption, budget, place? } | { act: 'like' | 'photo', id } | { act: 'feed' }
+  INSTA_FEED: 'insta:feed', // sunucu → herkes: { post: { id, by, color, caption, place, budget, likes, t, photo }, followers } yeni gönderi
+  INSTA_STATS: 'insta:stats', // sunucu → herkes: { f: takipçi, p: [[postId, likes], ...] } (yalnızca sayaçlar)
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

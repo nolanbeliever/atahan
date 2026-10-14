@@ -1,0 +1,460 @@
+/*
+ * Akıllı telefon (P / 📱), kamera vizörü ve InstaHotel.
+ * Pil: blur / backdrop-filter ve sürekli animasyon yok; flaş tek seferlik opaklık geçişi.
+ * Telefon açıkken 3D motor durur (modal), ekranda yalnızca bu DOM vardır.
+ */
+
+#btn-phone {
+  position: absolute;
+  top: calc(82px + var(--safe-t));
+  left: calc(92px + var(--safe-l));
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
+  pointer-events: auto;
+  cursor: pointer;
+}
+body:not(.touch) #btn-phone { display: none; } /* masaüstünde P */
+@media (max-height: 480px), (max-width: 560px) {
+  #btn-phone { top: calc(72px + var(--safe-t)); left: calc(84px + var(--safe-l)); width: 30px; height: 30px; font-size: 14px; }
+}
+
+/* ---------- Telefon çerçevesi ---------- */
+
+.phone-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 14, 20, .55);
+  padding: max(10px, var(--safe-t)) max(10px, var(--safe-r)) max(10px, var(--safe-b)) max(10px, var(--safe-l));
+}
+.phone-frame {
+  --bezel: #1b1e25;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(390px, 94vw);
+  height: min(820px, 100%);
+  background: #0c0e13;
+  border: 9px solid var(--bezel);
+  border-radius: 46px;
+  box-shadow: 0 0 0 2px #3a3f4b, 0 18px 50px rgba(0, 0, 0, .55);
+  overflow: hidden;
+  color: #fff;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.phone-notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 34%;
+  height: 24px;
+  transform: translateX(-50%);
+  background: var(--bezel);
+  border-radius: 0 0 16px 16px;
+  z-index: 3;
+}
+.phone-notch::after { /* ön kamera */
+  content: '';
+  position: absolute;
+  right: 18%;
+  top: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #23324a;
+}
+.phone-status {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 24px 0 26px;
+  font-size: 13px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.phone-frame.app-open .phone-status { color: #111; }
+.phone-icons { display: flex; align-items: center; gap: 6px; }
+.phone-signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 11px; }
+.phone-signal i { width: 3px; background: currentColor; border-radius: 1px; }
+.phone-signal i:nth-child(1) { height: 4px; }
+.phone-signal i:nth-child(2) { height: 6px; }
+.phone-signal i:nth-child(3) { height: 8px; }
+.phone-signal i:nth-child(4) { height: 11px; }
+.phone-battery {
+  --lvl: 100%;
+  position: relative;
+  width: 24px;
+  height: 12px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  padding: 1px;
+}
+.phone-battery::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  top: 3px;
+  width: 2px;
+  height: 4px;
+  border-radius: 0 1px 1px 0;
+  background: currentColor;
+}
+.phone-battery i { display: block; height: 100%; width: var(--lvl); background: currentColor; border-radius: 1px; }
+.phone-battery.low i { background: #ff4d4d; }
+
+#phone-screen { position: relative; flex: 1; min-height: 0; }
+.phone-view { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+/* Ana ekran */
+#phone-home {
+  padding: 46px 18px 10px;
+  background: linear-gradient(165deg, #ff9b3d 0%, #e5487b 48%, #4b3ea3 100%);
+  align-items: center;
+  overflow-y: auto;
+}
+.phone-big-time { font-size: 58px; font-weight: 300; letter-spacing: -1px; line-height: 1; margin-top: 10px; }
+.phone-date { font-size: 14px; opacity: .9; margin: 6px 0 26px; }
+.phone-apps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px 10px;
+  width: 100%;
+}
+.phone-app-icon {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 80px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+.phone-app-icon .ico {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  font-size: 30px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
+}
+.phone-app-icon .ico-insta { background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fd5949 45%, #d6249f 60%, #285aeb 90%); }
+.phone-app-icon .ico-camera { background: #2c2f36; }
+.phone-app-icon .ico-hotel { background: #ffe9c7; }
+.phone-app-icon .nm { font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+.phone-app-icon .badge {
+  position: absolute;
+  top: -4px;
+  right: calc(50% - 36px);
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: #ff3b30;
+  color: #fff;
+  font: 700 12px/20px system-ui, sans-serif;
+  font-style: normal;
+}
+
+/* Uygulama ekranı (açık tema) */
+#phone-app { background: #f4f4f6; color: #15171c; padding-top: 28px; }
+.phone-appbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 46px;
+  padding: 0 8px 0 2px;
+  border-bottom: 1px solid #e2e2e6;
+  background: #fff;
+  font-size: 16px;
+}
+#phone-back {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: none;
+  font-size: 30px;
+  line-height: 1;
+  color: #0a84ff;
+  cursor: pointer;
+}
+#phone-app-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 12px 16px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.phone-homebar {
+  flex: none;
+  height: 40px; /* dokunma hedefi: dokun ya da yukarı kaydır → kapanır */
+  display: grid;
+  place-items: center;
+  background: #0c0e13;
+  cursor: pointer;
+  touch-action: none;
+}
+.phone-homebar i { display: block; width: 36%; height: 5px; border-radius: 3px; background: #e9e9ee; }
+
+/* Ortak parçalar */
+#phone-app-body button.primary { font-size: 15px; padding: 11px; min-height: 44px; }
+#phone-app-body button.secondary { color: #3a3f4b; border-color: #c9ccd3; min-height: 40px; margin-top: 0; }
+.ph-empty { text-align: center; padding: 34px 12px; color: #555b66; }
+.ph-empty-ico { font-size: 44px; }
+.ph-empty b { display: block; margin: 8px 0 4px; color: #15171c; font-size: 16px; }
+.ph-empty p { margin: 0 0 14px; font-size: 14px; }
+.ph-note { font-size: 12px; color: #6b7280; text-align: center; margin: 10px 0 0; }
+
+/* Galeri */
+.ph-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.ph-shot { display: flex; flex-direction: column; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: #fff; cursor: pointer; text-align: left; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.ph-shot img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: #ccc; }
+.ph-shot span { font-size: 11px; padding: 5px 6px; color: #3a3f4b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-big { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; display: block; background: #ccc; }
+.ph-place { font-size: 13px; color: #3a3f4b; margin: 8px 0 10px; }
+.ph-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.ph-row button { flex: 1 1 auto; width: auto; }
+
+/* Otel */
+.ph-hotel { background: #fff; border-radius: 12px; padding: 6px 14px 14px; box-shadow: 0 1px 3px rgba(0, 0, 0, .1); }
+.ph-kv { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+.ph-kv b { color: #15171c; }
+.ph-occ { height: 10px; border-radius: 5px; background: #e5e7eb; margin-top: 12px; overflow: hidden; }
+.ph-occ i { display: block; height: 100%; background: linear-gradient(90deg, #3ecf6e, #ff7a1a); }
+
+/* ---------- InstaHotel ---------- */
+
+.ig-profile { display: flex; align-items: center; gap: 14px; padding: 4px 2px 12px; }
+.ig-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  font-size: 30px;
+  background: #fff;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 5px #e1306c;
+}
+.ig-info { min-width: 0; }
+.ig-info > b { display: block; font-size: 16px; margin-bottom: 4px; }
+.ig-stats { display: flex; gap: 14px; font-size: 13px; color: #4b5260; }
+.ig-stats b { color: #15171c; font-size: 15px; }
+.ig-rush { background: #fff1d6; color: #7a4a00; border: 1px solid #ffd27a; border-radius: 10px; padding: 8px 10px; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+#phone-app-body button.ig-new { display: block; margin-bottom: 4px; background: linear-gradient(90deg, #f58529, #dd2a7b 60%, #8134af); }
+.ig-post { background: #fff; border-radius: 14px; margin: 12px 0 0; overflow: hidden; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.ig-top { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
+.ig-dot { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px #e1306c; }
+.ig-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ig-who b { font-size: 14px; }
+.ig-who small, .ig-ago { font-size: 11.5px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ig-media { aspect-ratio: 16 / 9; background: #e5e7eb; }
+.ig-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ig-media.empty { display: grid; place-items: center; color: #6b7280; font-size: 14px; }
+.ig-actions { display: flex; align-items: center; gap: 4px; padding: 2px 8px 0 4px; font-size: 14px; }
+#phone-app-body .ig-like { width: 44px; height: 44px; border: 0; background: none; font-size: 24px; cursor: pointer; padding: 0; }
+.ig-sponsor { margin-left: auto; font-size: 11px; color: #8a6d00; background: #fff6d6; border-radius: 8px; padding: 2px 7px; }
+.ig-caption { margin: 0; padding: 0 12px 12px; font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
+
+/* Yeni gönderi */
+#phone-app-body button.ig-back { margin-bottom: 10px; }
+.ig-preview { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; display: block; background: #ccc; }
+.ig-preview-place { display: block; font-size: 12px; color: #4b5260; margin: 6px 2px; }
+.ig-pick { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 8px; }
+.ig-thumb { flex: none; width: 76px; height: 46px; padding: 0; border: 2px solid transparent; border-radius: 8px; overflow: hidden; background: #ccc; cursor: pointer; }
+.ig-thumb.on { border-color: #e1306c; }
+.ig-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ig-text {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px;
+  border: 1px solid #cfd3da;
+  border-radius: 10px;
+  background: #fff;
+  color: #15171c;
+  font: 16px/1.35 system-ui, sans-serif; /* iOS: 16px'ten küçükse yakınlaştırır */
+  resize: none;
+}
+.ig-counter { display: block; text-align: right; font-size: 11px; color: #6b7280; margin: 2px 2px 8px; }
+.ig-budgets { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.ig-budget {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-height: 58px;
+  padding: 8px 10px;
+  border: 2px solid #d9dce2;
+  border-radius: 12px;
+  background: #fff;
+  color: #15171c;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.ig-budget b { font-size: 13.5px; }
+.ig-budget small { font-size: 11px; color: #5b6170; line-height: 1.25; }
+.ig-budget[aria-checked="true"] { border-color: #e1306c; background: #fff0f5; }
+.ig-budget:disabled { opacity: .45; cursor: default; }
+.ig-kasa { display: block; font-size: 12px; color: #4b5260; margin: 8px 2px 0; }
+.ig-msg { min-height: 1.2em; font-size: 13px; color: #c0392b; margin: 6px 2px; }
+
+/* ---------- Kamera vizörü ---------- */
+
+#phone-cam { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+.cam-grid {
+  position: absolute;
+  inset: max(54px, calc(var(--safe-t) + 46px)) 5% max(110px, calc(var(--safe-b) + 104px));
+  border: 2px solid rgba(255, 255, 255, .6);
+  border-radius: 18px;
+}
+.cam-grid i { position: absolute; background: rgba(255, 255, 255, .28); }
+.cam-grid i:nth-child(1), .cam-grid i:nth-child(2) { top: 0; bottom: 0; width: 1px; }
+.cam-grid i:nth-child(1) { left: 33.33%; }
+.cam-grid i:nth-child(2) { left: 66.66%; }
+.cam-grid i:nth-child(3), .cam-grid i:nth-child(4) { left: 0; right: 0; height: 1px; }
+.cam-grid i:nth-child(3) { top: 33.33%; }
+.cam-grid i:nth-child(4) { top: 66.66%; }
+/* Konum çipi sol üstte (ortadaki bildirimlerle çakışmasın) */
+.cam-top {
+  position: absolute;
+  top: calc(10px + var(--safe-t));
+  left: calc(12px + var(--safe-l));
+  right: 0;
+  display: flex;
+  justify-content: flex-start;
+}
+#cam-place {
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, .55);
+  font-size: 13px;
+  font-weight: 600;
+}
+#cam-close {
+  position: absolute;
+  right: calc(12px + var(--safe-r));
+  top: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(0, 0, 0, .55);
+  color: #fff;
+  font-size: 18px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.cam-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(14px + var(--safe-b));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+}
+#cam-shutter {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  border: 5px solid #fff;
+  background: rgba(255, 255, 255, .25);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  pointer-events: auto;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, .35);
+}
+#cam-shutter:active { background: rgba(255, 255, 255, .7); color: #111; }
+#cam-gallery {
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  background: rgba(0, 0, 0, .45);
+  overflow: hidden;
+  pointer-events: auto;
+  cursor: pointer;
+}
+#cam-thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-hint {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translate(-50%, 100%);
+  font-size: 11px;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, .85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .7);
+}
+body:not(.touch) .cam-hint { position: static; transform: none; padding: 6px 10px; border-radius: 10px; background: rgba(0, 0, 0, .5); }
+body.touch .cam-hint { bottom: auto; top: -12px; transform: translate(-50%, -100%); }
+#cam-flash { position: fixed; inset: 0; z-index: 25; background: #fff; opacity: 0; pointer-events: none; }
+#cam-flash.go { animation: cam-flash .35s ease-out 1; }
+@keyframes cam-flash { from { opacity: .9; } to { opacity: 0; } }
+
+/* Vizördeyken HUD sadeleşir; dokunmatikte tüm ekran bakış alanı olur (joystick / Aksiyon gizli) */
+body.phone-cam #panel-time, body.phone-cam #panel-rooms, body.phone-cam #inventory, body.phone-cam #prompt,
+body.phone-cam #crosshair, body.phone-cam #btn-chat, body.phone-cam #btn-settings, body.phone-cam #btn-phone,
+body.phone-cam #btn-build, body.phone-cam #chat, body.phone-cam #bar-orders, body.phone-cam #bar-held,
+body.phone-cam #vehicle-hud, body.phone-cam #touch-move, body.phone-cam #btn-action, body.phone-cam #joystick { display: none !important; }
+body.phone-cam #touch-look { left: 0; width: 100%; }
+
+/* ---------- Küçük ekranlar ---------- */
+
+/* Dikey telefon: telefon ekranın çoğunu kaplar */
+@media (max-width: 560px) and (orientation: portrait) {
+  .phone-overlay { padding: max(6px, var(--safe-t)) 6px max(6px, var(--safe-b)); }
+  .phone-frame { width: 100%; height: 100%; border-width: 7px; border-radius: 38px; }
+}
+
+/* Yatay telefon: telefon da yan döner (çentik solda), içerik iki sütuna yayılır */
+@media (max-height: 480px) and (orientation: landscape) {
+  .phone-overlay { padding: 6px max(8px, var(--safe-r)) 6px max(8px, var(--safe-l)); }
+  .phone-frame { width: min(860px, 100%); height: 100%; border-width: 7px; border-radius: 32px; flex-direction: row; }
+  .phone-notch { top: 50%; left: 0; width: 22px; height: 30%; transform: translateY(-50%); border-radius: 0 14px 14px 0; }
+  .phone-notch::after { top: 18%; right: 7px; }
+  .phone-status { left: 26px; height: 24px; padding: 0 16px; }
+  #phone-home { padding: 30px 26px 8px 40px; flex-direction: row; flex-wrap: wrap; align-content: flex-start; gap: 0 22px; }
+  .phone-big-time { font-size: 44px; margin-top: 4px; }
+  .phone-date { margin: 0 0 12px; align-self: flex-end; }
+  .phone-apps { grid-template-columns: repeat(4, 84px); justify-content: start; }
+  #phone-app { padding: 24px 0 0 22px; }
+  .phone-appbar { height: 40px; }
+  .phone-homebar { width: 40px; height: auto; }
+  .phone-homebar i { width: 5px; height: 36%; }
+  .ig-post, .ig-profile, .ig-rush, #phone-app-body button.ig-new { max-width: 560px; margin-left: auto; margin-right: auto; }
+  .ph-gallery { grid-template-columns: repeat(3, 1fr); }
+  .cam-grid { inset: 44px 8% 92px; }
+  .cam-bottom { bottom: calc(8px + var(--safe-b)); }
+  #cam-shutter { width: 66px; height: 66px; }
+  .cam-hint { display: none; }
+}

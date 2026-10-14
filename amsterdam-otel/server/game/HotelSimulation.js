@@ -21,6 +21,7 @@ import { InspectionService } from './InspectionService.js';
 import { REPUTATION } from '../../shared/hotel.js';
 import { ExteriorService } from '../house/ExteriorService.js';
 import { CasinoService } from './CasinoService.js';
+import { MarketingService } from './MarketingService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -84,6 +85,7 @@ export class HotelSimulation extends EventEmitter {
     this.inspection = new InspectionService(this); // belediye denetimi
     this.exterior = new ExteriorService(this); // ev dış cepheleri (kayıt: this.house.exteriorData)
     this.casino = new CasinoService(this); // Yeraltı Kart Kulübü
+    this.marketing = new MarketingService(this); // InstaHotel: gönderiler, reklam kampanyası → turist akını
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -149,6 +151,7 @@ export class HotelSimulation extends EventEmitter {
       workers: this.workers.persisted(),
       inspection: this.inspection.persisted(),
       boosts: this.boosts.persisted(),
+      insta: this.marketing.persisted(),
     };
   }
 
@@ -158,6 +161,7 @@ export class HotelSimulation extends EventEmitter {
     this.workers.restore(h.workers);
     this.inspection.restore(h.inspection);
     this.boosts.restore(h.boosts);
+    this.marketing.restore(h.insta);
     if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
     const t = h.today;
     if (t && typeof t === 'object') {
@@ -231,6 +235,7 @@ export class HotelSimulation extends EventEmitter {
     this.shop.update(now);
     this.bar.update(now);
     this.casino.update(now);
+    this.marketing.update(now);
     this.house.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
@@ -565,6 +570,10 @@ export class HotelSimulation extends EventEmitter {
 
   casinoAct(playerId, data) { return this.withPlayer(playerId, (p) => this.casino.act(p, data, this.now())); }
 
+  // ---- Akıllı telefon: InstaHotel gönderileri ve reklam kampanyaları ---------------------
+
+  instaAct(playerId, data) { return this.withPlayer(playerId, (p) => this.marketing.act(p, data, this.now())); }
+
   // ---- Coffee shop (kişisel cüzdan / envanter / trip) -------------------
 
   buy(playerId, productId) {
@@ -654,6 +663,7 @@ export class HotelSimulation extends EventEmitter {
       boosts: this.boosts.serialize(),
       exterior: this.exterior.serialize(), // { [houseId]: { sprays, tags, neon, balcony } } (boş cepheler yok)
       casino: this.casino.serialize(selfId),
+      insta: this.marketing.serialize(this.players.get(selfId)), // InstaHotel akışı (fotoğraf yalnızca en yeni 4'te)
     };
   }
 }

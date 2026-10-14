@@ -28,6 +28,7 @@ export class KeyboardMouse {
       else if (e.code === 'KeyT') input.command('tv');
       else if (e.code === 'KeyY') input.command('ringYes'); // kapı zili: içeri al
       else if (e.code === 'KeyN') input.command('ringNo'); // kapı zili: alma
+      else if (e.code === 'KeyP') input.command('phone'); // akıllı telefon (kamera, InstaHotel)
       else if (/^Digit[1-9]$/.test(e.code)) input.command(`select:${Number(e.code.slice(5)) - 1}`);
       else if (e.code === 'Digit0') input.command('select:9');
       else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
