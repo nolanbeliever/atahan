@@ -120,6 +120,9 @@ export const EVT = Object.freeze({
   CASINO_ACT: 'casino:act', // istemci → sunucu (ack): { act, table, seat?, amount?, source?: 'wallet' | 'kasa' }
   CASINO_STATE: 'casino:state', // sunucu → herkes: tek masanın açık durumu (başkalarının kapalı kartları YOK)
   CASINO_PRIVATE: 'casino:private', // sunucu → yalnızca o oyuncu: { table: 'poker', handNo, cards } kendi kartları
+  // ---- Achterstraat Canlı Müzik Sahnesi (server/game/StageService.js, shared/stage.js) ----
+  STAGE_ACT: 'stage:act', // istemci → sunucu (ack): { act: 'buy' } (Resepsiyon PC) | { act: 'hire', id: 'guitar' | 'dj' | 'jazz' } (sahnenin önü)
+  STAGE_STATE: 'stage:state', // sunucu → herkes: { owned, booking, phase: 'idle'|'set'|'break'|'over', setNo, setAt, to, crowd }
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

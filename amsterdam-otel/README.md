@@ -120,6 +120,48 @@ Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir
     Başarısız → kasadan **€300 ceza** ve otel **bir yıldız kaybeder**.
 - Hepsi kalıcıdır (itibar, katlar, plaketler, temizlikçiler ve seviyeleri, günün denetimi).
 
+## Achterstraat Canlı Müzik Sahnesi — müzisyenler, konser kalabalığı, bar bonusu
+
+- **Sahne (€900, otelin kasasından, bir kez):** Resepsiyon PC → **🏗️ Yükseltmeler** → **🎤 Canlı Müzik Sahnesi**.
+  Satın alınana kadar Achterstraat'ın batısında (otelin arka duvarının batısı, Huis 1–2'nin karşısı) sarı-siyah
+  şeritli, dubalı boş bir alan ve "Sahne alanı — Resepsiyon PC'den satın al" tabelası durur. Alınınca herkes için
+  ahşap platform + basamaklar, siyah fon, alüminyum truss, spot kafaları, **ACHTERSTRAAT LIVE** afişi, hoparlörler,
+  mikrofon sehpası ve karşıdaki evlerin cephesine uzanan ampul zincirleri belirir. Sahne ile evlerin kapıları
+  arasında ≥ 1.6 m yürüme yolu kalır (sokak lambası ve çiçek kasası bunun için yer değiştirdi).
+- **Müzisyen kiralama:** sahnenin önünde (basamakların önü) **E** → panel. Ücret **günlük**, otelin kasasından:
+
+  | Grup | Ücret | Kalabalık | Set sonu bar bonusu (120 oyun dk) |
+  | --- | --- | --- | --- |
+  | 🎸 Akustik Gitarist | €120 | 5 kişi | bar müşterisi ×1.8 · bahşiş +%50 |
+  | 🎧 DJ Kabini | €220 | 9 kişi | bar müşterisi ×2 · bahşiş +%60 |
+  | 🎷 Caz Grubu (saksafon, kontrbas, davul) | €350 | 7 kişi | bar müşterisi ×2 · bahşiş +%80 |
+
+  Günde tek grup; gece ve 22:00'den sonra kiralanamaz. Grup o gün 23:00'e kadar **set (240 oyun dk ≈ 60 sn) →
+  mola (60 oyun dk ≈ 15 sn)** döngüsüyle çalar (hafta sonu iki kat hızlı).
+- **Sahnede:** müzisyenler (kollu karakterler + enstrümanlar: gitar ve amfi; pikaplı DJ masası, mikser, dizüstü,
+  kulaklık; saksafon, kontrbas, davul seti) vuruşa göre çalar: tıngırdatma, kafa sallama + yumruk, saksafonu
+  kaldırma, parmakla bas, bagetler. Spotların hüzmeleri vuruşla nabız gibi atar (gece daha belirgin).
+- **Prosedürel 3D müzik (WebAudio, ses dosyası yok):** gitarda parmakla çalınan akor arpejleri; DJ'de dört vuruşlu
+  kick, hi-hat, clap, bas synth ve akor stab'ları; cazda swing ride, yürüyen kontrbas ve vibratolu saksafon
+  melodisi. Notalar sunucunun set başlangıcına göre planlanır ve "rastgelelik" ölçü numarasından türetilir →
+  oyuncular aynı ölçüyü / melodiyi duyar. Ses sahnede bir PannerNode'dan gelir: uzaklaştıkça kısılır, 35 m'de
+  biter; yalnızca Achterstraat'ta ve steeg'de açık, oyuncu evlerinin içinde boğuk duyulur, otelin içinde çalmaz.
+  Ayarlardaki **Ses efektleri** ve paneldeki **Sahne müziği (bu cihazda)** anahtarı müziği kapatır.
+- **Konser kalabalığı:** set başlayınca yoldan geçenler birer birer gelir (otelin arka kapısından, steeg'in
+  kemerinden ve sokağın batı ucundaki geçitten) ve sahnenin önünde yarım çemberde dans eder / alkışlar.
+  Set bitince kalabalık arka kapıdan koridora, lobiden **Bar De Tulp**'a yürür (birkaçı steeg'den sokağa); ilk kişi
+  barın kapısına varınca 120 oyun dakikalık **bar bonusu** başlar (üstteki çipte: "🎸 Konser kalabalığı barda") ve
+  herkese "Set bitti! Kalabalık Bar De Tulp'a akın ediyor" bildirimi gider. Set bittiğinde sahnenin yanında bir
+  oyuncu varsa seyirciler **bahşiş kavanozuna** kişi başı €3 bırakır (kasaya). 23:00'te biten son sette bar kapalı
+  olduğundan kalabalık evine dağılır (bonus yok).
+- **Sunucu yetkili:** PC / sahne mesafesi, kasa, günde tek grup, saat, grup kimliği (prototipsiz tablo, tip
+  dönüştürme yok) doğrulanır. Sahne ve günün rezervasyonu kalıcıdır (`hotelState.stage`); kalabalık kalıcı değildir.
+- **Pil:** sahne çalışma anında bir kez kurulur ve malzeme başına tek mesh'e birleştirilir (hüzmeler, mercekler,
+  ampuller köşe renkli üç mesh). Müzisyen, ışık ve kalabalık animasyonu YALNIZCA set çalarken, oyuncu sahneye 30 m
+  içindeyken ve sahne görüş alanındayken çizilir; aksi halde motor uyur. Müzik zamanlayıcısı (100 ms, 0.25 sn ileri
+  planlama) yalnızca duyulabilirken çalışır; dinleyici konumu yalnızca oyuncu hareket edince güncellenir; panner
+  HRTF yerine ucuz `equalpower`. Sunucuda ayrı zamanlayıcı yok (`HotelSimulation.tick` → `StageService.update`).
+
 ## Detaylı temizlik ve tamirat (mini oyunlar)
 
 Misafir çıkınca odada dağınık yatak ve çöplere ek olarak 1–2 arıza çıkar; hepsi 3D'de görünür. Arızaya bakıp
@@ -403,6 +445,7 @@ amsterdam-otel/
 │       ├── BoostService.js      # Geçici bonuslar (konser kalabalığı, reklam): bar / misafir sıklığı, bahşiş
 │       ├── WorkerService.js     # Temizlikçi NPC'ler: iş seçimi, süreli işler, seviye, bahşiş kasaya
 │       ├── InspectionService.js # Belediye denetimi: planlama, geri sayım, tüp / şurup kontrolü, sonuç
+│       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
 │       ├── CasinoService.js     # Kart Kulübü: blackjack, poker (NPC'li), zar düellosu; cüzdan / kasa bahisleri
 │       └── CoffeeShopService.js # Cüzdan, envanter, trip zarı, slot, bahşiş
@@ -417,17 +460,18 @@ amsterdam-otel/
 │   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri, denetim kuralları
+│   ├── stage.js                 # Canlı müzik sahnesi: yer, gruplar (ücret, kalabalık, bonus), set takvimi, kalabalık noktaları
 │   ├── casino.js                # Deste, blackjack puanı, poker el değerlendirici, masa kuralları
 │   ├── exterior.js              # Dış cephe kataloğu (graffiti, neon, balkon) ve yerleşim doğrulaması
 │   ├── house.js                 # Mobilya kataloğu, yerleşim kuralları (duvar slotları, tavan), bitkiler, YouTube link ayrıştırma
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
-│       ├── world/               # Otel, coffee shop, bar, Bizim Ev, Achterstraat evleri, steeg + araç büfesi; dokular, malzemeler, çarpışma
+│       ├── world/               # Otel, coffee shop, bar, Bizim Ev, Achterstraat evleri, steeg + araç büfesi, sahne (StageBuilding); dokular, malzemeler, çarpışma
 │       ├── controls/            # Klavye/fare, dokunmatik joystick, FPV oyuncu
 │       ├── game/                # Misafirler, diğer oyuncular, etkileşim, durum
 │       │   ├── CoffeeShopSystem.js  # Tezgâh/slot etkileşimi, paneller, envanter, tüketim
@@ -443,6 +487,9 @@ amsterdam-otel/
 │       │   ├── ReceptionPC.js       # Resepsiyon bilgisayarı paneli, asansör, yıldız tabelası, kat filtresi
 │       │   ├── HotelWorkerSystem.js # Temizlikçi görünümü (kova/paspas) ve Çalışanlar sekmesi
 │       │   ├── HotelInspectionSystem.js # Denetim bandı, yangın tüpleri, şurup lekesi, plaketler
+│       │   ├── LiveStageSystem.js   # Canlı müzik sahnesi: alan / sahne, müzisyenler ve animasyonları, panel, PC satırı
+│       │   ├── StageMusic.js        # Prosedürel sahne müziği (WebAudio): gitar, DJ, caz; PannerNode ile 3D, set senkronu
+│       │   ├── StreetEvents.js      # Konser kalabalığı: kollar, dans / alkış animasyonu, arka kapının açılması
 │       │   ├── UndergroundCasino.js # Kart Kulübü: kapı / koltuk etkileşimi, masa panelleri, NPC'ler
 │       │   ├── ExteriorCustomization.js # Ev cephesi: sprey graffiti (nişan + önizleme), neon tabela, balkon
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
@@ -454,7 +501,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar, gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi, denetim)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar, gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi, denetim), sahne (stage.test.js)
 ```
 
 ## Sonraki aşamalar için notlar

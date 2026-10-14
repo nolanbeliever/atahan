@@ -268,6 +268,7 @@ export class ReceptionPC {
       row.append(el('div', 'icon', open ? '🏢' : '🏗️'), info, btn);
       list.append(row);
     }
+    this.stage?.renderUpgradeRow(list, this); // 🎤 Canlı müzik sahnesi (LiveStageSystem)
     body.append(list);
     if (g.floors < MAX_FLOOR) {
       const up = FLOOR_UPGRADES[g.floors - 1];

@@ -21,6 +21,7 @@ import { InspectionService } from './InspectionService.js';
 import { REPUTATION } from '../../shared/hotel.js';
 import { ExteriorService } from '../house/ExteriorService.js';
 import { CasinoService } from './CasinoService.js';
+import { StageService } from './StageService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -84,6 +85,7 @@ export class HotelSimulation extends EventEmitter {
     this.inspection = new InspectionService(this); // belediye denetimi
     this.exterior = new ExteriorService(this); // ev dış cepheleri (kayıt: this.house.exteriorData)
     this.casino = new CasinoService(this); // Yeraltı Kart Kulübü
+    this.stage = new StageService(this); // Achterstraat canlı müzik sahnesi + kalabalık
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -149,6 +151,7 @@ export class HotelSimulation extends EventEmitter {
       workers: this.workers.persisted(),
       inspection: this.inspection.persisted(),
       boosts: this.boosts.persisted(),
+      stage: this.stage.persisted(),
     };
   }
 
@@ -158,6 +161,7 @@ export class HotelSimulation extends EventEmitter {
     this.workers.restore(h.workers);
     this.inspection.restore(h.inspection);
     this.boosts.restore(h.boosts);
+    this.stage.restore(h.stage);
     if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
     const t = h.today;
     if (t && typeof t === 'object') {
@@ -189,6 +193,7 @@ export class HotelSimulation extends EventEmitter {
       this.bar.shiftTime(now - this.pausedAt);
       this.workers.shiftTime(now - this.pausedAt);
       this.inspection.shiftTime(now - this.pausedAt);
+      this.stage.shiftTime(now - this.pausedAt);
       this.pausedAt = null;
     }
     this.lastTick = now;
@@ -231,6 +236,7 @@ export class HotelSimulation extends EventEmitter {
     this.shop.update(now);
     this.bar.update(now);
     this.casino.update(now);
+    this.stage.update(now);
     this.house.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
@@ -565,6 +571,10 @@ export class HotelSimulation extends EventEmitter {
 
   casinoAct(playerId, data) { return this.withPlayer(playerId, (p) => this.casino.act(p, data, this.now())); }
 
+  // ---- Achterstraat canlı müzik sahnesi ------------------------------------------------
+
+  stageAct(playerId, data) { return this.withPlayer(playerId, (p) => this.stage.act(p, data, this.now())); }
+
   // ---- Coffee shop (kişisel cüzdan / envanter / trip) -------------------
 
   buy(playerId, productId) {
@@ -639,7 +649,7 @@ export class HotelSimulation extends EventEmitter {
       rooms: this.rooms.serialize(),
       guests: [
         ...this.guests.serialize(), ...this.bar.serializeCustomers(), ...this.workers.serializeWires(),
-        ...[this.inspection.inspectorWire()].filter(Boolean),
+        ...[this.inspection.inspectorWire()].filter(Boolean), ...this.stage.serializeWires(),
       ],
       players: [...this.players.values()].map((p) => this.publicPlayer(p)),
       economy: this.economy(),
@@ -654,6 +664,7 @@ export class HotelSimulation extends EventEmitter {
       boosts: this.boosts.serialize(),
       exterior: this.exterior.serialize(), // { [houseId]: { sprays, tags, neon, balcony } } (boş cepheler yok)
       casino: this.casino.serialize(selfId),
+      stage: this.stage.serialize(), // canlı müzik sahnesi: { owned, booking, phase, setAt… }
     };
   }
 }

@@ -33,6 +33,8 @@ import { UndergroundCasino } from './game/UndergroundCasino.js';
 import { BarSystem } from './game/BarSystem.js';
 import { RecipeBook } from './game/RecipeBook.js';
 import { MixologyBarSystem } from './game/MixologyBarSystem.js';
+import { LiveStageSystem } from './game/LiveStageSystem.js';
+import { StreetEvents } from './game/StreetEvents.js';
 import { ViewModel } from './game/ViewModel.js';
 import { Sfx } from './core/Sfx.js';
 import { Network } from './net/Network.js';
@@ -197,6 +199,13 @@ const reception = new ReceptionPC({
   engine, net, hud, interaction, player, modal, device, sfx, state, workers,
 });
 reception.onChange.push((h) => workers.setState(h));
+// Achterstraat canlı müzik sahnesi (Resepsiyon PC'den satın alınır) + konser kalabalığı
+const stage = new LiveStageSystem({
+  engine, net, hud, interaction, player, modal, sfx, settings, state, mats, collision,
+  isPaused: () => document.hidden || !document.getElementById('overlay').hidden,
+});
+reception.stage = stage;
+const street = new StreetEvents({ guests, world, player, camera: engine.camera, stage, settings });
 const inspection = new HotelInspectionSystem({
   engine, net, hud, interaction, state, bar, reception,
 });
@@ -210,6 +219,7 @@ const setNightLevel = world.setNightLevel;
 world.setNightLevel = (t) => {
   setNightLevel.call(world, t);
   exterior.setNight(t);
+  stage.setNight(t);
 };
 // Otel odasında çöp toplarken birinci şahıs toplama animasyonu
 const TRASH_ITEMS = ['paper', 'can', 'box', 'bottle'];
@@ -235,6 +245,8 @@ engine.addSystem((dt) => visits.update(dt));
 engine.addSystem((dt) => night.update(dt));
 engine.addSystem(() => vehicles.update());
 engine.addSystem(() => bar.update());
+engine.addSystem((dt) => stage.update(dt));
+engine.addSystem(() => street.update());
 engine.addSystem((dt) => vm.update(dt));
 engine.addSystem((dt) => {
   ctx.px = player.pos.x;
@@ -244,6 +256,7 @@ engine.addSystem((dt) => {
 engine.addSystem(() => {
   interaction.update();
   if (player.moved && joined) net.sendMove(player.pos.x, player.pos.z, player.yaw);
+  if (player.moved) stage.onMoved(); // sahne müziği: dinleyici konumu + bölge (yalnızca hareket edince)
   return false;
 });
 
@@ -424,6 +437,7 @@ net.on(EVT.WELCOME, (snap) => {
   world.applyRooms(snap.rooms);
   world.setWeekend(snap.clock.weekend);
   reception.setState(snap.hotel);
+  stage.onState(snap.stage);
   boostList = snap.boosts ?? [];
   hud.setRooms(state.rooms);
   hud.setMoney(snap.economy.money);
@@ -480,6 +494,7 @@ net.on(EVT.BOOSTS, (list) => {
   hud.setBoosts(boostList, gameTotal());
 });
 net.on(EVT.INSPECTION_RESULT, (r) => inspection.onResult(r));
+net.on(EVT.STAGE_STATE, (s) => stage.onState(s));
 
 net.on(EVT.GUEST_UPSERT, (g) => {
   guests.upsert(g);
@@ -571,6 +586,7 @@ function updateClock() {
   night.onClock(minute);
   hud.setBoosts(boostList, gameTotal());
   botany.onClock();
+  stage.onClock();
 }
 setInterval(updateClock, 1000);
 
@@ -608,5 +624,5 @@ navigator.getBattery?.().then((battery) => {
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
-  reception, workers, inspection, casino, recipes, mixology,
+  reception, workers, inspection, casino, recipes, mixology, stage, street,
 };
