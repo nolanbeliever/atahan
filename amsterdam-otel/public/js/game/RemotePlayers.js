@@ -76,6 +76,11 @@ export class RemotePlayers {
       it.tz = z;
       // Kamera yaw'ı → karakter yönü (karakterin önü +Z)
       it.tyaw = yaw + Math.PI;
+      // Işınlanma (rampa, tünel, hızlı ışınlanma): duvarların içinden kaymasın, anında yerine geç
+      if (Math.hypot(x - it.obj.position.x, z - it.obj.position.z) > 25) {
+        it.obj.position.set(x, 0, z);
+        it.obj.rotation.y = it.tyaw;
+      }
     }
   }
 

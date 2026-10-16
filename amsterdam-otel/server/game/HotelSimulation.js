@@ -26,6 +26,8 @@ import { CasinoService } from './CasinoService.js';
 import { StageService } from './StageService.js';
 import { MarketingService } from './MarketingService.js';
 import { ArchitectureService } from './ArchitectureService.js';
+import { GarageService } from './GarageService.js';
+import { DragRaceService } from './DragRaceService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -94,6 +96,8 @@ export class HotelSimulation extends EventEmitter {
     this.casino = new CasinoService(this); // Yeraltı Kart Kulübü
     this.stage = new StageService(this); // Achterstraat canlı müzik sahnesi + kalabalık
     this.marketing = new MarketingService(this); // InstaHotel: gönderiler, reklam kampanyası → turist akını
+    this.garage = new GarageService(this); // yeraltı garajı, AutoGalerie, arabalar (VehicleService'te 'car')
+    this.drag = new DragRaceService(this); // drag pisti: zamanlama, düello, liderlik tablosu
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -166,6 +170,8 @@ export class HotelSimulation extends EventEmitter {
       insta: this.marketing.persisted(),
       counterfeit: this.counterfeit.persisted(),
       arch: this.arch.persisted(),
+      garage: this.garage.persisted(),
+      drag: this.drag.persisted(),
     };
   }
 
@@ -181,6 +187,8 @@ export class HotelSimulation extends EventEmitter {
     this.counterfeit.restore(h.counterfeit);
     this.stage.restore(h.stage);
     this.marketing.restore(h.insta);
+    this.garage.restore(h.garage);
+    this.drag.restore(h.drag);
     if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
     const t = h.today;
     if (t && typeof t === 'object') {
@@ -259,6 +267,7 @@ export class HotelSimulation extends EventEmitter {
     this.casino.update(now);
     this.stage.update(now);
     this.marketing.update(now);
+    this.drag.update(now);
     this.house.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
@@ -332,12 +341,13 @@ export class HotelSimulation extends EventEmitter {
     this.house.initPlayer(p); // oturumluk ev erişimi + kayıtlı cüzdan
     this.relations.initPlayer(p); // kayıtlı arkadaşlık seviyeleri
     this.vehicles.initPlayer(p); // sahip olduğu araçlar son park yerinde belirir
+    const hasCars = this.garage.initPlayer(p); // arabaları garajdaki / son park yerinde
     p.maint = null; // süren tamirat mini oyunu { roomId, issue, at }
     this.players.set(p.id, p);
     if (this.players.size === 1) this.start();
     this.out(EVT.PLAYER_JOIN, this.publicPlayer(p));
     this.house.assignHouse(p); // değişirse HOUSE_OWNERS yayınlanır
-    if (p.ownedVehicles.size) this.vehicles.broadcast();
+    if (p.ownedVehicles.size || hasCars) this.vehicles.broadcast();
     return p;
   }
 
@@ -349,6 +359,7 @@ export class HotelSimulation extends EventEmitter {
     this.counterfeit.removePlayer(p); // saklanma biter; sahibi çıkarsa süren baskı iptal
     this.casino.removePlayer(p); // masadan kalkar: fişleri bozdurulur (cüzdan kaydından önce)
     this.relations.removePlayer(p); // evdeki misafiri gider
+    this.drag.removePlayer(p); // drag yarışındaysa DNF
     this.vehicles.removePlayer(p); // sürüyorsa park eder; araçları kayda geçer
     this.house.removePlayer(p); // bekleyen ziller, cüzdan ve ev sahibi kaydı
     this.players.delete(id);
@@ -432,6 +443,10 @@ export class HotelSimulation extends EventEmitter {
   movePlayer(id, x, z, yaw) {
     const p = this.players.get(id);
     if (!p || !Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(yaw)) return;
+    // Araba hız denetimi + ışınlanma sonrası gecikmiş paketler (GarageService)
+    const fm = this.garage.filterMove(p, x, z);
+    if (!fm) return;
+    [x, z] = fm;
     // Araçta yolcuysa konumu sürücü belirler (yalnızca bakış yönü alınır)
     if (!this.vehicles.onMove(p, x, z, Math.atan2(Math.sin(yaw), Math.cos(yaw)))) return;
     const b = WORLD_BOUNDS;
@@ -441,6 +456,7 @@ export class HotelSimulation extends EventEmitter {
     this.dirtyPlayers.add(id);
     this.vehicles.afterMove(p);
     this.counterfeit.onMove(p); // gizli bölmeden yürüyerek çıkış
+    this.drag.onMove(p, this.now()); // drag yarışı zaman örnekleri
     // Yataktan kalkıp yürüyen oyuncu uyanır
     if (p.sleeping && Math.hypot(p.x - p.sleeping.x, p.z - p.sleeping.z) > NIGHT.WAKE_MOVE) {
       p.sleeping = null;
@@ -598,6 +614,12 @@ export class HotelSimulation extends EventEmitter {
 
   vehicleAct(playerId, data) { return this.withPlayer(playerId, (p) => this.vehicles.act(p, data)); }
 
+  // ---- Yeraltı garajı, AutoGalerie ve drag pisti ---------------------------------------
+
+  carAct(playerId, data) { return this.withPlayer(playerId, (p) => this.garage.act(p, data)); }
+
+  dragAct(playerId, data) { return this.withPlayer(playerId, (p) => this.drag.act(p, data, this.now())); }
+
   // ---- Yeraltı Kart Kulübü ---------------------------------------------------------
 
   casinoAct(playerId, data) { return this.withPlayer(playerId, (p) => this.casino.act(p, data, this.now())); }
@@ -701,6 +723,7 @@ export class HotelSimulation extends EventEmitter {
       casino: this.casino.serialize(selfId),
       stage: this.stage.serialize(), // canlı müzik sahnesi: { owned, booking, phase, setAt… }
       insta: this.marketing.serialize(this.players.get(selfId)), // InstaHotel akışı (fotoğraf yalnızca en yeni 4'te)
+      drag: this.drag.serialize(), // drag pisti: faz, ışık ağacı zamanları, son sonuçlar, liderlik tablosu
     };
   }
 }

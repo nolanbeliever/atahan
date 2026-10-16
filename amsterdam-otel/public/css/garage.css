@@ -1,0 +1,171 @@
+/*
+ * Yeraltı garajı, AutoGalerie, araba kokpiti ve drag pisti.
+ * Pil: sürekli animasyon / blur yok; göstergeler yalnızca değer değişince güncellenir,
+ * devir çubuğu transform ile ölçeklenir.
+ */
+
+/* ---------- Kokpit göstergesi (alt orta) ---------- */
+#car-hud {
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + var(--safe-b));
+  transform: translateX(-50%);
+  z-index: 9;
+  pointer-events: none;
+  min-width: 210px;
+  padding: 6px 14px 8px;
+  border-radius: 14px;
+  background: rgba(8, 10, 14, .72);
+  border: 1px solid rgba(255, 255, 255, .14);
+  color: #fff;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+#car-hud .car-name { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.car-row { display: flex; align-items: baseline; justify-content: center; gap: 8px; }
+#car-speed { font-size: 38px; font-weight: 800; line-height: 1; min-width: 72px; text-align: right; }
+.car-row small { font-size: 12px; color: var(--muted); }
+#car-gear { font-size: 18px; font-weight: 800; color: #ffd27a; min-width: 30px; }
+#car-limit {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid #d7263d; background: #fff; color: #111;
+  font-size: 13px; font-weight: 800; line-height: 24px; align-self: center;
+}
+.car-rpm { height: 6px; margin-top: 5px; border-radius: 3px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+#car-rpm { display: block; height: 100%; background: linear-gradient(90deg, #3ecf6e, #f2c230 70%, #e5534b); transform-origin: left; transform: scaleX(0); }
+#car-rpm.red { background: #e5534b; }
+#car-timer { margin-top: 5px; font-size: 22px; font-weight: 800; font-family: ui-monospace, monospace; }
+#car-timer.wait { color: #ffb21a; }
+#car-timer.run { color: #2cff6a; }
+#car-timer.done { color: #9fe2ff; }
+
+/* ---------- Dokunmatik pedallar ---------- */
+#car-pedals { position: fixed; inset: auto 0 0 auto; z-index: 7; pointer-events: none; }
+#car-pedals button {
+  position: fixed;
+  bottom: calc(26px + var(--safe-b));
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .4);
+  background: rgba(255, 255, 255, .12);
+  font-size: 32px;
+  pointer-events: auto;
+  touch-action: none;
+}
+#car-gas { right: calc(122px + var(--safe-r)); border-color: #3ecf6e !important; }
+#car-brake { right: calc(212px + var(--safe-r)); border-color: #e5534b !important; }
+#car-pedals button.down { transform: scale(.92); background: rgba(255, 255, 255, .3); }
+body.touch #car-hud { bottom: calc(196px + var(--safe-b)); } /* Aksiyon ipucunun ve pedalların üstünde */
+body.phone-cam #car-hud, body.phone-cam #car-pedals { display: none !important; }
+
+/* ---------- Drag pisti paneli ---------- */
+#drag-hud {
+  position: fixed;
+  top: calc(132px + var(--safe-t));
+  right: calc(8px + var(--safe-r));
+  width: 236px;
+  z-index: 9;
+  pointer-events: auto;
+  font-size: 12.5px;
+}
+.drag-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+#drag-board-btn { border: 0; background: rgba(255, 255, 255, .1); color: #fff; border-radius: 8px; font-size: 18px; padding: 2px 8px; cursor: pointer; }
+.drag-modes { display: flex; gap: 6px; margin: 6px 0; }
+.drag-modes button {
+  flex: 1; border: 1px solid rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .06);
+  color: var(--text); border-radius: 8px; padding: 6px 4px; font-weight: 700; cursor: pointer;
+}
+.drag-modes button.on { background: var(--accent); border-color: var(--accent); color: #111; }
+#drag-status { color: var(--muted); line-height: 1.35; margin-top: 4px; }
+#drag-result { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, .12); }
+#drag-result > b { display: block; font-size: 15px; margin-bottom: 4px; }
+#drag-result > b.win { color: #2cff6a; }
+#drag-result > b.bad { color: #ff5a4f; }
+.drag-grid { display: grid; grid-template-columns: 1fr auto; gap: 1px 10px; font-variant-numeric: tabular-nums; }
+.drag-grid span { color: var(--muted); }
+.drag-table-wrap { max-height: 60vh; overflow: auto; margin-bottom: 12px; }
+#drag-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; text-align: left; }
+#drag-table th, #drag-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+#drag-table th { color: var(--muted); font-weight: 600; }
+#drag-table tr.gold td { color: #ffd27a; font-weight: 700; }
+
+/* ---------- AutoGalerie ---------- */
+.dealer-card { width: min(720px, 100%); text-align: left; }
+.dealer-card h2, .dealer-card .sub { text-align: center; }
+.dealer-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.dealer-src { display: flex; gap: 6px; flex-wrap: wrap; }
+.dealer-src button {
+  flex: 1 1 140px; border: 1px solid rgba(255, 255, 255, .18); border-radius: 8px; background: rgba(255, 255, 255, .05);
+  color: var(--text); padding: 7px 8px; font-weight: 700; cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.dealer-src button.on { border-color: var(--accent); background: rgba(255, 122, 26, .22); }
+.dealer-count { font-size: 12px; color: var(--muted); }
+.dealer-msg { margin: 4px 0 8px; font-size: 13px; color: #ffd27a; }
+.dealer-list { display: grid; gap: 8px; margin-bottom: 10px; }
+.car-card {
+  display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: center;
+  background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: 12px; padding: 8px 10px;
+}
+.car-art {
+  --paint: #888;
+  position: relative; height: 54px; border-radius: 10px;
+  background:
+    radial-gradient(circle at 26% 82%, #111 0 9px, transparent 10px),
+    radial-gradient(circle at 74% 82%, #111 0 9px, transparent 10px),
+    linear-gradient(180deg, transparent 0 22%, var(--paint) 22% 74%, transparent 74%),
+    #24303f;
+}
+.car-art::before {
+  content: ''; position: absolute; left: 26%; right: 30%; top: 8%; height: 22%;
+  background: var(--paint); border-radius: 10px 14px 0 0; filter: brightness(.85);
+}
+.car-body { position: absolute; left: 4px; bottom: 2px; font-size: 9.5px; color: #fff; text-shadow: 0 1px 2px #000; }
+.car-card .car-name { font-weight: 800; font-size: 14px; }
+.car-price b { font-size: 15px; color: #9ff0bb; font-variant-numeric: tabular-nums; }
+.car-price small { color: var(--muted); font-size: 11px; }
+.car-stats { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11.5px; color: #dfe6ee; margin: 2px 0; }
+.car-desc { font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.car-colors { display: flex; gap: 6px; margin-top: 5px; }
+.car-colors button { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .3); cursor: pointer; padding: 0; }
+.car-colors button.on { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.car-buy { border: 0; border-radius: 9px; padding: 9px 12px; background: #2f6b3a; color: #fff; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.car-buy:disabled { opacity: .45; cursor: default; }
+.dealer-sub { font-weight: 800; margin: 6px 0 4px; }
+.dealer-mine { display: grid; gap: 4px; margin-bottom: 8px; font-size: 12.5px; }
+.mine-row { display: flex; align-items: center; gap: 8px; }
+.mine-row i { width: 12px; height: 12px; border-radius: 50%; flex: none; border: 1px solid rgba(255, 255, 255, .4); }
+
+/* Telefon içinde: açık tema (telefon ekranı beyaz), tek sütun, sıkı */
+.dealer.in-phone { color: #1b1f24; }
+.dealer.in-phone .car-card { background: #f3f5f8; border-color: #e1e5ea; }
+.dealer.in-phone .car-stats { color: #39424d; }
+.dealer.in-phone .car-price b { color: #1f7a45; }
+.dealer.in-phone .car-price small, .dealer.in-phone .dealer-count, .dealer.in-phone .car-desc { color: #5d6773; }
+.dealer.in-phone .dealer-src button { color: #1b1f24; background: #f3f5f8; border-color: #d5dae0; }
+.dealer.in-phone .dealer-src button.on { background: #ffe2cc; border-color: var(--accent); }
+.dealer.in-phone .dealer-msg { color: #a35a00; }
+.dealer.in-phone .car-colors button { border-color: #c9ced5; }
+.dealer.in-phone .car-colors button.on { border-color: #1b1f24; }
+.dealer.in-phone .car-card { grid-template-columns: 64px 1fr; padding: 7px; }
+.dealer.in-phone .car-art { height: 40px; }
+.dealer.in-phone .car-buy { grid-column: 1 / -1; width: 100%; }
+.dealer.in-phone .car-desc { display: none; }
+.dealer.in-phone .dealer-src button { flex-basis: 100%; }
+
+@media (max-width: 560px) {
+  .car-card { grid-template-columns: 70px 1fr; }
+  .car-art { height: 44px; }
+  .car-buy { grid-column: 1 / -1; width: 100%; }
+  #drag-hud { width: 200px; top: calc(118px + var(--safe-t)); font-size: 12px; }
+}
+@media (max-height: 460px) {
+  /* Yatay telefon: panel sağ üstte oda listesinin solunda, gösterge küçük */
+  #drag-hud { top: calc(8px + var(--safe-t)); right: calc(170px + var(--safe-r)); width: 210px; max-height: calc(100vh - 150px); overflow-y: auto; font-size: 11.5px; }
+  .drag-grid { font-size: 11px; }
+  #drag-result > b { font-size: 13px; }
+  #car-speed { font-size: 28px; }
+  #car-hud { padding: 4px 10px 6px; min-width: 180px; }
+  body.touch #car-hud { bottom: calc(10px + var(--safe-b)); }
+  .car-card .car-desc { display: none; }
+}

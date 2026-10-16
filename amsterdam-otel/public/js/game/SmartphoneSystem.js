@@ -19,7 +19,8 @@ const SWIPE_PX = 40; // ana çubukta yukarı kaydırma eşiği
  *    640×360'a küçültülür → JPEG (~0.7, hedef ≤ 60 KB; büyükse kalite düşürülür). Beyaz flaş + WebAudio
  *    deklanşör sesi. Fotoğrafın konusu oyuncunun durduğu yerden bulunur (layout.areaAt).
  *  - Galeri: en fazla 12 fotoğraf, yalnızca bu tarayıcıda (localStorage, try/catch; yer yoksa bellekte).
- *  - Uygulamalar: 📷 Kamera, 🖼️ Galeri, 📸 InstaHotel (InstaHotelMarketing.js), 🏨 Otel (salt okunur).
+ *  - Uygulamalar: 📷 Kamera, 🖼️ Galeri, 📸 InstaHotel (InstaHotelMarketing.js), 🏨 Otel (salt okunur),
+ *    🚗 AutoGalerie (UndergroundGarage.js, registerApp ile; araba kataloğu ve satın alma).
  *  - Saat çubuğu yalnızca telefon açıkken saniyede bir güncellenir; kapalıyken hiçbir zamanlayıcı yok.
  */
 export class SmartphoneSystem {

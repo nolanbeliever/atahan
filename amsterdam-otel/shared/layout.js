@@ -38,7 +38,7 @@ export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 190, minZ: -460, ma
 export const GARAGE = Object.freeze({
   bounds: { minX: 60, maxX: 100, minZ: -30, maxZ: 10 },
   spawn: [64, 6], // ışınlanma / rampadan inişte oyuncunun belirdiği yer (kuzeye değil, garaja bakar)
-  yaw: Math.PI,
+  yaw: 0, // güneye, park sıralarına bakar (asansör kapısı arkada)
 });
 
 // Şehir kenarındaki drag pisti ve sürüş alanı (bkz. DragRaceTrack)

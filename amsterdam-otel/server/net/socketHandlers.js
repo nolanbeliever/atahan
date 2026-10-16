@@ -217,6 +217,19 @@ export function attachSocketHandlers(io, sim) {
       reply(ack, sim.teleportAct(player.id, data));
     });
 
+    // ---- Yeraltı garajı + AutoGalerie (satın alma, rampa / tünel geçitleri) ve drag pisti ----
+    // Tipler, aralıklar, konum ve bakiye GarageService / DragRaceService'te doğrulanır (çevirme yok).
+    const allowCar = rateLimiter(4, 8);
+    on(EVT.CAR_ACT, (data, ack) => {
+      if (!player || !allowCar()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.carAct(player.id, data));
+    });
+    const allowDrag = rateLimiter(4, 8);
+    on(EVT.DRAG_ACT, (data, ack) => {
+      if (!player || !allowDrag()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.dragAct(player.id, data));
+    });
+
     on('disconnect', () => {
       if (player) {
         sockets.delete(player.id);
