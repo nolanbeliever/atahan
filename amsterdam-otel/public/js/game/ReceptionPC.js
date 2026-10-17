@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { EVT, ROOM_STATUS, formatMoney, roomFloor } from '/shared/constants.js';
 import { RECEPTION_PC, ELEVATOR, ROOF_FLOOR, floorAt } from '/shared/layout.js';
-import { FLOOR_UPGRADES, MAX_FLOOR, STAR_THRESHOLDS, INSPECTION } from '/shared/hotel.js';
+import { FLOOR_UPGRADES, MAX_FLOOR, STAR_THRESHOLDS } from '/shared/hotel.js';
 import { makePanel } from '../world/Props.js';
 
 /** Hedef oyuncunun önünde mi (mesafe + bakış açısı) */
@@ -42,7 +42,7 @@ function drawStars(ctx, w, h, stars) {
 
 /**
  * Resepsiyon bilgisayarı + asansör.
- *  - Resepsiyon masasındaki monitörde E → panel: Genel (yıldız, itibar, kasa, odalar, denetim),
+ *  - Resepsiyon masasındaki monitörde E → panel: Genel (yıldız, itibar, kasa, odalar),
  *    Yükseltmeler (kasa parasıyla üst kat), Çalışanlar (temizlikçi al / çıkar — HotelWorkerSystem çizer).
  *  - Lobideki ve her katın sahanlığındaki asansör kapısında E → kat seçimi; sunucu konumu
  *    doğrulayıp oyuncuyu kata ışınlar (kısa kararma geçişi).
@@ -61,10 +61,10 @@ export class ReceptionPC {
     this.sfx = sfx;
     this.state = state;
     this.workers = workers; // HotelWorkerSystem (Çalışanlar sekmesi)
-    this.hotel = { growth: { reputation: 0, stars: 1, next: STAR_THRESHOLDS[1], floors: 1, plaques: 0 }, workers: [], inspection: { active: null } };
+    this.hotel = { growth: { reputation: 0, stars: 1, next: STAR_THRESHOLDS[1], floors: 1 }, workers: [] };
     this.tab = 'overview';
     this.busy = false;
-    this.onChange = []; // durum değişince haber verilecekler (denetim, işçi sistemi)
+    this.onChange = []; // durum değişince haber verilecekler (işçi sistemi)
 
     const $ = (id) => document.getElementById(id);
     this.el = {
@@ -211,30 +211,10 @@ export class ReceptionPC {
       stat('Kat / oda', `${g.floors} kat · ${rooms.length} oda`),
       stat('Boş · Dolu · Kirli', `${count(ROOM_STATUS.EMPTY)} · ${count(ROOM_STATUS.OCCUPIED)} · ${count(ROOM_STATUS.DIRTY)}`),
       stat('Temizlikçi', `${this.hotel.workers.length}`),
-      stat('Onay plaketi', g.plaques ? `🏅 × ${g.plaques}` : '—'),
       stat('Bugün', formatMoney(this.state.economy?.today?.earned ?? 0)),
     );
 
-    const insp = el('div', 'pc-insp');
-    const ins = this.hotel.inspection;
-    insp.append(el('b', null, '🏛️ Belediye denetimi'));
-    let info;
-    if (ins.active) info = 'Denetim sürüyor! Ekranın üstündeki listeye bak.';
-    else if (g.stars < INSPECTION.MIN_STARS) info = `Otel ${INSPECTION.MIN_STARS}★ olunca müfettiş hafta içi habersiz gelebilir.`;
-    else if (ins.doneToday) info = 'Bugün denetlendiniz.';
-    else info = `Müfettiş hafta içi habersiz gelebilir; hazırsan şimdi çağır. Başarı: ödül + plaket. Başarısızlık: €${INSPECTION.FINE} ceza, bir yıldız kaybı.`;
-    insp.append(el('div', 'pc-small', info));
-    if (ins.last) insp.append(el('div', `pc-small ${ins.last.pass ? 'ok' : 'bad'}`, ins.last.pass ? 'Son denetim: ✅ başarılı' : 'Son denetim: ❌ başarısız'));
-    if (!ins.active && g.stars >= INSPECTION.MIN_STARS && !ins.doneToday) {
-      const btn = el('button', 'pc-btn', '🏛️ Müfettişi çağır');
-      btn.type = 'button';
-      btn.addEventListener('click', async () => {
-        const res = await this.act({ act: 'inspect' }, 'Müfettiş yolda!');
-        if (res?.ok) this.modal.close(this.el.panel);
-      });
-      insp.append(btn);
-    }
-    body.append(stars, bar, repText, grid, insp);
+    body.append(stars, bar, repText, grid);
   }
 
   renderUpgrades(body) {

@@ -4,12 +4,11 @@ import { pathLength, samplePath } from '/shared/path.js';
 import { makeCharacter } from './Characters.js';
 import { makeLabel } from './RemotePlayers.js';
 
-// Otel personeli / müfettiş görünümü (misafirlerle aynı ağ biçimi, kind ile ayrılır)
+// Otel personeli görünümü (misafirlerle aynı ağ biçimi, kind ile ayrılır)
 const KIND_OPTS = {
   worker: { color: '#2b6d8a', staff: true, bag: false },
-  inspector: { color: '#2c2f38' },
 };
-const LABEL_COLOR = { worker: '#3ecf6e', inspector: '#e9a826' };
+const LABEL_COLOR = { worker: '#3ecf6e' };
 
 // Turist (InstaHotel kampanyası kafilesi): sırt çantası, boyunda fotoğraf makinesi, renkli güneş şapkası.
 // Geometri / malzemeler tüm turistlerde paylaşılır (ilk turistte bir kez üretilir).
@@ -84,7 +83,7 @@ export class GuestView {
       it = { obj, data: null, len: 0, label: null, labelText: null };
       this.items.set(data.id, it);
     }
-    // İsim etiketi (temizlikçi "🧹 Fatma · Sv.2", müfettiş): yalnızca metin değişince yeniden çizilir
+    // İsim etiketi (temizlikçi "🧹 Fatma · Sv.2"): yalnızca metin değişince yeniden çizilir
     if ((data.label ?? null) !== it.labelText) {
       this.dropLabel(it);
       it.labelText = data.label ?? null;

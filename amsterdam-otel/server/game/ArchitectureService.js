@@ -11,7 +11,7 @@ import { WORKER_RULES } from '../../shared/hotel.js';
  *  - Satın alma: sıradaki paket, oyuncu PC'nin başında, kasada yeterli para, yeterli yıldız ve kat.
  *    "Lüks Otel" (€50.000): 4 kat açık + 4★ → 8 kat, lounge barlar, 15 temizlikçi.
  *    "Ultra Lüks Gökdelen" (€100.000): Lüks Otel + 5★ → 12 kat, çatı Aqua Park, VIP suitleri, 30 temizlikçi.
- *    Açık kat sayısı HotelGrowthService.floors'a yazılır (asansör, misafir, temizlikçi, denetim aynı alanı okur).
+ *    Açık kat sayısı HotelGrowthService.floors'a yazılır (asansör, misafir, temizlikçi aynı alanı okur).
  *  - Lounge barlar (alkolsüz): açıkken (10:00–23:00) her oyun saati kasaya küçük bir pasif gelir yazar;
  *    birikir ve 3 saatte bir tek ECONOMY bildirimiyle ödenir (shared/architecture.js LOUNGE_RULES).
  *  - VIP misafir: Gökdelen varken ve boş VIP suiti varken yeni misafir %35 olasılıkla VIP gelir (GuestManager).

@@ -3,16 +3,14 @@ import {
   ELEVATOR, RECEPTION_PC, FLOOR_DZ, TOP_FLOOR, ROOF_FLOOR,
 } from '../../shared/layout.js';
 import {
-  REPUTATION, FLOOR_UPGRADES, MAX_FLOOR, STAR_THRESHOLDS, starsFor, reputationAfterStarLoss,
+  REPUTATION, FLOOR_UPGRADES, MAX_FLOOR, STAR_THRESHOLDS, starsFor,
 } from '../../shared/hotel.js';
 
 const UPGRADE_BY_FLOOR = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(FLOOR_UPGRADES.map((u) => [u.floor, u]))));
 
 /**
- * Otelin büyümesi: itibar → yıldız, kasa parasıyla açılan üst katlar, asansör ve
- * belediye onay plaketleri. Hepsi kalıcı (HotelSimulation.hotelState içinde `growth`).
- *  - İtibar: temizlenen oda +2, yerleşen misafir +1, odasız kalan misafir −2,
- *    denetim başarılı +20 / başarısız → bir yıldız düşer.
+ * Otelin büyümesi: itibar → yıldız, kasa parasıyla açılan üst katlar ve asansör. Hepsi kalıcı (HotelSimulation.hotelState içinde `growth`).
+ *  - İtibar: temizlenen oda +2, yerleşen misafir +1, odasız kalan misafir −2.
  *  - Kat satın alma: sıradaki kat, yeterli yıldız + kasa; oyuncu resepsiyon bilgisayarının başında.
  *  - Asansör: oyuncu bir asansör kapısının önündeyse açık bir kata ışınlanır (konum sunucuda yazılır).
  *  - Lüks paketler (ArchitectureService) `floors`'u 8 / 12'ye çıkarır; Gökdelen'de asansörün "Çatı" durağı
@@ -23,7 +21,6 @@ export class HotelGrowthService {
     this.sim = sim;
     this.reputation = 0;
     this.floors = 1;
-    this.plaques = 0;
   }
 
   get stars() { return starsFor(this.reputation); }
@@ -36,11 +33,10 @@ export class HotelGrowthService {
     // Kat satın almayla en fazla 4; lüks paket (önce yüklenir) sınırı 8 / 12'ye çıkarır
     const max = Math.max(MAX_FLOOR, this.sim.arch?.maxFloor ?? MAX_FLOOR);
     if (Number.isInteger(g.floors)) this.floors = Math.min(Math.max(g.floors, 1), max);
-    if (Number.isInteger(g.plaques)) this.plaques = Math.min(Math.max(g.plaques, 0), 999);
   }
 
   persisted() {
-    return { reputation: this.reputation, floors: this.floors, plaques: this.plaques };
+    return { reputation: this.reputation, floors: this.floors };
   }
 
   serialize() {
@@ -50,7 +46,6 @@ export class HotelGrowthService {
       stars,
       next: STAR_THRESHOLDS[stars] ?? null, // sonraki yıldızın eşiği (5★'de null)
       floors: this.floors,
-      plaques: this.plaques,
     };
   }
 
@@ -63,14 +58,6 @@ export class HotelGrowthService {
     if (after > before) this.sim.notify(`⭐ Otelin itibarı yükseldi: artık ${'★'.repeat(after)} (${after} yıldız)! Oda ücretleri arttı.`, 'day');
     else if (after < before) this.sim.notify(`Otel bir yıldız kaybetti: ${'★'.repeat(after)}`, 'warn');
     this.sim.hotelChanged();
-  }
-
-  /** Denetimde başarısızlık: bir yıldız düşer */
-  loseStar() {
-    const before = this.stars;
-    this.reputation = reputationAfterStarLoss(this.reputation);
-    this.sim.hotelChanged();
-    return before - this.stars;
   }
 
   // ---- Resepsiyon PC: kat satın alma --------------------------------------------

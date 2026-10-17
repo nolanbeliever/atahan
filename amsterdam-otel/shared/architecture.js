@@ -90,6 +90,3 @@ export function loungeOccupancy(occupied, open) {
 export function loungeHourly(lounges, occupancy, barBoost = 1) {
   return lounges * LOUNGE_RULES.BASE * occupancy * Math.max(1, barBoost);
 }
-
-/** Denetimde kontrol edilecek tüp sayısı: 2 + kat başına 1, en fazla 6 (12 katta 90 sn'ye sığsın) */
-export const INSPECTION_EXT_MAX = 6;

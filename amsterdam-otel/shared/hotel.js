@@ -1,8 +1,8 @@
-// Otelin büyümesi: yıldız / itibar, ek katlar, çalışanlar ve belediye denetimi.
+// Otelin büyümesi: yıldız / itibar, ek katlar ve çalışanlar.
 // Sunucu (kurallar, doğrulama) ve istemci (Resepsiyon PC paneli, HUD) aynı tabloları kullanır.
 
 // ---- Yıldız / itibar ------------------------------------------------------------
-// İtibar puanı temizlenen odalar, yerleşen misafirler ve denetim sonuçlarıyla değişir.
+// İtibar puanı temizlenen odalar, ve yerleşen / odasız kalan misafirlerle değişir.
 // Yıldız = itibarın geçtiği en yüksek eşik (1★ … 5★).
 export const STAR_THRESHOLDS = Object.freeze([0, 40, 120, 250, 450]);
 export const MAX_STARS = STAR_THRESHOLDS.length;
@@ -11,7 +11,6 @@ export const REPUTATION = Object.freeze({
   ROOM_CLEANED: 2, // oda tamamen temizlendi (oyuncu ya da temizlikçi)
   GUEST_CHECKIN: 1, // misafir odasına yerleşti
   GUEST_LOST: -2, // boş oda bulamayan misafir gitti
-  INSPECTION_PASS: 20,
   MAX: 2000,
 });
 
@@ -20,15 +19,6 @@ export function starsFor(reputation) {
   let s = 1;
   for (let i = 1; i < STAR_THRESHOLDS.length; i++) if (reputation >= STAR_THRESHOLDS[i]) s = i + 1;
   return s;
-}
-
-/** Bir yıldız kaybettiren itibar: önceki yıldız seviyesinin ortası (1★'de 0) */
-export function reputationAfterStarLoss(reputation) {
-  const s = starsFor(reputation);
-  if (s <= 1) return 0;
-  const lo = STAR_THRESHOLDS[s - 2];
-  const hi = STAR_THRESHOLDS[s - 1];
-  return Math.floor((lo + hi) / 2);
 }
 
 /** Yıldıza göre oda ücreti: her yıldız +€15 */
@@ -79,31 +69,4 @@ export function workerTaskMs(stars, level) {
 
 export function workerLevel(tasks) {
   return Math.min(WORKER_RULES.MAX_LEVEL, 1 + Math.floor(tasks / WORKER_RULES.TASKS_PER_LEVEL));
-}
-
-// ---- Belediye denetimi --------------------------------------------------------------
-export const INSPECTION = Object.freeze({
-  MIN_STARS: 2, // 2★'den itibaren müfettiş gelebilir
-  COUNTDOWN_MS: 90_000,
-  FROM_MIN: 10 * 60, // hafta içi 10:00–17:00 arasında gelir
-  TO_MIN: 17 * 60,
-  FINE: 300, // başarısız: kasadan
-  REWARD: 150, // başarılı: kasaya (+ yıldız başına €25)
-  REWARD_PER_STAR: 25,
-  CHECK_MS: 1500, // yangın tüpü basınç kontrolü (basılı tut)
-  MOP_MS: 2000, // bar zeminindeki dökülen şurubu sil
-  RANGE: 1.6,
-});
-
-/** Denetim kontrol maddeleri (panel ve sonuç raporu) */
-export const INSPECTION_CHECKS = Object.freeze([
-  { id: 'rooms', label: 'Odalar temiz', icon: '🛏️' },
-  { id: 'extinguishers', label: 'Yangın tüpleri kontrol edildi', icon: '🧯' },
-  { id: 'bar', label: 'Bar hijyeni (kirli bardak yok, zemin temiz)', icon: '🍹' },
-]);
-
-/** Günün denetim olasılığı: yıldız ve kat arttıkça artar */
-export function inspectionChance(stars, floors) {
-  if (stars < INSPECTION.MIN_STARS) return 0;
-  return Math.min(0.85, 0.3 + 0.12 * (stars - 2) + 0.1 * (floors - 1));
 }

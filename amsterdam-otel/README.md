@@ -97,13 +97,13 @@ Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir
 - **Bahşiş:** odayı bitiren görevli misafirin bıraktığı **€4–12** bahşişi kişisel **cüzdanına** alır (otel kasasından ayrı; başlangıç cüzdanı €30).
 - **Zaman:** Pazartesi–Cuma otel açık (misafir kabulü 08:00–19:00). **Cumartesi–Pazar otel kapalı:** giriş kapısı kapanır, tabela "KAPALI · Gesloten" olur, yeni misafir gelmez, zaman 2 kat hızlı akar. Konaklamalar gece de sürer; gece yarısını aşanlar gece ya da ertesi sabah çıkış yapar (Cumartesi sabahı son misafirler ayrılır → hafta sonu temizlik zamanı). 23:00'te otel kapanır (bkz. Gece döngüsü). Her gün sonunda günlük özet bildirimi gelir.
 
-## Otelin büyümesi — yıldızlar, üst katlar, çalışanlar, belediye denetimi
+## Otelin büyümesi — yıldızlar, üst katlar, çalışanlar
 
 - **Yıldız / itibar (1★–5★).** Temizlenen oda **+2**, odasına yerleşen misafir **+1**, boş oda bulamayıp giden misafir **−2**
   itibar. Eşikler 0 / 40 / 120 / 250 / 450. Her yıldız oda ücretini **+€15** artırır (1★ €95 … 5★ €155). Yıldızlar
   sol üstteki panelde ve otelin cephesinde (HOTEL tabelasının sağında) görünür.
 - **💻 Resepsiyon bilgisayarı** (resepsiyon masasının kuzey ucundaki monitör, **E**): **Genel** (yıldız, itibar çubuğu,
-  kasa, oda durumu, plaketler, denetim), **🏗️ Yükseltmeler** ve **🧹 Çalışanlar** sekmeleri.
+  kasa, oda durumu), **🏗️ Yükseltmeler** ve **🧹 Çalışanlar** sekmeleri.
 - **Üst katlar:** kasa parasıyla **2. kat €1.500 (2★)**, **3. kat €3.500 (3★)**, **4. kat €7.000 (4★)** — sırayla. Her kat
   4 oda ekler (201–204, 301–304, 401–404) ve misafirleri daha sık getirir. Lobinin kuzey duvarındaki (resepsiyonun
   karşısı) **🛗 asansörle** katlar arasında gidilir; misafirler ve temizlikçiler de asansörü kullanır. Oda panosu
@@ -112,15 +112,9 @@ Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir
   bulur, yatağı düzeltir, çöpleri toplar, arızaları giderir. Bir iş **1★'de 10 sn → 5★'de 2 sn**; her 12 işte bir
   **seviye** atlar (seviye başına %6 daha hızlı). Odada bulduğu bahşiş ve tamirat teşekkürü **otelin kasasına** gider.
   Başında isim etiketi (🧹 Fatma · Sv.2), elinde kova ve paspas vardır; gece lobiye döner.
-- **🏛️ Belediye denetimi (HotelInspectionSystem):** otel **2★** olunca hafta içi 10:00–17:00 arasında habersiz bir müfettiş
-  gelebilir (yıldız ve kat arttıkça daha sık; günde en fazla bir kez) — Resepsiyon PC'den de çağrılabilir. Müfettiş
-  resepsiyona varınca **90 sn** geri sayım başlar; ekranın üstündeki liste canlı güncellenir:
-  - **Odalar:** açık katlarda kirli oda kalmamalı.
-  - **Yangın tüpleri:** göstergesi **kırmızı** yanan tüplerin (en az 2; her ek kat +1) önünde **E** → 1.5 sn basınç kontrolü.
-  - **Bar hijyeni:** tezgâhta kirli bardak kalmamalı ve bar zeminine dökülen çilek şurubu **E** ile silinmeli (2 sn).
-  - Başarılı → kasaya **€150 + yıldız başına €25**, **+20 itibar** ve lobinin batı duvarına bir **Belediye Onay Plaketi**.
-    Başarısız → kasadan **€300 ceza** ve otel **bir yıldız kaybeder**.
-- Hepsi kalıcıdır (itibar, katlar, plaketler, temizlikçiler ve seviyeleri, günün denetimi).
+- **Kesintisiz yönetim:** müfettiş / zabıta denetimi, ceza ya da yıldız düşürme yoktur; itibar yalnızca odalar ve
+  misafirlerle değişir, otel kendi akışında büyür.
+- Hepsi kalıcıdır (itibar, katlar, temizlikçiler ve seviyeleri).
 
 ### Lüks paketler — 8 katlı lüks otel, 12 katlı gökdelen, çatı Aqua Park, VIP suitleri
 
@@ -151,7 +145,6 @@ anında geçerlidir ve kalıcıdır (`hotelState().arch = { level }`, yayın `HO
   Yalnızca **1201–1204** suitlerine yerleşir, **€300** öder, **+3 itibar** verir; konaklamasının ortasında çatıdaki VIP
   şezlonguna çıkar ve çıkışı oradan yapar. Normal misafirler 12. kata asla yerleşmez. VIP suitleri: altın direkli
   cibinlikli geniş yatak, jakuzi, altın tavan silmesi.
-- **Denetim:** yeni katların yangın tüpleri yalnızca kat açıkken sayılır; kontrol edilecek tüp en fazla 6.
 - **Arayüz:** asansör paneli 12 kat + çatıyı kaydırılabilir üç sütunlu ızgarada gösterir; 5+ katta oda panosu kat başına
   yalnızca renkli noktalara (●●●○) iner.
 - **Pil:** 5–12. katlar ve çatı ilk ziyarette (asansör kararmasının arkasında) kurulur; her bölüm tek StaticBatcher ve
@@ -605,12 +598,11 @@ amsterdam-otel/
 │       ├── GameClock.js         # Gün döngüsü: hafta içi açık / hafta sonu kapalı, gece (23:00–07:00)
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
 │       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları (üst kata asansörle iki bacak), turist kafilesi + resepsiyon kuyruğu
-│       ├── HotelGrowthService.js # İtibar / yıldız, kat satın alma, asansör (12 kat + çatı), plaketler
+│       ├── HotelGrowthService.js # İtibar / yıldız, kat satın alma, asansör (12 kat + çatı)
 │       ├── ArchitectureService.js # Lüks paketler: satın alma, 8/12 kat, lounge geliri, VIP olasılığı, personel odası
 │       ├── BoostService.js      # Geçici bonuslar (konser kalabalığı, reklam): bar / misafir sıklığı, bahşiş
 │       ├── TeleportService.js   # Hızlı ışınlanma: hedefler, doğrulama, bekleme
 │       ├── WorkerService.js     # Temizlikçi NPC'ler: iş seçimi, süreli işler, seviye, bahşiş kasaya
-│       ├── InspectionService.js # Belediye denetimi: planlama, geri sayım, tüp / şurup kontrolü, sonuç
 │       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
 │       ├── MarketingService.js  # InstaHotel: gönderi doğrulama, beğeni / takipçi artışı, kampanya → turist akını (boost)
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
@@ -628,7 +620,7 @@ amsterdam-otel/
 │   ├── cars.js                  # AutoGalerie kataloğu, araba fiziği, garaj / sokak rampası / drag pisti yerleşimi, geçitler, hız sınırları
 │   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
-│   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri, denetim kuralları
+│   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri
 │   ├── architecture.js          # Lüks paketler (fiyat, koşul, kat / temizlikçi sınırı), VIP suit kuralları, lounge geliri
 │   ├── stage.js                 # Canlı müzik sahnesi: yer, gruplar (ücret, kalabalık, bonus), set takvimi, kalabalık noktaları
 │   ├── marketing.js             # InstaHotel: bütçeler, fotoğraf / açıklama doğrulama, konum etiketleri, turist kafilesi + kuyruk
@@ -658,7 +650,6 @@ amsterdam-otel/
 │       │   ├── HotelMaintenanceSystem.js # Arıza görselleri ve 4 mini oyun (leke, ampul, musluk, sigorta)
 │       │   ├── ReceptionPC.js       # Resepsiyon bilgisayarı paneli, asansör, yıldız tabelası, kat filtresi
 │       │   ├── HotelWorkerSystem.js # Temizlikçi görünümü (kova/paspas) ve Çalışanlar sekmesi
-│       │   ├── HotelInspectionSystem.js # Denetim bandı, yangın tüpleri, şurup lekesi, plaketler
 │       │   ├── HotelArchitectureUpgrades.js # Lüks paketler: PC kartları, doku değişimi, cephe, tembel kat / çatı inşası (world/LuxuryBuilding.js, LuxuryTextures.js)
 │       │   ├── LiveStageSystem.js   # Canlı müzik sahnesi: alan / sahne, müzisyenler ve animasyonları, panel, PC satırı
 │       │   ├── StageMusic.js        # Prosedürel sahne müziği (WebAudio): gitar, DJ, caz; PannerNode ile 3D, set senkronu
@@ -681,7 +672,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi, denetim), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti
 ```
 
 ## Sonraki aşamalar için notlar

@@ -28,7 +28,6 @@ import { HotelMaintenanceSystem } from './game/HotelMaintenanceSystem.js';
 import { ChatSystem } from './game/ChatSystem.js';
 import { ReceptionPC } from './game/ReceptionPC.js';
 import { HotelWorkerSystem } from './game/HotelWorkerSystem.js';
-import { HotelInspectionSystem } from './game/HotelInspectionSystem.js';
 import { UndergroundCasino } from './game/UndergroundCasino.js';
 import { BarSystem } from './game/BarSystem.js';
 import { RecipeBook } from './game/RecipeBook.js';
@@ -202,7 +201,7 @@ const maint = new HotelMaintenanceSystem({
 });
 // Oyuncular arası sohbet (Enter / 💬) ve konuşma balonları
 const chat = new ChatSystem({ engine, net, hud, input, remotes, device, settings, sfx });
-// Otelin büyümesi: Resepsiyon PC (yıldız, kat, çalışan), asansör, temizlikçiler, belediye denetimi
+// Otelin büyümesi: Resepsiyon PC (yıldız, kat, çalışan), asansör, temizlikçiler
 const workers = new HotelWorkerSystem({ guests, hud });
 const reception = new ReceptionPC({
   engine, net, hud, interaction, player, modal, device, sfx, state, workers,
@@ -215,9 +214,6 @@ const stage = new LiveStageSystem({
 });
 reception.stage = stage;
 const street = new StreetEvents({ guests, world, player, camera: engine.camera, stage, settings });
-const inspection = new HotelInspectionSystem({
-  engine, net, hud, interaction, state, bar, reception,
-});
 // Akıllı telefon (P / 📱): kamera + galeri, InstaHotel reklam kampanyaları (turist akını), otel özeti
 const phone = new SmartphoneSystem({
   engine, input, player, modal, device, settings, sfx, state, net, hud, house, reception, touch,
@@ -519,7 +515,6 @@ net.on(EVT.ROOMS, (rooms) => {
   world.applyRooms(rooms);
   hud.setRooms(state.rooms);
   reception.refresh();
-  inspection.refresh();
   interaction.invalidate();
   engine.wake();
 });
@@ -545,7 +540,6 @@ net.on(EVT.BOOSTS, (list) => {
 // InstaHotel: yeni gönderi (fotoğrafıyla) ve sayaçlar (beğeni / takipçi)
 net.on(EVT.INSTA_FEED, (f) => insta.onFeed(f));
 net.on(EVT.INSTA_STATS, (s) => insta.onStats(s));
-net.on(EVT.INSPECTION_RESULT, (r) => inspection.onResult(r));
 net.on(EVT.STAGE_STATE, (s) => stage.onState(s));
 
 net.on(EVT.GUEST_UPSERT, (g) => {
@@ -625,10 +619,7 @@ net.on(EVT.CASINO_STATE, (s) => casino.onState(s));
 net.on(EVT.CASINO_PRIVATE, (p) => casino.onPrivate(p));
 
 // Bar De Tulp
-net.on(EVT.BAR_STATE, (s) => {
-  bar.onState(s);
-  inspection.refresh();
-});
+net.on(EVT.BAR_STATE, (s) => bar.onState(s));
 net.on(EVT.PLAYER_BAR, (b) => {
   if (b.id !== state.selfId) bar.onRemoteBar(b.id, b);
 });
@@ -680,5 +671,5 @@ navigator.getBattery?.().then((battery) => {
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
-  reception, workers, inspection, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch, garage, drag,
+  reception, workers, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch, garage, drag,
 };

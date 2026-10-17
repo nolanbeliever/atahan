@@ -19,7 +19,6 @@ import { BoostService } from './BoostService.js';
 import { CounterfeitService } from '../house/CounterfeitService.js';
 import { TeleportService } from './TeleportService.js';
 import { WorkerService } from './WorkerService.js';
-import { InspectionService } from './InspectionService.js';
 import { REPUTATION } from '../../shared/hotel.js';
 import { ExteriorService } from '../house/ExteriorService.js';
 import { CasinoService } from './CasinoService.js';
@@ -91,7 +90,6 @@ export class HotelSimulation extends EventEmitter {
     this.growth = new HotelGrowthService(this); // yıldız / itibar, üst katlar, asansör
     this.arch = new ArchitectureService(this); // lüks paketler: 8 / 12 kat, lounge barlar, çatı, VIP suitleri
     this.workers = new WorkerService(this); // temizlikçi NPC'ler
-    this.inspection = new InspectionService(this); // belediye denetimi
     this.exterior = new ExteriorService(this); // ev dış cepheleri (kayıt: this.house.exteriorData)
     this.casino = new CasinoService(this); // Yeraltı Kart Kulübü
     this.stage = new StageService(this); // Achterstraat canlı müzik sahnesi + kalabalık
@@ -146,10 +144,10 @@ export class HotelSimulation extends EventEmitter {
     this.house.scheduleSave();
   }
 
-  /** Otelin büyüme durumu (Resepsiyon PC, HUD yıldızları, denetim bandı) */
+  /** Otelin büyüme durumu (Resepsiyon PC, HUD yıldızları) */
   hotelPublic() {
     return {
-      growth: this.growth.serialize(), workers: this.workers.serialize(), inspection: this.inspection.serialize(), arch: this.arch.serialize(),
+      growth: this.growth.serialize(), workers: this.workers.serialize(), arch: this.arch.serialize(),
     };
   }
 
@@ -164,7 +162,6 @@ export class HotelSimulation extends EventEmitter {
       minute: Math.round(this.clock.minute),
       growth: this.growth.persisted(),
       workers: this.workers.persisted(),
-      inspection: this.inspection.persisted(),
       boosts: this.boosts.persisted(),
       stage: this.stage.persisted(),
       insta: this.marketing.persisted(),
@@ -182,7 +179,6 @@ export class HotelSimulation extends EventEmitter {
     this.growth.restore(h.growth);
     if (this.arch.level) this.growth.floors = Math.max(this.growth.floors, this.arch.maxFloor);
     this.workers.restore(h.workers);
-    this.inspection.restore(h.inspection);
     this.boosts.restore(h.boosts);
     this.counterfeit.restore(h.counterfeit);
     this.stage.restore(h.stage);
@@ -219,7 +215,6 @@ export class HotelSimulation extends EventEmitter {
       this.guests.shiftTime(now - this.pausedAt);
       this.bar.shiftTime(now - this.pausedAt);
       this.workers.shiftTime(now - this.pausedAt);
-      this.inspection.shiftTime(now - this.pausedAt);
       this.stage.shiftTime(now - this.pausedAt);
       this.pausedAt = null;
     }
@@ -261,7 +256,6 @@ export class HotelSimulation extends EventEmitter {
     this.guests.update(now);
     this.workers.update(now);
     this.arch.update(now);
-    this.inspection.update(now);
     this.shop.update(now);
     this.bar.update(now);
     this.casino.update(now);
@@ -295,7 +289,6 @@ export class HotelSimulation extends EventEmitter {
     if (slept) text = `☀️ Günaydın! Herkes uyudu, sabah oldu. ${text}`;
     this.notify(text, 'day');
     this.relations.onNewDay();
-    this.inspection.onNewDay();
     this.out(EVT.ECONOMY, this.economy());
     this.broadcastClock(now);
     this.house.scheduleSave(); // yeni gün kayda geçsin
@@ -355,7 +348,6 @@ export class HotelSimulation extends EventEmitter {
     const p = this.players.get(id);
     if (!p) return;
     this.bar.removePlayer(p); // elindeki bardaklar rafa döner
-    this.inspection.removePlayer(p);
     this.counterfeit.removePlayer(p); // saklanma biter; sahibi çıkarsa süren baskı iptal
     this.casino.removePlayer(p); // masadan kalkar: fişleri bozdurulur (cüzdan kaydından önce)
     this.relations.removePlayer(p); // evdeki misafiri gider
@@ -592,7 +584,7 @@ export class HotelSimulation extends EventEmitter {
 
   teleportAct(playerId, data) { return this.withPlayer(playerId, (p) => this.teleport.go(p, data, this.now())); }
 
-  // ---- Otelin büyümesi: Resepsiyon PC, asansör, denetim ------------------------------
+  // ---- Otelin büyümesi: Resepsiyon PC, asansör ------------------------------
 
   hotelAct(playerId, data) {
     return this.withPlayer(playerId, (p) => {
@@ -602,9 +594,6 @@ export class HotelSimulation extends EventEmitter {
         case 'elevator': return this.growth.elevator(p, data);
         case 'hire': return this.workers.hire(p);
         case 'fire': return this.workers.fire(p, data);
-        case 'inspect': return this.inspection.request(p);
-        case 'check':
-        case 'mop': return this.inspection.act(p, data, this.now());
         default: return { ok: false, error: 'Geçersiz işlem.' };
       }
     });
@@ -705,7 +694,7 @@ export class HotelSimulation extends EventEmitter {
       rooms: this.rooms.serialize(),
       guests: [
         ...this.guests.serialize(), ...this.bar.serializeCustomers(), ...this.workers.serializeWires(),
-        ...[this.inspection.inspectorWire()].filter(Boolean), ...this.stage.serializeWires(),
+        ...this.stage.serializeWires(),
       ],
       players: [...this.players.values()].map((p) => this.publicPlayer(p)),
       economy: this.economy(),

@@ -109,10 +109,9 @@ export const EVT = Object.freeze({
   // Oyuncular arası sohbet
   CHAT_SEND: 'chat:send', // istemci → sunucu (ack): { text }
   CHAT: 'chat', // sunucu → herkes: { id, name, color, text, t }
-  // Otelin büyümesi: Resepsiyon PC (kat, temizlikçi), asansör, belediye denetimi
-  HOTEL_ACT: 'hotel:act', // istemci → sunucu (ack): { act: 'buyFloor'|'elevator'|'hire'|'fire'|'inspect'|'check'|'mop', ... }
-  HOTEL_STATE: 'hotel:state', // sunucu → herkes: { growth, workers, inspection }
-  INSPECTION_RESULT: 'inspection:result', // sunucu → herkes: { pass, checks, reward?, fine?, text }
+  // Otelin büyümesi: Resepsiyon PC (kat, temizlikçi), asansör
+  HOTEL_ACT: 'hotel:act', // istemci → sunucu (ack): { act: 'buyFloor'|'buyPackage'|'elevator'|'hire'|'fire', ... }
+  HOTEL_STATE: 'hotel:state', // sunucu → herkes: { growth, workers, arch, ... }
   BOOSTS: 'boosts', // sunucu → herkes: geçici bonuslar [{ source, label, icon, untilTotal, barSpawn, barTip, guestSpawn }]
   // ---- Ev dış cephesi: graffiti (sprey), neon tabela, balkon — server/house/ExteriorService.js ----
   EXTERIOR_ACT: 'exterior:act', // istemci → sunucu (ack): { act: 'buyCans' | 'tag' | 'untag' | 'neon' | 'unneon' | 'balcony' | 'item' | 'unitem', ... }

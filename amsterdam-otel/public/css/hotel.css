@@ -1,4 +1,4 @@
-/* Otelin büyümesi: yıldızlar, kat grupları, Resepsiyon PC, asansör, belediye denetimi */
+/* Otelin büyümesi: yıldızlar, kat grupları, Resepsiyon PC, asansör */
 
 .stars { color: #ffd23f; letter-spacing: .06em; font-size: 14px; }
 
@@ -43,7 +43,6 @@
 .pc-stat { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 6px 8px; }
 .pc-stat small { display: block; font-size: 10.5px; color: var(--muted); }
 .pc-stat b { font-size: 14px; }
-.pc-insp { background: rgba(255,210,63,.07); border: 1px solid rgba(255,210,63,.25); border-radius: 10px; padding: 8px 10px; margin-top: 6px; }
 .pc-btn {
   min-height: 40px;
   padding: 8px 14px;
@@ -94,29 +93,6 @@
   pointer-events: none;
 }
 #lift-fade.on { opacity: 1; transition: opacity .12s ease; }
-
-/* ---- Belediye denetimi bandı ---- */
-.insp {
-  width: 100%;
-  background: rgba(30, 22, 8, .86);
-  border: 2px solid #e9a826;
-  border-radius: 12px;
-  padding: 6px 10px;
-  color: var(--text);
-  font-size: 13px;
-  pointer-events: none;
-}
-.insp.urgent { border-color: #e5534b; animation: insp-pulse 1s ease-in-out infinite; }
-.insp.pass { border-color: #3ecf6e; background: rgba(10, 34, 18, .88); }
-.insp.fail { border-color: #e5534b; background: rgba(40, 12, 12, .88); }
-@keyframes insp-pulse { 50% { box-shadow: 0 0 0 4px rgba(229,83,75,.35); } }
-.insp-head { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
-#insp-time { font-weight: 800; color: #ffd27a; font-variant-numeric: tabular-nums; }
-#insp-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; text-align: left; }
-#insp-list li.ok { color: #9ff0bb; }
-#insp-list li.todo { color: #ffe1a6; }
-#insp-list li.note { color: var(--muted); font-size: 12px; }
-@media (prefers-reduced-motion: reduce) { .insp.urgent { animation: none; } }
 
 /* Birden çok katta oda listesi kompakt: her kat tek satır, odalar renkli noktalı çip */
 #room-list.multi {

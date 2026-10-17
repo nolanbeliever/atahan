@@ -5,7 +5,7 @@ import {
   EVT, ROOM_STATUS, GUEST_PHASE, ROOM_IDS, roomFloor,
 } from '../shared/constants.js';
 import {
-  RECEPTION_PC, ELEVATOR, ROOF, ROOF_FLOOR, ROOM_BY_ID, FLOOR_DZ, STAFF_ROOM, LOUNGES, EXTINGUISHERS, WORLD_BOUNDS,
+  RECEPTION_PC, ELEVATOR, ROOF, ROOF_FLOOR, ROOM_BY_ID, FLOOR_DZ, STAFF_ROOM, LOUNGES, WORLD_BOUNDS,
   floorAt, buildFloorWallSegments, buildWallSegments, isInsideRoom,
 } from '../shared/layout.js';
 import { STAR_THRESHOLDS, WORKER_RULES, WORKER_NAMES } from '../shared/hotel.js';
@@ -117,8 +117,6 @@ test('üst kat duvarları: asansör çıkışları, personel odası noktaları v
       assert.ok(!all.some(inner), `oda ${r.id} içinde duvar yok`);
     }
   }
-  // Yangın tüpleri 12 kata kadar
-  assert.ok(EXTINGUISHERS.some((e) => e.floor === 12));
 });
 
 test('lüks paket satın alma: PC mesafesi, tipler, sıra, kat, yıldız ve para', () => {
@@ -370,15 +368,6 @@ test('lounge barlar: açık saatlerde pasif gelir (doluluk + bar bonusu), gece v
   assert.equal(sim.money, money);
 });
 
-test('denetim: yeni katların tüpleri yalnızca açıkken, en fazla 6 tüp', () => {
-  const { sim, act } = ready();
-  act({ act: 'buyPackage', pkg: 'luxury' });
-  sim.inspection.start(sim.now());
-  const ids = Object.keys(sim.inspection.active.ext);
-  assert.ok(ids.includes('floor8') && !ids.includes('floor9'), 'yalnızca açık katlar');
-  assert.ok(Object.values(sim.inspection.active.ext).filter(Boolean).length <= 6);
-});
-
 test('kalıcılık: paket seviyesi, katlar ve 30 temizlikçi geri gelir; bozuk kayıt temizlenir', () => {
   const store = memoryStore();
   const a = ready({ store });
@@ -404,17 +393,17 @@ test('kalıcılık: paket seviyesi, katlar ve 30 temizlikçi geri gelir; bozuk k
   };
   let s = bad({ level: 99 });
   assert.equal(s.arch.level, 2, 'en fazla 2');
-  s = bad({ level: '2' }, { reputation: 500, floors: 12, plaques: 0 });
+  s = bad({ level: '2' }, { reputation: 500, floors: 12 });
   assert.equal(s.arch.level, 0);
   assert.equal(s.growth.floors, 4, 'paket yoksa en fazla 4 kat');
   assert.ok(s.workers.workers.size <= WORKER_RULES.MAX, 'paket yoksa en fazla 6 temizlikçi');
-  s = bad({ level: 1.5 }, { reputation: 500, floors: 2, plaques: 0 });
+  s = bad({ level: 1.5 }, { reputation: 500, floors: 2 });
   assert.equal(s.arch.level, 0);
-  s = bad({ level: 1 }, { reputation: 500, floors: 2, plaques: 0 });
+  s = bad({ level: 1 }, { reputation: 500, floors: 2 });
   assert.equal(s.arch.level, 1);
   assert.equal(s.growth.floors, 8, 'paket açık katları geri getirir');
   assert.ok(s.workers.workers.size <= 15);
-  s = bad(null, { reputation: 500, floors: 99, plaques: 0 });
+  s = bad(null, { reputation: 500, floors: 99 });
   assert.equal(s.arch.level, 0);
   assert.equal(s.growth.floors, 4);
   s = bad({ level: -3, __proto__: { level: 2 } });

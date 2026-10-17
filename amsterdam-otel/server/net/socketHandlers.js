@@ -54,7 +54,7 @@ export function attachSocketHandlers(io, sim) {
     const allowHouse = rateLimiter(6, 10);
     const allowBar = rateLimiter(8, 12);
     const allowChat = rateLimiter(0.7, 4); // en fazla 4 mesajlık seri, sonra ~1.4 sn'de bir
-    const allowHotel = rateLimiter(4, 8); // Resepsiyon PC, asansör, denetim eylemleri
+    const allowHotel = rateLimiter(4, 8); // Resepsiyon PC, asansör eylemleri
     const reply = (ack, res) => { if (typeof ack === 'function') ack(res); };
 
     // Saat senkronu: istemci gecikmeyi ölçüp sunucu saatine hizalanır
@@ -164,7 +164,7 @@ export function attachSocketHandlers(io, sim) {
       if (!allowChat()) return reply(ack, { ok: false, error: 'Çok hızlı yazıyorsun — biraz bekle.' });
       reply(ack, sim.chat(player.id, data?.text));
     });
-    // Otelin büyümesi: Resepsiyon PC, asansör, belediye denetimi (tipler servislerde doğrulanır)
+    // Otelin büyümesi: Resepsiyon PC, asansör, lüks paketler (tipler servislerde doğrulanır)
     on(EVT.HOTEL_ACT, (data, ack) => {
       if (!player || !allowHotel()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
       reply(ack, sim.hotelAct(player.id, data));

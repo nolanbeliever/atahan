@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { HotelSimulation } from '../server/game/HotelSimulation.js';
 import { EVT, ROOM_STATUS, GUEST_PHASE } from '../shared/constants.js';
 import {
-  RECEPTION_PC, ELEVATOR, EXTINGUISHERS, BAR_SPILL, ROOM_BY_ID, isOnLanding, floorAt, buildWallSegments,
+  RECEPTION_PC, ELEVATOR, ROOM_BY_ID, isOnLanding, floorAt, buildWallSegments,
 } from '../shared/layout.js';
 import {
-  STAR_THRESHOLDS, FLOOR_UPGRADES, WORKER_RULES, INSPECTION, starsFor, reputationAfterStarLoss, workerTaskMs, workerLevel,
+  STAR_THRESHOLDS, FLOOR_UPGRADES, WORKER_RULES, starsFor, workerTaskMs, workerLevel,
   roomPrice,
 } from '../shared/hotel.js';
 
@@ -50,13 +50,11 @@ function setup({ store = null, hour = 11 } = {}) {
   return { sim, p, tick, at, act, events, getNow: () => now, advance: (ms) => { now += ms; } };
 }
 
-test('yıldız eşikleri, yıldız kaybı, oda fiyatı ve temizlikçi süresi', () => {
+test('yıldız eşikleri, oda fiyatı ve temizlikçi süresi', () => {
   assert.equal(starsFor(0), 1);
   assert.equal(starsFor(STAR_THRESHOLDS[1] - 1), 1);
   assert.equal(starsFor(STAR_THRESHOLDS[1]), 2);
   assert.equal(starsFor(STAR_THRESHOLDS[4] + 999), 5);
-  assert.equal(starsFor(reputationAfterStarLoss(STAR_THRESHOLDS[2] + 5)), 2, 'bir yıldız düşer');
-  assert.equal(reputationAfterStarLoss(10), 0);
   assert.equal(roomPrice(95, 1), 95);
   assert.equal(roomPrice(95, 3), 125);
   assert.equal(workerTaskMs(1, 1), 10_000, '1★: 10 sn');
@@ -210,90 +208,21 @@ test('temizlikçi: üst kattaki odaya asansörle gider; en fazla 6 kişi', () =>
   assert.equal(room.status, ROOM_STATUS.EMPTY);
 });
 
-test('denetim: 2★ altında yok; çağrılır, gelir, 90 sn; eksikler → ceza ve yıldız kaybı', () => {
-  const { sim, at, act, tick, getNow, events } = setup();
-  at(RECEPTION_PC.point);
-  assert.match(act({ act: 'inspect' }).error, /yıldız/);
-  sim.growth.reputation = STAR_THRESHOLDS[2] + 10; // 3★
-  sim.money = 1000;
-  assert.equal(act({ act: 'inspect' }).ok, true);
-  assert.match(act({ act: 'inspect' }).error, /sürüyor/);
-  const a = sim.inspection.active;
-  assert.equal(a.phase, 'arriving');
-  assert.ok(events(EVT.GUEST_UPSERT).some((g) => g.kind === 'inspector'));
-  assert.equal(Object.values(a.ext).filter(Boolean).length, 2, '1 katta 2 tüp kontrol ister');
-  tick(a.endsAt - getNow() + 100);
-  assert.equal(a.phase, 'countdown');
-  sim.rooms.makeDirty(sim.rooms.get('101'));
-  tick(INSPECTION.COUNTDOWN_MS + 200);
-  assert.equal(sim.inspection.active, null);
-  const r = events(EVT.INSPECTION_RESULT).at(-1);
-  assert.equal(r.pass, false);
-  assert.equal(r.checks.rooms, false);
-  assert.equal(sim.money, 1000 - INSPECTION.FINE);
-  assert.equal(sim.growth.stars, 2, 'bir yıldız düştü');
-  assert.match(act({ act: 'inspect' }).error, /Bugün/);
-});
-
-test('denetim: tüp kontrolü ve şurup silme süre + konum ister; hepsi tamam → ödül + plaket', () => {
-  const { sim, p, at, act, tick, getNow, advance, events } = setup();
-  sim.growth.reputation = STAR_THRESHOLDS[1]; // 2★
-  sim.money = 0;
-  sim.inspection.start(getNow());
-  const a = sim.inspection.active;
-  assert.equal(act({ act: 'check', id: 'lobby', step: 'begin' }).ok, false, 'müfettiş gelmeden yok');
-  tick(a.endsAt - getNow() + 100);
-  const todo = Object.keys(a.ext).filter((id) => a.ext[id]);
-  const ok = Object.keys(a.ext).find((id) => !a.ext[id]);
-  assert.equal(act({ act: 'check', id: '__proto__', step: 'begin' }).ok, false);
-  assert.equal(act({ act: 'check', id: { toString: () => todo[0] }, step: 'begin' }).ok, false);
-  assert.equal(act({ act: 'check', id: todo[0], step: 'go' }).ok, false);
-  if (ok) assert.match(act({ act: 'check', id: ok, step: 'begin' }).error, /zaten/);
-  for (const id of todo) {
-    const e = EXTINGUISHERS.find((x) => x.id === id);
-    at([0, 3]);
-    assert.match(act({ act: 'check', id, step: 'begin' }).error, /yaklaş/);
-    at(e.point);
-    assert.equal(act({ act: 'check', id, step: 'begin' }).ok, true);
-    advance(500);
-    assert.match(act({ act: 'check', id, step: 'finish' }).error, /Acele/);
-    advance(INSPECTION.CHECK_MS);
-    assert.equal(act({ act: 'check', id, step: 'finish' }).ok, true);
-  }
-  at(BAR_SPILL.point);
-  assert.match(act({ act: 'mop', step: 'finish' }).error, /Önce/);
-  assert.equal(act({ act: 'mop', step: 'begin' }).ok, true);
-  advance(INSPECTION.MOP_MS);
-  assert.equal(act({ act: 'mop', step: 'finish' }).ok, true);
-  assert.equal(sim.inspection.checks().bar, true);
-  tick(INSPECTION.COUNTDOWN_MS);
-  const r = events(EVT.INSPECTION_RESULT).at(-1);
-  assert.equal(r.pass, true);
-  assert.equal(sim.growth.plaques, 1);
-  assert.equal(sim.money, INSPECTION.REWARD + INSPECTION.REWARD_PER_STAR * 2);
-  assert.ok(sim.growth.reputation >= STAR_THRESHOLDS[1] + 20);
-  assert.equal(p.wallet, 50);
-});
-
-test('kalıcılık: yıldız, katlar, plaket, temizlikçiler ve denetim günü geri gelir; bozuk kayıt temizlenir', () => {
+test('kalıcılık: yıldız, katlar ve temizlikçiler geri gelir; bozuk / eski kayıt temizlenir', () => {
   const store = memoryStore();
   const a = setup({ store });
   a.sim.growth.reputation = 130;
   a.sim.growth.floors = 3;
-  a.sim.growth.plaques = 2;
   a.sim.money = 500;
   a.at(RECEPTION_PC.point);
   assert.equal(a.act({ act: 'hire' }).ok, true);
   a.sim.workers.workers.values().next().value.tasks = 30;
-  a.sim.inspection.doneDay = a.sim.clock.dayCount;
   a.sim.house.flush();
   const b = setup({ store });
   assert.equal(b.sim.growth.stars, 3);
   assert.equal(b.sim.growth.floors, 3);
-  assert.equal(b.sim.growth.plaques, 2);
   assert.equal(b.sim.workers.workers.size, 1);
   assert.equal(b.sim.workers.workers.values().next().value.tasks, 30);
-  assert.equal(b.sim.inspection.doneDay, b.sim.clock.dayCount);
   const snap = b.sim.snapshot(b.p.id);
   assert.equal(snap.hotel.growth.floors, 3);
   assert.ok(snap.guests.some((g) => g.kind === 'worker'));
@@ -301,14 +230,15 @@ test('kalıcılık: yıldız, katlar, plaket, temizlikçiler ve denetim günü g
   const data = JSON.parse(JSON.stringify(store.data));
   data.hotel.growth = { reputation: 'çok', floors: 99, plaques: -4 };
   data.hotel.workers = [{ name: 'Hacker', tasks: -5, look: { skin: 99 } }, null, 'x', ...Array(20).fill({ name: 'Ayla', tasks: 1 })];
-  data.hotel.inspection = { doneDay: 'dün', plannedAt: 5 };
+  data.hotel.inspection = { doneDay: 3, plannedAt: 5 }; // kaldırılan denetim sisteminden kalan alan yok sayılır
   const c = setup({ store: memoryStore(data) });
   assert.equal(c.sim.growth.reputation, 0);
   assert.equal(c.sim.growth.floors, 4, 'en fazla 4 kat');
-  assert.equal(c.sim.growth.plaques, 0);
   assert.ok(c.sim.workers.workers.size <= WORKER_RULES.MAX);
   const names = [...c.sim.workers.workers.values()].map((w) => w.name);
   assert.equal(new Set(names).size, names.length, 'isimler tekrarlanmaz');
   assert.ok([...c.sim.workers.workers.values()].every((w) => w.tasks >= 0 && w.look.skin < 5));
-  assert.equal(c.sim.inspection.plannedAt, null);
+  assert.equal(c.sim.inspection, undefined);
+  assert.equal(c.sim.hotelPublic().inspection, undefined);
+  assert.equal('plaques' in c.sim.growth.persisted(), false);
 });

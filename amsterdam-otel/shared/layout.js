@@ -128,18 +128,6 @@ export const ELEVATOR = Object.freeze({
   width: 1.2,
 });
 
-// Yangın tüpleri (belediye denetiminde basınç kontrolü): duvara asılı; point = önündeki zemin noktası.
-// floor: tüpün bulunduğu kat (yalnızca açık katlardakiler denetlenir)
-export const EXTINGUISHERS = Object.freeze([
-  { id: 'lobby', floor: 1, x: -7.88, z: 1.25, facing: 'x+', point: [-7.15, 1.25] },
-  { id: 'corridor', floor: 1, x: 1.38, z: 13.1, facing: 'x-', point: [0.65, 13.1] },
-  { id: 'bar', floor: 1, x: 15.45, z: 8.16, facing: 'z+', point: [15.45, 8.9] }, // sedirin doğusu
-  ...FLOOR_NUMBERS.slice(1).map((f) => ({ id: `floor${f}`, floor: f, x: -3.38, z: 10 + FLOOR_DZ[f], facing: 'x+', point: [-2.65, 10 + FLOOR_DZ[f]] })),
-]);
-
-// Denetim sırasında bar zemininde dökülen şurup (paspasla silinir)
-export const BAR_SPILL = Object.freeze({ point: [11.6, 9.35], r: 0.55 });
-
 /** Üst kat sahanlığının hub noktası (misafir rotaları) */
 export const floorHub = (f) => (f === ROOF_FLOOR ? ROOF.hub : [0, 10.6 + FLOOR_DZ[f]]);
 
