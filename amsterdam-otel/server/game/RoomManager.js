@@ -1,5 +1,6 @@
 import { ROOM_IDS, ROOM_STATUS, TRASH_SPOT_COUNT, roomFloor } from '../../shared/constants.js';
 import { ISSUE_IDS, MAINT_RULES } from '../../shared/maintenance.js';
+import { VIP } from '../../shared/architecture.js';
 
 const noIssues = () => Object.fromEntries(ISSUE_IDS.map((id) => [id, false]));
 
@@ -28,9 +29,15 @@ export class RoomManager {
 
   get(id) { return this.rooms.get(id); }
 
-  /** @param maxFloor yalnızca bu kata kadar (açık katlar) */
-  emptyRooms(maxFloor = Infinity) {
-    return [...this.rooms.values()].filter((r) => r.status === ROOM_STATUS.EMPTY && roomFloor(r.id) <= maxFloor);
+  /**
+   * @param maxFloor yalnızca bu kata kadar (açık katlar)
+   * @param vip true: yalnızca VIP suitleri (12. kat), false: VIP suitleri HARİÇ (normal misafirler)
+   */
+  emptyRooms(maxFloor = Infinity, vip = false) {
+    return [...this.rooms.values()].filter((r) => {
+      const f = roomFloor(r.id);
+      return r.status === ROOM_STATUS.EMPTY && f <= maxFloor && (f === VIP.FLOOR) === vip;
+    });
   }
 
   occupy(room, guestId) {
@@ -100,8 +107,9 @@ export class RoomManager {
     return { ok: true, finished };
   }
 
-  serialize() {
-    return [...this.rooms.values()].map((r) => ({
+  /** @param maxFloor yalnızca bu kata kadarki odalar (kapalı katlar hep boş) */
+  serialize(maxFloor = Infinity) {
+    return [...this.rooms.values()].filter((r) => roomFloor(r.id) <= maxFloor).map((r) => ({
       id: r.id, status: r.status, bedMade: r.bedMade, trash: [...r.trash], issues: { ...r.issues },
     }));
   }

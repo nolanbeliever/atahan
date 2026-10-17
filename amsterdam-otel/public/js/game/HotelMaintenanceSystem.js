@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { EVT, ROOM_STATUS } from '/shared/constants.js';
-import { ROOMS, isInsideRoom } from '/shared/layout.js';
+import { ROOMS, BASE_FLOORS, isInsideRoom } from '/shared/layout.js';
 import { ISSUE_BY_ID, ISSUE_IDS, MAINT_RULES, issueSpots, sinkBox } from '/shared/maintenance.js';
 
 // ---- Görseller --------------------------------------------------------------------
@@ -64,94 +64,22 @@ export class HotelMaintenanceSystem {
     this.game = null; // süren mini oyun
     this.pending = false;
 
-    const scene = engine.scene;
-    const stainMats = [0, 1, 2].map((i) => new THREE.MeshLambertMaterial({
-      map: stainTexture(17 + i * 31), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2,
-    }));
-    const ceramic = new THREE.MeshLambertMaterial({ color: 0xf2f2ee });
-    const chrome = new THREE.MeshLambertMaterial({ color: 0xb9bec4 });
-    const grey = new THREE.MeshLambertMaterial({ color: 0x8a8f96 });
-    const dark = new THREE.MeshBasicMaterial({ color: 0x2a2a2c });
-    const water = new THREE.MeshBasicMaterial({ color: 0x8fc9ff, transparent: true, opacity: 0.75 });
-    const red = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
-    const green = new THREE.MeshBasicMaterial({ color: 0x3cff7a });
-    const keep = (m) => {
-      m.matrixAutoUpdate = false;
-      m.updateMatrix();
-      scene.add(m);
-      return m;
+    this.collision = collision;
+    this.vmats = {
+      stain: [0, 1, 2].map((i) => new THREE.MeshLambertMaterial({
+        map: stainTexture(17 + i * 31), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2,
+      })),
+      ceramic: new THREE.MeshLambertMaterial({ color: 0xf2f2ee }),
+      chrome: new THREE.MeshLambertMaterial({ color: 0xb9bec4 }),
+      grey: new THREE.MeshLambertMaterial({ color: 0x8a8f96 }),
+      dark: new THREE.MeshBasicMaterial({ color: 0x2a2a2c }),
+      water: new THREE.MeshBasicMaterial({ color: 0x8fc9ff, transparent: true, opacity: 0.75 }),
+      red: new THREE.MeshBasicMaterial({ color: 0xff2a2a }),
+      green: new THREE.MeshBasicMaterial({ color: 0x3cff7a }),
+      mirror: new THREE.MeshLambertMaterial({ color: 0xbfd6e6 }),
     };
-
-    ROOMS.forEach((room, ri) => {
-      const s = room.side;
-      const sp = issueSpots(room);
-      const v = {};
-      // Lavabo (her odada; statik)
-      const sb = sinkBox(room);
-      const sx = (sb.minX + sb.maxX) / 2;
-      const z0 = room.bounds.minZ;
-      const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 0.78, 10), ceramic);
-      pedestal.position.set(sx, 0.39, z0 + 0.3);
-      keep(pedestal);
-      const basin = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.16, 0.44), ceramic);
-      basin.position.set(sx, 0.86, z0 + 0.32);
-      keep(basin);
-      const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.2, 8), chrome);
-      spout.position.set(sx, 1.02, z0 + 0.17);
-      keep(spout);
-      const neck = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.14), chrome);
-      neck.position.set(sx, 1.11, z0 + 0.23);
-      keep(neck);
-      const mirror = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.6), new THREE.MeshLambertMaterial({ color: 0xbfd6e6 }));
-      mirror.position.set(sx, 1.55, z0 + 0.105);
-      keep(mirror);
-      collision.add(sb.minX, sb.maxX, sb.minZ, sb.maxZ);
-      // Musluk damlıyor: damla + su birikintisi
-      const leak = new THREE.Group();
-      const drop = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 5).scale(1, 1.4, 1), water);
-      drop.position.set(sx, 1.0, z0 + 0.29);
-      const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.26, 14).rotateX(-Math.PI / 2), water);
-      puddle.position.set(sx + 0.1, 0.008, z0 + 0.75);
-      leak.add(drop, puddle);
-      scene.add(leak);
-      v.faucet = leak;
-
-      // Yerde leke
-      const floorStain = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2), stainMats[ri % 3]);
-      floorStain.position.set(sp.stainFloor.x, 0.011, sp.stainFloor.z);
-      v.stainFloor = keep(floorStain);
-      // Duvarda leke (koridor duvarının oda tarafı)
-      const wallStain = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.7), stainMats[(ri + 1) % 3]);
-      wallStain.position.set(s * 1.605, sp.stainWall.y, sp.stainWall.z);
-      wallStain.rotation.y = s > 0 ? Math.PI / 2 : -Math.PI / 2;
-      v.stainWall = keep(wallStain);
-      // Patlak ampul: tavan lambasının altında koyu kapak + sarkan kırık ampul
-      const bulb = new THREE.Group();
-      const cover = new THREE.Mesh(new THREE.CircleGeometry(0.23, 16).rotateX(Math.PI / 2), dark);
-      cover.position.set(sp.bulb.x, 3.162, sp.bulb.z);
-      const broken = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), grey);
-      broken.position.set(sp.bulb.x, 3.08, sp.bulb.z);
-      bulb.add(cover, broken);
-      scene.add(bulb);
-      v.bulb = bulb;
-      // Sigorta kutusu (her odada; atınca kırmızı ışık)
-      const fx = s * 1.65;
-      const fuseBox = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.42, 0.32), grey);
-      fuseBox.position.set(fx, sp.fuse.y, sp.fuse.z);
-      keep(fuseBox);
-      const ledRed = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.05), red);
-      ledRed.position.set(fx + s * 0.055, sp.fuse.y + 0.14, sp.fuse.z);
-      const ledGreen = new THREE.Mesh(ledRed.geometry, green);
-      ledGreen.position.copy(ledRed.position);
-      for (const m of [ledRed, ledGreen]) {
-        m.matrixAutoUpdate = false;
-        m.updateMatrix();
-        scene.add(m);
-      }
-      v.fuse = ledRed;
-      v.fuseOk = ledGreen;
-      this.views.set(room.id, v);
-    });
+    // 1–4. katlar hemen; lüks katların odaları ilk ziyarette (addRooms, kat grubuna)
+    ROOMS.forEach((room, ri) => { if (room.floor <= BASE_FLOORS) this.addRoom(room, ri, engine.scene); });
     this.applyAll();
 
     // Mini oyun paneli
@@ -172,6 +100,96 @@ export class HotelMaintenanceSystem {
     interaction.addProvider({ find: (px, pz, f) => this.findTarget(px, pz, f) });
   }
 
+  /** Lüks katların odaları (HotelArchitectureUpgrades): arıza görselleri kat grubuna eklenir */
+  addRooms(rooms, parent) {
+    for (const room of rooms) {
+      if (!this.views.has(room.id)) this.addRoom(room, ROOMS.indexOf(room), parent);
+    }
+    this.applyAll();
+  }
+
+  /** Tek odanın lavabosu ve arıza görselleri (statik mesh'ler; arızalar görünürlükle açılır) */
+  addRoom(room, ri, scene) {
+    const collision = this.collision;
+    const {
+      stain: stainMats, ceramic, chrome, grey, dark, water, red, green,
+    } = this.vmats;
+    const keep = (m) => {
+      m.matrixAutoUpdate = false;
+      m.updateMatrix();
+      scene.add(m);
+      return m;
+    };
+    const s = room.side;
+    const sp = issueSpots(room);
+    const v = {};
+    // Lavabo (her odada; statik)
+    const sb = sinkBox(room);
+    const sx = (sb.minX + sb.maxX) / 2;
+    const z0 = room.bounds.minZ;
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 0.78, 10), ceramic);
+    pedestal.position.set(sx, 0.39, z0 + 0.3);
+    keep(pedestal);
+    const basin = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.16, 0.44), ceramic);
+    basin.position.set(sx, 0.86, z0 + 0.32);
+    keep(basin);
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.2, 8), chrome);
+    spout.position.set(sx, 1.02, z0 + 0.17);
+    keep(spout);
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.14), chrome);
+    neck.position.set(sx, 1.11, z0 + 0.23);
+    keep(neck);
+    const mirror = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.6), this.vmats.mirror);
+    mirror.position.set(sx, 1.55, z0 + 0.105);
+    keep(mirror);
+    collision.add(sb.minX, sb.maxX, sb.minZ, sb.maxZ);
+    // Musluk damlıyor: damla + su birikintisi
+    const leak = new THREE.Group();
+    const drop = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 5).scale(1, 1.4, 1), water);
+    drop.position.set(sx, 1.0, z0 + 0.29);
+    const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.26, 14).rotateX(-Math.PI / 2), water);
+    puddle.position.set(sx + 0.1, 0.008, z0 + 0.75);
+    leak.add(drop, puddle);
+    scene.add(leak);
+    v.faucet = leak;
+
+    // Yerde leke
+    const floorStain = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2), stainMats[ri % 3]);
+    floorStain.position.set(sp.stainFloor.x, 0.011, sp.stainFloor.z);
+    v.stainFloor = keep(floorStain);
+    // Duvarda leke (koridor duvarının oda tarafı)
+    const wallStain = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.7), stainMats[(ri + 1) % 3]);
+    wallStain.position.set(s * 1.605, sp.stainWall.y, sp.stainWall.z);
+    wallStain.rotation.y = s > 0 ? Math.PI / 2 : -Math.PI / 2;
+    v.stainWall = keep(wallStain);
+    // Patlak ampul: tavan lambasının altında koyu kapak + sarkan kırık ampul
+    const bulb = new THREE.Group();
+    const cover = new THREE.Mesh(new THREE.CircleGeometry(0.23, 16).rotateX(Math.PI / 2), dark);
+    cover.position.set(sp.bulb.x, 3.162, sp.bulb.z);
+    const broken = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), grey);
+    broken.position.set(sp.bulb.x, 3.08, sp.bulb.z);
+    bulb.add(cover, broken);
+    scene.add(bulb);
+    v.bulb = bulb;
+    // Sigorta kutusu (her odada; atınca kırmızı ışık)
+    const fx = s * 1.65;
+    const fuseBox = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.42, 0.32), grey);
+    fuseBox.position.set(fx, sp.fuse.y, sp.fuse.z);
+    keep(fuseBox);
+    const ledRed = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.05), red);
+    ledRed.position.set(fx + s * 0.055, sp.fuse.y + 0.14, sp.fuse.z);
+    const ledGreen = new THREE.Mesh(ledRed.geometry, green);
+    ledGreen.position.copy(ledRed.position);
+    for (const m of [ledRed, ledGreen]) {
+      m.matrixAutoUpdate = false;
+      m.updateMatrix();
+      scene.add(m);
+    }
+    v.fuse = ledRed;
+    v.fuseOk = ledGreen;
+    this.views.set(room.id, v);
+  }
+
   // ---- Oda durumu ---------------------------------------------------------------------
 
   /** EVT.ROOMS / snapshot.rooms */
@@ -188,9 +206,8 @@ export class HotelMaintenanceSystem {
   }
 
   applyAll() {
-    for (const room of ROOMS) {
-      const v = this.views.get(room.id);
-      for (const id of ISSUE_IDS) v[id].visible = this.pendingIssue(room.id, id);
+    for (const [roomId, v] of this.views) {
+      for (const id of ISSUE_IDS) v[id].visible = this.pendingIssue(roomId, id);
       v.fuseOk.visible = !v.fuse.visible;
     }
   }

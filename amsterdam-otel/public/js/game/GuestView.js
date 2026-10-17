@@ -38,6 +38,23 @@ function addTouristProps(obj, id) {
   inner.add(new THREE.Mesh(k.hat, k.hatMats[id % k.hatMats.length]));
 }
 
+// VIP misafir (Ultra Lüks Gökdelen): altın şapka bandı + altın kuşak, valizde altın şerit
+let vipKit = null;
+function addVipProps(obj) {
+  if (!vipKit) {
+    const gold = new THREE.MeshLambertMaterial({ color: '#d9b24a' });
+    vipKit = {
+      sash: new THREE.TorusGeometry(0.225, 0.025, 4, 16).rotateX(Math.PI / 2).rotateZ(0.5).translate(0, 0.85, 0),
+      crown: new THREE.CylinderGeometry(0.16, 0.17, 0.05, 12).translate(0, 1.5, 0),
+      glasses: new THREE.BoxGeometry(0.2, 0.04, 0.02).translate(0, 1.39, 0.15),
+      gold,
+      dark: new THREE.MeshLambertMaterial({ color: '#111' }),
+    };
+  }
+  const inner = obj.userData.inner;
+  inner.add(new THREE.Mesh(vipKit.sash, vipKit.gold), new THREE.Mesh(vipKit.crown, vipKit.gold), new THREE.Mesh(vipKit.glasses, vipKit.dark));
+}
+
 const SIT_DROP = 0.4; // kanepe; bar taburesi kendi yüksekliğini (sitY) gönderir
 const _frustum = new THREE.Frustum();
 const _pv = new THREE.Matrix4();
@@ -62,6 +79,7 @@ export class GuestView {
     if (!it) {
       const obj = makeCharacter(data.look, KIND_OPTS[data.kind] ?? {});
       if (data.tourist === true) addTouristProps(obj, data.id | 0);
+      if (data.vip === true) addVipProps(obj);
       this.scene.add(obj);
       it = { obj, data: null, len: 0, label: null, labelText: null };
       this.items.set(data.id, it);

@@ -25,6 +25,7 @@ import { ExteriorService } from '../house/ExteriorService.js';
 import { CasinoService } from './CasinoService.js';
 import { StageService } from './StageService.js';
 import { MarketingService } from './MarketingService.js';
+import { ArchitectureService } from './ArchitectureService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -86,6 +87,7 @@ export class HotelSimulation extends EventEmitter {
     this.teleport = new TeleportService(this); // hızlı ışınlanma
     this.boosts = new BoostService(this); // geçici bonuslar (konser kalabalığı, reklam kampanyası)
     this.growth = new HotelGrowthService(this); // yıldız / itibar, üst katlar, asansör
+    this.arch = new ArchitectureService(this); // lüks paketler: 8 / 12 kat, lounge barlar, çatı, VIP suitleri
     this.workers = new WorkerService(this); // temizlikçi NPC'ler
     this.inspection = new InspectionService(this); // belediye denetimi
     this.exterior = new ExteriorService(this); // ev dış cepheleri (kayıt: this.house.exteriorData)
@@ -116,7 +118,8 @@ export class HotelSimulation extends EventEmitter {
 
   notify(text, kind = 'info') { this.out(EVT.NOTIFY, { text, kind }); }
 
-  roomsChanged() { this.out(EVT.ROOMS, this.rooms.serialize()); }
+  // Kapalı katların odaları hep boş/temiz: yalnızca açık katlar yayınlanır (12 katta daha küçük mesaj)
+  roomsChanged() { this.out(EVT.ROOMS, this.rooms.serialize(this.growth.floors)); }
 
   economy(delta = 0, reason = '') {
     return { money: this.money, delta, reason, today: { ...this.today } };
@@ -141,7 +144,9 @@ export class HotelSimulation extends EventEmitter {
 
   /** Otelin büyüme durumu (Resepsiyon PC, HUD yıldızları, denetim bandı) */
   hotelPublic() {
-    return { growth: this.growth.serialize(), workers: this.workers.serialize(), inspection: this.inspection.serialize() };
+    return {
+      growth: this.growth.serialize(), workers: this.workers.serialize(), inspection: this.inspection.serialize(), arch: this.arch.serialize(),
+    };
   }
 
   hotelChanged() { this.out(EVT.HOTEL_STATE, this.hotelPublic()); }
@@ -160,12 +165,16 @@ export class HotelSimulation extends EventEmitter {
       stage: this.stage.persisted(),
       insta: this.marketing.persisted(),
       counterfeit: this.counterfeit.persisted(),
+      arch: this.arch.persisted(),
     };
   }
 
   restoreHotel(h) {
     if (!h) return;
+    // Lüks paket önce: kat ve temizlikçi sınırları ona bağlı
+    this.arch.restore(h.arch);
     this.growth.restore(h.growth);
+    if (this.arch.level) this.growth.floors = Math.max(this.growth.floors, this.arch.maxFloor);
     this.workers.restore(h.workers);
     this.inspection.restore(h.inspection);
     this.boosts.restore(h.boosts);
@@ -243,6 +252,7 @@ export class HotelSimulation extends EventEmitter {
     this.counterfeit.update(now);
     this.guests.update(now);
     this.workers.update(now);
+    this.arch.update(now);
     this.inspection.update(now);
     this.shop.update(now);
     this.bar.update(now);
@@ -572,6 +582,7 @@ export class HotelSimulation extends EventEmitter {
     return this.withPlayer(playerId, (p) => {
       switch (data?.act) {
         case 'buyFloor': return this.growth.buyFloor(p, data);
+        case 'buyPackage': return this.arch.buy(p, data);
         case 'elevator': return this.growth.elevator(p, data);
         case 'hire': return this.workers.hire(p);
         case 'fire': return this.workers.fire(p, data);

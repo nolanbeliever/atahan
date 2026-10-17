@@ -1,4 +1,4 @@
-import { DAY_NAMES, formatClock, formatMoney, ROOM_STATUS } from '/shared/constants.js';
+import { DAY_NAMES, formatClock, formatMoney, ROOM_STATUS, roomFloor } from '/shared/constants.js';
 import { areaAt } from '/shared/layout.js';
 import { INSTA, placeLabel, isPhotoDataUrl } from '/shared/marketing.js';
 
@@ -501,7 +501,7 @@ export class SmartphoneSystem {
     let total = 0;
     let dirty = 0;
     for (const r of this.state.rooms.values()) {
-      if (Number(r.id[0]) > g.floors) continue;
+      if (roomFloor(r.id) > g.floors) continue;
       total++;
       if (r.status === ROOM_STATUS.OCCUPIED) occ++;
       if (r.status === ROOM_STATUS.DIRTY) dirty++;

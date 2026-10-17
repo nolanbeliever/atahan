@@ -39,6 +39,7 @@ import { LiveStageSystem } from './game/LiveStageSystem.js';
 import { StreetEvents } from './game/StreetEvents.js';
 import { SmartphoneSystem } from './game/SmartphoneSystem.js';
 import { InstaHotelMarketing } from './game/InstaHotelMarketing.js';
+import { HotelArchitectureUpgrades } from './game/HotelArchitectureUpgrades.js';
 import { ViewModel } from './game/ViewModel.js';
 import { Sfx } from './core/Sfx.js';
 import { Network } from './net/Network.js';
@@ -235,6 +236,10 @@ world.setNightLevel = (t) => {
   exterior.setNight(t);
   stage.setNight(t);
 };
+// Lüks paketler: 8 / 12 katlı bina, lüks iç mekân, lounge barlar, çatı Aqua Park, VIP suitleri (PC → Yükseltmeler)
+const arch = new HotelArchitectureUpgrades({
+  engine, net, player, state, world, mats, factory, collision, maint, reception, night,
+});
 // Otel odasında çöp toplarken birinci şahıs toplama animasyonu
 const TRASH_ITEMS = ['paper', 'can', 'box', 'bottle'];
 interaction.onRoomAction = (room, t) => {
@@ -263,6 +268,7 @@ engine.addSystem(() => press.update()); // polis lambası (yalnızca polis kapı
 engine.addSystem((dt) => stage.update(dt));
 engine.addSystem(() => street.update());
 engine.addSystem((dt) => vm.update(dt));
+engine.addSystem((dt) => arch.update(dt));
 engine.addSystem((dt) => {
   ctx.px = player.pos.x;
   ctx.pz = player.pos.z;
@@ -654,5 +660,5 @@ navigator.getBattery?.().then((battery) => {
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
-  reception, workers, inspection, casino, recipes, mixology, stage, street, phone, insta, press, travel,
+  reception, workers, inspection, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch,
 };

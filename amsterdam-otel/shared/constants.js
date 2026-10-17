@@ -2,10 +2,11 @@
 // Bu dosya hem Node.js (ESM) hem tarayıcı tarafından doğrudan import edilir;
 // bu yüzden yalnızca saf JavaScript içerir, hiçbir ortama özgü API kullanmaz.
 
-// Kat başına 4 oda; 1. kat hep açık, üst katlar Resepsiyon PC'den satın alınır (shared/hotel.js)
-export const ROOM_IDS = Object.freeze([1, 2, 3, 4].flatMap((f) => [1, 2, 3, 4].map((n) => `${f}0${n}`)));
-/** Odanın katı ('203' → 2) */
-export const roomFloor = (id) => Number(id[0]);
+// Kat başına 4 oda; 1. kat hep açık, 2–4. katlar Resepsiyon PC'den satın alınır (shared/hotel.js),
+// 5–12. katlar lüks paketlerle (shared/architecture.js): 101 … 404, 501 … 1204
+export const ROOM_IDS = Object.freeze(Array.from({ length: 12 }, (_, i) => i + 1).flatMap((f) => [1, 2, 3, 4].map((n) => `${f}0${n}`)));
+/** Odanın katı ('203' → 2, '1104' → 11) */
+export const roomFloor = (id) => Number(id.slice(0, -2));
 
 export const ROOM_STATUS = Object.freeze({
   EMPTY: 'bos',

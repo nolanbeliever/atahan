@@ -54,13 +54,18 @@ export function spawnFactor(floors) {
 // ---- Çalışanlar (temizlikçi) ------------------------------------------------------
 export const WORKER_RULES = Object.freeze({
   HIRE_PRICE: 200, // kasadan, tek seferlik
-  MAX: 6,
+  MAX: 6, // lüks paketlerle 15 / 30 (shared/architecture.js ARCH_MAX_WORKERS)
   TASKS_PER_LEVEL: 12, // her 12 işte bir seviye
   MAX_LEVEL: 5,
   SPEED: 1.6, // yürüme hızı (m/sn)
 });
 
-export const WORKER_NAMES = Object.freeze(['Fatma', 'Joost', 'Ayla', 'Pieter', 'Merve', 'Kees', 'Zeynep', 'Wouter']);
+// İlk 8 isim eski kayıtlarla uyumlu; sonrakiler lüks paketlerin 30 kişilik kadrosu için
+export const WORKER_NAMES = Object.freeze([
+  'Fatma', 'Joost', 'Ayla', 'Pieter', 'Merve', 'Kees', 'Zeynep', 'Wouter',
+  'Elif', 'Daan', 'Hatice', 'Sander', 'Derya', 'Ruud', 'Emine', 'Bas', 'Seda', 'Niels', 'Gül', 'Maarten',
+  'Hülya', 'Jeroen', 'Burcu', 'Lieke', 'Nesrin', 'Thijmen', 'Cemile', 'Henk', 'Songül', 'Bram',
+]);
 
 /**
  * Temizlikçinin bir işi (yatak, çöp, arıza) bitirme süresi (ms):

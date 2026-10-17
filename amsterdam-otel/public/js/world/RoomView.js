@@ -33,15 +33,17 @@ const BED_SPEED = 3.0; // geçiş/sn
 /**
  * Tek bir müşteri odası: statik mobilyalar batcher'a eklenir; kapı, yatak
  * örtüsü/yastıklar, çöpler ve kapı yanındaki durum lambası dinamiktir.
+ * `scene` bir THREE.Group da olabilir (lüks katlar kat grubuna eklenir, kata göre gizlenir);
+ * `vip`: 12. kat VIP suiti — daha geniş (king size) yatak.
  */
 export class RoomView {
-  constructor({ layout, batcher: b, scene, mats, collision, blanketMat, plateMat }) {
+  constructor({ layout, batcher: b, scene, mats, collision, blanketMat, plateMat, vip = false }) {
     this.layout = layout;
     this.id = layout.id;
     this.state = { status: ROOM_STATUS.EMPTY, bedMade: true, trash: [false, false, false, false] };
     const s = layout.side;
     const z0 = layout.bounds.minZ;
-    const bed = layout.bed;
+    const bed = vip ? { ...layout.bed, wid: 2.0 } : layout.bed;
 
     // ---- Yatak (statik gövde) --------------------------------------
     const bx0 = bed.x - bed.len / 2;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { EVT, ROOM_STATUS, formatMoney, roomFloor } from '/shared/constants.js';
-import { RECEPTION_PC, ELEVATOR, floorAt } from '/shared/layout.js';
+import { RECEPTION_PC, ELEVATOR, ROOF_FLOOR, floorAt } from '/shared/layout.js';
 import { FLOOR_UPGRADES, MAX_FLOOR, STAR_THRESHOLDS, INSPECTION } from '/shared/hotel.js';
 import { makePanel } from '../world/Props.js';
 
@@ -138,11 +138,12 @@ export class ReceptionPC {
     const e = floor === 1 ? ELEVATOR.lobby : ELEVATOR.floor(floor);
     if (facing(px, pz, f, e.point[0], e.point[1], ELEVATOR.range, 0.2)) {
       const n = this.growth.floors;
+      const here = floor === ROOF_FLOOR ? 'çatıdasın' : `${floor}. kattasın`;
       return {
         x: e.point[0],
         z: e.point[1],
         short: 'Asansör',
-        label: n > 1 ? `🛗 Asansör (${floor}. kattasın)` : '🛗 Asansör — üst kat yok (Resepsiyon PC\'den kat ekle)',
+        label: n > 1 ? `🛗 Asansör (${here})` : '🛗 Asansör — üst kat yok (Resepsiyon PC\'den kat ekle)',
         use: () => this.openLift(floor),
       };
     }
@@ -275,6 +276,7 @@ export class ReceptionPC {
       const why = g.stars < up.stars ? `Önce otelin ${up.stars} yıldız olması gerek.` : money < up.price ? `Kasada ${formatMoney(up.price - money)} daha lazım.` : 'Hazır — inşa edebilirsin!';
       body.append(el('p', 'pc-small', `Sıradaki: ${up.floor}. kat. ${why}`));
     }
+    this.arch?.renderUpgradeSection(body, this); // 💎 Lüks paketler (HotelArchitectureUpgrades)
   }
 
   // ---- Asansör -------------------------------------------------------------------------
@@ -288,15 +290,22 @@ export class ReceptionPC {
 
   renderLift() {
     const n = this.growth.floors;
+    const arch = this.hotel.arch;
     const list = this.el.liftList;
     list.replaceChildren();
-    for (let f = MAX_FLOOR; f >= 1; f--) {
-      const b = el('button', 'lift-btn', String(f));
+    // Lüks paketlerle 12 kata kadar + "Çatı" durağı (kaydırılabilir ızgara)
+    const top = Math.max(MAX_FLOOR, arch?.maxFloor ?? MAX_FLOOR);
+    const stops = arch?.roof ? [ROOF_FLOOR] : [];
+    for (let f = top; f >= 1; f--) stops.push(f);
+    list.classList.toggle('many', stops.length > 6);
+    for (const f of stops) {
+      const roof = f === ROOF_FLOOR;
+      const b = el('button', `lift-btn${roof ? ' roof' : ''}${arch?.vip && f === 12 ? ' vip' : ''}`, roof ? '☀️ Çatı' : String(f));
       b.type = 'button';
       const here = f === this.liftFrom;
       b.classList.toggle('here', here);
-      b.disabled = here || f > n;
-      b.title = f > n ? 'Henüz yok' : here ? 'Buradasın' : `${f}. kata git`;
+      b.disabled = here || (!roof && f > n);
+      b.title = !roof && f > n ? 'Henüz yok' : here ? 'Buradasın' : roof ? 'Çatı · Aqua Park' : `${f}. kata git`;
       b.addEventListener('click', () => this.ride(f));
       list.append(b);
     }
@@ -315,7 +324,7 @@ export class ReceptionPC {
     this.modal.close(this.el.lift);
     // Kısa kararma: ışınlanma asansör yolculuğu gibi görünsün
     const fade = this.el.fade;
-    fade.textContent = `🛗 ${floor}. kat`;
+    fade.textContent = floor === ROOF_FLOOR ? '🛗 Çatı · Aqua Park ☀️' : `🛗 ${floor}. kat`;
     fade.hidden = false;
     fade.classList.add('on');
     this.sfx?.clink?.();

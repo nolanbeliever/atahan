@@ -6,6 +6,7 @@ import {
 } from '../../shared/layout.js';
 import { pathLength } from '../../shared/path.js';
 import { INSPECTION as I, REPUTATION, inspectionChance } from '../../shared/hotel.js';
+import { INSPECTION_EXT_MAX } from '../../shared/architecture.js';
 
 const EXT_BY_ID = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(EXTINGUISHERS.map((e) => [e.id, e]))));
 const INSPECTOR_SPOT = [-5.1, 5.4]; // resepsiyonun önü (check-in noktasının biraz güneyi)
@@ -67,9 +68,9 @@ export class InspectionService {
     const { clock } = this.sim;
     this.doneDay = clock.dayCount;
     this.plannedAt = null;
-    // Kontrol edilecek tüpler: açık katlardakilerden 2 + ek kat başına 1
+    // Kontrol edilecek tüpler: açık katlardakilerden 2 + ek kat başına 1 (en fazla 6: 12 kat 90 sn'ye sığsın)
     const open = EXTINGUISHERS.filter((e) => this.sim.growth.isFloorOpen(e.floor));
-    const n = Math.min(open.length, 2 + (this.sim.growth.floors - 1));
+    const n = Math.min(open.length, INSPECTION_EXT_MAX, 2 + (this.sim.growth.floors - 1));
     const pool = [...open];
     const ext = Object.create(null);
     for (const e of open) ext[e.id] = false;

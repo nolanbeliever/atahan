@@ -38,7 +38,7 @@ export class HUD {
       if (!this.floorHeads.has(floor)) {
         const head = document.createElement('li');
         head.className = 'floor-head';
-        head.textContent = `${floor}. kat`;
+        head.textContent = floor === 12 ? '12. kat ★' : `${floor}. kat`; // 12. kat: VIP suitleri
         head.hidden = true;
         this.el.rooms.append(head);
         this.floorHeads.set(floor, head);
@@ -69,6 +69,8 @@ export class HUD {
     for (const e of this.roomEls.values()) e.li.hidden = e.floor > n;
     for (const [f, head] of this.floorHeads) head.hidden = n < 2 || f > n;
     this.el.rooms.classList.toggle('multi', n > 1);
+    // 5+ kat (lüks paketler): oda numaraları gizlenir, kat başına yalnızca renkli noktalar (●●●○)
+    this.el.rooms.classList.toggle('dense', n > 4);
   }
 
   /**
