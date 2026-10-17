@@ -64,15 +64,16 @@ export class HotelWorkerSystem {
   /** Resepsiyon PC → Çalışanlar sekmesi */
   renderTab(body, pc) {
     const money = pc.state.economy?.money ?? 0;
+    const max = pc.hotel.arch?.maxWorkers ?? WORKER_RULES.MAX; // lüks paketlerle 15 / 30
     const sec = (lv) => (workerTaskMs(this.stars, lv) / 1000).toFixed(1).replace('.0', '');
     body.append(el('p', 'pc-small', `Temizlikçi kirli odaları kendisi temizler (üst katlara asansörle çıkar). Bir iş şu an ${sec(1)} sn sürüyor; otelin yıldızı arttıkça (5★'de 2 sn) ve temizlikçi seviye atladıkça hızlanır. Bulduğu bahşişler otelin kasasına gider.`));
 
     const hire = el('div', 'product');
     const info = el('div');
-    info.append(el('div', 'name', '🧹 Temizlikçi işe al'), el('div', 'desc', `${formatMoney(WORKER_RULES.HIRE_PRICE)} (kasadan, bir kerelik) · ${this.list.length}/${WORKER_RULES.MAX}`));
+    info.append(el('div', 'name', '🧹 Temizlikçi işe al'), el('div', 'desc', `${formatMoney(WORKER_RULES.HIRE_PRICE)} (kasadan, bir kerelik) · ${this.list.length}/${max}`));
     const btn = el('button', null, 'İşe al');
     btn.type = 'button';
-    btn.disabled = this.list.length >= WORKER_RULES.MAX || money < WORKER_RULES.HIRE_PRICE;
+    btn.disabled = this.list.length >= max || money < WORKER_RULES.HIRE_PRICE;
     btn.addEventListener('click', async () => {
       btn.disabled = true;
       const res = await pc.act({ act: 'hire' }, '🧹 Yeni temizlikçi işe başladı!');
@@ -91,7 +92,7 @@ export class HotelWorkerSystem {
       d.append(
         el('div', 'name', `${w.name} · Seviye ${w.level}`),
         el('div', 'desc', `${w.tasks} iş · iş başına ${sec(w.level)} sn · ${lvText}`),
-        el('div', w.busy ? 'owned' : 'desc', w.busy && w.roomId ? `Şu an: Oda ${w.roomId}` : 'Lobide bekliyor'),
+        el('div', w.busy ? 'owned' : 'desc', w.busy && w.roomId ? `Şu an: Oda ${w.roomId}` : w.staff ? 'Personel odasında bekliyor (5. kat)' : 'Lobide bekliyor'),
       );
       const fire = el('button', 'danger', 'Çıkar');
       fire.type = 'button';

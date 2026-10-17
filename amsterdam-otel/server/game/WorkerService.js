@@ -1,16 +1,20 @@
 import { EVT, ROOM_STATUS, TIP_MIN, TIP_MAX, roomFloor } from '../../shared/constants.js';
-import { ROOM_BY_ID } from '../../shared/layout.js';
+import { ROOM_BY_ID, STAFF_ROOM } from '../../shared/layout.js';
 import { pathLength } from '../../shared/path.js';
 import { ISSUE_IDS, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import {
   WORKER_RULES, WORKER_NAMES, REPUTATION, workerTaskMs, workerLevel,
 } from '../../shared/hotel.js';
-import { lobbyToRoom, roomToLobby, roomToRoom } from './routes.js';
+import {
+  lobbyToRoom, roomToLobby, roomToRoom, floorToRoom, roomToFloor,
+} from './routes.js';
 
-// Temizlikçilerin lobide beklediği yerler (resepsiyonun kuzeyi, asansörün batısı)
+// Temizlikçilerin lobide beklediği yerler (resepsiyonun kuzeyi, asansörün batısı). Lüks paketlerle
+// 7.–30. temizlikçi 5. kattaki personel odasında bekler (ArchitectureService.staffSpot).
 const IDLE_SPOTS = Object.freeze([
   [-7.3, 11.3], [-6.6, 11.3], [-5.9, 11.3], [-7.3, 10.5], [-6.6, 10.5], [-5.9, 10.5],
 ]);
+const LOBBY_SPOTS = IDLE_SPOTS.length;
 
 const W = Object.freeze({ IDLE: 'w-idle', WALK: 'w-walk', WORK: 'w-work', HOME: 'w-home' });
 
@@ -43,6 +47,30 @@ export class WorkerService {
 
   get rng() { return this.sim.rng; }
 
+  /** Güncel temizlikçi sınırı: 6, lüks paketlerle 15 / 30 */
+  get max() { return this.sim.arch?.maxWorkers ?? WORKER_RULES.MAX; }
+
+  // ---- Bekleme yeri: lobi ya da personel odası ------------------------------------------
+
+  isStaffSpot(w) { return w.spot >= LOBBY_SPOTS; }
+
+  spotPos(w) {
+    return this.isStaffSpot(w) ? this.sim.arch.staffSpot(w.spot - LOBBY_SPOTS) : IDLE_SPOTS[w.spot];
+  }
+
+  /** Bekleme yerinden sahanlığa / lobiye çıkış noktaları */
+  homeExit(w) {
+    return this.isStaffSpot(w) ? [this.spotPos(w), ...this.sim.arch.staffExit()] : [this.lastPoint(w)];
+  }
+
+  /** Odadan bekleme yerine bacak listesi */
+  homeLegs(w, fromLayout) {
+    const start = [this.lastPoint(w)];
+    if (!this.isStaffSpot(w)) return roomToLobby(start, fromLayout, [IDLE_SPOTS[w.spot]]);
+    const enter = [...this.sim.arch.staffExit()].reverse();
+    return roomToFloor(start, fromLayout, STAFF_ROOM.floor, [...enter, this.spotPos(w)]);
+  }
+
   // ---- Kalıcılık -----------------------------------------------------------
 
   persisted() {
@@ -52,7 +80,7 @@ export class WorkerService {
   restore(list) {
     if (!Array.isArray(list)) return;
     const now = this.sim.now();
-    for (const raw of list.slice(0, WORKER_RULES.MAX)) {
+    for (const raw of list.slice(0, this.max)) {
       if (!raw || typeof raw !== 'object') continue;
       const taken = [...this.workers.values()].some((w) => w.name === raw.name);
       const name = typeof raw.name === 'string' && WORKER_NAMES.includes(raw.name) && !taken ? raw.name : this.freeName();
@@ -91,14 +119,15 @@ export class WorkerService {
       task: null, // { kind: 'bed'|'trash'|'issue', target }
       spot: this.freeSpot(),
     };
-    w.path = [[...IDLE_SPOTS[w.spot]]];
+    w.path = [[...this.spotPos(w)]];
     this.workers.set(w.id, w);
     return w;
   }
 
   freeSpot() {
     const used = new Set([...this.workers.values()].map((w) => w.spot));
-    for (let i = 0; i < IDLE_SPOTS.length; i++) if (!used.has(i)) return i;
+    const n = LOBBY_SPOTS + STAFF_ROOM.spots.length;
+    for (let i = 0; i < n; i++) if (!used.has(i)) return i;
     return 0;
   }
 
@@ -133,6 +162,7 @@ export class WorkerService {
       tasks: w.tasks,
       roomId: w.roomId,
       busy: w.phase === W.WALK || w.phase === W.WORK,
+      staff: this.isStaffSpot(w), // personel odasında bekler (lüks paket)
     }));
   }
 
@@ -149,7 +179,7 @@ export class WorkerService {
 
   hire(p) {
     if (!this.sim.growth.nearPc(p)) return { ok: false, error: 'Resepsiyon bilgisayarının başında olmalısın.' };
-    if (this.workers.size >= WORKER_RULES.MAX) return { ok: false, error: `En fazla ${WORKER_RULES.MAX} temizlikçi çalışabilir.` };
+    if (this.workers.size >= this.max) return { ok: false, error: `En fazla ${this.max} temizlikçi çalışabilir.` };
     if (this.sim.money < WORKER_RULES.HIRE_PRICE) return { ok: false, error: `Kasada yeterli para yok (€${WORKER_RULES.HIRE_PRICE} gerekiyor).` };
     const name = this.freeName();
     if (!name) return { ok: false, error: 'Şu an işe alınacak aday yok.' };
@@ -223,7 +253,7 @@ export class WorkerService {
       return;
     }
     if (w.phase === W.HOME) {
-      this.standAt(w, W.IDLE, IDLE_SPOTS[w.spot], now, 0, Math.PI);
+      this.standAt(w, W.IDLE, this.spotPos(w), now, 0, Math.PI);
       return;
     }
     if (w.phase === W.WALK) {
@@ -282,13 +312,16 @@ export class WorkerService {
     w.task = task;
     const end = [layout.path.stand, taskSpot(layout, task)];
     const start = [this.lastPoint(w)];
-    const legs = fromRoom ? roomToRoom(start, fromRoom, layout, end) : lobbyToRoom(start, layout, end);
+    let legs;
+    if (fromRoom) legs = roomToRoom(start, fromRoom, layout, end);
+    else if (this.isStaffSpot(w)) legs = floorToRoom(STAFF_ROOM.floor, this.homeExit(w), layout, end);
+    else legs = lobbyToRoom(start, layout, end);
     this.walkLegs(w, legs, now);
   }
 
   goHome(w, now, fromLayout) {
     this.release(w);
-    this.walkLegs(w, roomToLobby([this.lastPoint(w)], fromLayout, [IDLE_SPOTS[w.spot]]), now, W.HOME);
+    this.walkLegs(w, this.homeLegs(w, fromLayout), now, W.HOME);
   }
 
   /** Görev noktasına vardı: iş hâlâ yapılacaksa çalışmaya başla */
@@ -373,7 +406,7 @@ export class WorkerService {
     const fromLayout = layout ?? null;
     this.release(w);
     if (!fromLayout) {
-      this.walkLegs(w, [[this.lastPoint(w), IDLE_SPOTS[w.spot]]], now, W.HOME);
+      this.walkLegs(w, [[this.lastPoint(w), this.spotPos(w)]], now, W.HOME);
       return;
     }
     if (this.sim.clock.night) {

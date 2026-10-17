@@ -122,6 +122,41 @@ Hedeflenen iş (dağınık yatak / çöp) zeminde turuncu halka ile işaretlenir
     Başarısız → kasadan **€300 ceza** ve otel **bir yıldız kaybeder**.
 - Hepsi kalıcıdır (itibar, katlar, plaketler, temizlikçiler ve seviyeleri, günün denetimi).
 
+### Lüks paketler — 8 katlı lüks otel, 12 katlı gökdelen, çatı Aqua Park, VIP suitleri
+
+Resepsiyon PC → **🏗️ Yükseltmeler** sekmesinin altında **💎 Lüks paketler** (kurallar: `shared/architecture.js`,
+sunucu: `ArchitectureService`, istemci: `HotelArchitectureUpgrades`). Kasadan ödenir, sırayla alınır, herkes için
+anında geçerlidir ve kalıcıdır (`hotelState().arch = { level }`, yayın `HOTEL_STATE.arch`).
+
+| Paket | Fiyat | Koşul | Kazanımlar |
+| --- | --- | --- | --- |
+| 🏨 **Lüks Otel** | **€50.000** | 4 katın hepsi açık + **4★** | 5–8. katlar (501–804), lüks iç mekân, 2 alkolsüz lounge bar, personel odası, en fazla **15** temizlikçi |
+| 🏙️ **Ultra Lüks Gökdelen** | **€100.000** | Lüks Otel + **5★** | 9–12. katlar (901–1204), çatı Aqua Park (asansörde **☀️ Çatı**), 12. kat **VIP suitleri**, en fazla **30** temizlikçi |
+
+- **Katlar:** her yeni kat 4 oda; üst katlar gibi asansörle (ışınlanma) çıkılır, misafirler ve temizlikçiler de asansör
+  bacaklarıyla gider. Kat kaydırması 20 m (`FLOOR_DZ`: 12. kat = 240). Misafir geliş sıklığı kat sayısıyla artmaya devam eder.
+- **Cephe:** sokak cephesi 8 katlı tuğla bir binaya (tente, pirinç direkler, altın **HOTEL AMSTERDAM ★** yazısı, kademeli taç),
+  Gökdelen'de 12 katlı cam giydirme gökdelene (ışıklı taç, anten, çatı tabelası) dönüşür. Gece pencerelerin bir kısmı yanar.
+- **Lüks iç mekân:** tüm odalarda balıksırtı parke, damask duvar kâğıdı, lacivert-altın koridor halısı, maun kapılar,
+  şampanya rengi yatak örtüsü; her odaya kadife yatak başı, aplikler, berjer ve avize.
+- **Lounge barlar (alkolsüz):** 📚 **Library Lounge** (5. kat; kitaplık + şömine) ve 🌆 **Sky Lounge** (8. kat; panoramik
+  pencereler) — sahanlığın doğusundaki kemerden girilir. Barmen, taburelerde ve koltuklarda misafirler, renkli meyve
+  suyu şişeleriyle arka raf. Her gün **10:00–23:00** her açık oyun saatinde kasaya **2 × €30 × doluluk çarpanı
+  (0.5–1) × bar bonusu** (konser / reklam) yazılır; birikir ve 3 saatte bir (ya da kapanışta) tek bildirimle ödenir
+  (≈ €585 / gün). Bar De Tulp mekaniği değişmez.
+- **Personel odası (5. kat, sahanlığın batısı):** 7.–30. temizlikçi burada bekler, işe asansörle gider.
+- **Çatı Aqua Park & teras:** ana havuz, kaydıraklı çocuk havuzu (dekoratif), şezlong + şemsiyeler, **Taze Sap & Snack**
+  büfesi (alkolsüz), cam korkuluk, şehir silueti; altın kemerli geçidin arkasında **VIP bölümü** (sonsuzluk havuzu, cabanalar).
+- **VIP misafir:** Gökdelen varken ve boş VIP suiti varken yeni misafir %35 olasılıkla ⭐ VIP gelir (altın kuşak, gözlük).
+  Yalnızca **1201–1204** suitlerine yerleşir, **€300** öder, **+3 itibar** verir; konaklamasının ortasında çatıdaki VIP
+  şezlonguna çıkar ve çıkışı oradan yapar. Normal misafirler 12. kata asla yerleşmez. VIP suitleri: altın direkli
+  cibinlikli geniş yatak, jakuzi, altın tavan silmesi.
+- **Denetim:** yeni katların yangın tüpleri yalnızca kat açıkken sayılır; kontrol edilecek tüp en fazla 6.
+- **Arayüz:** asansör paneli 12 kat + çatıyı kaydırılabilir üç sütunlu ızgarada gösterir; 5+ katta oda panosu kat başına
+  yalnızca renkli noktalara (●●●○) iner.
+- **Pil:** 5–12. katlar ve çatı ilk ziyarette (asansör kararmasının arkasında) kurulur; her bölüm tek StaticBatcher ve
+  yalnızca oyuncunun bulunduğu kat çizilir. Havuz suyu / yüzücüler yalnızca oyuncu çatıdayken canlanır.
+
 ## Achterstraat Canlı Müzik Sahnesi — müzisyenler, konser kalabalığı, bar bonusu
 
 - **Sahne (€900, otelin kasasından, bir kez):** Resepsiyon PC → **🏗️ Yükseltmeler** → **🎤 Canlı Müzik Sahnesi**.
@@ -508,7 +543,8 @@ amsterdam-otel/
 │       ├── GameClock.js         # Gün döngüsü: hafta içi açık / hafta sonu kapalı, gece (23:00–07:00)
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
 │       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları (üst kata asansörle iki bacak), turist kafilesi + resepsiyon kuyruğu
-│       ├── HotelGrowthService.js # İtibar / yıldız, kat satın alma, asansör, plaketler
+│       ├── HotelGrowthService.js # İtibar / yıldız, kat satın alma, asansör (12 kat + çatı), plaketler
+│       ├── ArchitectureService.js # Lüks paketler: satın alma, 8/12 kat, lounge geliri, VIP olasılığı, personel odası
 │       ├── BoostService.js      # Geçici bonuslar (konser kalabalığı, reklam): bar / misafir sıklığı, bahşiş
 │       ├── TeleportService.js   # Hızlı ışınlanma: hedefler, doğrulama, bekleme
 │       ├── WorkerService.js     # Temizlikçi NPC'ler: iş seçimi, süreli işler, seviye, bahşiş kasaya
@@ -530,6 +566,7 @@ amsterdam-otel/
 │   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri, denetim kuralları
+│   ├── architecture.js          # Lüks paketler (fiyat, koşul, kat / temizlikçi sınırı), VIP suit kuralları, lounge geliri
 │   ├── stage.js                 # Canlı müzik sahnesi: yer, gruplar (ücret, kalabalık, bonus), set takvimi, kalabalık noktaları
 │   ├── marketing.js             # InstaHotel: bütçeler, fotoğraf / açıklama doğrulama, konum etiketleri, turist kafilesi + kuyruk
 │   ├── casino.js                # Deste, blackjack puanı, poker el değerlendirici, masa kuralları
@@ -558,6 +595,7 @@ amsterdam-otel/
 │       │   ├── ReceptionPC.js       # Resepsiyon bilgisayarı paneli, asansör, yıldız tabelası, kat filtresi
 │       │   ├── HotelWorkerSystem.js # Temizlikçi görünümü (kova/paspas) ve Çalışanlar sekmesi
 │       │   ├── HotelInspectionSystem.js # Denetim bandı, yangın tüpleri, şurup lekesi, plaketler
+│       │   ├── HotelArchitectureUpgrades.js # Lüks paketler: PC kartları, doku değişimi, cephe, tembel kat / çatı inşası (world/LuxuryBuilding.js, LuxuryTextures.js)
 │       │   ├── LiveStageSystem.js   # Canlı müzik sahnesi: alan / sahne, müzisyenler ve animasyonları, panel, PC satırı
 │       │   ├── StageMusic.js        # Prosedürel sahne müziği (WebAudio): gitar, DJ, caz; PannerNode ile 3D, set senkronu
 │       │   ├── StreetEvents.js      # Konser kalabalığı: kollar, dans / alkış animasyonu, arka kapının açılması
@@ -576,7 +614,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi, denetim), sahne, InstaHotel (gönderi, kampanya, kuyruk)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi, denetim), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk)
 ```
 
 ## Sonraki aşamalar için notlar

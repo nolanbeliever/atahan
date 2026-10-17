@@ -1,11 +1,16 @@
 import {
   GUEST_PHASE as P, GUEST_SPEED, CHECKIN_MS, MAX_WAITING, WAIT_LIMIT_MIN, ROOM_PRICE, EVT,
 } from '../../shared/constants.js';
-import { POINTS, RECEPTION, SEATS, ROOM_BY_ID } from '../../shared/layout.js';
+import {
+  POINTS, RECEPTION, SEATS, ROOM_BY_ID, ROOF, ROOF_FLOOR,
+} from '../../shared/layout.js';
 import { pathLength, samplePath } from '../../shared/path.js';
 import { REPUTATION, roomPrice, spawnFactor } from '../../shared/hotel.js';
-import { lobbyToRoom, roomToLobby } from './routes.js';
+import {
+  lobbyToRoom, roomToLobby, roomToFloor, elevatorPoint,
+} from './routes.js';
 import { TOURIST, queueSpot } from '../../shared/marketing.js';
+import { VIP } from '../../shared/architecture.js';
 
 const QUEUE = TOURIST.PHASE; // resepsiyon sırasında (sıraya yürüyor ya da sırada bekliyor)
 
@@ -14,6 +19,10 @@ const QUEUE = TOURIST.PHASE; // resepsiyon sırasında (sıraya yürüyor ya da 
  *   ARRIVE → CHECKIN → (TO_ROOM → IN_ROOM → CHECKOUT) ya da (TO_SEAT → WAITING → TO_ROOM ...)
  *   Bekleme süresi dolarsa ya da resepsiyon kapanırsa → LEAVE.
  * Yürüyüşler gerçek zamanla, konaklama süreleri oyun saatiyle ölçülür.
+ *
+ * VIP misafir (Ultra Lüks Gökdelen; ArchitectureService.rollVip): yalnızca 12. kat suitlerine yerleşir,
+ * €300 öder, +3 itibar verir; konaklamasının ortasında çatıdaki VIP bölümüne çıkar (VIP.PHASE_TO_ROOF →
+ * VIP.PHASE_ON_ROOF, şezlongda oturur) ve çıkışını oradan yapar. Normal misafirler 12. kata hiç yerleşmez.
  */
 export class GuestManager {
   constructor(sim) {
@@ -39,6 +48,7 @@ export class GuestManager {
       id: g.id, look: g.look, phase: g.phase, path: g.path, t0: g.t0,
       speed: GUEST_SPEED, face: g.face, sit: g.sit, roomId: g.roomId,
       ...(g.tourist ? { tourist: true } : {}), // istemci sırt çantası / fotoğraf makinesi / şapka ekler
+      ...(g.vip ? { vip: true, label: '⭐ VIP' } : {}), // istemci altın aksesuar + etiket
     };
   }
 
@@ -60,7 +70,7 @@ export class GuestManager {
         // Kampanya sürerken tek misafir yerine 2–4 kişilik turist kafilesi (kuyruk / oda kapasitesine göre)
         const rush = !!this.sim.marketing?.rushActive;
         if (rush ? this.spawnGroup(now) : this.canSpawn()) {
-          if (!rush) this.spawn(now);
+          if (!rush) this.spawn(now, { vip: !!this.sim.arch?.rollVip() });
           // Üst katlar açıldıkça misafirler daha sık gelir
           this.nextSpawnAt = clock.total + (config.spawnMinMin
             + this.rng() * (config.spawnMaxMin - config.spawnMinMin)) * spawnFactor(this.sim.growth.floors) / this.sim.boosts.guestSpawn;
@@ -109,7 +119,7 @@ export class GuestManager {
    * @param tourist  turist kafilesinin üyesi (görünüm farkı; bildirimi kafile bir kez verir)
    * Masa doluysa ya da kuyruk varsa misafir sıraya girer.
    */
-  spawn(now, { tourist = false } = {}) {
+  spawn(now, { tourist = false, vip = false } = {}) {
     const street = this.fromWest ? POINTS.streetWest : POINTS.streetEast;
     this.fromWest = !this.fromWest;
     const g = {
@@ -126,8 +136,12 @@ export class GuestManager {
       waitUntil: 0,
       checkoutAt: 0,
       tourist,
+      vip: vip && !tourist,
+      roofAt: 0, // VIP: çatıya çıkış zamanı (oyun dakikası; 0 = yok)
+      roofSpot: -1,
     };
     if (tourist) g.look.hat = false; // turist şapkasını istemci takar
+    if (g.vip) g.look.bag = true; // VIP: altın detaylı valiz (istemci)
     this.guests.set(g.id, g);
     if (this.queue.length || this.deskBusy()) {
       this.queue.push(g.id);
@@ -135,7 +149,8 @@ export class GuestManager {
     } else {
       this.walk(g, P.ARRIVE, [street, POINTS.doorOutside, POINTS.doorInside, RECEPTION.front], now);
     }
-    if (!tourist) this.sim.notify('Yeni misafir geldi, resepsiyona yöneliyor.', 'info');
+    if (g.vip) this.sim.notify('⭐ VIP misafir geldi! 12. kattaki VIP suitlerinden birine yerleşecek (€300).', 'day');
+    else if (!tourist) this.sim.notify('Yeni misafir geldi, resepsiyona yöneliyor.', 'info');
   }
 
   // ---- Turist kafileleri ve resepsiyon kuyruğu ---------------------------------------
@@ -264,9 +279,10 @@ export class GuestManager {
 
   lastPoint(g) { return g.path[g.path.length - 1]; }
 
-  pickRoom() {
+  /** @param g misafir (VIP ise yalnızca 12. kat suitleri, değilse suitler hariç) */
+  pickRoom(g = null) {
     // Yalnızca açık katlardaki boş odalar
-    const empty = this.sim.rooms.emptyRooms(this.sim.growth.floors);
+    const empty = this.sim.rooms.emptyRooms(this.sim.growth.floors, !!g?.vip);
     if (!empty.length) return null;
     return empty[Math.floor(this.rng() * empty.length)];
   }
@@ -281,8 +297,13 @@ export class GuestManager {
     this.sim.rooms.occupy(room, g.id);
     g.roomId = room.id;
     g.seat = -1;
-    this.sim.earn(roomPrice(ROOM_PRICE, this.sim.growth.stars), `Oda ${room.id} kiralandı`);
-    this.sim.growth.addReputation(REPUTATION.GUEST_CHECKIN);
+    if (g.vip) {
+      this.sim.earn(VIP.PRICE, `⭐ VIP suit ${room.id} kiralandı`);
+      this.sim.growth.addReputation(VIP.REPUTATION);
+    } else {
+      this.sim.earn(roomPrice(ROOM_PRICE, this.sim.growth.stars), `Oda ${room.id} kiralandı`);
+      this.sim.growth.addReputation(REPUTATION.GUEST_CHECKIN);
+    }
     this.sim.roomsChanged();
     const layout = ROOM_BY_ID[room.id];
     this.walkLegs(g, P.TO_ROOM, lobbyToRoom(fromPath, layout, [layout.path.stand]), now);
@@ -296,7 +317,7 @@ export class GuestManager {
 
   updateWaiting(g, now) {
     const seat = SEATS[g.seat];
-    const room = this.pickRoom();
+    const room = this.pickRoom(g);
     if (room) {
       this.assignRoom(g, room, [seat.seat, seat.approach], now);
       return;
@@ -311,6 +332,11 @@ export class GuestManager {
   updateGuest(g, now) {
     const { clock } = this.sim;
     if (g.phase === P.IN_ROOM) {
+      if (clock.total >= g.checkoutAt) this.checkout(g, now);
+      else if (g.roofAt && clock.total >= g.roofAt) this.goRoof(g, now);
+      return;
+    }
+    if (g.phase === VIP.PHASE_ON_ROOF) {
       if (clock.total >= g.checkoutAt) this.checkout(g, now);
       return;
     }
@@ -328,7 +354,7 @@ export class GuestManager {
         break;
 
       case P.CHECKIN: {
-        const room = this.pickRoom();
+        const room = this.pickRoom(g);
         if (room) {
           this.assignRoom(g, room, [RECEPTION.front], now);
           break;
@@ -356,7 +382,15 @@ export class GuestManager {
         const stay = this.sim.config.stayMinMin
           + this.rng() * (this.sim.config.stayMaxMin - this.sim.config.stayMinMin);
         g.checkoutAt = clock.total + stay;
+        // VIP: konaklamanın ortasında çatıdaki VIP bölümüne çıkar (Gökdelen açıkken)
+        g.roofAt = g.vip && this.sim.arch?.roofOpen ? clock.total + stay * VIP.ROOF_AT : 0;
         this.stand(g, P.IN_ROOM, this.lastPoint(g), 0, now);
+        break;
+      }
+
+      case VIP.PHASE_TO_ROOF: {
+        const spot = ROOF.vipSpots[g.roofSpot];
+        this.stand(g, VIP.PHASE_ON_ROOF, spot.seat, spot.face, now, 0, true);
         break;
       }
 
@@ -375,6 +409,17 @@ export class GuestManager {
     }
   }
 
+  /** VIP: odadan çatıdaki VIP şezlonguna (suit numarasına göre) */
+  goRoof(g, now) {
+    g.roofAt = 0;
+    const layout = ROOM_BY_ID[g.roomId];
+    const i = (Number(g.roomId.slice(-1)) - 1) % ROOF.vipSpots.length;
+    const spot = ROOF.vipSpots[i];
+    g.roofSpot = i;
+    const legs = roomToFloor([layout.path.stand], layout, ROOF_FLOOR, [ROOF.vipIn, spot.approach, spot.seat]);
+    this.walkLegs(g, VIP.PHASE_TO_ROOF, legs, now);
+  }
+
   checkout(g, now) {
     const room = this.sim.rooms.get(g.roomId);
     const layout = ROOM_BY_ID[g.roomId];
@@ -383,6 +428,14 @@ export class GuestManager {
     this.sim.notify(`Oda ${room.id} boşaltıldı — temizlik gerekiyor!`, 'dirty');
     const street = this.rng() < 0.5 ? POINTS.streetWest : POINTS.streetEast;
     g.roomId = null;
-    this.walkLegs(g, P.CHECKOUT, roomToLobby([layout.path.stand], layout, [POINTS.doorInside, POINTS.doorOutside, street]), now);
+    const out = [POINTS.doorInside, POINTS.doorOutside, street];
+    if (g.phase === VIP.PHASE_ON_ROOF || g.phase === VIP.PHASE_TO_ROOF) {
+      // Çatıdan: VIP şezlongu → asansör → lobi → sokak
+      const spot = ROOF.vipSpots[g.roofSpot] ?? ROOF.vipSpots[0];
+      const from = g.phase === VIP.PHASE_ON_ROOF ? [spot.seat, spot.approach] : [spot.approach];
+      this.walkLegs(g, P.CHECKOUT, [[...from, ROOF.vipIn, ROOF.hub, elevatorPoint(ROOF_FLOOR)], [elevatorPoint(1), ...out]], now);
+      return;
+    }
+    this.walkLegs(g, P.CHECKOUT, roomToLobby([layout.path.stand], layout, out), now);
   }
 }

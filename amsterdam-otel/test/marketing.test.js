@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HotelSimulation } from '../server/game/HotelSimulation.js';
-import { EVT, ROOM_STATUS, GUEST_PHASE, CHECKIN_CLOSE_MIN } from '../shared/constants.js';
+import { EVT, ROOM_STATUS, GUEST_PHASE, CHECKIN_CLOSE_MIN, roomFloor } from '../shared/constants.js';
 import { RECEPTION } from '../shared/layout.js';
 import {
   INSTA, TOURIST, AD_BUDGETS, budgetTier, isPhotoDataUrl, cleanCaption, isPlaceId, placeLabel, queueSpot, formatCount,
@@ -284,7 +284,7 @@ test('turist akını yeterli sürede açık katlardaki tüm odaları doldurur (%
   sim.on('out', (e, n) => { if (e === EVT.NOTIFY && /boş oda bulamadığı/.test(n.text)) lost++; });
   tick(150_000, 100, () => {
     if (full) return;
-    const open = [...sim.rooms.rooms.values()].filter((r) => Number(r.id[0]) <= 2);
+    const open = [...sim.rooms.rooms.values()].filter((r) => roomFloor(r.id) <= 2);
     full = open.every((r) => r.status === ROOM_STATUS.OCCUPIED);
   });
   assert.ok(full, 'tüm odalar dolu');

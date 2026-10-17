@@ -1,5 +1,7 @@
 import { EVT, formatMoney } from '../../shared/constants.js';
-import { ELEVATOR, RECEPTION_PC, FLOOR_DZ } from '../../shared/layout.js';
+import {
+  ELEVATOR, RECEPTION_PC, FLOOR_DZ, TOP_FLOOR, ROOF_FLOOR,
+} from '../../shared/layout.js';
 import {
   REPUTATION, FLOOR_UPGRADES, MAX_FLOOR, STAR_THRESHOLDS, starsFor, reputationAfterStarLoss,
 } from '../../shared/hotel.js';
@@ -13,6 +15,8 @@ const UPGRADE_BY_FLOOR = Object.freeze(Object.assign(Object.create(null), Object
  *    denetim başarılı +20 / başarısız → bir yıldız düşer.
  *  - Kat satın alma: sıradaki kat, yeterli yıldız + kasa; oyuncu resepsiyon bilgisayarının başında.
  *  - Asansör: oyuncu bir asansör kapısının önündeyse açık bir kata ışınlanır (konum sunucuda yazılır).
+ *  - Lüks paketler (ArchitectureService) `floors`'u 8 / 12'ye çıkarır; Gökdelen'de asansörün "Çatı" durağı
+ *    (ROOF_FLOOR) Aqua Park'a gider.
  */
 export class HotelGrowthService {
   constructor(sim) {
@@ -29,7 +33,9 @@ export class HotelGrowthService {
   restore(g) {
     if (!g || typeof g !== 'object') return;
     if (Number.isFinite(g.reputation)) this.reputation = Math.min(Math.max(Math.floor(g.reputation), 0), REPUTATION.MAX);
-    if (Number.isInteger(g.floors)) this.floors = Math.min(Math.max(g.floors, 1), MAX_FLOOR);
+    // Kat satın almayla en fazla 4; lüks paket (önce yüklenir) sınırı 8 / 12'ye çıkarır
+    const max = Math.max(MAX_FLOOR, this.sim.arch?.maxFloor ?? MAX_FLOOR);
+    if (Number.isInteger(g.floors)) this.floors = Math.min(Math.max(g.floors, 1), max);
     if (Number.isInteger(g.plaques)) this.plaques = Math.min(Math.max(g.plaques, 0), 999);
   }
 
@@ -98,16 +104,25 @@ export class HotelGrowthService {
   elevatorAt(p) {
     const near = (pt) => Math.hypot(p.x - pt[0], p.z - pt[1]) <= ELEVATOR.range + 1;
     if (near(ELEVATOR.lobby.point)) return 1;
-    for (let f = 2; f <= MAX_FLOOR; f++) if (FLOOR_DZ[f] !== undefined && near(ELEVATOR.floor(f).point)) return f;
+    for (let f = 2; f <= TOP_FLOOR; f++) if (FLOOR_DZ[f] !== undefined && near(ELEVATOR.floor(f).point)) return f;
+    if (near(ELEVATOR.floor(ROOF_FLOOR).point)) return ROOF_FLOOR;
     return 0;
+  }
+
+  /** Asansör durağı açık mı (kat ya da çatı) */
+  isStopOpen(f) {
+    if (f === ROOF_FLOOR) return !!this.sim.arch?.roofOpen;
+    return this.isFloorOpen(f);
   }
 
   elevator(p, data) {
     const floor = data?.floor;
-    if (!Number.isInteger(floor) || floor < 1 || floor > MAX_FLOOR) return { ok: false, error: 'Geçersiz kat.' };
+    if (!Number.isInteger(floor) || floor < 1 || floor > ROOF_FLOOR) return { ok: false, error: 'Geçersiz kat.' };
     const from = this.elevatorAt(p);
     if (!from) return { ok: false, error: 'Asansörün önünde olmalısın.' };
-    if (!this.isFloorOpen(floor)) return { ok: false, error: `${floor}. kat henüz yok — Resepsiyon PC'den satın alınabilir.` };
+    if (!this.isStopOpen(floor)) {
+      return { ok: false, error: floor === ROOF_FLOOR ? 'Çatı henüz kapalı — "Ultra Lüks Gökdelen" paketiyle açılır.' : `${floor}. kat henüz yok — Resepsiyon PC'den satın alınabilir.` };
+    }
     if (floor === from) return { ok: false, error: 'Zaten bu kattasın.' };
     if (p.sleeping || p.vehicle) return { ok: false, error: 'Şu an asansöre binemezsin.' };
     const dest = floor === 1 ? ELEVATOR.lobby : ELEVATOR.floor(floor);

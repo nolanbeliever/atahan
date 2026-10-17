@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { WALL_H, ROOMS, RECEPTION, SOFA, BAR, buildWallSegments } from '/shared/layout.js';
+import {
+  WALL_H, ROOMS as ALL_ROOMS, RECEPTION, SOFA, BAR, BASE_FLOORS, buildWallSegments,
+} from '/shared/layout.js';
 import { StaticBatcher } from './StaticBatcher.js';
 import { UV } from './Materials.js';
 import { signDrawer } from './Textures.js';
@@ -19,6 +21,9 @@ import { makeCharacter } from '../game/Characters.js';
 
 const BLANKET_COLORS = ['fabricBlue', 'fabricRed', 'fabricGreen', 'fabricOrange']; // k01..k04
 const ENTRANCE_OPEN = Math.PI / 2 * 0.9;
+// İlk yüklemede yalnızca 1–4. katların odaları kurulur; 5–12. katlar lüks paketle, ilk ziyarette
+// (HotelArchitectureUpgrades → world.addRoomViews) kendi kat grubuna eklenir.
+const ROOMS = ALL_ROOMS.filter((r) => r.floor <= BASE_FLOORS);
 
 /**
  * Otelin tamamını kurar: lobi, koridor, odalar (üst katlar dahil), Amsterdam sokağı ve kanal;
@@ -35,17 +40,21 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
   const clerk = buildLobby(b, collision, scene, mats);
   buildCorridor(b, collision);
 
-  const rooms = ROOMS.map((layout) => new RoomView({
+  const makeRoomView = (layout, batcher, parent, vip = false) => new RoomView({
     layout,
-    batcher: b,
-    scene,
+    batcher,
+    scene: parent,
     mats,
     collision,
+    vip,
     blanketMat: mats[BLANKET_COLORS[(Number(layout.id) % 100) - 1] ?? 'fabricBlue'],
     plateMat: new THREE.MeshLambertMaterial({
-      map: factory.make(signDrawer({ title: layout.id, sub: 'Oda · Kamer', bg: '#b08d57', fg: '#2a1d0e', border: '#6b5330' }), { w: 1, h: 0.45, repeat: false }),
+      map: factory.make(signDrawer({
+        title: layout.id, sub: vip ? 'VIP Suite' : 'Oda · Kamer', bg: vip ? '#1b1b22' : '#b08d57', fg: vip ? '#f2c75c' : '#2a1d0e', border: vip ? '#c9a25e' : '#6b5330',
+      }), { w: 1, h: 0.45, repeat: false }),
     }),
-  }));
+  });
+  const rooms = ROOMS.map((layout) => makeRoomView(layout, b, scene));
 
   const entrance = buildEntrance(scene, mats);
   const coffeeShop = buildCoffeeShop({ batcher: b, collision, scene, mats, factory });
@@ -105,6 +114,20 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
     applyRooms(states) {
       for (const st of states) this.roomById.get(st.id)?.applyState(st);
       engine.requestRender();
+    },
+
+    /**
+     * Lüks katların odaları (tembel): statik mobilyalar verilen batcher'a, dinamik parçalar `parent`
+     * grubuna eklenir. Oda listesine (etkileşim, kapılar) ve roomById'e katılır.
+     * @param vipIds VIP suiti olan oda kimlikleri (daha geniş yatak, siyah-altın plaka)
+     */
+    addRoomViews(layouts, batcher, parent, vipIds = new Set()) {
+      const out = layouts.map((layout) => makeRoomView(layout, batcher, parent, vipIds.has(layout.id)));
+      for (const r of out) {
+        rooms.push(r);
+        this.roomById.set(r.id, r);
+      }
+      return out;
     },
 
     /** @returns {boolean} animasyon sürüyor mu */
