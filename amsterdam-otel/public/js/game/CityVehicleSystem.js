@@ -109,6 +109,8 @@ export function makeVehicleModel(type, color) {
  *  - Sürerken binalara girilmez (kapılarda yalnızca sürücüye özel engeller); sokak, steeg ve
  *    Achterstraat'ta istediğin yerde E ile inip park edersin.
  *  - Pil: araçlar statik mesh'lerdir; yalnızca hareket ederken (tekerlek dönüşü) kare çizilir.
+ *  - Arabalar (`type: 'car'`) aynı listede gelir; modeli, sürüş ayarları, park bölgesi, ön yolcu
+ *    koltuğu ve kokpit `this.cars` eklentisinden (UndergroundGarage) gelir.
  */
 export class CityVehicleSystem {
   constructor({ engine, net, hud, interaction, player, remotes, collision, modal, device, settings, sfx, getWallet }) {
@@ -132,6 +134,7 @@ export class CityVehicleSystem {
     this.seat = null; // { id, seat }
     this.pending = false;
     this.lastHud = '';
+    this.cars = null; // araba eklentisi (UndergroundGarage.carHooks)
 
     // Sürücüye özel engeller: bina kapılarından içeri sürülmez
     const doors = [
@@ -167,9 +170,13 @@ export class CityVehicleSystem {
     for (const v of this.list) {
       let m = this.meshes.get(v.id);
       if (!m) {
-        const def = VEHICLE_BY_ID[v.type];
-        const color = def.colors[v.ownerId % def.colors.length];
-        m = { obj: makeVehicleModel(v.type, color), type: v.type, lx: v.x, lz: v.z };
+        let obj;
+        if (v.type === 'car') obj = this.cars.makeModel(v);
+        else {
+          const def = VEHICLE_BY_ID[v.type];
+          obj = makeVehicleModel(v.type, def.colors[v.ownerId % def.colors.length]);
+        }
+        m = { obj, type: v.type, lx: v.x, lz: v.z };
         this.engine.scene.add(m.obj);
         this.meshes.set(v.id, m);
       }
@@ -186,8 +193,19 @@ export class CityVehicleSystem {
       if (!mine) this.leaveSeat();
     }
     this.placeParked();
+    this.cars?.onList(this.list, this.meshes);
     this.interaction.invalidate();
     this.engine.requestRender();
+  }
+
+  /** Araç türünün tanımı (ad, simge, ekler); arabalarda katalog modeli */
+  defOf(v) {
+    return v?.type === 'car' ? this.cars.def(v) : VEHICLE_BY_ID[v?.type];
+  }
+
+  /** Sürücünün şu an araba sürüyor olması */
+  get drivingCar() {
+    return this.seat?.seat === 'driver' && this.byId.get(this.seat.id)?.type === 'car';
   }
 
   /** EVT.VEHICLE_SEAT: sürücü indi → yolcu da iner, sunucunun verdiği yere */
@@ -209,8 +227,11 @@ export class CityVehicleSystem {
     if (this.seat) {
       const at = { x: px, z: pz, marker: false };
       if (this.seat.seat === 'passenger') return { ...at, short: 'İn', label: '⬇ Arkadan in', use: () => this.dismount() };
-      if (!isOutdoors(px, pz)) return { ...at, short: 'İn', label: '🚫 Burada park edilmez', use: () => this.hud.toast('Sokakta, steeg\'de ya da Achterstraat\'ta park edebilirsin.', 'info') };
-      const def = VEHICLE_BY_ID[this.byId.get(this.seat.id)?.type];
+      const sv = this.byId.get(this.seat.id);
+      if (sv?.type === 'car') {
+        if (!this.cars.canPark(px, pz)) return { ...at, short: 'İn', label: '🚫 Burada park edilmez', use: () => this.hud.toast('Arabayı garajda, otelin önünde ya da drag alanında park edebilirsin.', 'info') };
+      } else if (!isOutdoors(px, pz)) return { ...at, short: 'İn', label: '🚫 Burada park edilmez', use: () => this.hud.toast('Sokakta, steeg\'de ya da Achterstraat\'ta park edebilirsin.', 'info') };
+      const def = this.defOf(sv);
       return { ...at, short: 'Park', label: `🅿️ ${def?.from ?? 'Araçtan'} in ve park et`, use: () => this.dismount() };
     }
     // Büfe
@@ -234,13 +255,13 @@ export class CityVehicleSystem {
     }));
     for (const v of this.list) {
       if (v.driver != null && v.passenger != null) continue;
-      consider(v.x, v.z, R.MOUNT_RANGE, () => this.vehicleTarget(v));
+      consider(v.x, v.z, v.type === 'car' ? this.cars.mountRange : R.MOUNT_RANGE, () => this.vehicleTarget(v));
     }
     return best;
   }
 
   vehicleTarget(v) {
-    const def = VEHICLE_BY_ID[v.type];
+    const def = this.defOf(v);
     const at = { x: v.x, z: v.z, marker: true };
     if (v.ownerId === this.selfId) {
       if (v.driver != null) return { ...at, short: def.icon, label: `${def.icon} ${def.name}`, use: () => {} };
@@ -262,15 +283,22 @@ export class CityVehicleSystem {
       this.hud.toast(res.error || 'Binemedin.', 'warn');
       return;
     }
-    const def = VEHICLE_BY_ID[v.type];
+    const def = this.defOf(v);
+    const car = v.type === 'car';
     this.seat = { id: v.id, seat: res.seat };
     if (res.seat === 'driver') {
-      this.player.setPose(res.x, res.z);
-      this.player.setDrive({ speed: def.speed, accel: def.accel, turn: def.turn, eye: def.eye, reverse: R.REVERSE, radius: R.RIDER_RADIUS });
+      // Araba: koltuğa otururken gövde yönüne dön (yaw = arabanın yönü)
+      this.player.setPose(res.x, res.z, car ? res.yaw : undefined);
+      this.player.setDrive(car ? this.cars.driveDef(v) : { speed: def.speed, accel: def.accel, turn: def.turn, eye: def.eye, reverse: R.REVERSE, radius: R.RIDER_RADIUS });
       for (const w of this.riderWalls) w.enabled = true;
+      if (car) this.cars.onSeat('driver', v);
       const keys = this.device.touch ? 'Joystick: gaz / direksiyon · Park: in' : 'W/S gaz-fren · A/D direksiyon · E: in ve park et';
-      this.hud.toast(`${def.icon} Sürüyorsun! ${keys}`, 'info');
+      if (!car) this.hud.toast(`${def.icon} Sürüyorsun! ${keys}`, 'info'); // araba: kokpit kendi ipucunu gösterir
       if (this.settings?.sound) this.sfx?.clink?.();
+    } else if (car) {
+      this.player.setFollow(() => this.passengerPos(), this.cars.passengerEye(v));
+      this.cars.onSeat('passenger', v);
+      this.hud.toast(`🚗 Ön koltuğa bindin — sürücü nereye, sen oraya. E: in`, 'info');
     } else {
       this.player.setFollow(() => this.passengerPos(), PASSENGER_EYE);
       this.hud.toast(`${def.icon} Arkaya bindin — sürücü nereye, sen oraya. E: in`, 'info');
@@ -289,8 +317,10 @@ export class CityVehicleSystem {
       return;
     }
     const wasPassenger = this.seat?.seat === 'passenger';
+    const wasCar = this.byId.get(this.seat?.id)?.type === 'car';
     this.leaveSeat();
-    if (wasPassenger && Number.isFinite(res.x)) this.player.setPose(res.x, res.z);
+    // Yolcu ve araba sürücüsü sunucunun verdiği yere (kapının yanı) iner
+    if ((wasPassenger || wasCar) && Number.isFinite(res.x)) this.player.setPose(res.x, res.z);
     this.hud.toast(wasPassenger ? 'İndin.' : '🅿️ Park ettin.', 'info');
   }
 
@@ -301,6 +331,7 @@ export class CityVehicleSystem {
     this.player.setDrive(null);
     this.player.setFollow(null);
     for (const w of this.riderWalls) w.enabled = false;
+    this.cars?.onLeave();
     this.el.hud.hidden = true;
     this.lastHud = '';
     this.interaction.invalidate();
@@ -313,6 +344,7 @@ export class CityVehicleSystem {
     const r = v?.driver != null ? this.remotes.get(v.driver) : null;
     if (!r) return v ? { x: v.x, z: v.z } : null;
     const yaw = r.obj.rotation.y - Math.PI; // karakter yönü → kamera yaw'ı
+    if (v.type === 'car') return this.cars.passengerPos(v, r.obj.position.x, r.obj.position.z, yaw);
     return passengerSeat(r.obj.position.x, r.obj.position.z, yaw);
   }
 
@@ -424,6 +456,7 @@ export class CityVehicleSystem {
       const dist = Math.hypot(x - m.lx, z - m.lz);
       m.obj.position.set(x, 0, z);
       m.obj.rotation.y = ry;
+      if (v.type === 'car') this.cars.updateMesh(m, v, v.driver === this.selfId, x, z, ry);
       if (dist > 1e-4) {
         // Tekerlekler gidilen yol kadar döner
         const fwd = (x - m.lx) * Math.sin(ry) + (z - m.lz) * Math.cos(ry);
@@ -439,7 +472,7 @@ export class CityVehicleSystem {
 
   /** Sürerken hız göstergesi (yalnızca değer değişince DOM'a yazılır) */
   updateHud() {
-    if (this.seat?.seat !== 'driver') return;
+    if (this.seat?.seat !== 'driver' || this.drivingCar) return; // arabanın kendi göstergesi var (kokpit)
     const def = VEHICLE_BY_ID[this.byId.get(this.seat.id)?.type];
     const kmh = Math.round(Math.abs(this.player.vel) * 3.6);
     const text = `${def?.icon ?? '🚲'} ${kmh} km/sa${this.player.vel < -0.05 ? ' · geri' : ''}`;

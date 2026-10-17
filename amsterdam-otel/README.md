@@ -295,6 +295,66 @@ Misafir çıkınca odada dağınık yatak ve çöplere ek olarak 1–2 arıza ç
 - **Park:** sokakta, steeg'de ya da Achterstraat'ta istediğin yerde **E** → inip park edersin (otelin ve evlerin
   önünde P tabelaları var). Araçlar ve son park yerleri hesabına bağlı olarak kaydedilir.
 
+## Yeraltı garajı ve AutoGalerie
+
+- **Garaj ("Hotel Amsterdam Garage", −1):** otelin önündeki sokakta, batı tarafta (Bizim Ev ile otel kapısı arasında)
+  **"P ↓"** tabelalı rampa ağzı var. İçine yürüyen ya da süren garaja iner (kısa kararma geçişi). Beton sütunlar,
+  numaralı park yerleri (**P-01…P-34**), flüoresan şeritler, tavan kirişleri, kapalı **−2** rampası, kuzeyde sokağa
+  çıkış rampası (**⇡ Uitrit · Çıkış**), doğu duvarında **🏁 Drag pisti** tüneli ve asansör (**E → lobiye çık**).
+  Hızlı ışınlanmadaki 🅿️ hedefi asansörün önüne (garaja bakarak) bırakır.
+- **AutoGalerie:** telefonda **🚗 AutoGalerie** uygulaması ya da garajdaki terminal (**E**). Renk ve ödeme kaynağı
+  (**🎒 cüzdan** — ev matbaasının parası da buraya girer — ya da **🏨 otel kasası**) seçilir. Kurgusal markalar,
+  Hollanda fiyatları (≈ $ bilgi olarak):
+
+  | Model | Sınıf | Fiyat | En yüksek hız | 0–100 |
+  | --- | --- | --- | --- | --- |
+  | Polder P6 “Kikker” | Mikro araba (varyomatik) | €12.000 | 120 km/s | 19,5 sn |
+  | Lindeman Stip 1.0 | Şehir arabası | €18.000 | 160 km/s | 12,4 sn |
+  | Kade Vier 1.5 | Kompakt hatchback | €28.000 | 205 km/s | 8,9 sn |
+  | Vonk e-Stad | Elektrikli hatchback | €36.000 | 160 km/s | 7,3 sn |
+  | Duinwagen Terra 7 | Aile SUV'u | €48.000 | 200 km/s | 8,4 sn |
+  | Vonk Bliksem Performance | Elektrikli performans sedanı | €58.000 | 225 km/s | 4,4 sn |
+  | Graaf Regent 540 | Yönetici sedanı | €62.000 | 250 km/s | 5,6 sn |
+  | Stormvogel 390 Coupé | Spor coupé | €95.000 | 280 km/s | 4,1 sn |
+  | Graaf Imperator GT V12 | Lüks GT | €185.000 | 320 km/s | 3,6 sn |
+  | Valkenier Tempesta | Süper araba | €280.000 | 340 km/s | 2,9 sn |
+
+  Oyuncu başına en fazla **6 araba**. Yeni araba ilk boş numaralı park yerine bırakılır; garaj doluysa otelin önüne.
+  Arabalar ve son park yerleri anahtar özetine bağlı kaydedilir (`hotel.garage`).
+- **Sürüş (FPV):** arabaya bakıp **E** → sürücü koltuğu (Hollanda: soldan direksiyon). **W/S** gaz-fren-geri, **A/D**
+  direksiyon; fare / sağ taraf yalnızca **başı çevirir** (araba direksiyonla döner, hızlanınca bakış yola döner).
+  Torpido, dönen direksiyon simidi, ibreli gösterge, fren yapınca yanan stop lambaları, altta km/s + vites + devir
+  çubuğu. Hızlandıkça görüş açısı genişler, yüksek hızda kamera hafifçe titrer ("sallanmayı azalt" açıksa titreşim
+  yok). Motor sesi WebAudio ile sentezlenir (devir / vites / silindir sayısı; elektriklilerde uğultu). Mobilde
+  joystick ya da büyük **⛽ / 🛑** pedallar. Başka bir oyuncu ön sağ koltuğa binebilir (**E**).
+- **Nerede sürülür:** garajda ve otelin önündeki sokakta **30 km/s** sınırıyla, drag alanında tam hızla. Steeg'e,
+  Achterstraat'a ve binalara araba girmez (yalnızca sürücüye özel engeller). Park da yalnızca bu üç bölgede.
+  Arabayla rampadan / tünelden geçersen araba (ve yolcun) seninle gelir; hızlı ışınlanma araçtayken çalışmaz.
+- **Sunucu doğrular:** model / renk / kaynak (tip denetimi, prototipsiz tablolar), bakiye, araba sınırı, geçit
+  konumu, park bölgesi. Araba sürücüsünün her konumu bulunduğu yerin hız sınırına (× 1.15 + 1.5 m/sn, en fazla
+  0.8 sn birikim) göre kırpılır; araba bölgesi dışına giden konum yok sayılır.
+- **Pil:** garaj ve pist ayrı gruplardır, yalnızca oyuncu oradayken görünür; o sırada otel dünyası kameranın katman
+  maskesiyle hiç çizilmez. Garaj ~20, araba ~12 draw call (statik parçalar araba başına birleştirilir). Kokpit
+  (FOV, ses, gösterge) yalnızca sürerken çalışır; duran arabada kare çizilmez.
+
+## Drag pisti
+
+- **Yer:** şehir kenarı (garajdaki **🏁 Drag pisti** tünelinden arabanla ya da hızlı ışınlanmayla yürüyerek).
+  İki şeritli (**SOL / SAĞ**) **402 m** çeyrek mil: burnout kutusu, ışık ağacı, 100 / 200 / 300 m ve ⅛ mil
+  işaretleri, satranç desenli bitiş, bitiş köprüsünde şerit zaman tabloları, beton bariyerler, pist sonunda
+  paraşüt + kum havuzu + lastik duvar. Yanında serbest sürüş alanı (boyalı oval, çim iç saha, slalom dubaları),
+  tribün ve seyirciler, lale tarlaları, yel değirmenleri. Kuzeydoğudaki **🅿️ Garaja dön** tüneli garaja götürür.
+- **Yarış:** sağdaki panelden **🏁 Solo** ya da **⚔️ Düello** seç (masaüstünde fare kilitliyken **G** modu değiştirir, **L** liderlik tablosunu açar); arabanla şeridinde çizginin hemen gerisinde dur
+  → sahneye girersin. Işık ağacı: ön sahne / sahne → 3 sarı (0,5 sn arayla) → **yeşil**. Yeşilden önce kalkan
+  **kırmızı ışık** yer (jump start), şeridinden çıkan diskalifiye olur, 40 sn'de bitiremeyen DNF. Düelloda ilk gelen
+  90 sn rakip bekler; ikinci şerit sahneye girince ortak geri sayım başlar, çizgiyi önce geçen (reaksiyon + ET)
+  kazanır. Bahis yok — saf spor.
+- **Zamanlama (sunucu):** yalnızca sunucuya gelen konum örneklerinden ara değerlemeyle: reaksiyon (yeşil → 5 cm),
+  0–100 km/s, ⅛ mil ve ¼ mil ET, hız tuzağı (son 20 m'nin ortalaması). Koşu, modelin kuramsal en iyisinden
+  belirgin hızlıysa geçersiz sayılır. Sonuç kartı, bitiş tabloları ve paddock tabelası güncellenir.
+- **Liderlik tablosu (🏆):** en iyi 10 çeyrek mil ET'si, oyuncu başına bir kayıt, kalıcı (`hotel.drag`).
+- **Not:** reaksiyon süresi tek yönlü ağ gecikmesini de içerir (yerel ağda birkaç ms, internette daha fazla).
+
 ## Sohbet
 
 - Masaüstünde **Enter**, mobilde **💬** sohbet kutusunu açar; yaz ve Enter / **Gönder**. Yazarken oyun tuşları
@@ -539,7 +599,9 @@ amsterdam-otel/
 │   └── game/
 │       ├── HotelSimulation.js   # Simülasyon (ağdan bağımsız, test edilebilir)
 │       ├── RelationshipService.js # Müdavimlerle arkadaşlık: diyalog etkileri, eve davet, moral bonusu
-│       ├── VehicleService.js    # Bisiklet / scooter: satın alma, sürücü + yolcu, park, kalıcılık
+│       ├── VehicleService.js    # Bisiklet / scooter: satın alma, sürücü + yolcu, park, kalıcılık (arabalar da burada 'car')
+│       ├── GarageService.js     # Yeraltı garajı + AutoGalerie: araba satın alma, park yerleri, kalıcılık, rampa / tünel, hız denetimi
+│       ├── DragRaceService.js   # Drag pisti: sahne, ışık ağacı zamanları, sunucu zamanlaması, düello, liderlik tablosu
 │       ├── GameClock.js         # Gün döngüsü: hafta içi açık / hafta sonu kapalı, gece (23:00–07:00)
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
 │       ├── GuestManager.js      # Misafir yaşam döngüsü ve rotaları (üst kata asansörle iki bacak), turist kafilesi + resepsiyon kuyruğu
@@ -563,6 +625,7 @@ amsterdam-otel/
 │   ├── layout.js                # Otel + coffee shop + ev yerleşimi: duvarlar, odalar, rota noktaları
 │   ├── friends.js               # Müdavimler, konular, espriler, arkadaşlık kuralları
 │   ├── vehicles.js              # Araç türleri, hız / ivme, yolcu koltuğu
+│   ├── cars.js                  # AutoGalerie kataloğu, araba fiziği, garaj / sokak rampası / drag pisti yerleşimi, geçitler, hız sınırları
 │   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri, denetim kuralları
@@ -575,11 +638,12 @@ amsterdam-otel/
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css)
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
 │       ├── world/               # Otel, coffee shop, bar, Bizim Ev, Achterstraat evleri, steeg + araç büfesi, sahne (StageBuilding); dokular, malzemeler, çarpışma
+│       │                        #   GarageBuilding (garaj + sokak rampası), DragStripBuilding (pist + manzara), CarModels (prosedürel arabalar), CarWorldKit
 │       ├── controls/            # Klavye/fare, dokunmatik joystick, FPV oyuncu
 │       ├── game/                # Misafirler, diğer oyuncular, etkileşim, durum
 │       │   ├── CoffeeShopSystem.js  # Tezgâh/slot etkileşimi, paneller, envanter, tüketim
@@ -608,13 +672,16 @@ amsterdam-otel/
 │       │   ├── RecipeBook.js        # Tarif kitabı paneli (kürsü / K / 📖)
 │       │   ├── HomeCounterfeitSystem.js # Ev matbaası: kurulum, baskı, polis baskını bandı, gizli bölme, polis
 │       │   ├── FastTravelSystem.js  # Hızlı ışınlanma paneli (M / telefonda 🗺️)
+│       │   ├── UndergroundGarage.js # Garaj, AutoGalerie (telefon + terminal), rampa / tünel geçitleri, araba eklentisi, alan görünürlüğü
+│       │   ├── CarCockpit.js        # Araba kokpiti: km/s + vites göstergesi, FOV, titreşim, motor sesi, dokunmatik pedallar
+│       │   ├── DragRaceTrack.js     # Drag pisti: ışık ağacı, otomatik sahne, canlı süre, sonuç kartı, tablolar, liderlik
 │       │   ├── ViewModel.js         # Birinci şahıs eller (dökme, çalkalama, ısırma, toplama…)
 │       │   ├── NightCycle.js        # Gece görünümü, yatakta uyuma, uyku ekranı
 │       │   ├── HerbalBotanySystem.js # Ev bahçesi: tohum paneli, büyüme evreleri, hasat
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi, denetim), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi, denetim), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti
 ```
 
 ## Sonraki aşamalar için notlar

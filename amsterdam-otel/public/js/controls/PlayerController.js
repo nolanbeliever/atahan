@@ -23,12 +23,17 @@ export class PlayerController {
     this.lockUntil = 0; // bar: dökerken / çalkalarken / yıkarken yürünmez (bakış serbest)
     this.viewOffset = { pitch: 0, yaw: 0, roll: 0 };
     // Araç (CityVehicleSystem): sürüş modu { speed, accel, turn, eye, radius } ya da yolcu modu
-    // follow() → { x, z } (konumu sürücü belirler, bakış serbest)
+    // follow() → { x, z } (konumu sürücü belirler, bakış serbest).
+    // Arabalar (UndergroundGarage) isteğe bağlı alanlar ekler: accelAt(v), turnAt(v), brake, coast(v),
+    // limit(x, z) (bölge hız sınırı), move(pos, yaw, dx, dz) (gövde boyunca çarpışma), seat { x, z }
+    // (kamera sürücü koltuğunda), roll, freeLook (fare / sağ taraf yalnızca başı çevirir, direksiyon A/D)
     this.drive = null;
     this.follow = null;
     this.vel = 0; // sürüşte ileri hız (m/sn)
     this.steer = 0; // görsel eğilme için son direksiyon girdisi
     this.eye = EYE_HEIGHT;
+    this.headYaw = 0; // arabada serbest bakış (gövde yönünden bağımsız)
+    this._looked = false;
     this.apply();
   }
 
@@ -52,8 +57,10 @@ export class PlayerController {
     let changed = this._teleported;
     this._teleported = false;
     const look = this.input.consumeLook(this._look);
+    this._looked = !!(look.x || look.y);
     if (look.x || look.y) {
-      this.yaw -= look.x;
+      if (this.drive?.freeLook) this.headYaw = Math.max(-2.3, Math.min(2.3, this.headYaw - look.x));
+      else this.yaw -= look.x;
       this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch - look.y));
       changed = true;
     }
@@ -106,14 +113,26 @@ export class PlayerController {
     const now = performance.now();
     const thr = now >= this.lockUntil ? mv.y : 0;
     let v = this.vel;
-    if (thr > 0) v += (v < 0 ? d.accel * 2 : d.accel) * thr * dt;
-    else if (thr < 0) v += (v > 0 ? -d.accel * 1.6 : -d.accel * 0.5) * -thr * dt;
-    else v -= Math.sign(v) * Math.min(Math.abs(v), 2.2 * dt); // süzülme
+    const acc = d.accelAt ? d.accelAt(Math.abs(v)) : d.accel;
+    if (thr > 0) v += (v < 0 ? (d.brake ?? d.accel * 2) : acc) * thr * dt;
+    else if (thr < 0) v += (v > 0 ? -(d.brake ?? d.accel * 1.6) : -d.accel * 0.5) * -thr * dt;
+    else v -= Math.sign(v) * Math.min(Math.abs(v), (d.coast ? d.coast(Math.abs(v)) : 2.2) * dt); // süzülme
     v = Math.min(d.speed * this.speedMul, Math.max(-d.reverse, v));
+    if (d.limit) {
+      // Bölge hız sınırı (sokak 30 km/s, pist sonunda paraşüt): sınıra yumuşakça inilir
+      const cap = d.limit(this.pos.x, this.pos.z);
+      if (Math.abs(v) > cap) v = Math.sign(v) * Math.max(cap, Math.abs(v) - 45 * dt);
+    }
     // Direksiyon: hızlanınca tam, dururken az
     const steer = now >= this.lockUntil ? mv.x : 0;
     if (steer && Math.abs(v) > 0.05) {
-      this.yaw -= steer * d.turn * dt * Math.min(1, 0.35 + Math.abs(v) / 4) * Math.sign(v);
+      const rate = d.turnAt ? d.turnAt(Math.abs(v)) : d.turn * Math.min(1, 0.35 + Math.abs(v) / 4);
+      this.yaw -= steer * rate * dt * Math.sign(v);
+      changed = true;
+    }
+    // Arabada baş, hızlanınca yavaşça yola döner
+    if (d.freeLook && !this._looked && Math.abs(this.headYaw) > 1e-3 && Math.abs(v) > 4) {
+      this.headYaw *= Math.max(0, 1 - dt * 1.4);
       changed = true;
     }
     this.steer += (steer - this.steer) * Math.min(1, dt * 6);
@@ -122,14 +141,15 @@ export class PlayerController {
       const dz = -Math.cos(this.yaw) * v * dt;
       const ox = this.pos.x;
       const oz = this.pos.z;
-      this.collision.move(this.pos, dx, dz, d.radius);
+      if (d.move) d.move(this.pos, this.yaw, dx, dz);
+      else this.collision.move(this.pos, dx, dz, d.radius);
       const moved = Math.hypot(this.pos.x - ox, this.pos.z - oz);
       if (moved < Math.hypot(dx, dz) * 0.5) v *= 0.4; // duvara sürtünce yavaşla
       if (moved > 1e-5) changed = true;
     }
     this.vel = Math.abs(v) < 0.02 && !thr ? 0 : v;
     // Hafif viraj eğilmesi (kamera rulosu)
-    const roll = -this.steer * Math.min(1, Math.abs(this.vel) / d.speed) * 0.07;
+    const roll = -this.steer * Math.min(1, Math.abs(this.vel) / d.speed) * (d.roll ?? 0.07);
     if (Math.abs(roll - this.viewOffset.roll) > 1e-4) {
       this.viewOffset.roll = roll;
       changed = true;
@@ -141,6 +161,10 @@ export class PlayerController {
 
   /** Araca bin / in (CityVehicleSystem) */
   setDrive(def) {
+    if (this.headYaw) {
+      this.yaw += this.headYaw; // inince bakılan yön korunur
+      this.headYaw = 0;
+    }
     this.drive = def;
     this.vel = 0;
     this.steer = 0;
@@ -156,8 +180,18 @@ export class PlayerController {
   }
 
   apply() {
-    this.camera.position.set(this.pos.x, this.eye, this.pos.z);
+    let cx = this.pos.x;
+    let cz = this.pos.z;
+    const s = this.drive?.seat;
+    if (s) {
+      // Sürücü koltuğu: sağ = (cos, −sin), ileri = (−sin, −cos)
+      const sin = Math.sin(this.yaw);
+      const cos = Math.cos(this.yaw);
+      cx += cos * s.x - sin * s.z;
+      cz += -sin * s.x - cos * s.z;
+    }
+    this.camera.position.set(cx, this.eye, cz);
     const o = this.viewOffset;
-    this.camera.rotation.set(this.pitch + o.pitch, this.yaw + o.yaw, o.roll, 'YXZ');
+    this.camera.rotation.set(this.pitch + o.pitch, this.yaw + this.headYaw + o.yaw, o.roll, 'YXZ');
   }
 }

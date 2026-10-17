@@ -133,6 +133,11 @@ export const EVT = Object.freeze({
   COUNTERFEIT_STATE: 'counterfeit:state', // sunucu → herkes: [{ houseId, seized, printing, raid }]
   COUNTERFEIT_RAID: 'counterfeit:raid', // sunucu → herkes: { houseId, safe, x, z, until } (polis kapıda)
   TELEPORT: 'teleport', // istemci → sunucu (ack): { to: 'hotel'|'home'|'garage'|'drag' }
+  // ---- Yeraltı garajı, AutoGalerie, drag pisti (server/game/GarageService.js, DragRaceService.js, shared/cars.js) ----
+  // Arabalar VEHICLES listesinde { type: 'car', model, color } olarak gelir; binme / inme VEHICLE_ACT ile.
+  CAR_ACT: 'car:act', // istemci → sunucu (ack): { act: 'buy', model, color, source: 'wallet' | 'kasa' } | { act: 'xfer', id } (rampa / tünel / asansör)
+  DRAG_ACT: 'drag:act', // istemci → sunucu (ack): { act: 'stage', lane: 'L' | 'R', mode: 'solo' | 'duel' } | { act: 'unstage' }
+  DRAG_STATE: 'drag:state', // sunucu → herkes: { phase, mode, runNo, treeAt, greenAt, waitUntil, racers, last, board }
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

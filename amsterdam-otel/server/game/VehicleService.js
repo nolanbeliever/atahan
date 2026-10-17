@@ -1,6 +1,7 @@
 import { EVT } from '../../shared/constants.js';
 import { VEHICLE_KIOSK, isOutdoors } from '../../shared/layout.js';
 import { VEHICLE_BY_ID, VEHICLE_RULES as R, passengerSeat } from '../../shared/vehicles.js';
+import { CAR_BY_ID, CAR_RULES, carPassengerSeat } from '../../shared/cars.js';
 
 const HASH_RE = /^[0-9a-f]{64}$/;
 const MAX_SAVED = 2000;
@@ -16,6 +17,9 @@ const num = (v) => (typeof v === 'number' ? v : NaN);
  *    (yolcunun kendi gönderdiği konum yok sayılır, bakış yönü serbesttir).
  *  - Yalnızca açık havada (sokak, steeg, Achterstraat) inilir / park edilir; istemci de binalara
  *    sürmeyi kapı engelleriyle önler.
+ *  - Arabalar (`type: 'car'`, GarageService) aynı haritada yaşar ve aynı binme / yolcu mekanizmasını
+ *    kullanır; park bölgesi (garaj / sokak / drag), yolcu koltuğu (ön sağ), kalıcılık ve satın alma
+ *    GarageService'tedir.
  */
 export class VehicleService {
   constructor(sim) {
@@ -45,6 +49,7 @@ export class VehicleService {
   persisted() {
     // Çevrimiçi sahiplerin araçlarının güncel park yeri
     for (const v of this.vehicles.values()) {
+      if (v.type === 'car') continue; // arabalar GarageService'te kaydedilir
       const rec = v.ownerHash && this.saved.get(v.ownerHash);
       if (rec) rec[v.type] = { x: v.x, z: v.z, yaw: v.yaw };
     }
@@ -89,7 +94,8 @@ export class VehicleService {
         if (q) this.dismount(q, { force: true });
       }
       const rec = p.keyHash ? this.saved.get(p.keyHash) : null;
-      if (rec) rec[v.type] = { x: v.x, z: v.z, yaw: v.yaw };
+      if (v.type === 'car') this.sim.garage.park(v);
+      else if (rec) rec[v.type] = { x: v.x, z: v.z, yaw: v.yaw };
       this.vehicles.delete(v.id);
     }
     this.save(p);
@@ -143,12 +149,14 @@ export class VehicleService {
     if (p.vehicle) return { ok: false, error: 'Zaten bir araçtasın.' };
     const v = Number.isInteger(id) ? this.vehicles.get(id) : undefined;
     if (!v) return { ok: false, error: 'Araç bulunamadı.' };
-    if (Math.hypot(p.x - v.x, p.z - v.z) > R.MOUNT_RANGE + 1) return { ok: false, error: 'Araca yaklaş.' };
-    const def = VEHICLE_BY_ID[v.type];
+    const range = v.type === 'car' ? CAR_RULES.MOUNT_RANGE : R.MOUNT_RANGE;
+    if (Math.hypot(p.x - v.x, p.z - v.z) > range + 1) return { ok: false, error: 'Araca yaklaş.' };
+    const def = this.defOf(v);
     if (v.ownerId === p.id) {
       if (v.driver != null) return { ok: false, error: 'Aracında başkası var.' };
       v.driver = p.id;
       p.vehicle = { id: v.id, seat: 'driver' };
+      p.carGuard = null; // araba hız denetimi binişte sıfırlanır
       // Sürücü aracın yerine oturur
       p.x = v.x;
       p.z = v.z;
@@ -177,10 +185,23 @@ export class VehicleService {
       return { ok: true };
     }
     if (seat.seat === 'driver') {
-      if (!force && !isOutdoors(p.x, p.z)) return { ok: false, error: 'Buraya park edemezsin — sokakta, steeg\'de ya da Achterstraat\'ta in.' };
+      const car = v.type === 'car';
+      if (!force && !this.canPark(v, p.x, p.z)) {
+        return { ok: false, error: car ? 'Buraya park edemezsin — garajda, otelin önünde ya da drag alanında in.' : 'Buraya park edemezsin — sokakta, steeg\'de ya da Achterstraat\'ta in.' };
+      }
       v.driver = null;
       p.vehicle = null;
-      Object.assign(v, this.validPos(p.x, p.z, p.yaw));
+      if (car) {
+        if (this.canPark(v, p.x, p.z)) Object.assign(v, { x: r2(p.x), z: r2(p.z), yaw: r2(p.yaw) });
+        this.sim.garage.park(v);
+        // Sürücü sol kapıdan iner
+        const s = this.sim.garage.exitSpot(v);
+        p.x = s.x;
+        p.z = s.z;
+        this.sim.dirtyPlayers.add(p.id);
+      } else {
+        Object.assign(v, this.validPos(p.x, p.z, p.yaw));
+      }
       if (v.passenger != null) {
         const q = this.sim.players.get(v.passenger);
         if (q) this.dropPassenger(v, q);
@@ -198,13 +219,14 @@ export class VehicleService {
     v.passenger = null;
     q.vehicle = null;
     const right = { x: Math.cos(v.yaw), z: -Math.sin(v.yaw) };
-    let x = v.x + right.x * 0.9;
-    let z = v.z + right.z * 0.9;
-    if (!isOutdoors(x, z)) {
-      x = v.x - right.x * 0.9;
-      z = v.z - right.z * 0.9;
+    const off = v.type === 'car' ? 1.6 : 0.9;
+    let x = v.x + right.x * off;
+    let z = v.z + right.z * off;
+    if (!this.canPark(v, x, z)) {
+      x = v.x - right.x * off;
+      z = v.z - right.z * off;
     }
-    if (!isOutdoors(x, z)) {
+    if (!this.canPark(v, x, z)) {
       x = v.x;
       z = v.z;
     }
@@ -219,7 +241,7 @@ export class VehicleService {
   carryPassenger(v) {
     const q = this.sim.players.get(v.passenger);
     if (!q) return;
-    const seat = passengerSeat(v.x, v.z, v.yaw);
+    const seat = v.type === 'car' ? carPassengerSeat(v.x, v.z, v.yaw, CAR_BY_ID[v.model]?.body) : passengerSeat(v.x, v.z, v.yaw);
     q.x = r2(seat.x);
     q.z = r2(seat.z);
     this.sim.dirtyPlayers.add(q.id);
@@ -259,6 +281,18 @@ export class VehicleService {
     if (v.passenger != null) this.carryPassenger(v);
   }
 
+  /** Araç türünün tanımı (ad, simge); arabalarda katalog modeli */
+  defOf(v) {
+    if (v.type !== 'car') return VEHICLE_BY_ID[v.type];
+    const m = CAR_BY_ID[v.model];
+    return { name: m?.name ?? 'Araba', icon: '🚗' };
+  }
+
+  /** Araç bu noktada park edebilir mi (bisiklet / scooter: açık hava; araba: garaj / sokak / drag) */
+  canPark(v, x, z) {
+    return v.type === 'car' ? this.sim.garage.canPark(x, z) : isOutdoors(x, z);
+  }
+
   privateState(p) {
     return { owned: [...(p.ownedVehicles ?? [])], seat: p.vehicle ? { ...p.vehicle } : null };
   }
@@ -267,6 +301,7 @@ export class VehicleService {
     return [...this.vehicles.values()].map((v) => ({
       id: v.id, type: v.type, ownerId: v.ownerId, ownerName: v.ownerName,
       x: v.x, z: v.z, yaw: v.yaw, driver: v.driver, passenger: v.passenger,
+      ...(v.type === 'car' ? { model: v.model, color: v.color } : {}),
     }));
   }
 

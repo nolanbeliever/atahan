@@ -34,6 +34,8 @@ import { BarSystem } from './game/BarSystem.js';
 import { RecipeBook } from './game/RecipeBook.js';
 import { HomeCounterfeitSystem } from './game/HomeCounterfeitSystem.js';
 import { FastTravelSystem } from './game/FastTravelSystem.js';
+import { UndergroundGarage } from './game/UndergroundGarage.js';
+import { DragRaceTrack } from './game/DragRaceTrack.js';
 import { MixologyBarSystem } from './game/MixologyBarSystem.js';
 import { LiveStageSystem } from './game/LiveStageSystem.js';
 import { StreetEvents } from './game/StreetEvents.js';
@@ -229,12 +231,22 @@ const exterior = new ExteriorCustomization({
   engine, net, hud, interaction, player, house, device, touch, modal, sfx, settings, getWallet: () => shop.wallet,
 });
 house.exterior = exterior;
+// Yeraltı garajı + AutoGalerie (telefonda 🚗) + arabalar ve drag pisti. Garaj ve pist ayrı gruplardır;
+// oradayken otel dünyası çizilmez (partitionWorld: o ana kadar kurulmuş sahne = otel dünyası).
+const garage = new UndergroundGarage({
+  engine, net, hud, interaction, player, remotes, collision, modal, device, settings, sfx, vehicles, phone, state, input,
+  getWallet: () => shop.wallet,
+});
+const drag = new DragRaceTrack({ engine, net, hud, player, modal, device, settings, sfx, garage, vehicles, remotes, state, input });
+garage.partitionWorld([interaction.marker]);
 // Neon / ampul parıltısı gece güçlenir: dünyanın gece seviyesi değişince (tek seferlik geçiş) bildir
 const setNightLevel = world.setNightLevel;
 world.setNightLevel = (t) => {
   setNightLevel.call(world, t);
   exterior.setNight(t);
   stage.setNight(t);
+  garage.setNight(t);
+  drag.setNight(t);
 };
 // Lüks paketler: 8 / 12 katlı bina, lüks iç mekân, lounge barlar, çatı Aqua Park, VIP suitleri (PC → Yükseltmeler)
 const arch = new HotelArchitectureUpgrades({
@@ -263,6 +275,8 @@ engine.addSystem(() => exterior.update());
 engine.addSystem((dt) => visits.update(dt));
 engine.addSystem((dt) => night.update(dt));
 engine.addSystem(() => vehicles.update());
+engine.addSystem((dt) => garage.update(dt)); // araba kokpiti: FOV, titreşim, motor sesi, gösterge (yalnızca sürerken)
+engine.addSystem((dt) => drag.update(dt)); // ışık ağacı, otomatik sahne, canlı süre (yalnızca pistte)
 engine.addSystem(() => bar.update());
 engine.addSystem(() => press.update()); // polis lambası (yalnızca polis kapıdayken)
 engine.addSystem((dt) => stage.update(dt));
@@ -280,6 +294,7 @@ engine.addSystem(() => {
     net.sendMove(player.pos.x, player.pos.z, player.yaw);
     press.onMoved();
   }
+  if (player.moved) garage.onMoved(); // garaj / pist bölgesi, rampa ve tünel geçitleri
   if (player.moved) stage.onMoved(); // sahne müziği: dinleyici konumu + bölge (yalnızca hareket edince)
   return false;
 });
@@ -466,6 +481,7 @@ net.on(EVT.WELCOME, (snap) => {
   reception.setState(snap.hotel);
   press.reset(snap.selfId);
   press.setState(snap.counterfeit);
+  drag.onState(snap.drag);
   stage.onState(snap.stage);
   boostList = snap.boosts ?? [];
   insta.applySnapshot(snap.insta);
@@ -595,8 +611,12 @@ net.on(EVT.HOUSE_RING_REQ, (req) => visits.onRingRequest(req));
 net.on(EVT.SLEEP_STATE, (s) => night.onSleepState(s));
 net.on(EVT.HOUSE_ITEM, (s) => botany.onItemState(s));
 net.on(EVT.FRIEND_VISITS, (list) => friends.setVisits(list));
-net.on(EVT.VEHICLES, (list) => vehicles.setVehicles(list));
+net.on(EVT.VEHICLES, (list) => {
+  vehicles.setVehicles(list);
+  garage.rerender(); // AutoGalerie'deki "Arabalarım" listesi
+});
 net.on(EVT.VEHICLE_SEAT, (s) => vehicles.onSeat(s));
+net.on(EVT.DRAG_STATE, (s) => drag.onState(s));
 net.on(EVT.CHAT, (m) => chat.onMessage(m));
 net.on(EVT.HOUSE_ACCESS, (a) => visits.onAccess(a));
 net.on(EVT.EXTERIOR_STATE, (s) => exterior.onState(s));
@@ -660,5 +680,5 @@ navigator.getBattery?.().then((battery) => {
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
-  reception, workers, inspection, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch,
+  reception, workers, inspection, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch, garage, drag,
 };

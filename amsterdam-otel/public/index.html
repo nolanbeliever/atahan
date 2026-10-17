@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="/css/casino.css">
   <link rel="stylesheet" href="/css/stage.css">
   <link rel="stylesheet" href="/css/phone.css">
+  <link rel="stylesheet" href="/css/garage.css">
   <script type="importmap">
     {
       "imports": {
@@ -509,6 +510,50 @@
     </div>
   </div>
   <div id="cam-flash" hidden></div>
+
+  <!-- Yeraltı garajı + AutoGalerie + araba kokpiti + drag pisti (UndergroundGarage.js, CarCockpit.js, DragRaceTrack.js) -->
+  <div id="car-hud" hidden>
+    <div class="car-name" id="car-name"></div>
+    <div class="car-row">
+      <span id="car-speed">0</span><small>km/s</small>
+      <span id="car-gear">N</span>
+      <span id="car-limit" title="Hız sınırı" hidden>30</span>
+    </div>
+    <div class="car-rpm"><i id="car-rpm"></i></div>
+    <div id="car-timer" hidden></div>
+  </div>
+  <div id="car-pedals" hidden>
+    <button type="button" id="car-brake" aria-label="Fren / geri">🛑</button>
+    <button type="button" id="car-gas" aria-label="Gaz">⛽</button>
+  </div>
+  <div id="drag-hud" class="panel" hidden>
+    <div class="drag-top">
+      <b>🏁 Drag pisti</b>
+      <button type="button" id="drag-board-btn" aria-label="Liderlik tablosu">🏆</button>
+    </div>
+    <div id="drag-modes" class="drag-modes" hidden>
+      <button type="button" id="drag-solo" class="on">🏁 Solo</button>
+      <button type="button" id="drag-duel">⚔️ Düello</button>
+    </div>
+    <div id="drag-status"></div>
+    <div id="drag-result" hidden></div>
+  </div>
+  <div id="dealer-panel" class="overlay" hidden>
+    <div class="card wide dealer-card">
+      <h2>🚗 AutoGalerie</h2>
+      <p class="sub">Online araba galerisi · Hollanda fiyatları (KDV/BPM dahil) · ödeme cüzdandan ya da otel kasasından</p>
+      <div id="dealer-body"></div>
+      <button type="button" class="primary" id="dealer-close">Kapat</button>
+    </div>
+  </div>
+  <div id="drag-panel" class="overlay" hidden>
+    <div class="card wide">
+      <h2>🏆 En iyi ¼ mil süreleri</h2>
+      <p class="sub">Oyuncu başına en iyi geçerli koşu · ilk 10 · sunucuda ölçülür</p>
+      <div class="drag-table-wrap"><table id="drag-table"></table></div>
+      <button type="button" class="primary" id="drag-close">Kapat</button>
+    </div>
+  </div>
 
   <noscript>Bu oyun için JavaScript gereklidir.</noscript>
   <script type="module" src="/js/main.js"></script>
