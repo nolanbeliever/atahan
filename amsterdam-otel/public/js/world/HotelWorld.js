@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  WALL_H, ROOMS as ALL_ROOMS, RECEPTION, SOFA, BAR, BASE_FLOORS, buildWallSegments,
+  WALL_H, ROOMS as ALL_ROOMS, RECEPTION, SOFA, BAR, RESTAURANT, BASE_FLOORS, buildWallSegments,
 } from '/shared/layout.js';
 import { StaticBatcher } from './StaticBatcher.js';
 import { UV } from './Materials.js';
@@ -18,6 +18,7 @@ import {
   addArmchair, addSideTable, makePanel,
 } from './Props.js';
 import { makeCharacter } from '../game/Characters.js';
+import { buildRestaurant } from '../game/GourmetRestaurant.js';
 
 const BLANKET_COLORS = ['fabricBlue', 'fabricRed', 'fabricGreen', 'fabricOrange']; // k01..k04
 const ENTRANCE_OPEN = Math.PI / 2 * 0.9;
@@ -68,6 +69,8 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
   buildHotelFloors({ batcher: b, collision, scene, factory });
   // Yeraltı Kart Kulübü: steeg'deki tabelasız kapının arkasındaki gizli oda
   const casino = buildCasino({ batcher: b, collision, scene, mats, factory });
+  // Gurme Restoran "De Gouden Lepel": lobinin batısındaki kapıdan (yemek salonu, açık büfe, açık mutfak)
+  const restaurant = buildRestaurant({ batcher: b, collision, scene, mats, factory });
 
   b.build(mats, scene);
   const lights = addLights(scene, quality);
@@ -89,6 +92,7 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
     bar,
     playerHouses,
     casino,
+    restaurant,
 
     /**
      * Gece karanlığı 0 (gündüz) … 1 (gece). Yalnızca ışık şiddeti / renkleri değişir:
@@ -179,7 +183,9 @@ function buildShell(b, collision) {
   // Lobi lambri (alt ahşap kaplama)
   const wh = 0.85;
   const lam = { uvScale: UV.wainscot, cast: false };
-  b.box('wainscot', -7.9, -7.87, 0, wh, 0.1, 11.9, lam);
+  // Batı lambrisi restoran kapısının kasasında kesilir (kasa: GourmetRestaurant)
+  b.box('wainscot', -7.9, -7.87, 0, wh, 0.1, RESTAURANT.door.from - 0.12, lam);
+  b.box('wainscot', -7.9, -7.87, 0, wh, RESTAURANT.door.to + 0.12, 11.9, lam);
   // Doğu lambrisi bar kapısının kasasında kesilir (kasa: BarBuilding)
   b.box('wainscot', 7.87, 7.9, 0, wh, 0.1, BAR.door.from - 0.12, lam);
   b.box('wainscot', 7.87, 7.9, 0, wh, BAR.door.to + 0.12, 11.9, lam);

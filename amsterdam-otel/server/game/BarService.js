@@ -368,6 +368,7 @@ export class BarService {
     if (!ACTS[act]) return { ok: false, error: 'Bilinmeyen işlem.' };
     if (act !== 'bite' && !this.inside(p)) return { ok: false, error: 'Bunun için barda olmalısın.' };
     if (now < p.bar.busyUntil - R.NET_SLACK_MS) return { ok: false, error: 'Önce elindeki işi bitir.' };
+    if (act !== 'bite' && p.kitchen?.hold) return { ok: false, error: 'Elinde restoran tabağı / tepsisi var — önce onu bırak.' };
 
     const res = this[act](p, data, now);
     if (res.error) return { ok: false, error: res.error };

@@ -34,6 +34,7 @@ export class CoffeeShopService {
       inventory: { ...p.inventory },
       trip: this.publicTrip(p),
       bar: this.sim.bar?.privateState(p),
+      kitchen: this.sim.restaurant?.privateState(p),
       houseId: this.sim.house?.houseIdOf(p) ?? null,
       friends: this.sim.relations?.privateState(p) ?? null,
       vehicles: this.sim.vehicles?.privateState(p) ?? null,

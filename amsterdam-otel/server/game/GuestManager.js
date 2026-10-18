@@ -330,6 +330,7 @@ export class GuestManager {
   }
 
   updateGuest(g, now) {
+    if (g.dining) return; // restoranda: RestaurantService yürütür, bitince odasına (IN_ROOM) döndürür
     const { clock } = this.sim;
     if (g.phase === P.IN_ROOM) {
       if (clock.total >= g.checkoutAt) this.checkout(g, now);
@@ -379,8 +380,9 @@ export class GuestManager {
         break;
 
       case P.TO_ROOM: {
-        const stay = this.sim.config.stayMinMin
-          + this.rng() * (this.sim.config.stayMaxMin - this.sim.config.stayMinMin);
+        // Restoranın memnuniyet puanı yüksekse misafirler daha uzun kalır (×1 … ×1.4)
+        const stay = (this.sim.config.stayMinMin
+          + this.rng() * (this.sim.config.stayMaxMin - this.sim.config.stayMinMin)) * (this.sim.restaurant?.stayFactor() ?? 1);
         g.checkoutAt = clock.total + stay;
         // VIP: konaklamanın ortasında çatıdaki VIP bölümüne çıkar (Gökdelen açıkken)
         g.roofAt = g.vip && this.sim.arch?.roofOpen ? clock.total + stay * VIP.ROOF_AT : 0;

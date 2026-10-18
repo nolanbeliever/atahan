@@ -16,6 +16,8 @@ export const UV = Object.freeze({
   wainscot: 1.0,
   shopWall: 0.7,
   barWall: 1 / 3.2, // bir karo = duvar yüksekliği (lambri + sıva tek dokuda)
+  restWall: 0.5, // Gurme Restoran duvar kâğıdı (GourmetRestaurant.js)
+  restTileWall: 1.4,
 });
 
 /**

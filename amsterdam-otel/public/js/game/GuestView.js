@@ -4,11 +4,13 @@ import { pathLength, samplePath } from '/shared/path.js';
 import { makeCharacter } from './Characters.js';
 import { makeLabel } from './RemotePlayers.js';
 
-// Otel personeli görünümü (misafirlerle aynı ağ biçimi, kind ile ayrılır)
+// Otel / restoran personeli görünümü (misafirlerle aynı ağ biçimi, kind ile ayrılır)
 const KIND_OPTS = {
   worker: { color: '#2b6d8a', staff: true, bag: false },
+  chef: { color: '#f3f1ea', bag: false }, // beyaz aşçı ceketi (şapka: GourmetRestaurant)
+  waiter: { color: '#23262d', staff: true, bag: false }, // siyah yelek + önlük
 };
-const LABEL_COLOR = { worker: '#3ecf6e' };
+const LABEL_COLOR = { worker: '#3ecf6e', chef: '#ffcf6b', waiter: '#9fd3ff' };
 
 // Turist (InstaHotel kampanyası kafilesi): sırt çantası, boyunda fotoğraf makinesi, renkli güneş şapkası.
 // Geometri / malzemeler tüm turistlerde paylaşılır (ilk turistte bir kez üretilir).

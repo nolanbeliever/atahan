@@ -76,7 +76,7 @@ eski kaydın üstüne yazmasın diye başlamaz (Render yeniden dener). `DATABASE
 | Saksıda **E**: tohum ek · hasat et | **Ek** / **Hasat** |
 | **T**: TV yayınına katıl / kendi ekranında kapat | **▶ Katıl** çipi |
 | Barda **E**: bardak al · koy · çalkala · servis et · topla · yıka · soğutucu dolap / fıçıdan malzeme seç | **Aksiyon** (butonun etiketi bakılan şeye göre değişir: Al, Koy, Dolap, Fıçı, Servis…) |
-| Barda **K**: tarif kitabı (30 içecek) | Sipariş listesindeki **📖** |
+| Barda **K**: tarif kitabı (30 içecek) · restoranda **K**: menü kütüphanesi | Sipariş listesindeki **📖** |
 | **F** / **E**: elindeki yiyeceği ısır (her ısırık 2 sn) | **Aksiyon**: ısır |
 | Araca bakıp **E**: bin (sahibi sürer, arkadaşı arkaya biner) · sürerken **W/S** gaz-fren, **A/D** direksiyon, **E** in ve park et | **Bin** / **Arkaya** / **Park** · joystick: gaz ve direksiyon |
 | Kirli odada arızaya bakıp **E**: mini oyun (ovala, basılı tut, zamanla, şalter kaldır) | **Aksiyon** · mini oyun dokunarak |
@@ -253,7 +253,7 @@ Tamamen oyun içi para: basılan para otel kasasına değil **kişisel cüzdanı
 
 ## Hızlı ışınlanma
 
-Masaüstünde **M**, telefonda **🗺️ Işınlan** → **🏨 Otel lobisi · 🏡 Evim · 🅿️ Yeraltı garajı · 🏁 Drag pisti**.
+Masaüstünde **M**, telefonda **🗺️ Işınlan** → **🏨 Otel lobisi · 🏡 Evim · 🍽️ Gurme Restoran · 🅿️ Yeraltı garajı · 🏁 Drag pisti**.
 Konumu sunucu yazar; araçtayken, uyurken, gizli bölmedeyken ya da evinde polis baskını sürerken ışınlanılmaz
 (4 sn bekleme). Kısa bir kararma geçişi olur.
 
@@ -530,6 +530,39 @@ otel kapalıyken de müşteri gelir.
   sabır çubukları CSS geçişiyle akar (kare başı DOM yazımı yok). Ayarlardaki "sallanma/dalgalanmayı azalt" el
   animasyonlarının genliğini de kısar.
 
+## Gurme Restoran & Mutfak — De Gouden Lepel (GourmetRestaurant + KitchenSystem)
+
+Lobinin batı duvarındaki kapıdan (resepsiyonun arkası) girilen tam teşekküllü restoran: güneyde **6 lüks masalı yemek
+salonu** (beyaz örtü, kadife sandalyeler, sarkıt lambalar) ve batı duvarında **açık büfe**, kuzeyde **açık mutfak**;
+aralarında ısıtıcı lambalı **garson tezgâhı (pass, 4 tabak yeri)**. Mutfağa pass'in doğu ucundan girilir. Hızlı ışınlanma
+listesinde de var (🍽️ Gurme Restoran). Açık: 07:00–22:30 (hafta sonu da).
+
+- **Menü kütüphanesi (7 tabak):** 🥩 Wagyu Biftek €120 · 🍕 İtalyan Pizzası €38 · 🍔 Gurme Burger €45 · 🍣 Suşi Tabağı €75 ·
+  lüks tatlılar 🧁 Çikolatalı Sufle €28 ve 🍰 Çilekli Pavlova €26 · 🍳 Kahvaltı Tabağı €32. Mutfaktaki tarif panosu, sipariş
+  listesindeki 📖 ya da restoranda **K** tarifleri açar.
+- **FPV mutfak (KitchenSystem):** 🧊 **buzdolabı** (24 malzeme; bekleyen siparişler için tek tıkla "malzemeleri seç"
+  kısayolu, seçilenler tek tek tepsiye alınır, en fazla 4) → **istasyon**: 🍳 ocakta tava (4 sn, tava sallanır, cızırtı),
+  🔥 taş fırın (5 sn, kürek fırına girer, ağız parlar) ya da 🔪 hazırlık tezgâhı (3 sn, sol elde bıçakla doğrama) →
+  🍽️ **tabak rafında tabakla** → **masaya servis et** ya da **garson tezgâhına koy** (oradan alınabilir). Yanlış yöntem /
+  eksik malzeme ipucuyla reddedilir, tepsi 🗑️ çöpe atılır. Yemeğini bitiren müşteri **kirli tabak** bırakır: topla
+  (en fazla 3) → bulaşık lavabosu. Elde tepsi / tava / tabak birinci şahıs modelli; diğer oyuncular da elindekini görür.
+- **Müşteriler:** sokaktan gelenler ve **odasındaki otel misafirleri** (asansörle iner; 12. kattaki **⭐ VIP**'ler
+  öncelikli ve yalnızca lüks tabak ister, fiyat ×1.5, bahşiş ×2). Misafir restorandayken çıkışı ertelenir, yemekten
+  sonra odasına döner. Sabır ~100 sn (lüks tabakta +20); sabrı biten kalkar.
+- **Açık büfe kahvaltı (07:00–11:00):** müşterilerin çoğu tabağını büfeden kendisi doldurur (€22, VIP €40; 24 porsiyon
+  stok). Büfe azalınca **tazele** (+8 porsiyon, €24 malzeme kasadan) ya da aşçıya bırak.
+- **Gelir:** satış + bahşiş (hızlı servis %25'e kadar; konser / reklam bonusları geçerli) **otelin kasasına**.
+- **Memnuniyet:** iyi ve hızlı servis odadaki misafirin konaklamasını **1–3 saat uzatır** (VIP'te iki kat; uzatma
+  ücreti de kasaya) ve +1 / VIP +2 itibar verir. Otelin memnuniyet puanı (%) yemek başına güncellenir; %50'nin üstünde
+  yeni misafirler daha uzun kalır (en çok ×1.4). Kalkıp giden müşteri puanı düşürür.
+- **Mutfak personeli (Resepsiyon PC → 🧹 Çalışanlar):** 👨‍🍳 **Gurme Aşçı** €600 (en fazla 3) bekleyen siparişleri kendisi
+  pişirip pass'e koyar, kahvaltıda büfeyi tazeler; 🤵 **Garson** €350 (en fazla 4) pass'teki tabağı bekleyen masaya taşır,
+  kirli masaları toplar. Otelin **yıldızı** arttıkça mutfak hızlanır (5★'de işler %40 kısa), aşçı her 10 işte seviye
+  atlar; otel **doluluğu** ve yıldız arttıkça restoran kalabalıklaşır. Personel, büfe stoğu ve memnuniyet kalıcıdır.
+- **Sunucu yetkili:** konum, el, süre, tarif ve yöntem `RestaurantService`'te doğrulanır (tip denetimi, prototipsiz
+  tablolar); aşçı / garson NPC'leri `KitchenStaffService`'te (misafirlerle aynı ağ biçimi, `kind: 'chef' | 'waiter'`).
+  NPC'ler restoranın içinde şeritlerden yürür (masaların, pass'in ve adanın içinden geçmez).
+
 ## Bar müdavimleriyle arkadaşlık
 
 Bar De Tulp'un müşterileri 12 kişilik sabit bir müdavim kadrosundan gelir (Sanne, Daan, Emma, Lars…); her birinin
@@ -603,6 +636,8 @@ amsterdam-otel/
 │       ├── BoostService.js      # Geçici bonuslar (konser kalabalığı, reklam): bar / misafir sıklığı, bahşiş
 │       ├── TeleportService.js   # Hızlı ışınlanma: hedefler, doğrulama, bekleme
 │       ├── WorkerService.js     # Temizlikçi NPC'ler: iş seçimi, süreli işler, seviye, bahşiş kasaya
+│       ├── RestaurantService.js # Gurme Restoran: masalar, müşteriler (otel misafirleri / VIP), açık büfe, mutfak adımları, memnuniyet
+│       ├── KitchenStaffService.js # Aşçı / garson NPC'leri: iş adımları (pişir → pass → masa), büfe tazeleme, seviye
 │       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
 │       ├── MarketingService.js  # InstaHotel: gönderi doğrulama, beğeni / takipçi artışı, kampanya → turist akını (boost)
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
@@ -621,6 +656,7 @@ amsterdam-otel/
 │   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri
+│   ├── restaurant.js            # Restoran: 24 malzeme, 7 tabaklık menü, pişirme yöntemleri, kurallar, personel, NPC şerit rotaları
 │   ├── architecture.js          # Lüks paketler (fiyat, koşul, kat / temizlikçi sınırı), VIP suit kuralları, lounge geliri
 │   ├── stage.js                 # Canlı müzik sahnesi: yer, gruplar (ücret, kalabalık, bonus), set takvimi, kalabalık noktaları
 │   ├── marketing.js             # InstaHotel: bütçeler, fotoğraf / açıklama doğrulama, konum etiketleri, turist kafilesi + kuyruk
@@ -630,7 +666,7 @@ amsterdam-otel/
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css)
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
@@ -661,6 +697,8 @@ amsterdam-otel/
 │       │   ├── BarSystem.js         # Bar De Tulp: istasyonlar, siparişler, uzak oyuncu kolları
 │       │   ├── MixologyBarSystem.js # Soğutucu dolap + fıçı kulesi: malzeme seçimi (30 içecekli kütüphane)
 │       │   ├── RecipeBook.js        # Tarif kitabı paneli (kürsü / K / 📖)
+│       │   ├── GourmetRestaurant.js # Restoran binası (salon, büfe, pass, açık mutfak), tabak modelleri, sipariş baloncukları + listesi, aşçı / garson aksesuarları, PC personel bölümü
+│       │   ├── KitchenSystem.js     # FPV mutfak: buzdolabı seçici, tava / fırın / tezgâh, tabaklama, servis, menü kütüphanesi, mutfak elleri
 │       │   ├── HomeCounterfeitSystem.js # Ev matbaası: kurulum, baskı, polis baskını bandı, gizli bölme, polis
 │       │   ├── FastTravelSystem.js  # Hızlı ışınlanma paneli (M / telefonda 🗺️)
 │       │   ├── UndergroundGarage.js # Garaj, AutoGalerie (telefon + terminal), rampa / tünel geçitleri, araba eklentisi, alan görünürlüğü
@@ -672,7 +710,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson)
 ```
 
 ## Sonraki aşamalar için notlar

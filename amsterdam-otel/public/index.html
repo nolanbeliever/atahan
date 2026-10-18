@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/css/stage.css">
   <link rel="stylesheet" href="/css/phone.css">
   <link rel="stylesheet" href="/css/garage.css">
+  <link rel="stylesheet" href="/css/restaurant.css">
   <script type="importmap">
     {
       "imports": {
@@ -91,6 +92,15 @@
     </div>
     <div id="bar-progress" hidden><i></i></div>
     <div id="bar-held" class="panel" hidden></div>
+
+    <!-- Gurme Restoran: siparişler (sağ sütun), mutfak eylem ilerlemesi, tepsideki malzemeler / eldeki tabak -->
+    <div id="rest-orders" class="panel" hidden>
+      <div class="bar-head"><div class="panel-title" id="rest-title">🍽️ De Gouden Lepel</div><button type="button" id="rest-menu" aria-label="Menü kütüphanesi">📖</button></div>
+      <div id="rest-meta"></div>
+      <div id="rest-order-list"></div>
+    </div>
+    <div id="kitchen-progress" hidden><i></i></div>
+    <div id="kitchen-held" class="panel" hidden></div>
 
     <!-- Oyuncu evleri: kapı zili istemi (ev sahibine) -->
     <div id="ring-prompt" class="panel" hidden role="alertdialog" aria-live="assertive">
@@ -226,6 +236,30 @@
       <div id="cooler-grid"></div>
       <p class="note" id="cooler-held"></p>
       <button type="button" class="secondary" id="cooler-close">Vazgeç</button>
+    </div>
+  </div>
+
+  <!-- Restoran: buzdolabı — malzeme seçimi (birden çok; sırayla tepsiye alınır) -->
+  <div id="fridge-panel" class="overlay" hidden>
+    <div class="card">
+      <h2>🧊 Buzdolabı</h2>
+      <p class="sub" id="fridge-sub"></p>
+      <div id="fridge-orders"></div>
+      <div id="fridge-grid"></div>
+      <div class="fridge-actions">
+        <button type="button" id="fridge-take">Tepsiye al</button>
+        <button type="button" class="secondary" id="fridge-close">Vazgeç</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Restoran: menü kütüphanesi (tarifler) -->
+  <div id="menu-panel" class="overlay" hidden>
+    <div class="card">
+      <h2>📖 Menü kütüphanesi</h2>
+      <p class="sub">Malzemeleri buzdolabından al, istasyonda hazırla, tabak rafında tabakla, masaya ya da garson tezgâhına götür.</p>
+      <div id="menu-list"></div>
+      <button type="button" class="secondary" id="menu-close">Kapat</button>
     </div>
   </div>
 

@@ -36,6 +36,8 @@ import { FastTravelSystem } from './game/FastTravelSystem.js';
 import { UndergroundGarage } from './game/UndergroundGarage.js';
 import { DragRaceTrack } from './game/DragRaceTrack.js';
 import { MixologyBarSystem } from './game/MixologyBarSystem.js';
+import { GourmetRestaurant } from './game/GourmetRestaurant.js';
+import { KitchenSystem } from './game/KitchenSystem.js';
 import { LiveStageSystem } from './game/LiveStageSystem.js';
 import { StreetEvents } from './game/StreetEvents.js';
 import { SmartphoneSystem } from './game/SmartphoneSystem.js';
@@ -106,6 +108,8 @@ input.onAction((source) => {
   // Dış cephe modunda: sprey (basılı tut) / tabela / balkon
   else if (exterior.active) exterior.action();
   // Bar: eylem sürerken girdi yutulur; elde yiyecek varsa ve hedef yoksa ısırır
+  // Restoran mutfağı: eylem sürerken (ya da buzdolabından malzemeler alınırken) girdi yutulur
+  else if (kitchen.onAction(source)) return;
   else if (!bar.onAction(source)) interaction.trigger(source);
 });
 
@@ -167,7 +171,7 @@ const visits = new HouseVisitingSystem({
 });
 // Dekorasyon modu komutları (B, R, C, X, 1-9) coffee shop'tan ÖNCE işlenir
 // Bar 'consume' (F) komutunu elde yiyecek varsa sahiplenir (coffee shop'a gitmez)
-input.onCommand((cmd) => phone.command(cmd) || exterior.command(cmd) || house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd) || recipes.command(cmd) || travel.command(cmd));
+input.onCommand((cmd) => phone.command(cmd) || exterior.command(cmd) || house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd) || kitchen.command(cmd) || recipes.command(cmd) || travel.command(cmd));
 const shop = new CoffeeShopSystem({ net, hud, interaction, input, modal, device });
 // Shop'tan SONRA: boşta ipucu zincirini (idleHint) sarar
 const bar = new BarSystem({
@@ -207,6 +211,13 @@ const reception = new ReceptionPC({
   engine, net, hud, interaction, player, modal, device, sfx, state, workers,
 });
 reception.onChange.push((h) => workers.setState(h));
+// Gurme Restoran "De Gouden Lepel" (lobinin batısı): masalar, açık büfe, siparişler, aşçı / garson; FPV mutfak
+const restaurant = new GourmetRestaurant({
+  engine, net, hud, interaction, player, guests, view: world.restaurant, workers,
+});
+const kitchen = new KitchenSystem({
+  engine, net, hud, interaction, player, modal, settings, sfx, device, restaurant, remotes,
+});
 // Achterstraat canlı müzik sahnesi (Resepsiyon PC'den satın alınır) + konser kalabalığı
 const stage = new LiveStageSystem({
   engine, net, hud, interaction, player, modal, sfx, settings, state, mats, collision,
@@ -274,6 +285,8 @@ engine.addSystem(() => vehicles.update());
 engine.addSystem((dt) => garage.update(dt)); // araba kokpiti: FOV, titreşim, motor sesi, gösterge (yalnızca sürerken)
 engine.addSystem((dt) => drag.update(dt)); // ışık ağacı, otomatik sahne, canlı süre (yalnızca pistte)
 engine.addSystem(() => bar.update());
+engine.addSystem(() => restaurant.update()); // ocak ateşi / fırın / bıçak (yalnızca restorandayken)
+engine.addSystem(() => kitchen.update()); // mutfak elleri + ilerleme çubuğu
 engine.addSystem(() => press.update()); // polis lambası (yalnızca polis kapıdayken)
 engine.addSystem((dt) => stage.update(dt));
 engine.addSystem(() => street.update());
@@ -452,6 +465,7 @@ net.on(EVT.WELCOME, (snap) => {
   state.economy = snap.economy;
   shop.applySelf(snap.self);
   bar.applySelf(snap.self?.bar);
+  kitchen.applySelf(snap.self?.kitchen);
   trip.setSelfTrip(snap.self?.trip);
   house.selfId = snap.selfId;
   visits.reset(); // misafir izinleri oturumluk
@@ -490,12 +504,14 @@ net.on(EVT.WELCOME, (snap) => {
     if (p.id !== snap.selfId) {
       remotes.add(p);
       bar.onRemoteBar(p.id, p.bar);
+      kitchen.onRemoteKitchen(p.id, p.kitchen);
     } else if (!positioned) {
       player.setPose(p.x, p.z, p.yaw);
       positioned = true;
     }
   }
   bar.applySnapshot(snap.bar); // müşteriler (guests) yüklendikten sonra: ellerindeki bardaklar
+  if (snap.restaurant) restaurant.onState(snap.restaurant, true);
   // Yeniden bağlanmada mevcut konumu bildir
   net.sendMove(player.pos.x, player.pos.z, player.yaw);
   updateClock();
@@ -555,12 +571,14 @@ net.on(EVT.PLAYER_JOIN, (p) => {
   if (!joined || p.id === state.selfId) return;
   remotes.add(p);
   bar.onRemoteBar(p.id, p.bar);
+  kitchen.onRemoteKitchen(p.id, p.kitchen);
   hud.toast(`${p.name} vardiyaya katıldı.`, 'info');
   engine.requestRender();
 });
 net.on(EVT.PLAYER_LEAVE, (id) => {
   chat.removeBubble(id);
   bar.removeRemote(id);
+  kitchen.removeRemote(id);
   remotes.remove(id);
   engine.requestRender();
 });
@@ -577,6 +595,7 @@ net.on(EVT.SELF, (self) => {
   friends.applySelf(self.friends);
   vehicles.applySelf(self.vehicles);
   bar.applySelf(self.bar);
+  kitchen.applySelf(self.kitchen);
   if (house.build.active) engine.requestRender(); // önizleme rengi (yeterli para var mı) güncellensin
   exterior.onSelf();
 });
@@ -622,6 +641,11 @@ net.on(EVT.CASINO_PRIVATE, (p) => casino.onPrivate(p));
 net.on(EVT.BAR_STATE, (s) => bar.onState(s));
 net.on(EVT.PLAYER_BAR, (b) => {
   if (b.id !== state.selfId) bar.onRemoteBar(b.id, b);
+});
+// Gurme Restoran & mutfak
+net.on(EVT.RESTAURANT_STATE, (s) => restaurant.onState(s));
+net.on(EVT.PLAYER_KITCHEN, (k) => {
+  if (k.id !== state.selfId) kitchen.onRemoteKitchen(k.id, k);
 });
 
 // ---- Saat / FPS göstergesi (saniyede bir, render döngüsünden bağımsız) -------------
@@ -671,5 +695,5 @@ navigator.getBattery?.().then((battery) => {
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
-  reception, workers, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch, garage, drag,
+  reception, workers, restaurant, kitchen, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch, garage, drag,
 };

@@ -53,6 +53,7 @@ export function attachSocketHandlers(io, sim) {
     const allowShop = rateLimiter(4, 6);
     const allowHouse = rateLimiter(6, 10);
     const allowBar = rateLimiter(8, 12);
+    const allowKitchen = rateLimiter(8, 12);
     const allowChat = rateLimiter(0.7, 4); // en fazla 4 mesajlık seri, sonra ~1.4 sn'de bir
     const allowHotel = rateLimiter(4, 8); // Resepsiyon PC, asansör eylemleri
     const reply = (ack, res) => { if (typeof ack === 'function') ack(res); };
@@ -149,6 +150,11 @@ export function attachSocketHandlers(io, sim) {
     };
     on(EVT.BAR_ACT, (data, ack) => {
       if (barGuard(ack)) reply(ack, sim.barAct(player.id, data));
+    });
+    // ---- Gurme Restoran & mutfak (tipler, konum, el ve süreler RestaurantService'te doğrulanır) ----
+    on(EVT.KITCHEN_ACT, (data, ack) => {
+      if (!player || !allowKitchen()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.kitchenAct(player.id, data));
     });
 
     // ---- Gece (yatakta uyuma) ve ev bahçesi ----

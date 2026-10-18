@@ -11,6 +11,7 @@ import {
 const config = {
   dayLengthSec: 240, nightLengthSec: 120, weekendSpeed: 2, tickMs: 100, spawnMinMin: 40, spawnMaxMin: 90,
   stayMinMin: 150, stayMaxMin: 420, clockBroadcastMs: 5000, maxPlayers: 16, startWallet: 50, starterBed: false,
+  restaurantDiners: false, // restoran müşterileri kapalı: RNG dizisi ve kasa bu testlerde değişmesin
 };
 const KEY = 'c'.repeat(32);
 

@@ -264,6 +264,41 @@ export class Sfx {
     }
   }
 
+  /** Tavada cızırtı (restoran mutfağı): yüksek geçiren, titreşen gürültü + yağ patlamaları */
+  sizzle(durMs = 4000) {
+    const sec = Math.max(0.2, durMs / 1000);
+    const ctx = this.begin(durMs);
+    if (!ctx) return;
+    const t = ctx.currentTime + 0.02;
+    const out = this.output(ctx, 0.0001);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 4200;
+    bp.Q.value = 0.7;
+    this.noiseSource(ctx, t, sec).connect(bp).connect(out);
+    const g = out.gain;
+    g.setValueAtTime(0.0001, t);
+    g.exponentialRampToValueAtTime(0.12, t + 0.25);
+    g.setValueAtTime(0.12, t + sec * 0.85);
+    g.exponentialRampToValueAtTime(0.0001, t + sec);
+    const pops = ctx.createGain();
+    pops.gain.value = 0.08;
+    pops.connect(ctx.destination);
+    const n = Math.floor(sec * 6);
+    for (let i = 0; i < n; i++) this.ping(ctx, pops, t + rand(0.1, sec - 0.05), rand(1800, 3200), 0.02, 0.5, 'triangle');
+  }
+
+  /** Bıçakla doğrama: tahtaya düzenli "tok" vuruşlar */
+  chop(durMs = 3000) {
+    const sec = Math.max(0.2, durMs / 1000);
+    const ctx = this.begin(durMs);
+    if (!ctx) return;
+    const t = ctx.currentTime + 0.02;
+    const out = this.output(ctx, 0.2);
+    const n = Math.floor(sec * 4.5);
+    for (let i = 0; i < n; i++) this.ping(ctx, out, t + i / 4.5, rand(170, 230), 0.06, 0.8, 'triangle');
+  }
+
   /** Bahşiş: iki notalı parlak "çın-çın" */
   coin() {
     const ctx = this.begin(500);

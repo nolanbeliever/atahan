@@ -1394,3 +1394,6 @@ const ANIMS = {
     this.trash.scale.setScalar(0.4 + 0.6 * back(seg(k, 0.4, 0.52)));
   },
 };
+
+// Mutfak elleri (KitchenSystem) aynı el modelini ve küçültme hilesini kullanır
+export { buildHand, prep, VIEW_SCALE, DEPTH };

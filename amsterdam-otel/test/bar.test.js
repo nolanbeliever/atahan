@@ -12,6 +12,7 @@ const T = BAR_RULES.T;
 const config = {
   dayLengthSec: 240, weekendSpeed: 2, tickMs: 100, spawnMinMin: 40, spawnMaxMin: 90,
   stayMinMin: 150, stayMaxMin: 420, clockBroadcastMs: 5000, maxPlayers: 16,
+  restaurantDiners: false, // restoran müşterileri kapalı: RNG dizisi ve kasa bu testlerde değişmesin
 };
 
 function seeded(seed = 11) {
@@ -198,7 +199,7 @@ test('earn: varsayılan misafir sayar, guest:false saymaz', () => {
   const { sim } = setup();
   sim.earn(10, 'Oda');
   sim.earn(5, 'Bar', { guest: false });
-  assert.deepEqual(sim.today, { earned: 15, guests: 1, cleaned: 0, served: 0 });
+  assert.deepEqual(sim.today, { earned: 15, guests: 1, cleaned: 0, served: 0, meals: 0 });
 });
 
 test('yanlış tarif ve çalkalama hatası reddedilir, durum değişmez; yanlış içecek lavaboda dökülür', () => {

@@ -52,6 +52,7 @@ export const DRAG = Object.freeze({
 export const TELEPORTS = Object.freeze([
   { id: 'hotel', name: 'Otel lobisi', icon: '🏨', point: [0, 3.0], yaw: Math.PI },
   { id: 'home', name: 'Evim', icon: '🏡', point: null, yaw: Math.PI },
+  { id: 'restaurant', name: 'Gurme Restoran', icon: '🍽️', point: [-9.6, 11.2], yaw: Math.PI / 2 }, // lobinin batısı, salona bakar
   { id: 'garage', name: 'Yeraltı garajı', icon: '🅿️', point: GARAGE.spawn, yaw: GARAGE.yaw },
   { id: 'drag', name: 'Drag pisti', icon: '🏁', point: DRAG.spawn, yaw: DRAG.yaw },
 ]);
@@ -318,6 +319,55 @@ export function isInsideCasino(x, z) {
   return x > 8.25 && x < 15.95 && z > 14.15 && z < 25.85;
 }
 
+// Gurme Restoran "De Gouden Lepel" — lobinin batısında, resepsiyonun arkasındaki komşu binada
+// (Bizim Ev'in kuzeyi, Achterstraat'ın güneyi). Girişi lobinin batı duvarındaki kapıdan (x = −8).
+// Güneyi yemek salonu (6 lüks masa + batı duvarında açık büfe), kuzeyi açık mutfak: aralarında
+// garson tezgâhı ("pass", 4 tabak yeri); mutfağa pass'in doğu ucundaki geçitten girilir.
+//
+//   z=26 ┌[dolap][tahta][ocak][fırın][tabak][çöp]┐
+//        │          [  ada  ]                lavabo│  ← mutfak
+//   z=20 ├[======= pass (garson tezgâhı) ===]   │
+//        │▌ [M5]      [M6]                       │
+//        │▌ [M3]      [M4]     (büfe: batı)      │  ← yemek salonu
+//        │▌ [M1]      [M2]                   kapı│→ lobi
+//   z=8  └────────────────────────────────────────┘
+//      x=−18                                  x=−8
+const REST_TABLE_X = [-14.6, -11.4];
+const REST_TABLE_Z = [10.8, 13.9, 17.0];
+export const RESTAURANT = Object.freeze({
+  bounds: { minX: -18, maxX: -8.1, minZ: 8.1, maxZ: 26 },
+  door: { from: 9.3, to: 10.7 }, // otelin batı duvarında (z aralığı)
+  pass: { minX: -17.9, maxX: -10.9, minZ: 19.4, maxZ: 20.0, top: 1.0 },
+  // Pass üstündeki tabak yerleri (iki taraftan da uzanılır: aşçı kuzeyden, garson güneyden)
+  passSlots: Object.freeze([[-16.6, 19.7], [-15.0, 19.7], [-13.4, 19.7], [-11.8, 19.7]]),
+  island: { minX: -16.4, maxX: -12.6, minZ: 22.3, maxZ: 23.1, top: 0.92 },
+  counter: { minX: -17.9, maxX: -9.9, minZ: 25.2, maxZ: 25.9, top: 0.92 }, // kuzey duvarı boyunca tezgâh
+  fridge: { minX: -17.9, maxX: -16.5, minZ: 24.85, maxZ: 25.9, point: [-17.2, 24.4] },
+  // Pişirme istasyonları (tezgâhın önündeki duruş noktaları)
+  stations: Object.freeze({ board: [-15.6, 24.55], pan: [-13.9, 24.55], oven: [-12.1, 24.55] }),
+  plates: [-10.5, 24.55], // tabak rafı + tabaklama tezgâhı
+  trash: [-9.3, 24.6], // çöp kovası (tezgâhın doğu ucunda)
+  sink: [-9.2, 22.0], // doğu duvarındaki bulaşık lavabosu (x −8.72…−8.1)
+  buffet: { minX: -17.9, maxX: -17.1, minZ: 10.2, maxZ: 17.6, point: [-16.35, 13.9] },
+  // Masalar: seat = güneydeki sandalye (müşteri kuzeye, masaya bakar), approach = sandalyenin arkası,
+  // serve = masanın doğu yanı (garsonun durduğu yer)
+  tables: Object.freeze(REST_TABLE_Z.flatMap((z) => REST_TABLE_X.map((x) => Object.freeze({
+    center: [x, z], seat: [x, r2(z - 0.62)], approach: [x, r2(z - 1.25)], serve: [r2(x + 0.85), z],
+  })))),
+  // Lobi → kapı yürüyüş noktaları
+  points: Object.freeze({ lobby: [-5.4, 10.0], doorEast: [-7.4, 10.0], doorWest: [-8.7, 10.0] }),
+  // Yürüyüş şeritleri (NPC rotaları masaların ve adanın içinden geçmesin): doğu koridoru (x),
+  // pass önü, masa sıralarının güney şeritleri, mutfağın güney / kuzey şeritleri ve adanın doğusu
+  lanes: Object.freeze({ aisleX: -9.6, pass: 18.95, rows: Object.freeze(REST_TABLE_Z.map((z) => r2(z - 1.25))), kitchenS: 21.3, kitchenN: 24.4, kitchenCol: -11.9 }),
+  chefSpots: Object.freeze([[-14.6, 21.3], [-13.4, 21.3], [-15.8, 21.3]]),
+  waiterSpots: Object.freeze([[-10.2, 18.35], [-9.25, 18.35], [-10.2, 17.5], [-9.25, 17.5]]),
+  range: 1.8, // istasyona en fazla uzaklık (sunucu + 1 m gecikme toleransı ekler)
+});
+
+export function isInsideRestaurant(x, z) {
+  return x > -17.85 && x < -8.15 && z > 8.15 && z < 25.85;
+}
+
 export const RECEPTION = Object.freeze({
   desk: { minX: -7.0, maxX: -6.2, minZ: 5.2, maxZ: 8.8 },
   clerk: [-7.45, 7.0],
@@ -431,7 +481,8 @@ export function buildWallSegments() {
   // Ön cephe (tuğla) — ortada giriş kapısı
   wallAlongX(w, 0, -8, 8, [{ from: -ENTRANCE_HALF, to: ENTRANCE_HALF, top: 2.6 }], 'brick');
   // Yan dış duvarlar
-  wallAlongZ(w, -8, 0, 26, [], 'wall');
+  // Batı duvarı: lobiden Gurme Restoran'a açılan kapı (z 0..8 arası Bizim Ev'in doğu duvarı)
+  wallAlongZ(w, -8, 0, 26, [{ from: RESTAURANT.door.from, to: RESTAURANT.door.to, top: DOOR_H }], 'wall');
   // Doğu duvarı: lobiden Bar De Tulp'a açılan kapı
   wallAlongZ(w, 8, 0, 26, [{ from: BAR.door.from, to: BAR.door.to, top: DOOR_H }], 'wall');
   // Lobi kuzey duvarı (101/102'nin güney duvarı), ortada koridor ağzı
@@ -452,6 +503,10 @@ export function buildWallSegments() {
   // Bar De Tulp: kuzey ve doğu duvarı; güneyi coffee shop'un arka duvarı, batısı otelin doğu duvarı
   wallAlongX(w, 14, 8.2, 16, [], 'barWall');
   wallAlongZ(w, 16, 8.1, 14, [], 'barWall');
+  // Gurme Restoran: batı duvarı ve Bizim Ev'in batısında kalan güney duvarı; kuzeyi Achterstraat'ın
+  // güney duvarı, doğusu otelin batı duvarı, güneyinin geri kalanı Bizim Ev'in arka duvarı
+  wallAlongZ(w, -18, 8.1, 25.9, [], 'restWall');
+  wallAlongX(w, 8, -18, -16.1, [], 'restWall');
   // Achterstraat: güneyde komşu binaların arka duvarları, iki uçta duvar
   wallAlongX(w, 26, -18, -8.2, [], 'brick');
   wallAlongX(w, 26, 8.2, 18, [STEEG.gate], 'brick'); // steeg kemeri
@@ -532,6 +587,7 @@ export function areaAt(x, z) {
   if (isInsideHouse(x, z)) return 'house';
   if (isInsideBar(x, z)) return 'bar';
   if (isInsideCasino(x, z)) return 'casino';
+  if (isInsideRestaurant(x, z)) return 'restaurant';
   if (isInsideAlley(x, z)) return 'alley';
   if (isInsideSteeg(x, z)) return 'steeg';
   for (const h of PLAYER_HOUSES) if (isInsideHouseDef(h, x, z)) return h.id;
