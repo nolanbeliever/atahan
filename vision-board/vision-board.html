@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Dönüşüm – Vision Board (A3)</title>
+<style>
+@page { size: 297mm 420mm; margin: 0; }
+:root{
+  --ink:#0b0a09; --card:#15110f; --card2:#1d1713;
+  --rust:#8a4b25; --mustard:#b8923a; --grey:#6b7078; --navy:#2f3f58;
+  --red:#8f1418; --bone:#e6dccb; --dim:#a89c88;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:297mm;height:420mm;background:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{position:relative;overflow:hidden;font-family:'Inter','Carlito',sans-serif;color:var(--bone)}
+.card{position:absolute;background:var(--card);overflow:hidden;box-shadow:0 0 0 .25mm #2a211a inset}
+h1,h2,h3,.serif{font-family:'Liberation Serif','Bitstream Charter','DejaVu Serif',serif;font-weight:700}
+.tag{position:absolute;top:3mm;left:3.5mm;font-size:6pt;letter-spacing:.28em;text-transform:uppercase;color:var(--mustard);font-weight:600}
+.pad{padding:9mm 4.5mm 4mm}
+p{font-size:7.4pt;line-height:1.5;color:#d6cbb8}
+svg{display:block}
+
+/* ---- hero ---- */
+#hero{left:8mm;top:8mm;width:142mm;height:104mm;background:#100c0a}
+#hero svg.bg{position:absolute;inset:0;width:100%;height:100%}
+#hero .title{position:absolute;left:7mm;bottom:25mm}
+#hero h1{font-size:50pt;letter-spacing:.04em;line-height:1;color:var(--bone);text-shadow:0 .8mm 0 #000}
+#hero .de{font-family:'Liberation Serif',serif;font-style:italic;font-size:13pt;color:var(--mustard);margin-top:1.5mm}
+#hero .sub{position:absolute;left:7mm;right:7mm;bottom:6mm;font-size:6.8pt;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);line-height:1.7;border-top:.3mm solid #5a4630;padding-top:2.2mm}
+#hero .sub b{color:var(--bone);font-weight:600}
+#hero .kunye{position:absolute;right:6mm;top:6mm;font-size:6pt;line-height:2.1;color:var(--dim);text-align:right;letter-spacing:.06em}
+#hero .kunye span{display:inline-block;width:34mm;border-bottom:.25mm solid #6b5a44;margin-left:1.5mm;vertical-align:bottom;height:3mm}
+
+/* ---- notes ---- */
+#notes{left:8mm;top:115mm;width:142mm;height:88mm;background:var(--card2)}
+#notes h2{font-size:12.5pt;line-height:1.15;color:var(--bone);margin-bottom:2.2mm}
+#notes h2 em{color:var(--red);font-style:normal;filter:brightness(1.7)}
+#notes p{margin-bottom:1.8mm}
+#notes .pull{border-left:.8mm solid var(--red);padding-left:3mm;margin:2.4mm 0;font-family:'Liberation Serif',serif;font-style:italic;font-size:9pt;line-height:1.35;color:var(--bone)}
+#notes .mood{display:flex;gap:1.6mm;margin-top:2.4mm;flex-wrap:wrap}
+#notes .mood span{font-size:5.8pt;letter-spacing:.14em;text-transform:uppercase;border:.25mm solid #6b5a44;padding:.9mm 2mm;color:var(--dim)}
+
+/* ---- palette & texture ---- */
+#pal{left:8mm;top:206mm;width:142mm;height:63mm}
+#pal .sw{position:absolute;left:4.5mm;top:9mm;width:58mm}
+.sw div{display:flex;align-items:center;height:8mm;margin-bottom:1mm}
+.sw i{width:15mm;height:100%;display:block;flex:none;box-shadow:0 0 0 .2mm #000 inset}
+.sw b{display:block;font-size:6.6pt;font-weight:600;color:var(--bone);margin-left:2.5mm;line-height:1.25}
+.sw small{display:block;font-size:5.6pt;font-weight:400;color:var(--dim)}
+#pal .tx{position:absolute;left:67mm;top:9mm;width:70.5mm;display:grid;grid-template-columns:1fr 1fr;gap:1.6mm}
+.tx figure{position:relative;height:21mm;overflow:hidden;box-shadow:0 0 0 .2mm #000 inset}
+.tx figure svg{width:100%;height:100%}
+.tx figcaption{position:absolute;left:0;right:0;bottom:0;padding:1mm 1.8mm;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:5.6pt;letter-spacing:.1em;text-transform:uppercase;color:var(--bone)}
+#pal .light{position:absolute;left:67mm;top:57mm;font-size:5.4pt;color:var(--dim)}
+
+/* ---- storyboard ---- */
+.sb{left:153mm;width:136mm;height:63mm;background:var(--card2)}
+.sb .img{position:absolute;left:0;top:0;width:75mm;height:63mm;background:#000}
+.sb .img svg{width:100%;height:100%}
+.sb .img .no{position:absolute;left:2.5mm;top:2.2mm;font-family:'Liberation Serif',serif;font-size:21pt;color:var(--bone);line-height:1;text-shadow:0 0 2mm #000}
+.sb .txt{position:absolute;left:78.5mm;right:3.5mm;top:4.5mm}
+.sb .txt .ang{font-size:5.8pt;letter-spacing:.2em;text-transform:uppercase;color:var(--mustard);font-weight:600;margin-bottom:1.4mm}
+.sb .txt h3{font-size:10.3pt;line-height:1.2;margin-bottom:1.6mm}
+.sb .txt p{font-size:6.8pt;line-height:1.42;margin-bottom:2mm}
+.sb .txt .sym{font-size:6.5pt;line-height:1.4;font-style:italic;color:var(--dim);border-top:.25mm solid #4a3a2a;padding-top:1.6mm}
+.sb .txt .sym b{font-style:normal;color:var(--bone)}
+#sbhead{position:absolute;right:8mm;top:3mm;font-size:5.6pt}
+
+/* ---- costume ---- */
+.cs{top:272mm;height:140mm;background:var(--card2)}
+.cs .fig{position:absolute;left:0;right:0;top:0;height:86mm;background:radial-gradient(ellipse at 50% 35%,#2b2119 0%,#0d0a08 78%)}
+.cs .fig svg{width:100%;height:100%}
+.cs .txt{position:absolute;left:4.5mm;right:4.5mm;top:89mm}
+.cs h3{font-size:11.5pt;margin-bottom:.4mm}
+.cs .role{font-size:5.8pt;letter-spacing:.2em;text-transform:uppercase;color:var(--mustard);font-weight:600;margin-bottom:2mm}
+.cs ul{list-style:none}
+.cs li{font-size:6.8pt;line-height:1.45;color:#d6cbb8;padding-left:3mm;position:relative;margin-bottom:1mm}
+.cs li:before{content:"";position:absolute;left:0;top:1.9mm;width:1.2mm;height:1.2mm;background:var(--red);filter:brightness(1.7)}
+
+#sym{left:221mm;width:68mm;top:272mm;height:140mm;background:#130d0b}
+#sym .big{font-family:'Liberation Serif',serif;font-size:19pt;line-height:1.18;color:var(--bone);margin:0 0 3mm}
+#sym .it{margin-bottom:3.2mm;padding-bottom:3.2mm;border-bottom:.25mm solid #3a2c20}
+#sym .it:last-of-type{border:0}
+#sym .it h4{font-family:'Liberation Serif',serif;font-size:9.5pt;color:var(--mustard);margin-bottom:.8mm}
+#sym .it p{font-size:6.8pt;line-height:1.42}
+#sym .foot{position:absolute;left:4.5mm;right:4.5mm;bottom:4mm;font-size:5.6pt;letter-spacing:.16em;text-transform:uppercase;color:#6d5f4d;text-align:center}
+
+/* cut marks */
+.cm{position:absolute;background:#5a4a38}
+</style>
+</head>
+<body>
+
+<!-- shared patterns -->
+<svg width="0" height="0" style="position:absolute">
+<defs>
+  <pattern id="wall" width="24" height="30" patternUnits="userSpaceOnUse">
+    <rect width="24" height="30" fill="#3a2418"/>
+    <path d="M12 2c4 3 4 7 0 10c-4-3-4-7 0-10zM12 18c4 3 4 7 0 10c-4-3-4-7 0-10zM0 15c4 3 4 7 0 10M24 15c-4 3-4 7 0 10M0 0c4 3 4 7 0 10M24 0c-4 3-4 7 0 10" fill="none" stroke="#5b3a22" stroke-width="1.1"/>
+    <path d="M0 15h24M12 0v30" stroke="#2a190f" stroke-width=".5"/>
+    <circle cx="12" cy="15" r="2" fill="#6a4426"/>
+  </pattern>
+  <pattern id="wood" width="60" height="14" patternUnits="userSpaceOnUse">
+    <rect width="60" height="14" fill="#2b1b11"/>
+    <path d="M0 0h60M0 7h60" stroke="#120a05" stroke-width="1.2"/>
+    <path d="M2 3c15-2 30 2 55 0M0 10c20-2 35 2 60 0M8 5c10 1 20-1 30 0" stroke="#4a301e" stroke-width=".6" fill="none"/>
+    <path d="M30 0v7M12 7v7M48 7v7" stroke="#120a05" stroke-width="1"/>
+  </pattern>
+  <pattern id="velvet" width="6" height="6" patternUnits="userSpaceOnUse">
+    <rect width="6" height="6" fill="#4a2a1d"/>
+    <circle cx="1.5" cy="1.5" r=".7" fill="#6b4331"/><circle cx="4.5" cy="4.5" r=".7" fill="#33190f"/>
+    <circle cx="4.5" cy="1.5" r=".4" fill="#5a3626"/>
+  </pattern>
+  <radialGradient id="brass" cx="35%" cy="30%" r="75%">
+    <stop offset="0" stop-color="#f0d68a"/><stop offset=".35" stop-color="#b8923a"/><stop offset="1" stop-color="#3a2a0e"/>
+  </radialGradient>
+  <radialGradient id="appleg" cx="35%" cy="30%" r="80%">
+    <stop offset="0" stop-color="#d23a36"/><stop offset=".55" stop-color="#8f1418"/><stop offset="1" stop-color="#3a0507"/>
+  </radialGradient>
+  <linearGradient id="shell" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#8a5a2c"/><stop offset=".5" stop-color="#5a3719"/><stop offset="1" stop-color="#241208"/>
+  </linearGradient>
+  <linearGradient id="beam" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#b8a27a" stop-opacity=".55"/><stop offset="1" stop-color="#b8a27a" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="uni" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#202a3a"/><stop offset=".5" stop-color="#3a4a64"/><stop offset="1" stop-color="#18202e"/>
+  </linearGradient>
+  <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .22 0"/></filter>
+  <g id="apple"><path d="M0 -6c-6-3-11 1-11 8c0 7 5 12 11 12s11-5 11-12c0-7-5-11-11-8z" fill="url(#appleg)"/><path d="M0 -6c0-4 1-6 3-8" stroke="#2a1608" stroke-width="1.4" fill="none"/><path d="M3 -12c3-2 6-1 7 1c-3 2-6 1-7-1z" fill="#3b4a1c"/></g>
+  <g id="beetle">
+    <!-- legs -->
+    <g stroke="#2a1608" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M-18 -4l-14 -12l-4 10"/><path d="M-20 6l-17 -2l-5 12"/><path d="M-18 16l-14 10l-2 8"/>
+      <path d="M18 -4l14 -12l4 10"/><path d="M20 6l17 -2l5 12"/><path d="M18 16l14 10l2 8"/>
+    </g>
+    <ellipse cx="0" cy="-26" rx="10" ry="9" fill="#3a2210"/>
+    <path d="M-5 -34l-9 -10M5 -34l9 -10" stroke="#2a1608" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <ellipse cx="-4" cy="-27" rx="2" ry="2.4" fill="#0a0503"/><ellipse cx="4" cy="-27" rx="2" ry="2.4" fill="#0a0503"/>
+    <path d="M-24 -10c0 -12 10 -18 24 -18s24 6 24 18v30c0 12 -10 20 -24 20s-24 -8 -24 -20z" fill="url(#shell)"/>
+    <g stroke="#1a0d05" stroke-width="1.3" fill="none">
+      <path d="M-24 -2c16 5 32 5 48 0"/><path d="M-24 10c16 5 32 5 48 0"/><path d="M-24 22c16 5 32 5 48 0"/><path d="M-22 34c14 4 30 4 44 0"/>
+      <path d="M0 -26v70" stroke-width=".7"/>
+    </g>
+    <path d="M-16 -18c6 -5 14 -5 20 0" stroke="#c19a5e" stroke-width="1" fill="none" opacity=".5"/>
+  </g>
+</defs>
+</svg>
+
+<!-- ============ HERO / TITLE ============ -->
+<section class="card" id="hero">
+  <svg class="bg" viewBox="0 0 142 104" preserveAspectRatio="xMidYMid slice">
+    <rect width="142" height="104" fill="url(#wall)"/>
+    <rect width="142" height="104" fill="#000" opacity=".66"/>
+    <!-- window light that never reaches him -->
+    <path d="M96 0h30l-52 104h-44z" fill="url(#beam)" opacity=".5"/>
+    <rect x="94" y="8" width="22" height="34" fill="#a8997a" opacity=".32"/>
+    <path d="M105 8v34M94 25h22" stroke="#0b0a09" stroke-width="1.6"/>
+    <!-- floor -->
+    <path d="M0 78h142v26h-142z" fill="url(#wood)"/>
+    <rect y="78" width="142" height="26" fill="#000" opacity=".5"/>
+    <!-- father silhouette, looming -->
+    <g transform="translate(112 12)">
+      <ellipse cx="0" cy="8" rx="9.5" ry="11" fill="#1a1411"/>
+      <path d="M-26 92l5 -66c1-8 8-12 21-12s20 4 21 12l5 66z" fill="#10141d"/>
+      <path d="M-14 24l14 38 14-38" fill="none" stroke="#0a0c12" stroke-width="2"/>
+      <g fill="#8e7430"><circle cx="-4" cy="40" r="1.3"/><circle cx="4" cy="40" r="1.3"/><circle cx="-4" cy="50" r="1.3"/><circle cx="4" cy="50" r="1.3"/><circle cx="-4" cy="60" r="1.3"/><circle cx="4" cy="60" r="1.3"/></g>
+      <path d="M20 22c10-6 14-18 11-30" stroke="#10141d" stroke-width="9" fill="none" stroke-linecap="round"/>
+      <use href="#apple" transform="translate(30 -38) scale(.75)"/>
+    </g>
+    <!-- beetle in the dark, floor level -->
+    <g transform="translate(26 92) scale(.44) rotate(78)" opacity=".95"><use href="#beetle"/></g>
+    <!-- wound glow -->
+    <circle cx="26" cy="86" r="12" fill="#8f1418" opacity=".2"/>
+    <rect width="142" height="104" filter="url(#grain)"/>
+    <rect width="142" height="104" fill="url(#vig)"/>
+  </svg>
+  <div class="kunye">AD SOYAD<span></span><br>SINIF / OKUL NO<span></span><br>DERS<span style="width:34mm"></span></div>
+  <div class="title">
+    <h1>DÖNÜŞÜM</h1>
+    <div class="de">Die Verwandlung — Franz Kafka</div>
+  </div>
+  <div class="sub"><b>Vision Board</b> · Görsel Adaptasyon Projesi · Türk Dili ve Edebiyatı<br>Odaktaki sahne: <b>Baba, Gregor’a elma fırlatır</b> — II. Bölüm finali</div>
+</section>
+
+<!-- ============ YÖNETMEN NOTLARI ============ -->
+<section class="card" id="notes">
+  <div class="tag">01 — Yönetmen Notları</div>
+  <div class="pad">
+    <h2>Elma, bir meyve değil;<br><em>bir hüküm.</em></h2>
+    <p>Odağa alınan sahne, anlatının kırılma noktasıdır: Bay Samsa’nın Gregor’a elma fırlatması ve onu yaralayarak odasına hapsetmesi. Roman boyunca örtük kalan <b style="color:#e6dccb">ekonomik sömürü, ataerkil otorite ve duygusal ihanet</b>, burada somut bir şiddet eylemine dönüşür.</p>
+    <p>Gregor, ailenin borçlarını ödediği sürece katlanılan bir nesnedir; böceğe dönüşünce işlevini yitirir. Elma, “ilk günah” ve cennetten kovulmanın burjuva aile yapısına uyarlanışıdır. Sırtında çürüyen elma, fedakârlıkların ağır bir vicdani ve fiziksel yüke dönüşmesidir.</p>
+    <div class="pull">Mekân, Gregor’un zihninin ve hapsedilmişliğinin bir uzantısıdır: ağır mobilyalar, kilitli kapılar, içeri sızamayan ışık.</div>
+    <p>Alçak kamera açıları babayı devasa gösterir; Gregor’un zemin seviyesindeki bakışı insansızlaştırılmış varlığın aşağılanmışlığını gösterir.</p>
+    <div class="mood"><span>Klostrofobi</span><span>Yabancılaşma</span><span>Çaresizlik</span><span>Varoluşsal terör</span></div>
+  </div>
+</section>
+
+<!-- ============ RENK + DOKU ============ -->
+<section class="card" id="pal">
+  <div class="tag">02 — Renk Paleti · Doku · Işık</div>
+  <div class="sw">
+    <div><i style="background:#b8923a"></i><b>Küstü Sarı<small>Yabancılaşma, solgunluk, hastalık · #B8923A</small></b></div>
+    <div><i style="background:#8a4b25"></i><b>Pas Kahvesi<small>Çürüme, durmuşluk, değişmeyen kader · #8A4B25</small></b></div>
+    <div><i style="background:#6b7078"></i><b>Bürokrasi Grisi<small>Otoritenin soğukluğu · #6B7078</small></b></div>
+    <div><i style="background:#2f3f58"></i><b>Askeri Mavi<small>Babanın banka üniforması · #2F3F58</small></b></div>
+    <div><i style="background:#8f1418"></i><b>Koyu Kırmızı<small>Saldırganlık, elmanın tekinsizliği · #8F1418</small></b></div>
+  </div>
+  <div class="tx">
+    <figure><svg viewBox="0 0 60 40" preserveAspectRatio="xMidYMid slice"><rect width="60" height="40" fill="url(#wall)"/></svg><figcaption>Labirent desenli duvar kâğıdı</figcaption></figure>
+    <figure><svg viewBox="0 0 60 40" preserveAspectRatio="xMidYMid slice"><rect width="60" height="40" fill="url(#wood)"/></svg><figcaption>Gıcırdayan koyu ahşap</figcaption></figure>
+    <figure><svg viewBox="0 0 60 40" preserveAspectRatio="xMidYMid slice"><rect width="60" height="40" fill="url(#velvet)"/><rect width="60" height="40" fill="#000" opacity=".25"/></svg><figcaption>Nemli, ağır kadife</figcaption></figure>
+    <figure><svg viewBox="0 0 60 40" preserveAspectRatio="xMidYMid slice"><rect width="60" height="40" fill="#1a110b"/><rect x="0" y="0" width="60" height="40" fill="url(#wood)" opacity=".4"/><circle cx="30" cy="20" r="11" fill="url(#brass)"/><circle cx="30" cy="20" r="4" fill="#0b0a09" opacity=".55"/><rect x="28.6" y="6" width="2.8" height="8" fill="#6a5320"/></svg><figcaption>Pirinç kapı kolu</figcaption></figure>
+  </div>
+  <div class="light" style="top:auto;bottom:2mm;left:4.5mm;right:4.5mm;width:auto;border-top:.25mm solid #3a2c20;padding-top:1.6mm;font-size:6.2pt;color:#a89c88;line-height:1.4"><b style="color:#e6dccb">Işık:</b> tek kaynaktan, sert, chiaroscuro. Pencereden giren sisli ve soluk ışık Gregor’a ulaşmaz; gölgeler köşelerde katılaşır.</div>
+</section>
+
+<!-- ============ STORYBOARD ============ -->
+<section class="card sb" style="top:8mm">
+  <div class="img">
+    <svg viewBox="0 0 120 100" preserveAspectRatio="xMidYMid slice">
+      <rect width="120" height="100" fill="#150f0c"/>
+      <rect width="120" height="62" fill="url(#wall)"/><rect width="120" height="62" fill="#000" opacity=".62"/>
+      <path d="M0 62h120v38h-120z" fill="url(#wood)"/><rect y="62" width="120" height="38" fill="#000" opacity=".4"/>
+      <!-- Gregor's door, far left, dark -->
+      <rect x="8" y="14" width="22" height="48" fill="#050302" stroke="#3a2a1a" stroke-width="1.5"/>
+      <circle cx="27" cy="40" r="1.6" fill="url(#brass)"/>
+      <!-- pale window -->
+      <rect x="86" y="8" width="24" height="30" fill="#b3a483" opacity=".3"/><path d="M98 8v30M86 23h24" stroke="#150f0c" stroke-width="1.4"/>
+      <!-- table + bowl -->
+      <path d="M52 66h56l6 6h-68z" fill="#33201a"/><rect x="56" y="72" width="3" height="22" fill="#241510"/><rect x="104" y="72" width="3" height="22" fill="#241510"/>
+      <path d="M72 66c0 8 18 8 18 0z" fill="#241510"/>
+      <use href="#apple" transform="translate(78 62) scale(.5)"/><use href="#apple" transform="translate(84 62) scale(.5)"/><use href="#apple" transform="translate(81 58) scale(.5)"/>
+      <!-- father, upright, hand reaching for bowl -->
+      <g transform="translate(58 14)">
+        <path d="M-9 60l-3 26h8l3-22l3 22h8l-3-26z" fill="#10141d"/>
+        <ellipse cx="0" cy="13" rx="5.2" ry="6.2" fill="#7a3a2c"/>
+        <path d="M-13 62l3-34c0-5 4-8 10-8s10 3 10 8l3 34z" fill="url(#uni)"/>
+        <g fill="#b8923a"><circle cx="-2" cy="32" r=".9"/><circle cx="2" cy="32" r=".9"/><circle cx="-2" cy="39" r=".9"/><circle cx="2" cy="39" r=".9"/><circle cx="-2" cy="46" r=".9"/><circle cx="2" cy="46" r=".9"/></g>
+        <path d="M9 26c7 4 10 10 12 20" stroke="#202a3a" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <path d="M-4 11l8 0" stroke="#150f0c" stroke-width="1.4"/>
+      </g>
+      <!-- lower legs / floor -->
+      <path d="M46 76l-4 22M64 76l4 22" stroke="#10141d" stroke-width="5" opacity="0"/>
+      <rect width="120" height="100" filter="url(#grain)"/>
+    </svg>
+    <div class="no">1</div>
+  </div>
+  <div class="txt">
+    <div class="ang">Soluk geniş açı · Yemek odasından Gregor’un kapısına</div>
+    <h3>Cezanın başlangıcı</h3>
+    <p>Baba, banka üniforması içinde dimdik ayakta; elma çanağından elma alıyor. Aile sofrası, bir infaz hazırlığına dönüşüyor.</p>
+    <div class="sym"><b>Anlam:</b> Otoritenin yeniden doğuşu ve ceza mekanizmasının harekete geçmesi.</div>
+  </div>
+</section>
+
+<section class="card sb" style="top:74mm">
+  <div class="img">
+    <svg viewBox="0 0 120 100" preserveAspectRatio="xMidYMid slice">
+      <rect width="120" height="100" fill="#0e0907"/>
+      <!-- ceiling converging -->
+      <g stroke="#2a1b12" stroke-width="1" fill="none"><path d="M0 0L52 30M120 0L68 30M0 22L50 38M120 22L70 38"/><path d="M0 8h120" opacity=".3"/></g>
+      <path d="M52 0h16v30h-16z" fill="#1a110b" opacity=".6"/>
+      <!-- floor lines -->
+      <g stroke="#2a1b12" stroke-width=".8"><path d="M60 100L0 100M60 100L20 100"/></g>
+      <!-- legs (huge) -->
+      <path d="M2 100l18-60h18l-4 60z" fill="#10141d"/>
+      <path d="M118 100l-18-60h-18l4 60z" fill="#10141d"/>
+      <path d="M20 40h80l-8 -28h-64z" fill="url(#uni)"/>
+      <!-- torso, foreshortened -->
+      <path d="M26 40l8-34h52l8 34z" fill="url(#uni)"/>
+      <g fill="#b8923a"><circle cx="58" cy="14" r="1.8"/><circle cx="62" cy="14" r="1.8"/><circle cx="58" cy="24" r="1.8"/><circle cx="62" cy="24" r="1.8"/><circle cx="58" cy="34" r="1.8"/><circle cx="62" cy="34" r="1.8"/></g>
+      <!-- head far above, small, red -->
+      <ellipse cx="60" cy="1" rx="10" ry="6" fill="#7a2a22"/>
+      <path d="M52 0h16" stroke="#050302" stroke-width="2.4"/>
+      <!-- raised arm and apple -->
+      <path d="M92 10c8 -6 14 -2 16 6" stroke="#202a3a" stroke-width="9" fill="none" stroke-linecap="round" transform="translate(-4 4)"/>
+      <use href="#apple" transform="translate(106 30) scale(.9)"/>
+      <circle cx="106" cy="30" r="12" fill="none" stroke="#8f1418" stroke-width=".6" opacity=".6"/>
+      <rect width="120" height="100" filter="url(#grain)"/>
+    </svg>
+    <div class="no">2</div>
+  </div>
+  <div class="txt">
+    <div class="ang">Alçak açı (low-angle) · Zemin seviyesinden babaya</div>
+    <h3>Ezici bir gövde</h3>
+    <p>Baba kolunu geriye kaldırmış, elmayı fırlatmak üzere. Kamera Gregor’un gözünden, böceğin boyunda; baba tavana değiyor.</p>
+    <div class="sym"><b>Anlam:</b> Babanın devasa, ezici boyutu; Gregor’un tamamen küçülmesi.</div>
+  </div>
+</section>
+
+<section class="card sb" style="top:140mm">
+  <div class="img">
+    <svg viewBox="0 0 120 100" preserveAspectRatio="xMidYMid slice">
+      <rect width="120" height="100" fill="#0a0605"/>
+      <!-- carapace close up -->
+      <path d="M-10 100c0-50 30-90 70-90s70 40 70 90z" fill="url(#shell)"/>
+      <g stroke="#150a04" stroke-width="2" fill="none">
+        <path d="M-6 82c40 -18 90 -18 132 0"/><path d="M2 66c36 -16 80 -16 116 0"/><path d="M12 50c30 -14 66 -14 96 0"/><path d="M26 35c22 -10 44 -10 68 0"/>
+        <path d="M60 10v90" stroke-width="1.2" opacity=".6"/>
+      </g>
+      <path d="M20 40c14 -14 40 -22 64 -12" stroke="#d0a468" stroke-width="1.6" fill="none" opacity=".35"/>
+      <!-- bruise -->
+      <circle cx="68" cy="52" r="26" fill="#8f1418" opacity=".28"/>
+      <circle cx="68" cy="52" r="17" fill="#3a0507" opacity=".5"/>
+      <!-- cracked shell -->
+      <path d="M68 52l-22-10M68 52l-8 -24M68 52l26-8M68 52l24 18M68 52l-18 24M68 52l6 28" stroke="#0a0302" stroke-width="1.4" fill="none"/>
+      <use href="#apple" transform="translate(68 54) scale(1.9)"/>
+      <path d="M58 56c6 8 14 10 22 6" stroke="#0a0302" stroke-width="1" fill="none" opacity=".7"/>
+      <path d="M62 62c1 10 0 18 -2 26" stroke="#8f1418" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".7"/>
+      <rect width="120" height="100" filter="url(#grain)"/>
+    </svg>
+    <div class="no">3</div>
+  </div>
+  <div class="txt">
+    <div class="ang">Yakın çekim (close-up) · Kabuklu sırt</div>
+    <h3>Gövdeye saplanan ihanet</h3>
+    <p>Kırmızı elma sırta saplanır; et çevresinde ezilir ve çürümeye başlar. Kamera yarayı büyük ve kaçınılmaz gösterir.</p>
+    <div class="sym"><b>Anlam:</b> Duygusal ihanetin kalıcı bir fiziksel yaraya dönüşmesi.</div>
+  </div>
+</section>
+
+<section class="card sb" style="top:206mm">
+  <div class="img">
+    <svg viewBox="0 0 120 100" preserveAspectRatio="xMidYMid slice">
+      <rect width="120" height="100" fill="#050302"/>
+      <!-- floor from above -->
+      <path d="M0 100V30l120 -12v82z" fill="url(#wood)" opacity=".5"/><rect width="120" height="100" fill="#000" opacity=".72"/>
+      <!-- light wedge from dining room closing -->
+      <path d="M0 0h54l-20 100h-34z" fill="#b3a483" opacity=".42"/>
+      <path d="M0 0h54l-20 100h-34z" fill="url(#beam)"/>
+      <!-- door slab swinging shut -->
+      <path d="M40 0h40v100l-52 -6z" fill="#2a1a10" stroke="#0a0604" stroke-width="2"/>
+      <path d="M46 8h28v36h-28zM46 54h28v34l-28 -3z" fill="none" stroke="#150c06" stroke-width="1.4"/>
+      <circle cx="42" cy="52" r="2.2" fill="url(#brass)"/>
+      <!-- beetle crawling into dark -->
+      <g transform="translate(94 58) scale(.36) rotate(-100)"><use href="#beetle"/></g>
+      <circle cx="94" cy="60" r="9" fill="#8f1418" opacity=".18"/>
+      <rect width="120" height="100" filter="url(#grain)"/>
+    </svg>
+    <div class="no">4</div>
+  </div>
+  <div class="txt">
+    <div class="ang">Kuş bakışı (high-angle) · Kapı aralığından karanlık odaya</div>
+    <h3>Kapı kapanır</h3>
+    <p>Gregor yaralı halde içeri sürünür; kapı üzerine hızla kapanır. Işık şeridi daralır, oda zifiri karanlıkta kalır.</p>
+    <div class="sym"><b>Anlam:</b> Mutlak yalnızlık, tecrit ve ölüme giden sürecin başlangıcı.</div>
+  </div>
+</section>
+<div class="tag" id="sbhead" style="left:156mm;top:3.4mm;color:#8a7658">03 — Storyboard · yukarıdan aşağıya kronolojik</div>
+
+<!-- ============ COSTUME CARDS ============ -->
+<section class="card cs" style="left:8mm;width:70mm">
+  <div class="tag">04 — Karakter / Kostüm</div>
+  <div class="fig"><svg viewBox="0 0 100 86" preserveAspectRatio="xMidYMid meet">
+    <ellipse cx="50" cy="82" rx="26" ry="3" fill="#000" opacity=".6"/>
+    <ellipse cx="50" cy="16" rx="9" ry="10.5" fill="#8a3b2d"/>
+    <path d="M41 12c2-7 16-7 18 0c-5-3-13-3-18 0z" fill="#1a1411"/>
+    <path d="M42 22c4 3 12 3 16 0" stroke="#150f0c" stroke-width="1.6" fill="none"/>
+    <path d="M44 14l5 2M56 14l-5 2" stroke="#150f0c" stroke-width="1.8"/>
+    <path d="M24 82l5-46c1-9 9-14 21-14s20 5 21 14l5 46z" fill="url(#uni)"/>
+    <path d="M42 24l8 22 8-22" fill="#d9d2c0"/><path d="M50 30l-3 8 3 14 3-14z" fill="#1a1210"/>
+    <path d="M35 36l15 14 15-14" stroke="#0e1420" stroke-width="1.6" fill="none"/>
+    <g fill="url(#brass)"><circle cx="46" cy="54" r="2.1"/><circle cx="54" cy="54" r="2.1"/><circle cx="46" cy="63" r="2.1"/><circle cx="54" cy="63" r="2.1"/><circle cx="46" cy="72" r="2.1"/><circle cx="54" cy="72" r="2.1"/></g>
+    <path d="M30 34l-9 18 5 8 10-14z" fill="#202a3a"/><circle cx="24" cy="61" r="3.2" fill="#8a3b2d"/>
+    <path d="M70 34c6 4 9 -2 8 -14" stroke="#202a3a" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <use href="#apple" transform="translate(79 14) scale(.62)"/>
+    <path d="M35 28l9 -3M65 28l-9 -3" stroke="#b8923a" stroke-width="1.4"/>
+  </svg></div>
+  <div class="txt">
+    <h3>Bay Samsa — Baba</h3><div class="role">Mutlak otorite</div>
+    <ul>
+      <li>Lekesiz, kaskatı, <b>altın düğmeli banka üniforması</b></li>
+      <li>Dik duruş, çatık kaşlar, öfkeyle kızarmış yüz</li>
+      <li>Gözlerinde acıma yok; elma kolunda bir silah</li>
+      <li>Üniforma: askeri mavi · düğmeler: küstü sarı</li>
+    </ul>
+  </div>
+</section>
+
+<section class="card cs" style="left:81mm;width:70mm">
+  <div class="fig"><svg viewBox="0 0 100 86" preserveAspectRatio="xMidYMid meet">
+    <ellipse cx="50" cy="80" rx="30" ry="3" fill="#000" opacity=".6"/>
+    <g transform="translate(50 46) scale(.9)"><use href="#beetle"/></g>
+    <circle cx="52" cy="42" r="9" fill="#8f1418" opacity=".45"/>
+    <use href="#apple" transform="translate(52 42) scale(.6)"/>
+  </svg></div>
+  <div class="txt">
+    <h3>Gregor Samsa</h3><div class="role">İnsanlığını yitiren ağırlık</div>
+    <ul>
+      <li>İnsan formunu yitirmiş: <b>kabuklu, eklemli, çaresiz</b> gövde</li>
+      <li>Yüz ifadesi seçilemez; ürkeklik ve kasılmalar korku ve kırgınlığı taşır</li>
+      <li>Sırtında çürüyen elma: kalıcı yara</li>
+      <li>Kadraj hep zemin seviyesinde</li>
+    </ul>
+  </div>
+</section>
+
+<section class="card cs" style="left:154mm;width:64mm">
+  <div class="fig"><svg viewBox="0 0 100 86" preserveAspectRatio="xMidYMid meet">
+    <ellipse cx="50" cy="82" rx="40" ry="3" fill="#000" opacity=".6"/>
+    <!-- mother: hands over face -->
+    <g>
+      <ellipse cx="30" cy="24" rx="8" ry="9.5" fill="#b49a82"/>
+      <path d="M21 22c0-9 18-9 18 0c-3-4-14-4-18 0z" fill="#3a2a22"/>
+      <path d="M14 82l4-40c1-8 6-12 12-12s11 4 12 12l4 40z" fill="#6a3f35"/>
+      <path d="M20 38c-2-8 2-14 6-16M40 38c2-8-2-14-6-16" stroke="#6a3f35" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <rect x="22" y="19" width="16" height="9" rx="4" fill="#c0a68c"/>
+      <path d="M17 44l-4 12M43 46l5 10" stroke="#3a2a22" stroke-width="1.2"/>
+    </g>
+    <!-- Grete sheltering behind father -->
+    <g>
+      <ellipse cx="72" cy="28" rx="7" ry="8.5" fill="#b49a82"/>
+      <path d="M64 24c2-8 14-8 16 0c-2 4-2 10 0 14c-4 2-6-2-8-6c-2 4-6 8-8 6c2-4 2-10 0-14z" fill="#2a1d16"/>
+      <path d="M56 82l5-38c1-7 5-10 11-10s10 3 11 10l5 38z" fill="#4a5568"/>
+      <path d="M62 44l-5 -6M82 44l5 -6" stroke="#4a5568" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="69" cy="28" r=".9" fill="#150f0c"/><circle cx="75" cy="28" r=".9" fill="#150f0c"/>
+    </g>
+  </svg></div>
+  <div class="txt">
+    <h3>Anne ve Grete</h3><div class="role">Arka plan · Tanık</div>
+    <ul>
+      <li><b>Anne:</b> şok ve dehşet; elleri yüzünde, elbisesi dağınık</li>
+      <li><b>Grete:</b> babanın arkasına sığınmış; şefkat ile tiksinti arasında</li>
+      <li>İkisi de müdahale etmez: sessizlik suç ortaklığıdır</li>
+    </ul>
+  </div>
+</section>
+
+<section class="card" id="sym">
+  <div class="tag">05 — Semboller</div>
+  <div class="pad" style="padding-top:10mm">
+    <div class="big">Elma, kapı, yara.<br>Üç nesne, tek hüküm.</div>
+    <div class="it"><h4>Kırmızı elma</h4><p>İlk günah ve cennetten kovulma. Gregor’un aileye sunduğu fedakârlığın ağır bir vicdani yüke dönüşmesi.</p></div>
+    <div class="it"><h4>Üç kapı</h4><p>Özgürlük değil, dış dünyadan ve aileden tecrit. Pirinç kapı kolları soğuk ve ulaşılmaz parlar.</p></div>
+    <div class="it"><h4>Çürüyen yara</h4><p>Unutulmuş bir ihanetin bedende yaşatılması: kimse çıkarmaz, kimse bakmaz.</p></div>
+    <div class="it"><h4>Pencere ışığı</h4><p>Soluk ve sisli; Gregor’a hiç ulaşmaz. Umutsuzluğun tek kaynaklı, sert aydınlatması.</p></div>
+  </div>
+  <div class="foot">Franz Kafka · Die Verwandlung · 1915</div>
+</section>
+
+<!-- crop marks -->
+<div class="cm" style="left:0;top:3mm;width:5mm;height:.2mm"></div><div class="cm" style="left:3mm;top:0;width:.2mm;height:5mm"></div>
+<div class="cm" style="right:0;top:3mm;width:5mm;height:.2mm"></div><div class="cm" style="right:3mm;top:0;width:.2mm;height:5mm"></div>
+<div class="cm" style="left:0;bottom:3mm;width:5mm;height:.2mm"></div><div class="cm" style="left:3mm;bottom:0;width:.2mm;height:5mm"></div>
+<div class="cm" style="right:0;bottom:3mm;width:5mm;height:.2mm"></div><div class="cm" style="right:3mm;bottom:0;width:.2mm;height:5mm"></div>
+</body>
+</html>
