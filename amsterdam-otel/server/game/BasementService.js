@@ -24,9 +24,13 @@ const near = (p, [x, z], range) => Math.hypot(p.x - x, p.z - z) <= range;
 
 const seatOf = (t, id) => t.seats.findIndex((s) => s && !s.ai && s.id === id);
 const humans = (t) => t.seats.filter((s) => s && !s.ai);
+/** Takım adı: langırtta 2'ye 2 (seat 0+2 🔴, seat 1+3 🔵), diğer masalarda tek oyuncu */
+const sideName = (t, side) => t.seats.filter((s, k) => s && k % 2 === side).map((s) => s.name).join(' & ');
 
 function newDuel(game) {
-  return { game, seats: [null, null], ai: false, phase: 'idle', score: [0, 0], winner: -1, lastPoint: 0, msg: '' };
+  // Langırt 4 koltuk (2'ye 2); masa tenisi 1v1
+  const seats = game === 'foos' ? [null, null, null, null] : [null, null];
+  return { game, seats, ai: false, phase: 'idle', score: [0, 0], winner: -1, lastPoint: 0, msg: '' };
 }
 
 function newPool() {
@@ -240,23 +244,39 @@ export class BasementService {
     }
     this.yieldNpc(game, i, now);
     const me = { id: p.id, name: p.name };
-    if (t.phase === 'over' || t.phase === 'idle' || (!t.seats[0] && !t.seats[1])) {
+    if (!humans(t).length) {
       Object.assign(t, game === 'pool' ? newPool() : newDuel(game));
-      t.seats = [me, null];
+      t.seats[0] = me;
       t.phase = 'wait';
-      t.msg = `${p.name} rakip bekliyor — bir arkadaşın E ile katılabilir ya da 🤖 bilgisayara karşı oyna.`;
+      t.msg = game === 'foos'
+        ? `${p.name} rakip bekliyor — arkadaşların E ile katılabilir (2'ye 2'ye kadar) ya da 🤖 bilgisayara karşı oyna.`
+        : `${p.name} rakip bekliyor — bir arkadaşın E ile katılabilir ya da 🤖 bilgisayara karşı oyna.`;
       this.changed();
       return { ok: true, seat: 0 };
     }
-    if (t.phase === 'wait' && !t.seats[1] && !t.ai) {
+    // Arkadaş gelince bilgisayar yerini bırakır: yeni maç insanlara karşı başlar
+    if (t.ai) {
       t.seats[1] = me;
+      t.ai = false;
       this.resetDuel(t, now);
       t.phase = 'play';
-      t.msg = `${t.seats[0].name} ⚔️ ${p.name} — maç başladı!`;
+      t.msg = `🤖 Robo Ruud yerini ${p.name}'e bıraktı — ${sideName(t, 0)} ⚔️ ${sideName(t, 1)}, maç başladı!`;
       this.changed();
       return { ok: true, seat: 1 };
     }
-    return { ok: false, error: 'Bu masa dolu.' };
+    // Önce rakip koltuğu (1), langırtta sonra takım arkadaşları (2: 🔴, 3: 🔵)
+    const free = [1, 2, 3].find((k) => k < t.seats.length && !t.seats[k]);
+    if (free === undefined) return { ok: false, error: 'Bu masa dolu.' };
+    t.seats[free] = me;
+    if (free === 1 && t.phase === 'wait') {
+      this.resetDuel(t, now);
+      t.phase = 'play';
+      t.msg = `${sideName(t, 0)} ⚔️ ${sideName(t, 1)} — maç başladı!`;
+    } else {
+      t.msg = `${p.name} ${free % 2 ? '🔵' : '🔴'} takıma katıldı (${sideName(t, 0)} ⚔️ ${sideName(t, 1) || '…'}).`;
+    }
+    this.changed();
+    return { ok: true, seat: free };
   }
 
   resetDuel(t, now) {
@@ -271,12 +291,14 @@ export class BasementService {
   startAi(p, game, i, now) {
     const t = this.duelList(game)?.[i];
     if (!t) return { ok: false, error: 'Böyle bir masa yok.' };
-    if (seatOf(t, p.id) !== 0 || t.phase !== 'wait' || t.seats[1]) return { ok: false, error: 'Bilgisayara karşı yalnızca masada tek başınayken oynanır.' };
+    if (seatOf(t, p.id) !== 0 || t.phase !== 'wait' || t.seats.some((s, k) => s && k % 2 === 1)) {
+      return { ok: false, error: 'Bilgisayara karşı yalnızca rakip takım boşken oynanır.' };
+    }
     t.seats[1] = { ai: true, name: AI_NAME };
     t.ai = true;
     this.resetDuel(t, now);
     t.phase = 'play';
-    t.msg = `${p.name} ⚔️ ${AI_NAME} — maç başladı!`;
+    t.msg = `${sideName(t, 0)} ⚔️ ${AI_NAME} — maç başladı!`;
     this.changed();
     return { ok: true };
   }
@@ -287,6 +309,7 @@ export class BasementService {
     if (!t) return false;
     const s = seatOf(t, p.id);
     if (s < 0) return false;
+    if (game === 'foos') return this.leaveFoos(t, s, p);
     const other = t.seats[1 - s];
     if (other && !other.ai) {
       // Kalan oyuncu ilk koltuğa geçer ve yeni rakip bekler (masa tenisi / langırtta ev sahibi seat 0'dır)
@@ -298,6 +321,37 @@ export class BasementService {
     } else {
       Object.assign(t, game === 'pool' ? newPool() : newDuel(game));
     }
+    return true;
+  }
+
+  /**
+   * Langırt (2'ye 2'ye kadar): takım arkadaşı kalırsa maç sürer (arkadaş ana koltuğa geçer); takım boşalırsa
+   * rakip takım hükmen kazanır ve kalanlar yeni maç için yeniden oturur. Ev sahibi (topu simüle eden) hep seat 0'dır.
+   */
+  leaveFoos(t, s, p) {
+    t.seats[s] = null;
+    const team = s % 2;
+    const mate = t.seats[s ^ 2];
+    if (mate && s < 2) {
+      t.seats[s] = mate;
+      t.seats[s ^ 2] = null;
+    }
+    const left = humans(t);
+    if (!left.length) {
+      Object.assign(t, newDuel('foos'));
+      return true;
+    }
+    if (t.seats[team] || (team === 1 && t.ai)) {
+      t.msg = `${p.name} masadan kalktı — ${sideName(t, team)} devam ediyor.`;
+      return true;
+    }
+    // Takım boşaldı: kalan insanlar baştan oturur (ilk gelen ev sahibi)
+    const playing = t.phase === 'play';
+    const winners = sideName(t, 1 - team);
+    Object.assign(t, newDuel('foos'));
+    left.forEach((h, k) => { t.seats[[0, 2, 1, 3][k]] = h; });
+    t.phase = t.seats[1] ? 'over' : 'wait';
+    t.msg = playing ? `${p.name} masadan kalktı — ${winners} hükmen kazandı.` : `${p.name} masadan kalktı.`;
     return true;
   }
 
@@ -477,7 +531,7 @@ export class BasementService {
     t.lastPoint = now;
     t.score[side]++;
     const to = game === 'pong' ? R.PONG_TO : R.FOOS_TO;
-    const who = t.seats[side].name;
+    const who = sideName(t, side);
     if (t.score[side] >= to) {
       t.phase = 'over';
       t.winner = side;
@@ -755,7 +809,7 @@ export class BasementService {
     if (game === 'arcade') return !this.arcade[i].player;
     if (game === 'bowling') return !this.lanes[i].players.length || this.lanes[i].over;
     const t = this.duelList(game)[i];
-    return !t.seats[0] && !t.seats[1];
+    return !t.seats.some(Boolean);
   }
 
   /** Oyuncu gelince NPC oturumu biter (ücret ödendiyse kasada kalır) */

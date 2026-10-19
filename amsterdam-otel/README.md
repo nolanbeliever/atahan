@@ -617,15 +617,22 @@ kapısından** (asansörün karşı tarafı, E), **asansörün "−1 🎳" dura�
 inilir; bodrumdan merdivenle ya da asansörle geri çıkılır. Oyunlar masaya / kulvara / makineye **E** ile başlar; kamera
 oyunun FPV açısına geçer, fare / sağ taraf sürükleme ve hareket tuşları oyuna gider, **Q** ya da **✕ Kalk** ile kalkılır.
 Tek başınayken **1** / **🤖 Bilgisayara karşı** ile "Robo Ruud"a karşı oynanır; bir arkadaşın aynı masada E'ye basarsa
-1v1 maç başlar.
+maç ona karşı başlar — bilgisayara karşı oynarken gelen arkadaş da **🤖'nun yerine geçer** (yeni maç). Bilardo, masa
+tenisi, langırt ve bowling arkadaşlarla oynanır; atari makineleri tek kişiliktir.
 
 - **🎱 Bilardo (2 masa, 8-ball):** beyaz topun arkasından nişan (fare / sürükleme ıstakayı döndürür, nişan çizgisi ve
   hayalet top), E güç çubuğunu başlatır, ikinci E vurur. Atış **sunucuda deterministik olarak simüle edilir**
   (`shared/basementPhysics.js`); herkes aynı simülasyonu animasyon olarak izler. Kurallar: açılış, düz / parçalı grup,
   faul (beyaz cebe, yanlış ilk temas, hiç temas yok → sıra geçer, beyaz yerine konur), 8 numara (grup bitmeden ya da
   faulle girerse kaybettirir). Rövanş için E.
-- **⚽ Langırt (2 masa):** masanın kenarından yukarıdan bakış; W/S ya da fare yukarı-aşağı 4 çubuğu birlikte kaydırır,
-  E çubukları döndürüp vurur. 5 gole.
+- **⚽ Langırt (2 masa, 1v1 ya da 2'ye 2):** masanın kenarından yukarıdan bakış. Çubuklar **tek tek** oynanır:
+  **1–4** (🧤 kaleci, 🛡️ defans, ⚙️ orta saha, ⚡ forvet), **A/D** ya da fare tekerleği sıradaki çubuk, HUD'daki çubuk
+  düğmeleri (dokunmatikte de); **T / 🔄 Oto** açıkken topa en yakın çubuk kendiliğinden seçilir. Seçili çubuğun
+  tutamağında sarı halka yanar; W/S ya da fare yukarı-aşağı yalnızca onu kaydırır, E onu döndürüp vurur. Masaya
+  4 kişiye kadar oturulur: ilk gelen 🔴, ikinci 🔵 (maç başlar), üçüncü ve dördüncü takım arkadaşı olur — 2'ye 2'de
+  ön oyuncu kaleci + defansı, arka oyuncu orta saha + forveti oynar (takımda tek kişi kalırsa dört çubuk onundur).
+  İki arkadaş aynı takımda 🤖'ya karşı da oynayabilir. Takım arkadaşı kalkarsa maç sürer; takım boşalırsa rakip hükmen
+  kazanır. 5 gole.
 - **🏓 Masa tenisi:** masanın ucundan; fare / sürükleme ya da A/D raketi kaydırır, E servis atar, vuruştan hemen önce
   E **smaç** (daha sert, hata payı yüksek). 7 sayıya, servis 2 sayıda bir değişir.
 - **🕹️ Retro atari (6 makine):** 🐍 Neon Yılan, 🧱 Tuğla Kırıcı, 👾 Lale İstilası. Jeton **€1 (cüzdandan, otel
@@ -641,7 +648,9 @@ Tek başınayken **1** / **🤖 Bilgisayara karşı** ile "Robo Ruud"a karşı o
   kalabalıklaşır.
 - **Co-op:** masa tenisi / langırtta top fiziği maçın ev sahibinde (ilk oturan) çalışır; raket / çubuk / top
   konumları `basement:rt` ile ~14 Hz aktarılır, sayıyı yalnızca ev sahibi bildirir (sunucu faz + aralık denetler).
-  Bodrumdaki diğer oyuncular maçları canlı izler. Masadan uzaklaşan / çıkan oyuncu maçtan düşer (rakibi hükmen kazanır).
+  Bodrumdaki diğer oyuncular maçları canlı izler. Masadan uzaklaşan / çıkan oyuncu maçtan düşer (rakibi hükmen kazanır;
+  langırtta takım arkadaşı varsa o ev sahibi olur ve maç sürer). Fizik alt adımlarla çalıştığı için düşük kare hızında
+  da maç gerçek zamanlı akar.
 - **Pil:** bodrum ayrı bir grup (garajın alan yöneticisi: oradayken otel dünyası çizilmez); statik geometri malzeme
   başına tek mesh, neon şeritler ışıksız MeshBasic (gerçek ışık eklenmez); skor ekranı ve atari ekranları yalnızca
   durum değişince çizilir; oyun / animasyon yokken kare çizilmez.

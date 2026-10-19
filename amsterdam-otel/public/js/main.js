@@ -260,7 +260,7 @@ const valet = new ValetCarWash({ engine, net, hud, interaction, player, vehicles
 // −1. Kat VIP Eğlence Katı (lobideki merdiven kapısı / asansörün "−1" durağı / 🎳 ışınlanma): bilardo, langırt,
 // masa tenisi, atari, bowling. Garajın alan yöneticisine 'basement' alanı olarak eklenir (partitionWorld'den önce).
 const basement = new EntertainmentBasement({
-  engine, net, hud, interaction, player, input, modal, device, settings, sfx, collision, garage, reception, guests, touch,
+  engine, net, hud, interaction, player, input, modal, device, settings, sfx, collision, garage, reception, guests, touch, remotes,
 });
 garage.partitionWorld([interaction.marker, ...valet.particles]); // yıkama parçacıkları garajda da görünsün
 // Neon / ampul parıltısı gece güçlenir: dünyanın gece seviyesi değişince (tek seferlik geçiş) bildir

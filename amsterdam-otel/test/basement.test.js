@@ -296,6 +296,69 @@ test('langırt: tek başına bilgisayara karşı; masadan kalkınca masa boşal�
   assert.match(t.msg, /hükmen/);
 });
 
+test('langırt 2\'ye 2: koltuk sırası, takım adları, arkadaş kalkınca maç sürer, takım boşalınca hükmen', () => {
+  const { sim, p, at, act, advance } = setup();
+  const T = BASEMENT.foos[0];
+  const t = sim.basement.foos[0];
+  const [q, r, u, v] = ['Ece', 'Can', 'Ada', 'Efe'].map((n, k) => sim.addPlayer(n, String(k + 1).repeat(32)));
+  for (const pl of [p, q, r, u, v]) at(pl, T.spots[0].at);
+  assert.equal(act(p, { act: 'join', game: 'foos', i: 0 }).seat, 0);
+  assert.equal(act(q, { act: 'join', game: 'foos', i: 0 }).seat, 1, 'önce rakip koltuğu');
+  assert.equal(t.phase, 'play');
+  assert.equal(act(r, { act: 'join', game: 'foos', i: 0 }).seat, 2, 'sonra 🔴 takım arkadaşı');
+  assert.equal(act(u, { act: 'join', game: 'foos', i: 0 }).seat, 3);
+  assert.equal(t.phase, 'play', 'maç sırasında katılmak maçı sıfırlamaz');
+  assert.equal(act(v, { act: 'join', game: 'foos', i: 0 }).ok, false, 'en fazla 4 oyuncu');
+  advance(1000);
+  act(p, { act: 'point', game: 'foos', i: 0, side: 0 });
+  assert.match(t.msg, /Deniz & Can/);
+  // Ev sahibi kalkar: takım arkadaşı ana koltuğa (ev sahipliğine) geçer, skor korunur
+  act(p, { act: 'leave', game: 'foos', i: 0 });
+  assert.equal(t.phase, 'play');
+  assert.equal(t.seats[0].name, 'Can');
+  assert.equal(t.seats[2], null);
+  assert.deepEqual(t.score, [1, 0]);
+  // 🔴 takım tamamen boşalır: 🔵 hükmen kazanır, kalanlar yeniden oturur
+  act(r, { act: 'leave', game: 'foos', i: 0 });
+  assert.match(t.msg, /Ece & Ada hükmen/);
+  assert.equal(t.phase, 'wait');
+  assert.deepEqual([t.seats[0]?.name, t.seats[2]?.name], ['Ece', 'Ada']);
+});
+
+test('arkadaş gelince bilgisayar yerini bırakır (masa tenisi, langırt); biten masaya gelen oyuncuları kaldırmaz', () => {
+  const { sim, p, at, act } = setup();
+  const q = sim.addPlayer('Ece', 'e'.repeat(32));
+  const P = BASEMENT.pong[0];
+  at(p, P.spots[0].at);
+  at(q, P.spots[1].at);
+  act(p, { act: 'join', game: 'pong', i: 0 });
+  act(p, { act: 'ai', game: 'pong', i: 0 });
+  const t = sim.basement.pong[0];
+  assert.equal(t.seats[1].name, AI_NAME);
+  const res = act(q, { act: 'join', game: 'pong', i: 0 });
+  assert.equal(res.seat, 1);
+  assert.equal(t.ai, false);
+  assert.equal(t.seats[1].name, 'Ece');
+  assert.equal(t.phase, 'play');
+  assert.deepEqual(t.score, [0, 0]);
+  // Maç biter; üçüncü biri gelince masadakiler kalkmaz
+  t.phase = 'over';
+  const r = sim.addPlayer('Can', 'c'.repeat(32));
+  at(r, P.spots[0].at);
+  assert.equal(act(r, { act: 'join', game: 'pong', i: 0 }).ok, false);
+  assert.deepEqual(t.seats.map((x) => x.name), ['Deniz', 'Ece']);
+  // Langırt: iki arkadaş aynı takımda bilgisayara karşı
+  const F = BASEMENT.foos[1];
+  for (const pl of [p, q]) act(pl, { act: 'leave', game: 'pong', i: 0 });
+  for (const pl of [p, q]) at(pl, F.spots[0].at);
+  const f = sim.basement.foos[1];
+  act(p, { act: 'join', game: 'foos', i: 1 });
+  f.seats[2] = { id: q.id, name: q.name }; // Ece 🔴 takıma (sıra 1'i atlamak için doğrudan)
+  assert.equal(act(p, { act: 'ai', game: 'foos', i: 1 }).ok, true);
+  assert.equal(f.phase, 'play');
+  assert.match(f.msg, /Deniz & Ece ⚔️/);
+});
+
 // ---- Atari ----------------------------------------------------------------------------------
 
 test('atari: jeton cüzdandan kasaya; puan süreye göre doğrulanır; rekor listesi kalıcı', () => {

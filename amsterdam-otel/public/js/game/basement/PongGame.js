@@ -168,7 +168,7 @@ export class PongGame {
       if (mv.x) this.movePaddle(sign * mv.x * dt * 1.6);
       if (s?.phase === 'play') {
         if (this.isHost()) {
-          let left = Math.min(dt, 0.05);
+          let left = Math.min(dt, 0.12); // düşük kare hızında da gerçek zamanlı akar (alt adımlarla)
           while (left > 0) {
             const h = Math.min(left, 1 / 120);
             this.stepHost(h);

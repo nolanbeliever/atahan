@@ -46,6 +46,24 @@
 .bm-btns button[hidden] { display: none; }
 .bm-btns .bm-quit { border-color: rgba(255, 90, 79, .55); }
 .bm-btns .bm-ai { border-color: rgba(40, 231, 255, .55); }
+/* Langırt çubuk seçimi */
+.bm-rods { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 7px; }
+.bm-rods[hidden] { display: none; }
+.bm-rod {
+  min-height: 32px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  background: rgba(255, 255, 255, .06);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bm-rod.on { border-color: #ffd23f; background: rgba(255, 210, 63, .2); box-shadow: 0 0 0 1px rgba(255, 210, 63, .45); }
+.bm-rod:disabled { opacity: .35; cursor: default; }
+.bm-rod.bm-auto { grid-column: 1 / -1; }
+.bm-rod .nm { margin-left: 4px; }
 
 /* Oyun modunda oda listesi gibi kalabalık paneller gizlenir (mobilde yer açılır) */
 body.bm-playing #panel-rooms, body.bm-playing #rest-orders { display: none; }
@@ -91,6 +109,12 @@ body.bm-playing #panel-rooms, body.bm-playing #rest-orders { display: none; }
 @media (max-height: 460px) {
   #bm-hud { top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r)); width: 230px; max-height: calc(100vh - 110px); overflow-y: auto; font-size: 11px; }
   .bm-btns button { min-height: 30px; }
+  /* Yatay telefonda tek satır: yalnızca numara + simge */
+  .bm-rods { grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .bm-rod.bm-auto { grid-column: auto; }
+  .bm-rod { min-height: 34px; padding: 2px; font-size: 12px; }
+  .bm-rod .nm { display: none; }
+  .bm-lines > div:nth-child(2) { display: none; } /* uzun klavye ipucu */
   .bm-pad .bm-key { min-height: 38px; }
 }
 body.phone-cam #bm-hud { display: none; }

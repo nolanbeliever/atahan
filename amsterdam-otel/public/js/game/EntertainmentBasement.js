@@ -45,9 +45,10 @@ const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) 
  */
 export class EntertainmentBasement {
   constructor({
-    engine, net, hud, interaction, player, input, modal, device, settings, sfx, collision, garage, reception, guests, touch,
+    engine, net, hud, interaction, player, input, modal, device, settings, sfx, collision, garage, reception, guests, touch, remotes,
   }) {
-    Object.assign(this, { engine, net, hud, interaction, player, input, modal, device, settings, sfx, collision, garage, reception, guests, touch });
+    Object.assign(this, { engine, net, hud, interaction, player, input, modal, device, settings, sfx, collision, garage, reception, guests, touch, remotes });
+    this.hiddenRemotes = new Set(); // oyun kamerasının dibindeki (aynı masadaki) oyuncular görüşü kapatmasın
     this.view = buildBasement({ collision });
     engine.scene.add(this.view.group);
     garage.addArea('basement', this.view.group);
@@ -293,10 +294,14 @@ export class EntertainmentBasement {
     }
     const t = s[game][i];
     const seats = t.seats.filter(Boolean);
+    const humans = seats.filter((x) => !x.ai);
+    const full = !t.ai && seats.length >= t.seats.length;
     let txt;
-    if (t.phase === 'wait' && !t.ai) txt = `${t.seats[0]?.name} ile oyna`;
-    else if (t.phase === 'play' || (t.phase === 'over' && seats.length === 2)) txt = `dolu (${seats.map((x) => x.name).join(' – ')})`;
-    else txt = 'otur ve oyna';
+    if (!humans.length) txt = 'otur ve oyna';
+    else if (t.ai) txt = `🤖 yerine geç, ${humans.map((x) => x.name).join(' & ')} ile oyna`;
+    else if (t.phase === 'wait') txt = `${t.seats[0]?.name} ile oyna`;
+    else if (full) txt = `dolu (${seats.map((x) => x.name).join(' – ')})`;
+    else txt = `takıma katıl (${seats.length}/${t.seats.length} oyuncu)`;
     return { short: 'Oyna', label: `${g.icon} ${st.name} — ${txt}${t.npc ? ' · misafirler yer verir' : ''}`, use: () => this.joinTable(game, i) };
   }
 
@@ -367,9 +372,10 @@ export class EntertainmentBasement {
     if (!m) return;
     this.mode = null;
     this.games[m.game].exit();
+    this.showRemotes();
     this.player.setFollow(null);
     const st = BASEMENT_GAMES[m.game].list[m.i];
-    const sp = st.spots[Math.min(m.seat, st.spots.length - 1)];
+    const sp = st.spots[m.seat % st.spots.length]; // langırt 2'ye 2: seat 2/3 kendi takımının tarafına
     this.player.pitch = 0;
     this.player.setPose(sp.at[0], sp.at[1], Math.atan2(-(st.center[0] - sp.at[0]), -(st.center[1] - sp.at[1])));
     this.net.sendMove(sp.at[0], sp.at[1], this.player.yaw);
@@ -392,6 +398,7 @@ export class EntertainmentBasement {
   command(cmd) {
     if (!this.mode) return false;
     if (cmd === 'cycle') this.exitGame(true); // Q: kalk
+    else if (this.games[this.mode.game].command?.(cmd)) { /* oyuna özel tuş (langırt: çubuk seçimi) */ }
     else if (cmd === 'select:0') this.startAi();
     else if (cmd === 'consume' && this.mode.game === 'bowling') this.hud.toast(`🎳 Falso: ${this.games.bowling.cycleSpin()}`, 'info');
     this.hudKey = '';
@@ -435,9 +442,30 @@ export class EntertainmentBasement {
       p.pos.x = cam.x;
       p.pos.z = cam.z;
       p.apply();
+      this.hideNearRemotes(cam.x, cam.z);
       this.renderHud();
     }
     return active;
+  }
+
+  /** Kameraya 0.8 m'den yakın diğer oyuncuları (langırtta takım arkadaşı, masa başındakiler) gizler */
+  hideNearRemotes(x, z) {
+    if (!this.remotes) return;
+    for (const [id, it] of this.remotes.items) {
+      const near = Math.hypot(it.obj.position.x - x, it.obj.position.z - z) < 0.8;
+      if (near === this.hiddenRemotes.has(id)) continue;
+      it.obj.visible = !near;
+      if (near) this.hiddenRemotes.add(id);
+      else this.hiddenRemotes.delete(id);
+    }
+  }
+
+  showRemotes() {
+    for (const id of this.hiddenRemotes) {
+      const it = this.remotes?.get(id);
+      if (it) it.obj.visible = true;
+    }
+    this.hiddenRemotes.clear();
   }
 
   // ---- HUD --------------------------------------------------------------------------------------
@@ -451,6 +479,16 @@ export class EntertainmentBasement {
     const bar = el('div', 'bm-power');
     const fill = el('i');
     bar.append(fill);
+    const rods = el('div', 'bm-rods'); // langırt: çubuk seçimi (dokunmatikte de)
+    rods.hidden = true;
+    rods.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b || !this.mode) return;
+      const foos = this.games.foos;
+      if (b.dataset.rod === 'auto') foos.toggleAuto();
+      else foos.pick(Number(b.dataset.rod));
+      this.hudKey = '';
+    });
     const btns = el('div', 'bm-btns');
     const ai = el('button', 'bm-ai', '🤖 Bilgisayara karşı (1)');
     const spin = el('button', 'bm-spin', '🌀 Falso (F)');
@@ -460,16 +498,16 @@ export class EntertainmentBasement {
     spin.addEventListener('click', () => this.command('consume'));
     quit.addEventListener('click', () => this.exitGame(true));
     btns.append(ai, spin, quit);
-    hud.append(title, lines, bar, btns);
+    hud.append(title, lines, bar, rods, btns);
     document.body.append(hud);
-    this.el = { hud, title, lines, bar, fill, ai, spin };
+    this.el = { hud, title, lines, bar, fill, ai, spin, rods };
   }
 
   renderHud() {
     const m = this.mode;
     const st = this.games[m.game].status();
     if (st.power != null) this.el.fill.style.transform = `scaleX(${st.power.toFixed(3)})`;
-    const key = JSON.stringify([st.title, st.lines, st.power != null, !!st.ai, !!st.spin]);
+    const key = JSON.stringify([st.title, st.lines, st.power != null, !!st.ai, !!st.spin, st.rods, st.auto]);
     if (key === this.hudKey) return;
     this.hudKey = key;
     this.el.title.textContent = st.title;
@@ -477,6 +515,27 @@ export class EntertainmentBasement {
     this.el.bar.hidden = st.power == null;
     this.el.ai.hidden = !st.ai;
     this.el.spin.hidden = !st.spin;
+    this.el.rods.hidden = !st.rods;
+    if (st.rods) {
+      // Düğmeler bir kez kurulur, sonra yerinde güncellenir (dokunurken DOM'dan kopmasın)
+      if (!this.el.rods.childElementCount) {
+        const btn = (rod, icon, name) => {
+          const b = el('button', 'bm-rod');
+          b.type = 'button';
+          b.dataset.rod = rod;
+          b.append(el('span', 'ic', icon), el('span', 'nm', name));
+          return b;
+        };
+        this.el.rods.append(...st.rods.map((r) => btn(String(r.n), `${r.n + 1} ${r.label.split(' ')[0]}`, r.label.split(' ').slice(1).join(' '))), btn('auto', '🔄', 'Oto (T)'));
+        this.el.rods.lastChild.classList.add('bm-auto');
+      }
+      const kids = this.el.rods.children;
+      st.rods.forEach((r, k) => {
+        kids[k].classList.toggle('on', r.sel);
+        kids[k].disabled = !r.mine;
+      });
+      kids[kids.length - 1].classList.toggle('on', st.auto);
+    }
   }
 
   // ---- Atari -------------------------------------------------------------------------------------

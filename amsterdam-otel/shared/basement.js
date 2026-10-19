@@ -121,7 +121,7 @@ export const BASEMENT_RULES = freeze({
   AI_DELAY_MS: 1600, // bilgisayarın bilardo atışından önce düşünme süresi
   ARCADE_MAX_RUN_MS: 15 * 60_000,
   HIGH_SCORES: 5,
-  RT_MAX: 16, // gerçek zamanlı paket: en fazla bu kadar sayı
+  RT_MAX: 24, // gerçek zamanlı paket: en fazla bu kadar sayı (langırt ev sahibi: top 4 + 8 çubuk + 8 vuruş)
 });
 
 /** Atari oyunları: en yüksek makul puan hızı (puan / sn) + taban — sunucu doğrulaması */

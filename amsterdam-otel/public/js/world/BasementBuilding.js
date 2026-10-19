@@ -440,6 +440,8 @@ function makeRods(group, cx, cz) {
   const figMats = [new THREE.MeshLambertMaterial({ color: 0xd1271b, emissive: 0x330000 }), new THREE.MeshLambertMaterial({ color: 0x1747c9, emissive: 0x000a33 })];
   const rodGeo = new THREE.CylinderGeometry(0.008, 0.008, 1.05, 6).rotateX(Math.PI / 2);
   const figGeo = new THREE.BoxGeometry(0.022, 0.09, 0.03).translate(0, -0.025, 0);
+  const markGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.07, 10).rotateX(Math.PI / 2);
+  const markMat = new THREE.MeshBasicMaterial({ color: 0xffd23f });
   return FOOS_RODS.map((r) => {
     const g = new THREE.Group();
     g.position.set(cx + r.x, FOOS_TOP + 0.01, cz);
@@ -449,6 +451,12 @@ function makeRods(group, cx, cz) {
       f.position.z = (k - (r.n - 1) / 2) * r.sp;
       g.add(f);
     }
+    // Seçili çubuk işareti: sahibinin tarafındaki tutamakta neon halka (FoosGame açar / kapatır)
+    const mark = new THREE.Mesh(markGeo, markMat);
+    mark.position.z = r.owner === 0 ? -0.47 : 0.47;
+    mark.visible = false;
+    g.add(mark);
+    g.userData.mark = mark;
     group.add(g);
     return g;
   });
