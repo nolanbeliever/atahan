@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="/css/phone.css">
   <link rel="stylesheet" href="/css/garage.css">
   <link rel="stylesheet" href="/css/restaurant.css">
+  <link rel="stylesheet" href="/css/street.css">
   <script type="importmap">
     {
       "imports": {
@@ -101,6 +102,9 @@
     </div>
     <div id="kitchen-progress" hidden><i></i></div>
     <div id="kitchen-held" class="panel" hidden></div>
+
+    <!-- Achterstraat Cadde İmparatorluğu: "Achterstraat King" rozeti -->
+    <div id="king-chip" hidden></div>
 
     <!-- Oyuncu evleri: kapı zili istemi (ev sahibine) -->
     <div id="ring-prompt" class="panel" hidden role="alertdialog" aria-live="assertive">
@@ -253,6 +257,15 @@
     </div>
   </div>
 
+  <!-- Achterstraat Cadde İmparatorluğu: dükkân kapısındaki emlak kartı -->
+  <div id="street-card" class="overlay" hidden>
+    <div class="card">
+      <h2>🏘️ Achterstraat Real Estate</h2>
+      <div id="street-card-body"></div>
+      <button type="button" class="secondary" id="street-card-close">Kapat</button>
+    </div>
+  </div>
+
   <!-- Restoran: menü kütüphanesi (tarifler) -->
   <div id="menu-panel" class="overlay" hidden>
     <div class="card">
@@ -290,6 +303,7 @@
         <button type="button" data-tab="overview" class="on">Genel</button>
         <button type="button" data-tab="upgrades">🏗️ Yükseltmeler</button>
         <button type="button" data-tab="workers">🧹 Çalışanlar</button>
+        <button type="button" data-tab="realestate">🏘️ Emlak</button>
       </div>
       <div id="pc-body"></div>
       <p class="note" id="pc-msg"></p>

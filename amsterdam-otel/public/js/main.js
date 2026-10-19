@@ -38,6 +38,7 @@ import { DragRaceTrack } from './game/DragRaceTrack.js';
 import { MixologyBarSystem } from './game/MixologyBarSystem.js';
 import { GourmetRestaurant } from './game/GourmetRestaurant.js';
 import { KitchenSystem } from './game/KitchenSystem.js';
+import { StreetMonopoly } from './game/StreetMonopoly.js';
 import { LiveStageSystem } from './game/LiveStageSystem.js';
 import { StreetEvents } from './game/StreetEvents.js';
 import { SmartphoneSystem } from './game/SmartphoneSystem.js';
@@ -230,6 +231,10 @@ const phone = new SmartphoneSystem({
   engine, input, player, modal, device, settings, sfx, state, net, hud, house, reception, touch,
 });
 const insta = new InstaHotelMarketing({ net, hud, phone, state, settings, sfx });
+// Achterstraat Cadde İmparatorluğu: dükkân kapıları, telefonda / PC'de "Achterstraat Real Estate", King unvanı
+const realty = new StreetMonopoly({
+  engine, net, hud, interaction, player, modal, phone, reception, remotes, state, getWallet: () => shop.wallet, view: world.street,
+});
 // Ev matbaası + polis baskını ve hızlı ışınlanma (M / telefonda 🗺️ Işınlan)
 const press = new HomeCounterfeitSystem({ engine, net, hud, interaction, house, player, sfx, settings });
 const travel = new FastTravelSystem({ net, hud, modal, player, interaction, engine, phone, house });
@@ -511,6 +516,7 @@ net.on(EVT.WELCOME, (snap) => {
     }
   }
   bar.applySnapshot(snap.bar); // müşteriler (guests) yüklendikten sonra: ellerindeki bardaklar
+  realty.onState(snap.street); // diğer oyuncular eklendikten sonra: kralın tacı
   if (snap.restaurant) restaurant.onState(snap.restaurant, true);
   // Yeniden bağlanmada mevcut konumu bildir
   net.sendMove(player.pos.x, player.pos.z, player.yaw);
@@ -572,6 +578,7 @@ net.on(EVT.PLAYER_JOIN, (p) => {
   remotes.add(p);
   bar.onRemoteBar(p.id, p.bar);
   kitchen.onRemoteKitchen(p.id, p.kitchen);
+  realty.onPlayersChanged();
   hud.toast(`${p.name} vardiyaya katıldı.`, 'info');
   engine.requestRender();
 });
@@ -580,6 +587,7 @@ net.on(EVT.PLAYER_LEAVE, (id) => {
   bar.removeRemote(id);
   kitchen.removeRemote(id);
   remotes.remove(id);
+  realty.onPlayersChanged();
   engine.requestRender();
 });
 net.on(EVT.PLAYERS, (batch) => {
@@ -596,6 +604,7 @@ net.on(EVT.SELF, (self) => {
   vehicles.applySelf(self.vehicles);
   bar.applySelf(self.bar);
   kitchen.applySelf(self.kitchen);
+  realty.onSelf(); // cüzdan değişti: emlak uygulaması / kartı
   if (house.build.active) engine.requestRender(); // önizleme rengi (yeterli para var mı) güncellensin
   exterior.onSelf();
 });
@@ -642,6 +651,8 @@ net.on(EVT.BAR_STATE, (s) => bar.onState(s));
 net.on(EVT.PLAYER_BAR, (b) => {
   if (b.id !== state.selfId) bar.onRemoteBar(b.id, b);
 });
+// Achterstraat Cadde İmparatorluğu
+net.on(EVT.STREET_STATE, (s) => realty.onState(s));
 // Gurme Restoran & mutfak
 net.on(EVT.RESTAURANT_STATE, (s) => restaurant.onState(s));
 net.on(EVT.PLAYER_KITCHEN, (k) => {
@@ -695,5 +706,5 @@ navigator.getBattery?.().then((battery) => {
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
-  reception, workers, restaurant, kitchen, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch, garage, drag,
+  reception, workers, restaurant, kitchen, realty, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch, garage, drag,
 };

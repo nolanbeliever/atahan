@@ -95,6 +95,9 @@ export const EVT = Object.freeze({
   KITCHEN_ACT: 'kitchen:act', // istemci → sunucu (ack): { act: 'take'|'cook'|'plate'|'pass'|'pick'|'serve'|'clear'|'wash'|'trash'|'restock', ing?, method?, slot?, table? }
   RESTAURANT_STATE: 'restaurant:state', // sunucu → herkes: masalar, siparişler, pass, büfe, memnuniyet
   PLAYER_KITCHEN: 'player:kitchen', // sunucu → herkes: { id, hold, act, until } (uzaktan elde tabak / tepsi)
+  // Achterstraat Cadde İmparatorluğu (server/game/StreetMonopolyService.js)
+  STREET_ACT: 'street:act', // istemci → sunucu (ack): { act: 'buy', id, via: 'door'|'pc'|'phone' }
+  STREET_STATE: 'street:state', // sunucu → herkes: { owned: { id: { by, pid } }, king, kingId }
   // Gece döngüsü: evde yatakta uyuma
   SLEEP: 'sleep', // istemci → sunucu (ack): { on: boolean }
   SLEEP_STATE: 'sleep:state', // sunucu → herkes: { ids: [uyuyan oyuncu id], total }
@@ -135,7 +138,7 @@ export const EVT = Object.freeze({
   COUNTERFEIT_ACT: 'counterfeit:act', // istemci → sunucu (ack): { act: 'buy'|'print'|'stash'|'hide'|'unhide', step? }
   COUNTERFEIT_STATE: 'counterfeit:state', // sunucu → herkes: [{ houseId, seized, printing, raid }]
   COUNTERFEIT_RAID: 'counterfeit:raid', // sunucu → herkes: { houseId, safe, x, z, until } (polis kapıda)
-  TELEPORT: 'teleport', // istemci → sunucu (ack): { to: 'hotel'|'home'|'restaurant'|'garage'|'drag' }
+  TELEPORT: 'teleport', // istemci → sunucu (ack): { to: 'hotel'|'home'|'restaurant'|'street'|'garage'|'drag' }
   // ---- Yeraltı garajı, AutoGalerie, drag pisti (server/game/GarageService.js, DragRaceService.js, shared/cars.js) ----
   // Arabalar VEHICLES listesinde { type: 'car', model, color } olarak gelir; binme / inme VEHICLE_ACT ile.
   CAR_ACT: 'car:act', // istemci → sunucu (ack): { act: 'buy', model, color, source: 'wallet' | 'kasa' } | { act: 'xfer', id } (rampa / tünel / asansör)

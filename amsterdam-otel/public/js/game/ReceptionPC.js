@@ -65,6 +65,7 @@ export class ReceptionPC {
     this.tab = 'overview';
     this.busy = false;
     this.onChange = []; // durum değişince haber verilecekler (işçi sistemi)
+    this.tabs = Object.create(null); // ek sekmeler: { [data-tab]: (body, pc) => void } (ör. 🏘️ Emlak)
 
     const $ = (id) => document.getElementById(id);
     this.el = {
@@ -182,6 +183,7 @@ export class ReceptionPC {
     body.replaceChildren();
     if (this.tab === 'upgrades') this.renderUpgrades(body);
     else if (this.tab === 'workers') this.workers.renderTab(body, this);
+    else if (this.tabs[this.tab]) this.tabs[this.tab](body, this);
     else this.renderOverview(body);
   }
 

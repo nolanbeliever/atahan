@@ -21,6 +21,7 @@ import { TeleportService } from './TeleportService.js';
 import { WorkerService } from './WorkerService.js';
 import { RestaurantService } from './RestaurantService.js';
 import { KitchenStaffService } from './KitchenStaffService.js';
+import { StreetMonopolyService } from './StreetMonopolyService.js';
 import { REPUTATION } from '../../shared/hotel.js';
 import { ExteriorService } from '../house/ExteriorService.js';
 import { CasinoService } from './CasinoService.js';
@@ -94,6 +95,7 @@ export class HotelSimulation extends EventEmitter {
     this.workers = new WorkerService(this); // temizlikçi NPC'ler
     this.restaurant = new RestaurantService(this); // Gurme Restoran: masalar, müşteriler, oyuncunun mutfak adımları
     this.kitchen = new KitchenStaffService(this); // restoran personeli: aşçı ve garson NPC'leri
+    this.street = new StreetMonopolyService(this); // Achterstraat Cadde İmparatorluğu: dükkânlar, kira, King unvanı
     this.exterior = new ExteriorService(this); // ev dış cepheleri (kayıt: this.house.exteriorData)
     this.casino = new CasinoService(this); // Yeraltı Kart Kulübü
     this.stage = new StageService(this); // Achterstraat canlı müzik sahnesi + kalabalık
@@ -175,6 +177,7 @@ export class HotelSimulation extends EventEmitter {
       garage: this.garage.persisted(),
       drag: this.drag.persisted(),
       restaurant: { ...this.restaurant.persisted(), staff: this.kitchen.persisted() },
+      street: this.street.persisted(),
     };
   }
 
@@ -193,6 +196,7 @@ export class HotelSimulation extends EventEmitter {
     this.drag.restore(h.drag);
     this.restaurant.restore(h.restaurant);
     this.kitchen.restore(h.restaurant?.staff);
+    this.street.restore(h.street);
     if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
     const t = h.today;
     if (t && typeof t === 'object') {
@@ -301,6 +305,7 @@ export class HotelSimulation extends EventEmitter {
     if (slept) text = `☀️ Günaydın! Herkes uyudu, sabah oldu. ${text}`;
     this.notify(text, 'day');
     this.relations.onNewDay();
+    this.street.onNewDay(); // Achterstraat dükkânlarının kirası kasaya, komisyon cüzdanlara
     this.out(EVT.ECONOMY, this.economy());
     this.broadcastClock(now);
     this.house.scheduleSave(); // yeni gün kayda geçsin
@@ -352,6 +357,7 @@ export class HotelSimulation extends EventEmitter {
     this.players.set(p.id, p);
     if (this.players.size === 1) this.start();
     this.out(EVT.PLAYER_JOIN, this.publicPlayer(p));
+    this.street.onJoin(p); // biriken kira (anahtarsız sahip), sahiplik / taç etiketleri
     this.house.assignHouse(p); // değişirse HOUSE_OWNERS yayınlanır
     if (p.ownedVehicles.size || hasCars) this.vehicles.broadcast();
     return p;
@@ -371,6 +377,7 @@ export class HotelSimulation extends EventEmitter {
     this.players.delete(id);
     this.dirtyPlayers.delete(id);
     this.out(EVT.PLAYER_LEAVE, id);
+    this.street.onLeave();
     if (this.players.size === 0) {
       this.stop();
       return;
@@ -688,6 +695,10 @@ export class HotelSimulation extends EventEmitter {
 
   kitchenAct(playerId, data) { return this.withPlayer(playerId, (p) => this.restaurant.act(p, data, this.now())); }
 
+  // ---- Achterstraat Cadde İmparatorluğu ------------------------------------------------
+
+  streetAct(playerId, data) { return this.withPlayer(playerId, (p) => this.street.act(p, data)); }
+
   // ---- Ev bahçesi --------------------------------------------------------------
 
   gardenAct(playerId, data) { return this.withPlayer(playerId, (p) => this.garden.act(p, data)); }
@@ -723,6 +734,7 @@ export class HotelSimulation extends EventEmitter {
       house: this.house.serialize(),
       bar: this.bar.serialize(),
       restaurant: this.restaurant.serialize(), // masalar, siparişler, pass, büfe, memnuniyet
+      street: this.street.serialize(), // Achterstraat dükkânları: sahiplik, King unvanı, günlük kira
       sleep: this.sleepState(),
       visits: this.relations.serializeVisits(),
       vehicles: this.vehicles.serialize(),

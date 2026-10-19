@@ -301,7 +301,8 @@ export class GuestManager {
       this.sim.earn(VIP.PRICE, `⭐ VIP suit ${room.id} kiralandı`);
       this.sim.growth.addReputation(VIP.REPUTATION);
     } else {
-      this.sim.earn(roomPrice(ROOM_PRICE, this.sim.growth.stars), `Oda ${room.id} kiralandı`);
+      // Achterstraat King prestiji: oda ücretleri +%10 (StreetMonopolyService)
+      this.sim.earn(Math.round(roomPrice(ROOM_PRICE, this.sim.growth.stars) * (this.sim.street?.priceFactor ?? 1)), `Oda ${room.id} kiralandı`);
       this.sim.growth.addReputation(REPUTATION.GUEST_CHECKIN);
     }
     this.sim.roomsChanged();
