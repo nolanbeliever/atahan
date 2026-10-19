@@ -208,6 +208,12 @@ export function attachSocketHandlers(io, sim) {
       if (!player || !allowStage()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
       reply(ack, sim.stageAct(player.id, data));
     });
+    // ---- VIP vale + oto yıkama (tipler, konum, tabanca, aşama ve süreler ValetService'te doğrulanır) ----
+    const allowValet = rateLimiter(6, 12);
+    on(EVT.VALET_ACT, (data, ack) => {
+      if (!player || !allowValet()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.valetAct(player.id, data));
+    });
     // ---- Akıllı telefon: InstaHotel (gönderi, beğeni, akış, fotoğraf) ----
     // Fotoğraf ~90 KB'lık data URL: socket.io'nun varsayılan 1 MB mesaj sınırı yeterli (yükseltilmedi).
     // Tipler, fotoğraf biçimi, bütçe, kasa ve gönderi aralığı (20 sn) MarketingService'te doğrulanır.

@@ -330,6 +330,28 @@ Misafir çıkınca odada dağınık yatak ve çöplere ek olarak 1–2 arıza ç
   maskesiyle hiç çizilmez. Garaj ~20, araba ~12 draw call (statik parçalar araba başına birleştirilir). Kokpit
   (FOV, ses, gösterge) yalnızca sürerken çalışır; duran arabada kare çizilmez.
 
+## VIP Vale & Tazyikli Su Oto Yıkama (ValetCarWash)
+
+- **Teslim noktası:** otelin önünde, garaj rampasının doğusunda ⭐ **VIP VALET** kürsüsü (kırmızı halı, kadife ip) ve boyalı
+  "VALE · VIP" bırakma yeri. VIP müşteriler 08:00–22:00 arasında **lüks / spor** bir arabayla (Graaf Regent, Vonk Bliksem,
+  Stormvogel 390, Graaf Imperator GT V12, Valkenier Tempesta) gelir; araba **çamurludur** (6 nokta). Otel yıldızı ve
+  Gökdelen VIP suitleri arttıkça daha sık gelirler. Anahtar 90 sn içinde alınmazsa müşteri arabasını kendisi park edip gider.
+- **Vale:** kürsüde **E** → anahtar sende; müşteri otele girer. Arabayı mevcut araba sistemiyle (FPV kokpit, 30 km/s sokak,
+  rampa / tünel geçitleri, drag pisti) **serbestçe sürersin**; arabaya başkası binemez, araba kalıcı değildir. Teslim süresi
+  5 dk (geçerse bahşiş ×0.3, 2 dk içinde teslim +%25).
+- **Oto yıkama mini oyunu (garaj, rampadan inince kuzey koridor):** arabayı 🫧 **Oto Yıkama** bölmesine çekip in. Askıdan
+  🧴 **köpük tabancasını** al, çamurlu noktalara nişan alıp **E** (0.9 sn püskürt) — hepsi köpüklenince 💦 **tazyikli su
+  tabancasıyla** durula (1.3 sn). Elde birinci şahıs tabanca, köpük / su parçacıkları ve ses; arabadaki çamur ve köpük
+  lekelerini herkes görür. Başka oyuncular da yıkamaya yardım edebilir.
+- **Teslim:** arabayı **V-1 · V-2 · V-3** vale park yerlerinden birine park edip in → vale ücreti (€52–96) **otel kasasına**,
+  bahşiş **cüzdanına**: yıkanmış ×2.5 + €50, hasar karesel düşürür, %60+ hasarda bahşiş yok ve şikâyet (−2 itibar);
+  yıkanmış + hasarsız teslim **+2 itibar** ("⭐ Kusursuz vale"). Otel yıldızı ve VIP suitleri bahşişi artırır.
+- **Hasar (%):** sürerken ani hız kaybı (duvara / arabaya çarpma) istemci tarafından bildirilir; sunucu hızı bulunduğu yerin
+  sınırına kırpar ve en sık 0.7 sn'de bir kabul eder. Sunucunun hız denetimine takılan hareketler de küçük hasar yazar.
+  HUD'da süre, temizlik, hasar, tahmini bahşiş ve sıradaki adım görünür.
+- **Sunucu yetkili:** anahtar, tabanca, aşama, konum ve püskürtme süresi (`begin` → en az süre → `finish`) `ValetService`'te
+  doğrulanır; yalnızca istatistik kalıcıdır (teslim, kusursuz, toplam bahşiş / ücret).
+
 ## Drag pisti
 
 - **Yer:** şehir kenarı (garajdaki **🏁 Drag pisti** tünelinden arabanla ya da hızlı ışınlanmayla yürüyerek).
@@ -651,6 +673,7 @@ amsterdam-otel/
 │       ├── RelationshipService.js # Müdavimlerle arkadaşlık: diyalog etkileri, eve davet, moral bonusu
 │       ├── VehicleService.js    # Bisiklet / scooter: satın alma, sürücü + yolcu, park, kalıcılık (arabalar da burada 'car')
 │       ├── GarageService.js     # Yeraltı garajı + AutoGalerie: araba satın alma, park yerleri, kalıcılık, rampa / tünel, hız denetimi
+│       ├── ValetService.js      # VIP vale: müşteriler, anahtar, geçici VIP arabası, yıkama aşamaları, hasar, teslim + bahşiş
 │       ├── DragRaceService.js   # Drag pisti: sahne, ışık ağacı zamanları, sunucu zamanlaması, düello, liderlik tablosu
 │       ├── GameClock.js         # Gün döngüsü: hafta içi açık / hafta sonu kapalı, gece (23:00–07:00)
 │       ├── RoomManager.js       # Oda durumları ve temizlik işleri
@@ -678,6 +701,7 @@ amsterdam-otel/
 │   ├── friends.js               # Müdavimler, konular, espriler, arkadaşlık kuralları
 │   ├── vehicles.js              # Araç türleri, hız / ivme, yolcu koltuğu
 │   ├── cars.js                  # AutoGalerie kataloğu, araba fiziği, garaj / sokak rampası / drag pisti yerleşimi, geçitler, hız sınırları
+│   ├── valet.js                 # Vale kürsüsü, yıkama bölmesi, V-1…V-3, VIP arabaları, çamur noktaları, süreler, ücret / bahşiş
 │   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri
@@ -692,7 +716,7 @@ amsterdam-otel/
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css)
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
@@ -728,6 +752,7 @@ amsterdam-otel/
 │       │   ├── KitchenSystem.js     # FPV mutfak: buzdolabı seçici, tava / fırın / tezgâh, tabaklama, servis, menü kütüphanesi, mutfak elleri
 │       │   ├── HomeCounterfeitSystem.js # Ev matbaası: kurulum, baskı, polis baskını bandı, gizli bölme, polis
 │       │   ├── FastTravelSystem.js  # Hızlı ışınlanma paneli (M / telefonda 🗺️)
+│       │   ├── ValetCarWash.js      # VIP vale kürsüsü, garajdaki oto yıkama bölmesi + V-1…V-3, FPV köpük / tazyikli su tabancası, çamur lekeleri, çarpma algısı, HUD
 │       │   ├── UndergroundGarage.js # Garaj, AutoGalerie (telefon + terminal), rampa / tünel geçitleri, araba eklentisi, alan görünürlüğü
 │       │   ├── CarCockpit.js        # Araba kokpiti: km/s + vites göstergesi, FOV, titreşim, motor sesi, dokunmatik pedallar
 │       │   ├── DragRaceTrack.js     # Drag pisti: ışık ağacı, otomatik sahne, canlı süre, sonuç kartı, tablolar, liderlik
@@ -737,7 +762,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama
 ```
 
 ## Sonraki aşamalar için notlar
