@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <title>Dönüşüm – Vision Board (A3)</title>
 <style>
+@font-face{font-family:'Kalam';src:url(fonts/Kalam-Regular.ttf);font-weight:400}
+@font-face{font-family:'Kalam';src:url(fonts/Kalam-Bold.ttf);font-weight:700}
+@font-face{font-family:'Caveat';src:url(fonts/Caveat-Regular.ttf);font-weight:400}
+@font-face{font-family:'Caveat';src:url(fonts/Caveat-Bold.ttf);font-weight:700}
 @page { size: 297mm 420mm; margin: 0; }
 :root{
   --ink:#0b0a09; --card:#15110f; --card2:#1d1713;
@@ -12,78 +16,78 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:297mm;height:420mm;background:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{position:relative;overflow:hidden;font-family:'Inter','Carlito',sans-serif;color:var(--bone)}
+body{position:relative;overflow:hidden;font-family:'Kalam','Caveat',cursive;color:var(--bone)}
 .card{position:absolute;background:var(--card);overflow:hidden;box-shadow:0 0 0 .25mm #2a211a inset}
-h1,h2,h3,.serif{font-family:'Liberation Serif','Bitstream Charter','DejaVu Serif',serif;font-weight:700}
-.tag{position:absolute;top:3mm;left:3.5mm;font-size:6pt;letter-spacing:.28em;text-transform:uppercase;color:var(--mustard);font-weight:600}
+h1,h2,h3,.serif{font-family:'Caveat','Kalam',cursive;font-weight:700}
+.tag{position:absolute;top:2.4mm;left:3.5mm;font-size:10pt;letter-spacing:.08em;text-transform:none;color:var(--mustard);font-weight:600}
 .pad{padding:9mm 4.5mm 4mm}
-p{font-size:7.4pt;line-height:1.5;color:#d6cbb8}
+p{font-size:9.2pt;line-height:1.38;color:#d6cbb8}
 svg{display:block}
 
 /* ---- hero ---- */
 #hero{left:8mm;top:8mm;width:142mm;height:104mm;background:#100c0a}
 #hero svg.bg{position:absolute;inset:0;width:100%;height:100%}
 #hero .title{position:absolute;left:7mm;bottom:25mm}
-#hero h1{font-size:50pt;letter-spacing:.04em;line-height:1;color:var(--bone);text-shadow:0 .8mm 0 #000}
-#hero .de{font-family:'Liberation Serif',serif;font-style:italic;font-size:13pt;color:var(--mustard);margin-top:1.5mm}
-#hero .sub{position:absolute;left:7mm;right:7mm;bottom:6mm;font-size:6.8pt;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);line-height:1.7;border-top:.3mm solid #5a4630;padding-top:2.2mm}
+#hero h1{font-size:72pt;letter-spacing:.02em;line-height:1;color:var(--bone);text-shadow:0 .8mm 0 #000}
+#hero .de{font-family:'Caveat',cursive;font-style:italic;font-size:19pt;color:var(--mustard);margin-top:1.5mm}
+#hero .sub{position:absolute;left:7mm;right:7mm;bottom:5mm;font-size:9pt;letter-spacing:.03em;text-transform:none;color:var(--dim);line-height:1.7;border-top:.3mm solid #5a4630;padding-top:2.2mm}
 #hero .sub b{color:var(--bone);font-weight:600}
-#hero .kunye{position:absolute;right:6mm;top:6mm;font-size:6pt;line-height:2.1;color:var(--dim);text-align:right;letter-spacing:.06em}
+#hero .kunye{position:absolute;right:6mm;top:6mm;font-size:9pt;line-height:2.1;color:var(--dim);text-align:right;letter-spacing:.06em}
 #hero .kunye span{display:inline-block;width:34mm;border-bottom:.25mm solid #6b5a44;margin-left:1.5mm;vertical-align:bottom;height:3mm}
 
 /* ---- notes ---- */
 #notes{left:8mm;top:115mm;width:142mm;height:88mm;background:var(--card2)}
-#notes h2{font-size:12.5pt;line-height:1.15;color:var(--bone);margin-bottom:2.2mm}
+#notes h2{font-size:19pt;line-height:1.15;color:var(--bone);margin-bottom:2.2mm}
 #notes h2 em{color:var(--red);font-style:normal;filter:brightness(1.7)}
 #notes p{margin-bottom:1.8mm}
-#notes .pull{border-left:.8mm solid var(--red);padding-left:3mm;margin:2.4mm 0;font-family:'Liberation Serif',serif;font-style:italic;font-size:9pt;line-height:1.35;color:var(--bone)}
+#notes .pull{border-left:.8mm solid var(--red);padding-left:3mm;margin:2.4mm 0;font-family:'Caveat',cursive;font-style:normal;font-size:12.5pt;line-height:1.2;color:var(--bone)}
 #notes .mood{display:flex;gap:1.6mm;margin-top:2.4mm;flex-wrap:wrap}
-#notes .mood span{font-size:5.8pt;letter-spacing:.14em;text-transform:uppercase;border:.25mm solid #6b5a44;padding:.9mm 2mm;color:var(--dim)}
+#notes .mood span{font-size:8pt;letter-spacing:.03em;text-transform:none;border:.25mm solid #6b5a44;padding:.9mm 2mm;color:var(--dim)}
 
 /* ---- palette & texture ---- */
 #pal{left:8mm;top:206mm;width:142mm;height:63mm}
 #pal .sw{position:absolute;left:4.5mm;top:9mm;width:58mm}
-.sw div{display:flex;align-items:center;height:8mm;margin-bottom:1mm}
+.sw div{display:flex;align-items:center;height:7.2mm;margin-bottom:.9mm}
 .sw i{width:15mm;height:100%;display:block;flex:none;box-shadow:0 0 0 .2mm #000 inset}
-.sw b{display:block;font-size:6.6pt;font-weight:600;color:var(--bone);margin-left:2.5mm;line-height:1.25}
-.sw small{display:block;font-size:5.6pt;font-weight:400;color:var(--dim)}
+.sw b{display:block;font-size:9.5pt;font-weight:600;color:var(--bone);margin-left:2.5mm;line-height:1.25}
+.sw small{display:block;font-size:7pt;font-weight:400;color:var(--dim)}
 #pal .tx{position:absolute;left:67mm;top:9mm;width:70.5mm;display:grid;grid-template-columns:1fr 1fr;gap:1.6mm}
 .tx figure{position:relative;height:21mm;overflow:hidden;box-shadow:0 0 0 .2mm #000 inset}
 .tx figure svg{width:100%;height:100%}
-.tx figcaption{position:absolute;left:0;right:0;bottom:0;padding:1mm 1.8mm;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:5.6pt;letter-spacing:.1em;text-transform:uppercase;color:var(--bone)}
+.tx figcaption{position:absolute;left:0;right:0;bottom:0;padding:1mm 1.8mm;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:8pt;letter-spacing:.02em;text-transform:none;color:var(--bone)}
 #pal .light{position:absolute;left:67mm;top:57mm;font-size:5.4pt;color:var(--dim)}
 
 /* ---- storyboard ---- */
 .sb{left:153mm;width:136mm;height:63mm;background:var(--card2)}
 .sb .img{position:absolute;left:0;top:0;width:75mm;height:63mm;background:#000}
 .sb .img svg{width:100%;height:100%}
-.sb .img .no{position:absolute;left:2.5mm;top:2.2mm;font-family:'Liberation Serif',serif;font-size:21pt;color:var(--bone);line-height:1;text-shadow:0 0 2mm #000}
+.sb .img .no{position:absolute;left:2.5mm;top:2.2mm;font-family:'Caveat',cursive;font-size:32pt;color:var(--bone);line-height:1;text-shadow:0 0 2mm #000}
 .sb .txt{position:absolute;left:78.5mm;right:3.5mm;top:4.5mm}
-.sb .txt .ang{font-size:5.8pt;letter-spacing:.2em;text-transform:uppercase;color:var(--mustard);font-weight:600;margin-bottom:1.4mm}
-.sb .txt h3{font-size:10.3pt;line-height:1.2;margin-bottom:1.6mm}
-.sb .txt p{font-size:6.8pt;line-height:1.42;margin-bottom:2mm}
-.sb .txt .sym{font-size:6.5pt;line-height:1.4;font-style:italic;color:var(--dim);border-top:.25mm solid #4a3a2a;padding-top:1.6mm}
+.sb .txt .ang{font-size:8pt;letter-spacing:.03em;text-transform:none;color:var(--mustard);font-weight:600;margin-bottom:1.4mm}
+.sb .txt h3{font-size:16pt;line-height:1.2;margin-bottom:1.6mm}
+.sb .txt p{font-size:8.6pt;line-height:1.32;margin-bottom:2mm}
+.sb .txt .sym{font-size:8.2pt;line-height:1.4;font-style:italic;color:var(--dim);border-top:.25mm solid #4a3a2a;padding-top:1.6mm}
 .sb .txt .sym b{font-style:normal;color:var(--bone)}
-#sbhead{position:absolute;right:8mm;top:3mm;font-size:5.6pt}
+#sbhead{font-size:10pt!important}
 
 /* ---- costume ---- */
 .cs{top:272mm;height:140mm;background:var(--card2)}
 .cs .fig{position:absolute;left:0;right:0;top:0;height:86mm;background:radial-gradient(ellipse at 50% 35%,#2b2119 0%,#0d0a08 78%)}
 .cs .fig svg{width:100%;height:100%}
 .cs .txt{position:absolute;left:4.5mm;right:4.5mm;top:89mm}
-.cs h3{font-size:11.5pt;margin-bottom:.4mm}
-.cs .role{font-size:5.8pt;letter-spacing:.2em;text-transform:uppercase;color:var(--mustard);font-weight:600;margin-bottom:2mm}
+.cs h3{font-size:17pt;margin-bottom:.4mm}
+.cs .role{font-size:8.6pt;letter-spacing:.03em;text-transform:none;color:var(--mustard);font-weight:600;margin-bottom:2mm}
 .cs ul{list-style:none}
-.cs li{font-size:6.8pt;line-height:1.45;color:#d6cbb8;padding-left:3mm;position:relative;margin-bottom:1mm}
+.cs li{font-size:8.8pt;line-height:1.35;color:#d6cbb8;padding-left:3mm;position:relative;margin-bottom:1mm}
 .cs li:before{content:"";position:absolute;left:0;top:1.9mm;width:1.2mm;height:1.2mm;background:var(--red);filter:brightness(1.7)}
 
 #sym{left:221mm;width:68mm;top:272mm;height:140mm;background:#130d0b}
-#sym .big{font-family:'Liberation Serif',serif;font-size:19pt;line-height:1.18;color:var(--bone);margin:0 0 3mm}
-#sym .it{margin-bottom:3.2mm;padding-bottom:3.2mm;border-bottom:.25mm solid #3a2c20}
+#sym .big{font-family:'Caveat',cursive;font-size:27pt;line-height:1.1;color:var(--bone);margin:0 0 3mm}
+#sym .it{margin-bottom:2.6mm;padding-bottom:2.6mm;border-bottom:.25mm solid #3a2c20}
 #sym .it:last-of-type{border:0}
-#sym .it h4{font-family:'Liberation Serif',serif;font-size:9.5pt;color:var(--mustard);margin-bottom:.8mm}
-#sym .it p{font-size:6.8pt;line-height:1.42}
-#sym .foot{position:absolute;left:4.5mm;right:4.5mm;bottom:4mm;font-size:5.6pt;letter-spacing:.16em;text-transform:uppercase;color:#6d5f4d;text-align:center}
+#sym .it h4{font-family:'Caveat',cursive;font-size:14.5pt;color:var(--mustard);margin-bottom:.8mm}
+#sym .it p{font-size:8.8pt;line-height:1.35}
+#sym .foot{position:absolute;left:4.5mm;right:4.5mm;bottom:4mm;font-size:8pt;letter-spacing:.03em;text-transform:none;color:#6d5f4d;text-align:center}
 
 /* cut marks */
 .cm{position:absolute;background:#5a4a38}
@@ -106,11 +110,7 @@ svg{display:block}
     <path d="M2 3c15-2 30 2 55 0M0 10c20-2 35 2 60 0M8 5c10 1 20-1 30 0" stroke="#4a301e" stroke-width=".6" fill="none"/>
     <path d="M30 0v7M12 7v7M48 7v7" stroke="#120a05" stroke-width="1"/>
   </pattern>
-  <pattern id="velvet" width="6" height="6" patternUnits="userSpaceOnUse">
-    <rect width="6" height="6" fill="#4a2a1d"/>
-    <circle cx="1.5" cy="1.5" r=".7" fill="#6b4331"/><circle cx="4.5" cy="4.5" r=".7" fill="#33190f"/>
-    <circle cx="4.5" cy="1.5" r=".4" fill="#5a3626"/>
-  </pattern>
+  <linearGradient id="velvet" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a3322"/><stop offset=".4" stop-color="#3d2015"/><stop offset=".7" stop-color="#5e3625"/><stop offset="1" stop-color="#2b150d"/></linearGradient>
   <radialGradient id="brass" cx="35%" cy="30%" r="75%">
     <stop offset="0" stop-color="#f0d68a"/><stop offset=".35" stop-color="#b8923a"/><stop offset="1" stop-color="#3a2a0e"/>
   </radialGradient>
@@ -126,7 +126,6 @@ svg{display:block}
   <linearGradient id="uni" x1="0" y1="0" x2="1" y2="0">
     <stop offset="0" stop-color="#202a3a"/><stop offset=".5" stop-color="#3a4a64"/><stop offset="1" stop-color="#18202e"/>
   </linearGradient>
-  <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .22 0"/></filter>
   <g id="apple"><path d="M0 -6c-6-3-11 1-11 8c0 7 5 12 11 12s11-5 11-12c0-7-5-11-11-8z" fill="url(#appleg)"/><path d="M0 -6c0-4 1-6 3-8" stroke="#2a1608" stroke-width="1.4" fill="none"/><path d="M3 -12c3-2 6-1 7 1c-3 2-6 1-7-1z" fill="#3b4a1c"/></g>
   <g id="beetle">
     <!-- legs -->
@@ -172,8 +171,6 @@ svg{display:block}
     <g transform="translate(26 92) scale(.44) rotate(78)" opacity=".95"><use href="#beetle"/></g>
     <!-- wound glow -->
     <circle cx="26" cy="86" r="12" fill="#8f1418" opacity=".2"/>
-    <rect width="142" height="104" filter="url(#grain)"/>
-    <rect width="142" height="104" fill="url(#vig)"/>
   </svg>
   <div class="kunye">AD SOYAD<span></span><br>SINIF / OKUL NO<span></span><br>DERS<span style="width:34mm"></span></div>
   <div class="title">
@@ -200,11 +197,11 @@ svg{display:block}
 <section class="card" id="pal">
   <div class="tag">02 — Renk Paleti · Doku · Işık</div>
   <div class="sw">
-    <div><i style="background:#b8923a"></i><b>Küstü Sarı<small>Yabancılaşma, solgunluk, hastalık · #B8923A</small></b></div>
-    <div><i style="background:#8a4b25"></i><b>Pas Kahvesi<small>Çürüme, durmuşluk, değişmeyen kader · #8A4B25</small></b></div>
-    <div><i style="background:#6b7078"></i><b>Bürokrasi Grisi<small>Otoritenin soğukluğu · #6B7078</small></b></div>
-    <div><i style="background:#2f3f58"></i><b>Askeri Mavi<small>Babanın banka üniforması · #2F3F58</small></b></div>
-    <div><i style="background:#8f1418"></i><b>Koyu Kırmızı<small>Saldırganlık, elmanın tekinsizliği · #8F1418</small></b></div>
+    <div><i style="background:#b8923a"></i><b>Küstü Sarı<small>Yabancılaşma, hastalık</small></b></div>
+    <div><i style="background:#8a4b25"></i><b>Pas Kahvesi<small>Çürüme, değişmeyen kader</small></b></div>
+    <div><i style="background:#6b7078"></i><b>Bürokrasi Grisi<small>Otoritenin soğukluğu</small></b></div>
+    <div><i style="background:#2f3f58"></i><b>Askeri Mavi<small>Babanın banka üniforması</small></b></div>
+    <div><i style="background:#8f1418"></i><b>Koyu Kırmızı<small>Saldırganlık, elma</small></b></div>
   </div>
   <div class="tx">
     <figure><svg viewBox="0 0 60 40" preserveAspectRatio="xMidYMid slice"><rect width="60" height="40" fill="url(#wall)"/></svg><figcaption>Labirent desenli duvar kâğıdı</figcaption></figure>
@@ -212,7 +209,7 @@ svg{display:block}
     <figure><svg viewBox="0 0 60 40" preserveAspectRatio="xMidYMid slice"><rect width="60" height="40" fill="url(#velvet)"/><rect width="60" height="40" fill="#000" opacity=".25"/></svg><figcaption>Nemli, ağır kadife</figcaption></figure>
     <figure><svg viewBox="0 0 60 40" preserveAspectRatio="xMidYMid slice"><rect width="60" height="40" fill="#1a110b"/><rect x="0" y="0" width="60" height="40" fill="url(#wood)" opacity=".4"/><circle cx="30" cy="20" r="11" fill="url(#brass)"/><circle cx="30" cy="20" r="4" fill="#0b0a09" opacity=".55"/><rect x="28.6" y="6" width="2.8" height="8" fill="#6a5320"/></svg><figcaption>Pirinç kapı kolu</figcaption></figure>
   </div>
-  <div class="light" style="top:auto;bottom:2mm;left:4.5mm;right:4.5mm;width:auto;border-top:.25mm solid #3a2c20;padding-top:1.6mm;font-size:6.2pt;color:#a89c88;line-height:1.4"><b style="color:#e6dccb">Işık:</b> tek kaynaktan, sert, chiaroscuro. Pencereden giren sisli ve soluk ışık Gregor’a ulaşmaz; gölgeler köşelerde katılaşır.</div>
+  <div class="light" style="top:auto;bottom:2mm;left:4.5mm;right:4.5mm;width:auto;border-top:.25mm solid #3a2c20;padding-top:1.4mm;font-size:8pt;line-height:1.25;color:#a89c88;line-height:1.4"><b style="color:#e6dccb">Işık:</b> tek kaynaktan, sert, chiaroscuro. Pencereden giren sisli ve soluk ışık Gregor’a ulaşmaz; gölgeler köşelerde katılaşır.</div>
 </section>
 
 <!-- ============ STORYBOARD ============ -->
@@ -242,7 +239,6 @@ svg{display:block}
       </g>
       <!-- lower legs / floor -->
       <path d="M46 76l-4 22M64 76l4 22" stroke="#10141d" stroke-width="5" opacity="0"/>
-      <rect width="120" height="100" filter="url(#grain)"/>
     </svg>
     <div class="no">1</div>
   </div>
@@ -277,7 +273,6 @@ svg{display:block}
       <path d="M92 10c8 -6 14 -2 16 6" stroke="#202a3a" stroke-width="9" fill="none" stroke-linecap="round" transform="translate(-4 4)"/>
       <use href="#apple" transform="translate(106 30) scale(.9)"/>
       <circle cx="106" cy="30" r="12" fill="none" stroke="#8f1418" stroke-width=".6" opacity=".6"/>
-      <rect width="120" height="100" filter="url(#grain)"/>
     </svg>
     <div class="no">2</div>
   </div>
@@ -308,7 +303,6 @@ svg{display:block}
       <use href="#apple" transform="translate(68 54) scale(1.9)"/>
       <path d="M58 56c6 8 14 10 22 6" stroke="#0a0302" stroke-width="1" fill="none" opacity=".7"/>
       <path d="M62 62c1 10 0 18 -2 26" stroke="#8f1418" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".7"/>
-      <rect width="120" height="100" filter="url(#grain)"/>
     </svg>
     <div class="no">3</div>
   </div>
@@ -336,7 +330,6 @@ svg{display:block}
       <!-- beetle crawling into dark -->
       <g transform="translate(94 58) scale(.36) rotate(-100)"><use href="#beetle"/></g>
       <circle cx="94" cy="60" r="9" fill="#8f1418" opacity=".18"/>
-      <rect width="120" height="100" filter="url(#grain)"/>
     </svg>
     <div class="no">4</div>
   </div>
@@ -436,7 +429,7 @@ svg{display:block}
     <div class="it"><h4>Çürüyen yara</h4><p>Unutulmuş bir ihanetin bedende yaşatılması: kimse çıkarmaz, kimse bakmaz.</p></div>
     <div class="it"><h4>Pencere ışığı</h4><p>Soluk ve sisli; Gregor’a hiç ulaşmaz. Umutsuzluğun tek kaynaklı, sert aydınlatması.</p></div>
   </div>
-  <div class="foot">Franz Kafka · Die Verwandlung · 1915</div>
+  
 </section>
 
 <!-- crop marks -->
