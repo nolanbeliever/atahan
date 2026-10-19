@@ -5,6 +5,7 @@ import {
 import {
   REPUTATION, FLOOR_UPGRADES, MAX_FLOOR, STAR_THRESHOLDS, starsFor,
 } from '../../shared/hotel.js';
+import { BASEMENT, BASEMENT_FLOOR } from '../../shared/basement.js';
 
 const UPGRADE_BY_FLOOR = Object.freeze(Object.assign(Object.create(null), Object.fromEntries(FLOOR_UPGRADES.map((u) => [u.floor, u]))));
 
@@ -93,18 +94,20 @@ export class HotelGrowthService {
     if (near(ELEVATOR.lobby.point)) return 1;
     for (let f = 2; f <= TOP_FLOOR; f++) if (FLOOR_DZ[f] !== undefined && near(ELEVATOR.floor(f).point)) return f;
     if (near(ELEVATOR.floor(ROOF_FLOOR).point)) return ROOF_FLOOR;
+    if (near(BASEMENT.elevator.point)) return BASEMENT_FLOOR; // −1. Kat Eğlence Katı
     return 0;
   }
 
   /** Asansör durağı açık mı (kat ya da çatı) */
   isStopOpen(f) {
     if (f === ROOF_FLOOR) return !!this.sim.arch?.roofOpen;
+    if (f === BASEMENT_FLOOR) return true; // Eğlence Katı hep açık
     return this.isFloorOpen(f);
   }
 
   elevator(p, data) {
     const floor = data?.floor;
-    if (!Number.isInteger(floor) || floor < 1 || floor > ROOF_FLOOR) return { ok: false, error: 'Geçersiz kat.' };
+    if (!Number.isInteger(floor) || (floor < 1 && floor !== BASEMENT_FLOOR) || floor > ROOF_FLOOR) return { ok: false, error: 'Geçersiz kat.' };
     const from = this.elevatorAt(p);
     if (!from) return { ok: false, error: 'Asansörün önünde olmalısın.' };
     if (!this.isStopOpen(floor)) {
@@ -112,7 +115,7 @@ export class HotelGrowthService {
     }
     if (floor === from) return { ok: false, error: 'Zaten bu kattasın.' };
     if (p.sleeping || p.vehicle) return { ok: false, error: 'Şu an asansöre binemezsin.' };
-    const dest = floor === 1 ? ELEVATOR.lobby : ELEVATOR.floor(floor);
+    const dest = floor === 1 ? ELEVATOR.lobby : floor === BASEMENT_FLOOR ? BASEMENT.elevator : ELEVATOR.floor(floor);
     p.x = dest.spawn[0];
     p.z = dest.spawn[1];
     p.yaw = dest.yaw;

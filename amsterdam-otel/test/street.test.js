@@ -15,6 +15,8 @@ const config = {
   dayLengthSec: 100_000, nightLengthSec: 120, weekendSpeed: 2, tickMs: 100, spawnMinMin: 40, spawnMaxMin: 90,
   stayMinMin: 150, stayMaxMin: 420, clockBroadcastMs: 5000, maxPlayers: 16, startWallet: 50, starterBed: false,
   restaurantDiners: false,
+  valetCustomers: false,
+  basementGuests: false,
 };
 const KEY = 'd'.repeat(32);
 const KEY2 = 'e'.repeat(32);

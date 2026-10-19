@@ -146,6 +146,11 @@ export const EVT = Object.freeze({
   VALET_ACT: 'valet:act', // istemci → sunucu (ack): { act: 'keys', job } | { act: 'tool', tool: 'foam'|'water'|null } | { act: 'spray', job, spot, step: 'begin'|'finish' } | { act: 'hit', kmh }
   VALET_STATE: 'valet:state', // sunucu → herkes: { jobs: [{ id, state, customer, model, carId, holder, spots, stage, damage, deadline… }], stats }
   DRAG_STATE: 'drag:state', // sunucu → herkes: { phase, mode, runNo, treeAt, greenAt, waitUntil, racers, last, board }
+  // ---- −1. Kat VIP Eğlence Katı (server/game/BasementService.js, shared/basement.js, shared/basementPhysics.js) ----
+  BASEMENT_ACT: 'basement:act', // istemci → sunucu (ack): { act: 'stairs'|'join'|'ai'|'leave'|'shoot'|'point'|'arcade'|'arcadeEnd'|'lane'|'bowl', game?, i?, ... }
+  BASEMENT_STATE: 'basement:state', // sunucu → herkes: masalar, kulvarlar, atari makineleri, rekorlar
+  BASEMENT_SHOT: 'basement:shot', // sunucu → herkes: { game: 'pool'|'bowling', i, ... } atışın başlangıç durumu + sonucu (animasyon)
+  BASEMENT_RT: 'basement:rt', // istemci ↔ sunucu: { g: 'pong'|'foos', i, s: [sayılar] } gerçek zamanlı raket / top / çubuk
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

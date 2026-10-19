@@ -10,6 +10,7 @@
 //   drag   x 140..190, z −460..40  (layout.DRAG)    — garajdaki "🏁 Drag pisti" şeridinden sürülür
 
 import { GARAGE, DRAG, isOutdoors, isInsideSteeg, isInsideAlley, pointInBounds } from './layout.js';
+import { BASEMENT } from './basement.js';
 
 const KMH = 3.6;
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -290,6 +291,7 @@ export function carZone(x, z) {
 export function bigArea(x, z) {
   if (pointInBounds(x, z, GARAGE.bounds, 2)) return 'garage';
   if (pointInBounds(x, z, DRAG.bounds, 2)) return 'drag';
+  if (pointInBounds(x, z, BASEMENT.bounds, 2)) return 'basement'; // −1. Kat Eğlence Katı
   return 'city';
 }
 

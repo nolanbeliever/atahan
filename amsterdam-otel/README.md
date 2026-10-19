@@ -83,6 +83,7 @@ eski kaydın üstüne yazmasın diye başlamaz (Render yeniden dener). `DATABASE
 | Achterstraat'ta başkasının kapısında **E**: zili çal · ev sahibiysen **Y** / **N**: içeri al / alma | **Zil** butonu · istemdeki **Evet** / **Hayır** |
 | **Enter**: sohbet (yaz, Enter gönder, Esc kapat) | **💬** butonu: sohbet |
 | **M**: hızlı ışınlanma (otel, ev, garaj, drag pisti) | Telefonda **🗺️ Işınlan** |
+| Eğlence Katı'nda masaya / kulvara / makineye **E**: oyna · oyunda fare nişan / raket, **E** vur (güç çubuğu), **1** bilgisayara karşı, **F** falso (bowling), **Q** kalk | **Vur** / **At** · sağ taraf sürükleme nişan · panelde **🤖** / **🌀 Falso** / **✕ Kalk** |
 | **P**: akıllı telefon (📷 kamera: **Space** / tık çek, **P** / **Esc** telefona dön · 📸 InstaHotel · 🏨 Otel) | **📱** butonu: telefon · vizörde **📸 Çek** / **✕** · ana çubuğa dokun ya da yukarı kaydır: kapat |
 | **Esc**: duraklat / paneli kapat | ⚙ butonu: ayarlar |
 
@@ -609,6 +610,42 @@ listesinde de var (🍽️ Gurme Restoran). Açık: 07:00–22:30 (hafta sonu da
   tablolar); aşçı / garson NPC'leri `KitchenStaffService`'te (misafirlerle aynı ağ biçimi, `kind: 'chef' | 'waiter'`).
   NPC'ler restoranın içinde şeritlerden yürür (masaların, pass'in ve adanın içinden geçmez).
 
+## −1. Kat VIP Eğlence Katı — Neon Kelder (EntertainmentBasement)
+
+Otelin altında neon ışıklı, koyu renkli, alçak tavanlı lüks oyun salonu. **Lobinin kuzey duvarındaki "−1 🎳" merdiven
+kapısından** (asansörün karşı tarafı, E), **asansörün "−1 🎳" durağından** ya da hızlı ışınlanmadan (🎳 Eğlence Katı)
+inilir; bodrumdan merdivenle ya da asansörle geri çıkılır. Oyunlar masaya / kulvara / makineye **E** ile başlar; kamera
+oyunun FPV açısına geçer, fare / sağ taraf sürükleme ve hareket tuşları oyuna gider, **Q** ya da **✕ Kalk** ile kalkılır.
+Tek başınayken **1** / **🤖 Bilgisayara karşı** ile "Robo Ruud"a karşı oynanır; bir arkadaşın aynı masada E'ye basarsa
+1v1 maç başlar.
+
+- **🎱 Bilardo (2 masa, 8-ball):** beyaz topun arkasından nişan (fare / sürükleme ıstakayı döndürür, nişan çizgisi ve
+  hayalet top), E güç çubuğunu başlatır, ikinci E vurur. Atış **sunucuda deterministik olarak simüle edilir**
+  (`shared/basementPhysics.js`); herkes aynı simülasyonu animasyon olarak izler. Kurallar: açılış, düz / parçalı grup,
+  faul (beyaz cebe, yanlış ilk temas, hiç temas yok → sıra geçer, beyaz yerine konur), 8 numara (grup bitmeden ya da
+  faulle girerse kaybettirir). Rövanş için E.
+- **⚽ Langırt (2 masa):** masanın kenarından yukarıdan bakış; W/S ya da fare yukarı-aşağı 4 çubuğu birlikte kaydırır,
+  E çubukları döndürüp vurur. 5 gole.
+- **🏓 Masa tenisi:** masanın ucundan; fare / sürükleme ya da A/D raketi kaydırır, E servis atar, vuruştan hemen önce
+  E **smaç** (daha sert, hata payı yüksek). 7 sayıya, servis 2 sayıda bir değişir.
+- **🕹️ Retro atari (6 makine):** 🐍 Neon Yılan, 🧱 Tuğla Kırıcı, 👾 Lale İstilası. Jeton **€1 (cüzdandan, otel
+  kasasına)**; ekran panel olarak açılır (3D render durur), ok tuşları / WASD / boşluk ya da dokunmatik tuşlar. Puan
+  süreye göre doğrulanır; her oyunun ilk 5 rekoru kalıcıdır.
+- **🎳 2 hatlı VIP bowling:** kulvar ücreti **€8 / oyuncu (cüzdandan, kasaya)**, 4 oyuncuya kadar sırayla, 5 çerçeve
+  (strike / spare bonusları, son çerçevede bonus atış). A/D bırakış noktası, fare / sürükleme yön, F / 🌀 falso, E güç →
+  E at. Top ve labutlar sunucuda simüle edilir; tavandaki skor ekranları ve HUD skoru gösterir; en iyi skorlar kalıcı.
+- **NPC misafirler:** 09:00–23:00 arası odasındaki **otel misafirleri** (asansörle iner; ⭐ VIP'ler 2× öder) ve
+  dışarıdan gelenler boş istasyonlarda 45–95 sn oynar: atari €4, bilardo €6, masa tenisi €4, langırt €3, bowling €10
+  (kişi başı) **otelin kasasına** ve günün gelirine. NPC'lerin oynadığı kulvarda süs atışları, masa tenisinde ralli
+  görünür. Oyuncu gelince misafirler **yer verir** (ödenen ücret kasada kalır). Otel doldukça ve yıldız arttıkça kat
+  kalabalıklaşır.
+- **Co-op:** masa tenisi / langırtta top fiziği maçın ev sahibinde (ilk oturan) çalışır; raket / çubuk / top
+  konumları `basement:rt` ile ~14 Hz aktarılır, sayıyı yalnızca ev sahibi bildirir (sunucu faz + aralık denetler).
+  Bodrumdaki diğer oyuncular maçları canlı izler. Masadan uzaklaşan / çıkan oyuncu maçtan düşer (rakibi hükmen kazanır).
+- **Pil:** bodrum ayrı bir grup (garajın alan yöneticisi: oradayken otel dünyası çizilmez); statik geometri malzeme
+  başına tek mesh, neon şeritler ışıksız MeshBasic (gerçek ışık eklenmez); skor ekranı ve atari ekranları yalnızca
+  durum değişince çizilir; oyun / animasyon yokken kare çizilmez.
+
 ## Bar müdavimleriyle arkadaşlık
 
 Bar De Tulp'un müşterileri 12 kişilik sabit bir müdavim kadrosundan gelir (Sanne, Daan, Emma, Lars…); her birinin
@@ -686,6 +723,7 @@ amsterdam-otel/
 │       ├── StreetMonopolyService.js # Cadde İmparatorluğu: cüzdandan mülk alımı, gün başı kira sahibine, King unvanı + prestij
 │       ├── RestaurantService.js # Gurme Restoran: masalar, müşteriler (otel misafirleri / VIP), açık büfe, mutfak adımları, memnuniyet
 │       ├── KitchenStaffService.js # Aşçı / garson NPC'leri: iş adımları (pişir → pass → masa), büfe tazeleme, seviye
+│       ├── BasementService.js   # −1. Kat Eğlence Katı: bilardo kuralları + bilgisayar rakip, bowling skoru, masa tenisi / langırt maçları, atari jetonu + rekorlar, NPC misafirler
 │       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
 │       ├── MarketingService.js  # InstaHotel: gönderi doğrulama, beğeni / takipçi artışı, kampanya → turist akını (boost)
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
@@ -707,6 +745,8 @@ amsterdam-otel/
 │   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri
 │   ├── street.js                # Achterstraat mülkleri (fiyat, kira, cephe yerleşimi), King kuralları
 │   ├── restaurant.js            # Restoran: 24 malzeme, 7 tabaklık menü, pişirme yöntemleri, kurallar, personel, NPC şerit rotaları
+│   ├── basement.js              # Eğlence Katı: yerleşim, istasyonlar, fiyatlar, NPC rotaları, bowling skoru
+│   ├── basementPhysics.js       # Bilardo + bowling için deterministik 2B fizik (sunucu ve istemci aynı kod)
 │   ├── architecture.js          # Lüks paketler (fiyat, koşul, kat / temizlikçi sınırı), VIP suit kuralları, lounge geliri
 │   ├── stage.js                 # Canlı müzik sahnesi: yer, gruplar (ücret, kalabalık, bonus), set takvimi, kalabalık noktaları
 │   ├── marketing.js             # InstaHotel: bütçeler, fotoğraf / açıklama doğrulama, konum etiketleri, turist kafilesi + kuyruk
@@ -716,7 +756,7 @@ amsterdam-otel/
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css)
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css, basement.css)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
@@ -750,6 +790,8 @@ amsterdam-otel/
 │       │   ├── GourmetRestaurant.js # Restoran binası (salon, büfe, pass, açık mutfak), tabak modelleri, sipariş baloncukları + listesi, aşçı / garson aksesuarları, PC personel bölümü
 │       │   ├── StreetMonopoly.js    # Dükkân cepheleri + Achterstraat Oost, kapıdaki emlak kartı, "Achterstraat Real Estate" (telefon + PC), King rozeti / taç
 │       │   ├── KitchenSystem.js     # FPV mutfak: buzdolabı seçici, tava / fırın / tezgâh, tabaklama, servis, menü kütüphanesi, mutfak elleri
+│       │   ├── EntertainmentBasement.js # −1. Kat Eğlence Katı: merdiven / asansör, istasyon etkileşimi, oyun modu (FPV kamera, HUD), atari paneli, sesler (world/BasementBuilding.js)
+│       │   ├── basement/            # PoolGame, BowlingGame, PongGame, FoosGame (FPV oyunlar), ArcadeGames (Neon Yılan, Tuğla Kırıcı, Lale İstilası)
 │       │   ├── HomeCounterfeitSystem.js # Ev matbaası: kurulum, baskı, polis baskını bandı, gizli bölme, polis
 │       │   ├── FastTravelSystem.js  # Hızlı ışınlanma paneli (M / telefonda 🗺️)
 │       │   ├── ValetCarWash.js      # VIP vale kürsüsü, garajdaki oto yıkama bölmesi + V-1…V-3, FPV köpük / tazyikli su tabancası, çamur lekeleri, çarpma algısı, HUD
@@ -762,7 +804,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC)
 ```
 
 ## Sonraki aşamalar için notlar

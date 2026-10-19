@@ -31,6 +31,7 @@ import { ArchitectureService } from './ArchitectureService.js';
 import { GarageService } from './GarageService.js';
 import { DragRaceService } from './DragRaceService.js';
 import { ValetService } from './ValetService.js';
+import { BasementService } from './BasementService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -104,6 +105,7 @@ export class HotelSimulation extends EventEmitter {
     this.garage = new GarageService(this); // yeraltı garajı, AutoGalerie, arabalar (VehicleService'te 'car')
     this.drag = new DragRaceService(this); // drag pisti: zamanlama, düello, liderlik tablosu
     this.valet = new ValetService(this); // VIP vale + garajdaki oto yıkama
+    this.basement = new BasementService(this); // −1. Kat VIP Eğlence Katı: bilardo, langırt, masa tenisi, atari, bowling
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -181,6 +183,7 @@ export class HotelSimulation extends EventEmitter {
       valet: this.valet.persisted(),
       restaurant: { ...this.restaurant.persisted(), staff: this.kitchen.persisted() },
       street: this.street.persisted(),
+      basement: this.basement.persisted(),
     };
   }
 
@@ -201,6 +204,7 @@ export class HotelSimulation extends EventEmitter {
     this.restaurant.restore(h.restaurant);
     this.kitchen.restore(h.restaurant?.staff);
     this.street.restore(h.street);
+    this.basement.restore(h.basement);
     if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
     const t = h.today;
     if (t && typeof t === 'object') {
@@ -235,6 +239,7 @@ export class HotelSimulation extends EventEmitter {
       this.valet.shiftTime(now - this.pausedAt);
       this.restaurant.shiftTime(now - this.pausedAt);
       this.kitchen.shiftTime(now - this.pausedAt);
+      this.basement.shiftTime(now - this.pausedAt);
       this.pausedAt = null;
     }
     this.lastTick = now;
@@ -284,6 +289,7 @@ export class HotelSimulation extends EventEmitter {
     this.marketing.update(now);
     this.drag.update(now);
     this.valet.update(now);
+    this.basement.update(now);
     this.house.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
@@ -380,6 +386,7 @@ export class HotelSimulation extends EventEmitter {
     this.relations.removePlayer(p); // evdeki misafiri gider
     this.drag.removePlayer(p); // drag yarışındaysa DNF
     this.valet.removePlayer(p); // VIP aracının anahtarı sendeyse müşteri arabasını geri alır
+    this.basement.removePlayer(p); // Eğlence Katı: masadan / kulvardan / makineden kalkar
     this.vehicles.removePlayer(p); // sürüyorsa park eder; araçları kayda geçer
     this.house.removePlayer(p); // bekleyen ziller, cüzdan ve ev sahibi kaydı
     this.players.delete(id);
@@ -644,6 +651,14 @@ export class HotelSimulation extends EventEmitter {
   // ---- VIP vale + oto yıkama ----------------------------------------------------------
 
   valetAct(playerId, data) { return this.withPlayer(playerId, (p) => this.valet.act(p, data, this.now())); }
+  // ---- −1. Kat VIP Eğlence Katı ------------------------------------------------------------
+
+  basementAct(playerId, data) { return this.withPlayer(playerId, (p) => this.basement.act(p, data, this.now())); }
+
+  basementRt(playerId, data) {
+    const p = this.players.get(playerId);
+    return p ? this.basement.relay(p, data) : false;
+  }
 
   // ---- Yeraltı Kart Kulübü ---------------------------------------------------------
 
@@ -739,6 +754,7 @@ export class HotelSimulation extends EventEmitter {
       guests: [
         ...this.guests.serialize(), ...this.bar.serializeCustomers(), ...this.workers.serializeWires(),
         ...this.stage.serializeWires(), ...this.restaurant.serializeDiners(), ...this.kitchen.serializeWires(), ...this.valet.serializeWires(),
+        ...this.basement.serializeWires(),
       ],
       players: [...this.players.values()].map((p) => this.publicPlayer(p)),
       economy: this.economy(),
@@ -760,6 +776,7 @@ export class HotelSimulation extends EventEmitter {
       insta: this.marketing.serialize(this.players.get(selfId)), // InstaHotel akışı (fotoğraf yalnızca en yeni 4'te)
       drag: this.drag.serialize(), // drag pisti: faz, ışık ağacı zamanları, son sonuçlar, liderlik tablosu
       valet: this.valet.serialize(), // VIP vale işleri: anahtar, çamur noktaları, hasar
+      basement: this.basement.serialize(), // Eğlence Katı: masalar, kulvarlar, atari makineleri, rekorlar
     };
   }
 }
