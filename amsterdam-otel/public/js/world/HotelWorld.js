@@ -19,6 +19,7 @@ import {
 } from './Props.js';
 import { makeCharacter } from '../game/Characters.js';
 import { buildRestaurant } from '../game/GourmetRestaurant.js';
+import { buildStreet } from '../game/StreetMonopoly.js';
 
 const BLANKET_COLORS = ['fabricBlue', 'fabricRed', 'fabricGreen', 'fabricOrange']; // k01..k04
 const ENTRANCE_OPEN = Math.PI / 2 * 0.9;
@@ -63,6 +64,8 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
   const bar = buildBar({ batcher: b, collision, scene, mats, factory });
   // Achterstraat + 8 oyuncu evi (phWall vb. malzemeler b.build'den önce mats'e eklenir)
   const playerHouses = buildPlayerHouses({ batcher: b, collision, scene, mats, factory, engine });
+  // Achterstraat dükkân cepheleri + Achterstraat Oost (Cadde İmparatorluğu; phFacade'ı kullanır → evlerden sonra)
+  const street = buildStreet({ batcher: b, collision, scene, mats, factory });
   // Sokaktan Achterstraat'a açık hava geçidi (bisiklet / scooter yolu) ve araç büfesi
   buildSteeg({ batcher: b, collision, scene });
   // Lobideki asansör ve üst katlar (sahanlık, koridor, dekor)
@@ -93,6 +96,7 @@ export function buildHotel({ engine, mats, tex, factory, collision, quality }) {
     playerHouses,
     casino,
     restaurant,
+    street,
 
     /**
      * Gece karanlığı 0 (gündüz) … 1 (gece). Yalnızca ışık şiddeti / renkleri değişir:

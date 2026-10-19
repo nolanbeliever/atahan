@@ -152,6 +152,11 @@ export function attachSocketHandlers(io, sim) {
       if (barGuard(ack)) reply(ack, sim.barAct(player.id, data));
     });
     // ---- Gurme Restoran & mutfak (tipler, konum, el ve süreler RestaurantService'te doğrulanır) ----
+    // ---- Achterstraat Cadde İmparatorluğu (tip, konum, kasa StreetMonopolyService'te doğrulanır) ----
+    on(EVT.STREET_ACT, (data, ack) => {
+      if (!player || !allowHotel()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.streetAct(player.id, data));
+    });
     on(EVT.KITCHEN_ACT, (data, ack) => {
       if (!player || !allowKitchen()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
       reply(ack, sim.kitchenAct(player.id, data));

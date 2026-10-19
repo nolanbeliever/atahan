@@ -306,7 +306,8 @@ export function buildPlayerHouses({ batcher: b, collision, scene, mats, factory,
       b.box('white', Math.min(xIn, xOut) - 0.02, Math.max(xIn, xOut) + 0.02, END_TOP - 0.1, END_TOP + 0.04, minZ - 0.1, FACE + 0.1, flat);
       const face = s < 0 ? 'x+' : 'x-';
       for (const z of [28.0, 31.0]) addWindow(b, { x: xIn, y: 4.6, z, w: 0.9, h: 1.15, facing: face });
-      addGate(b, xIn, 29.5, s);
+      // Doğu ucunda kapı yerine Achterstraat Oost geçidi (StreetMonopoly.buildStreet çerçeveler)
+      if (s < 0) addGate(b, xIn, 29.5, s);
     }
 
     // ---- Sokak eşyaları (statik) ----------------------------------------------------

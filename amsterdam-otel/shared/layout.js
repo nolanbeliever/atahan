@@ -53,6 +53,7 @@ export const TELEPORTS = Object.freeze([
   { id: 'hotel', name: 'Otel lobisi', icon: '🏨', point: [0, 3.0], yaw: Math.PI },
   { id: 'home', name: 'Evim', icon: '🏡', point: null, yaw: Math.PI },
   { id: 'restaurant', name: 'Gurme Restoran', icon: '🍽️', point: [-9.6, 11.2], yaw: Math.PI / 2 }, // lobinin batısı, salona bakar
+  { id: 'street', name: 'Achterstraat Oost', icon: '🏘️', point: [20.6, 29.5], yaw: -Math.PI / 2 }, // cadde dükkânları, doğuya bakar
   { id: 'garage', name: 'Yeraltı garajı', icon: '🅿️', point: GARAGE.spawn, yaw: GARAGE.yaw },
   { id: 'drag', name: 'Drag pisti', icon: '🏁', point: DRAG.spawn, yaw: DRAG.yaw },
 ]);
@@ -240,6 +241,18 @@ export function isInsideAlley(x, z) {
   return x > -17.9 && x < 17.9 && z > 26.1 && z < 32.9;
 }
 
+// ---- Achterstraat Oost: caddenin doğu uzantısı (dükkânlar + benzinlik) ----------------------
+// Sokağın doğu ucundaki köşe binasının altındaki geçitten (x = 18) devam eden, iki yanı dükkân
+// cepheli kısım; en doğusunda benzinlik. Mülkler ve satın alma: shared/street.js (Cadde İmparatorluğu).
+export const ALLEY_EAST = Object.freeze({
+  bounds: { minX: 18, maxX: 44, minZ: 26, maxZ: 33 },
+  passage: { from: 28.3, to: 30.7, top: 2.6 }, // x = 18 duvarındaki geçit (z aralığı)
+});
+
+export function isInsideAlleyEast(x, z) {
+  return x > 17.9 && x < 43.9 && z > 26.1 && z < 32.9;
+}
+
 // ---- Steeg: sokaktan Achterstraat'a açık hava ara sokağı ----------------------
 // Coffee shop ve barın doğusundan geçen dar geçit (bisiklet / scooter yolu). Sokak ucunda
 // komşu cephesinin altından, Achterstraat ucunda komşu binanın altındaki kemerden geçilir.
@@ -254,7 +267,7 @@ export function isInsideSteeg(x, z) {
 
 /** Açık hava: sokak, steeg, Achterstraat — araç sürülebilir / park edilebilir yerler */
 export function isOutdoors(x, z) {
-  if (isInsideSteeg(x, z) || isInsideAlley(x, z)) return true;
+  if (isInsideSteeg(x, z) || isInsideAlley(x, z) || isInsideAlleyEast(x, z)) return true;
   return z < -0.12 && z > -7.6 && x > -18 && x < 18;
 }
 
@@ -514,7 +527,11 @@ export function buildWallSegments() {
   wallAlongZ(w, 18, 0.1, 25.9, [], 'brick');
   wallAlongZ(w, 16, 14.1, 25.9, [{ from: CASINO.door.from, to: CASINO.door.to, top: DOOR_H }], 'brick'); // Kart Kulübü kapısı
   wallAlongZ(w, -18, 26.1, 33, [], 'brick');
-  wallAlongZ(w, 18, 26.1, 33, [], 'brick');
+  wallAlongZ(w, 18, 26.1, 33, [ALLEY_EAST.passage], 'brick'); // Achterstraat Oost'a geçit
+  // Achterstraat Oost: güney ve kuzey cephe hatları, doğu ucu (benzinlik kulübesinin arkası)
+  wallAlongX(w, 26, 18.1, 44, [], 'brick');
+  wallAlongX(w, 33, 18.1, 44, [], 'brick');
+  wallAlongZ(w, 44, 26.1, 33, [], 'brick');
   // Oyuncu evleri: sokağa bakan cephe (her evin kapısıyla), aralarındaki ve arka duvarlar
   wallAlongX(w, PH.z0, -18, 18, PLAYER_HOUSES.map((h) => ({ from: h.door.from, to: h.door.to, top: DOOR_H })), 'brick');
   for (let i = 0; i <= PH.count; i++) wallAlongZ(w, PH.x0 + i * PH.width, PH.z0 + 0.1, PH.z1, [], 'phWall');
@@ -588,7 +605,7 @@ export function areaAt(x, z) {
   if (isInsideBar(x, z)) return 'bar';
   if (isInsideCasino(x, z)) return 'casino';
   if (isInsideRestaurant(x, z)) return 'restaurant';
-  if (isInsideAlley(x, z)) return 'alley';
+  if (isInsideAlley(x, z) || isInsideAlleyEast(x, z)) return 'alley';
   if (isInsideSteeg(x, z)) return 'steeg';
   for (const h of PLAYER_HOUSES) if (isInsideHouseDef(h, x, z)) return h.id;
   for (const r of ROOMS) if (isInsideRoom(r, x, z)) return r.id;

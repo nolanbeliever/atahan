@@ -253,7 +253,7 @@ Tamamen oyun içi para: basılan para otel kasasına değil **kişisel cüzdanı
 
 ## Hızlı ışınlanma
 
-Masaüstünde **M**, telefonda **🗺️ Işınlan** → **🏨 Otel lobisi · 🏡 Evim · 🍽️ Gurme Restoran · 🅿️ Yeraltı garajı · 🏁 Drag pisti**.
+Masaüstünde **M**, telefonda **🗺️ Işınlan** → **🏨 Otel lobisi · 🏡 Evim · 🍽️ Gurme Restoran · 🏘️ Achterstraat Oost · 🅿️ Yeraltı garajı · 🏁 Drag pisti**.
 Konumu sunucu yazar; araçtayken, uyurken, gizli bölmedeyken ya da evinde polis baskını sürerken ışınlanılmaz
 (4 sn bekleme). Kısa bir kararma geçişi olur.
 
@@ -530,6 +530,30 @@ otel kapalıyken de müşteri gelir.
   sabır çubukları CSS geçişiyle akar (kare başı DOM yazımı yok). Ayarlardaki "sallanma/dalgalanmayı azalt" el
   animasyonlarının genliğini de kısar.
 
+## Achterstraat Cadde İmparatorluğu — dükkânlar, kira, Achterstraat King (StreetMonopoly)
+
+Achterstraat'ın doğu ucundaki köşe binasının altındaki geçitten **Achterstraat Oost**'a geçilir (eski demir kapının yeri):
+iki sıra dükkân ve en doğuda pompa adalı, kanopili bir **benzinlik**. Eski Achterstraat'ta da otelin doğusundaki iki komşu
+binanın zemin katı dükkândır. Hızlı ışınlanma listesinde: 🏘️ Achterstraat Oost.
+
+- **10 mülk:** ☕ Koffiehuis De Vos €6.000 · 🥐 Bakkerij Brood & Zo €5.500 · 🛒 Buurtsuper (bakkal) €8.000 ·
+  🧀 Kaashandel Gouda €7.000 · 💐 Bloemenwinkel Tulpje €4.500 · 🚲 Fietsenmaker Wiel €5.000 · 🎵 Platenzaak Vinyl €6.500 ·
+  ☕ Café 't Hoekje €9.000 · 🍟 Frietkot Patat €5.500 · ⛽ Tankstation €18.000 (toplam €75.000). Günlük kira fiyatın ~%7'si
+  (toplam €5.250/gün), geri dönüş 14–15 oyun günü.
+- **Satın alma (kişisel cüzdandan):** dükkânın kapısında **E** → emlak kartı → "Satın al"; ya da **📱 telefonda "Emlak"** (her
+  yerden) / **💻 Resepsiyon PC → 🏘️ Emlak** sekmesi: **"Achterstraat Real Estate"** — cadde haritası (satılık sarı, senin
+  yeşil, başkasının mavi), seçili mülkün kartı (fiyat, günlük kira, geri dönüş, sahibi) ve liste. Mülk alanın olur; başkasının
+  dükkânı satılık değildir.
+- **Otel markası:** alınan dükkânın tabelası "… · by Hotel De Tulp" olur, tentesi (benzinlikte kanopi bandı) otelin yeşiline
+  döner, kapının yanına "🌷 De Tulp · Hotel partner" plaketi asılır.
+- **Pasif gelir:** her oyun günü başında (uyuyarak gün atlama dahil) her dükkânın kirası **sahibinin cüzdanına** geçer.
+  Sahip çevrimdışıysa: anahtarlı oyuncunun kayıtlı cüzdanına yazılır; anahtarsız oyuncunun kirası birikir ve aynı adla
+  döndüğünde ödenir.
+- **👑 Achterstraat King:** bütün caddeye **tek bir oyuncu** sahip olunca unvan onundur (HUD rozeti, diğer oyuncular onun
+  başında taç görür, herkese duyuru). Otel prestiji: tek seferlik **+200 itibar** ve kalıcı **oda ücretleri +%10**.
+- Sahiplik, unvan ve biriken kiralar kalıcıdır; sunucu konum / cüzdan / tipleri doğrular (prototipsiz tablolar, anahtar
+  özetleri hiçbir yayına girmez).
+
 ## Gurme Restoran & Mutfak — De Gouden Lepel (GourmetRestaurant + KitchenSystem)
 
 Lobinin batı duvarındaki kapıdan (resepsiyonun arkası) girilen tam teşekküllü restoran: güneyde **6 lüks masalı yemek
@@ -636,6 +660,7 @@ amsterdam-otel/
 │       ├── BoostService.js      # Geçici bonuslar (konser kalabalığı, reklam): bar / misafir sıklığı, bahşiş
 │       ├── TeleportService.js   # Hızlı ışınlanma: hedefler, doğrulama, bekleme
 │       ├── WorkerService.js     # Temizlikçi NPC'ler: iş seçimi, süreli işler, seviye, bahşiş kasaya
+│       ├── StreetMonopolyService.js # Cadde İmparatorluğu: cüzdandan mülk alımı, gün başı kira sahibine, King unvanı + prestij
 │       ├── RestaurantService.js # Gurme Restoran: masalar, müşteriler (otel misafirleri / VIP), açık büfe, mutfak adımları, memnuniyet
 │       ├── KitchenStaffService.js # Aşçı / garson NPC'leri: iş adımları (pişir → pass → masa), büfe tazeleme, seviye
 │       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
@@ -656,6 +681,7 @@ amsterdam-otel/
 │   ├── chat.js                  # Sohbet mesajı temizleme
 │   ├── maintenance.js           # Oda arızaları, noktaları, mini oyun süreleri, bonuslar
 │   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri
+│   ├── street.js                # Achterstraat mülkleri (fiyat, kira, cephe yerleşimi), King kuralları
 │   ├── restaurant.js            # Restoran: 24 malzeme, 7 tabaklık menü, pişirme yöntemleri, kurallar, personel, NPC şerit rotaları
 │   ├── architecture.js          # Lüks paketler (fiyat, koşul, kat / temizlikçi sınırı), VIP suit kuralları, lounge geliri
 │   ├── stage.js                 # Canlı müzik sahnesi: yer, gruplar (ücret, kalabalık, bonus), set takvimi, kalabalık noktaları
@@ -666,7 +692,7 @@ amsterdam-otel/
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css)
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
@@ -698,6 +724,7 @@ amsterdam-otel/
 │       │   ├── MixologyBarSystem.js # Soğutucu dolap + fıçı kulesi: malzeme seçimi (30 içecekli kütüphane)
 │       │   ├── RecipeBook.js        # Tarif kitabı paneli (kürsü / K / 📖)
 │       │   ├── GourmetRestaurant.js # Restoran binası (salon, büfe, pass, açık mutfak), tabak modelleri, sipariş baloncukları + listesi, aşçı / garson aksesuarları, PC personel bölümü
+│       │   ├── StreetMonopoly.js    # Dükkân cepheleri + Achterstraat Oost, kapıdaki emlak kartı, "Achterstraat Real Estate" (telefon + PC), King rozeti / taç
 │       │   ├── KitchenSystem.js     # FPV mutfak: buzdolabı seçici, tava / fırın / tezgâh, tabaklama, servis, menü kütüphanesi, mutfak elleri
 │       │   ├── HomeCounterfeitSystem.js # Ev matbaası: kurulum, baskı, polis baskını bandı, gizli bölme, polis
 │       │   ├── FastTravelSystem.js  # Hızlı ışınlanma paneli (M / telefonda 🗺️)
@@ -710,7 +737,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King)
 ```
 
 ## Sonraki aşamalar için notlar
