@@ -13,6 +13,7 @@ const config = {
   dayLengthSec: 240, weekendSpeed: 2, tickMs: 100, spawnMinMin: 40, spawnMaxMin: 90,
   stayMinMin: 150, stayMaxMin: 420, clockBroadcastMs: 5000, maxPlayers: 16,
   restaurantDiners: false, // restoran müşterileri kapalı: RNG dizisi ve kasa bu testlerde değişmesin
+  valetCustomers: false, // VIP vale müşterileri kapalı: RNG dizisi bu testlerde değişmesin
 };
 
 function seeded(seed = 11) {

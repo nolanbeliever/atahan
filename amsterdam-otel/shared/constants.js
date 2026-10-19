@@ -140,6 +140,8 @@ export const EVT = Object.freeze({
   // Arabalar VEHICLES listesinde { type: 'car', model, color } olarak gelir; binme / inme VEHICLE_ACT ile.
   CAR_ACT: 'car:act', // istemci → sunucu (ack): { act: 'buy', model, color, source: 'wallet' | 'kasa' } | { act: 'xfer', id } (rampa / tünel / asansör)
   DRAG_ACT: 'drag:act', // istemci → sunucu (ack): { act: 'stage', lane: 'L' | 'R', mode: 'solo' | 'duel' } | { act: 'unstage' }
+  VALET_ACT: 'valet:act', // istemci → sunucu (ack): { act: 'keys', job } | { act: 'tool', tool: 'foam'|'water'|null } | { act: 'spray', job, spot, step: 'begin'|'finish' } | { act: 'hit', kmh }
+  VALET_STATE: 'valet:state', // sunucu → herkes: { jobs: [{ id, state, customer, model, carId, holder, spots, stage, damage, deadline… }], stats }
   DRAG_STATE: 'drag:state', // sunucu → herkes: { phase, mode, runNo, treeAt, greenAt, waitUntil, racers, last, board }
 });
 

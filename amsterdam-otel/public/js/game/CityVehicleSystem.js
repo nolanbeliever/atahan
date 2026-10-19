@@ -255,6 +255,7 @@ export class CityVehicleSystem {
     }));
     for (const v of this.list) {
       if (v.driver != null && v.passenger != null) continue;
+      if (v.valet && v.ownerId !== this.selfId) continue; // VIP vale aracı: yalnızca anahtar sahibi (ValetCarWash kürsüsü)
       consider(v.x, v.z, v.type === 'car' ? this.cars.mountRange : R.MOUNT_RANGE, () => this.vehicleTarget(v));
     }
     return best;

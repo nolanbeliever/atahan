@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="/css/phone.css">
   <link rel="stylesheet" href="/css/garage.css">
   <link rel="stylesheet" href="/css/restaurant.css">
+  <link rel="stylesheet" href="/css/valet.css">
   <script type="importmap">
     {
       "imports": {
@@ -80,6 +81,8 @@
       <div id="boost-chips" hidden aria-live="polite"></div>
       <div id="weekend-banner" hidden>Hafta Sonu — Otel Kapalı</div>
       <div id="trip-banner" hidden></div>
+      <!-- VIP vale + oto yıkama: süren iş (süre, çamur, hasar, sıradaki adım) -->
+      <div id="valet-hud" class="panel" hidden aria-live="polite"></div>
       <div id="toasts" aria-live="polite"></div>
     </div>
     <div id="crosshair"></div>
@@ -101,6 +104,9 @@
     </div>
     <div id="kitchen-progress" hidden><i></i></div>
     <div id="kitchen-held" class="panel" hidden></div>
+
+    <!-- VIP vale + oto yıkama: püskürtme ilerlemesi (iş paneli üst ortada) -->
+    <div id="valet-progress" hidden><i></i></div>
 
     <!-- Oyuncu evleri: kapı zili istemi (ev sahibine) -->
     <div id="ring-prompt" class="panel" hidden role="alertdialog" aria-live="assertive">

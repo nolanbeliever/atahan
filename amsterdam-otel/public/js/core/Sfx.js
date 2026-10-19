@@ -299,6 +299,31 @@ export class Sfx {
     for (let i = 0; i < n; i++) this.ping(ctx, out, t + i / 4.5, rand(170, 230), 0.06, 0.8, 'triangle');
   }
 
+  /** Oto yıkama tabancası: tazyikli su keskin tıslama, köpük daha boğuk ve köpüren */
+  spray(durMs = 1200, foam = false) {
+    const sec = Math.max(0.2, durMs / 1000);
+    const ctx = this.begin(durMs);
+    if (!ctx) return;
+    const t = ctx.currentTime + 0.02;
+    const out = this.output(ctx, 0.0001);
+    const f = ctx.createBiquadFilter();
+    f.type = foam ? 'lowpass' : 'highpass';
+    f.frequency.value = foam ? 1600 : 2600;
+    f.Q.value = 0.8;
+    this.noiseSource(ctx, t, sec).connect(f).connect(out);
+    const g = out.gain;
+    g.setValueAtTime(0.0001, t);
+    g.exponentialRampToValueAtTime(foam ? 0.16 : 0.13, t + 0.06);
+    g.setValueAtTime(foam ? 0.16 : 0.13, t + sec * 0.9);
+    g.exponentialRampToValueAtTime(0.0001, t + sec);
+    if (foam) {
+      const pops = ctx.createGain();
+      pops.gain.value = 0.07;
+      pops.connect(ctx.destination);
+      for (let i = 0; i < Math.floor(sec * 8); i++) this.ping(ctx, pops, t + rand(0.05, sec - 0.05), rand(500, 900), 0.04, 0.5);
+    }
+  }
+
   /** Bahşiş: iki notalı parlak "çın-çın" */
   coin() {
     const ctx = this.begin(500);

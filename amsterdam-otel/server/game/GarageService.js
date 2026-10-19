@@ -267,6 +267,7 @@ export class GarageService {
     // İzin verilenden hızlı: yalnızca izin verilen kadar ilerlet
     const k = g.budget / d;
     g.budget = 0;
+    this.sim.valet?.onClip(p, v, d); // VIP aracında hız ihlali küçük hasar yazar
     const nx = r2(p.x + (x - p.x) * k);
     const nz = r2(p.z + (z - p.z) * k);
     return carZone(nx, nz) !== null ? [nx, nz] : null;

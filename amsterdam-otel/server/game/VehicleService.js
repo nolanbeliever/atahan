@@ -152,6 +152,8 @@ export class VehicleService {
     const range = v.type === 'car' ? CAR_RULES.MOUNT_RANGE : R.MOUNT_RANGE;
     if (Math.hypot(p.x - v.x, p.z - v.z) > range + 1) return { ok: false, error: 'Araca yaklaş.' };
     const def = this.defOf(v);
+    const valetErr = this.sim.valet?.canMount(p, v); // VIP aracı: yalnızca anahtar sahibi
+    if (valetErr) return { ok: false, error: valetErr };
     if (v.ownerId === p.id) {
       if (v.driver != null) return { ok: false, error: 'Aracında başkası var.' };
       v.driver = p.id;
@@ -206,6 +208,7 @@ export class VehicleService {
         const q = this.sim.players.get(v.passenger);
         if (q) this.dropPassenger(v, q);
       }
+      if (car) this.sim.valet?.onDismount(p, v); // vale park yerindeyse teslim (araba kalkar)
       this.save(this.sim.players.get(v.ownerId) ?? p);
     } else {
       this.dropPassenger(v, p);
@@ -302,6 +305,7 @@ export class VehicleService {
       id: v.id, type: v.type, ownerId: v.ownerId, ownerName: v.ownerName,
       x: v.x, z: v.z, yaw: v.yaw, driver: v.driver, passenger: v.passenger,
       ...(v.type === 'car' ? { model: v.model, color: v.color } : {}),
+      ...(v.valet ? { valet: v.valet } : {}), // VIP vale işi (ValetService)
     }));
   }
 
