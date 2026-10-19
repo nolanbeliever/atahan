@@ -13,6 +13,8 @@
 //                         SOKAK / KANAL
 //                x=-8      -1.5  1.5        8
 
+import { BASEMENT, isInsideBasement } from './basement.js';
+
 export const WALL_H = 3.2;
 export const WALL_T = 0.2;
 export const EYE_HEIGHT = 1.65;
@@ -55,6 +57,7 @@ export const TELEPORTS = Object.freeze([
   { id: 'restaurant', name: 'Gurme Restoran', icon: '🍽️', point: [-9.6, 11.2], yaw: Math.PI / 2 }, // lobinin batısı, salona bakar
   { id: 'garage', name: 'Yeraltı garajı', icon: '🅿️', point: GARAGE.spawn, yaw: GARAGE.yaw },
   { id: 'drag', name: 'Drag pisti', icon: '🏁', point: DRAG.spawn, yaw: DRAG.yaw },
+  { id: 'basement', name: 'Eğlence Katı', icon: '🎳', point: BASEMENT.spawn, yaw: 0 }, // −1. Kat (bkz. shared/basement.js)
 ]);
 
 // ---- Üst katlar --------------------------------------------------------------
@@ -588,6 +591,7 @@ export function areaAt(x, z) {
   if (isInsideBar(x, z)) return 'bar';
   if (isInsideCasino(x, z)) return 'casino';
   if (isInsideRestaurant(x, z)) return 'restaurant';
+  if (isInsideBasement(x, z)) return 'basement';
   if (isInsideAlley(x, z)) return 'alley';
   if (isInsideSteeg(x, z)) return 'steeg';
   for (const h of PLAYER_HOUSES) if (isInsideHouseDef(h, x, z)) return h.id;

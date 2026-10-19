@@ -1,0 +1,96 @@
+/* −1. Kat VIP Eğlence Katı: oyun modu paneli (skor, durum, güç çubuğu, düğmeler), atari ekranı, asansörün −1 düğmesi. */
+
+#bm-hud {
+  position: fixed;
+  top: calc(132px + var(--safe-t));
+  right: calc(8px + var(--safe-r));
+  width: 270px;
+  z-index: 9;
+  pointer-events: auto;
+  font-size: 12.5px;
+  border-color: rgba(255, 43, 214, .45);
+  box-shadow: 0 0 14px rgba(255, 43, 214, .25);
+}
+.bm-title { font-weight: 800; font-size: 14px; color: #ff9be8; margin-bottom: 3px; }
+.bm-lines { line-height: 1.38; }
+.bm-lines > div:first-child { font-weight: 700; color: #fff; }
+.bm-lines > div:not(:first-child) { color: var(--muted); }
+.bm-power {
+  height: 9px;
+  margin: 6px 0 2px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, .45);
+  border: 1px solid rgba(255, 255, 255, .25);
+  overflow: hidden;
+}
+.bm-power[hidden] { display: none; }
+.bm-power > i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #28e7ff, #ffd23f 60%, #ff2bd6);
+  transform-origin: left;
+  transform: scaleX(0);
+}
+.bm-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.bm-btns button {
+  flex: 1 1 auto;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(255, 255, 255, .07);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bm-btns button[hidden] { display: none; }
+.bm-btns .bm-quit { border-color: rgba(255, 90, 79, .55); }
+.bm-btns .bm-ai { border-color: rgba(40, 231, 255, .55); }
+
+/* Oyun modunda oda listesi gibi kalabalık paneller gizlenir (mobilde yer açılır) */
+body.bm-playing #panel-rooms, body.bm-playing #rest-orders { display: none; }
+
+/* Atari */
+.bm-arcade-card { width: min(420px, 100%); text-align: center; }
+.bm-screen {
+  width: 100%;
+  max-width: 384px;
+  aspect-ratio: 4 / 3;
+  image-rendering: pixelated;
+  border-radius: 10px;
+  border: 3px solid #ffd23f;
+  box-shadow: 0 0 18px rgba(255, 210, 63, .35), inset 0 0 0 2px #000;
+  background: #05020c;
+  touch-action: none;
+}
+.bm-pad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 8px auto 0; max-width: 384px; }
+.bm-key {
+  min-height: 46px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .25);
+  background: rgba(255, 255, 255, .08);
+  color: #fff;
+  font-size: 20px;
+  touch-action: none;
+  user-select: none;
+}
+.bm-key.bm-fire { background: rgba(255, 43, 214, .25); border-color: rgba(255, 43, 214, .6); }
+.bm-board { margin: 8px 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.bm-board-t { font-weight: 800; color: #ffd23f; }
+.bm-actions { display: flex; gap: 8px; justify-content: center; }
+.bm-actions button { flex: 1 1 0; }
+.bm-actions button[hidden] { display: none; }
+
+/* Asansör: −1 durağı */
+.lift-btn.basement { grid-column: 1 / -1; border-radius: 27px; font-size: 18px; background: #2a0d2e; color: #ff9be8; border-color: #ff2bd6; }
+.lift-btn.basement.here { background: #ff2bd6; color: #1a0420; }
+
+@media (max-width: 560px) {
+  #bm-hud { width: 220px; top: calc(118px + var(--safe-t)); font-size: 11.5px; }
+}
+@media (max-height: 460px) {
+  #bm-hud { top: calc(8px + var(--safe-t)); right: calc(8px + var(--safe-r)); width: 230px; max-height: calc(100vh - 110px); overflow-y: auto; font-size: 11px; }
+  .bm-btns button { min-height: 30px; }
+  .bm-pad .bm-key { min-height: 38px; }
+}
+body.phone-cam #bm-hud { display: none; }

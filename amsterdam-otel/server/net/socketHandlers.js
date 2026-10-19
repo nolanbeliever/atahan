@@ -236,6 +236,18 @@ export function attachSocketHandlers(io, sim) {
       reply(ack, sim.dragAct(player.id, data));
     });
 
+    // ---- −1. Kat VIP Eğlence Katı (tipler, konum, sıra, bakiye BasementService'te doğrulanır) ----
+    const allowBasement = rateLimiter(6, 10);
+    on(EVT.BASEMENT_ACT, (data, ack) => {
+      if (!player || !allowBasement()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.basementAct(player.id, data));
+    });
+    // Gerçek zamanlı raket / top / çubuk konumları (ack yok; fazlası sessizce düşer)
+    const allowRt = rateLimiter(25, 30);
+    on(EVT.BASEMENT_RT, (data) => {
+      if (player && allowRt()) sim.basementRt(player.id, data);
+    });
+
     on('disconnect', () => {
       if (player) {
         sockets.delete(player.id);
