@@ -11,6 +11,7 @@
 
 import { GARAGE, DRAG, isOutdoors, isInsideSteeg, isInsideAlley, pointInBounds } from './layout.js';
 import { BASEMENT } from './basement.js';
+import { CARGO_DOCK } from './cargo.js';
 
 const KMH = 3.6;
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -292,6 +293,7 @@ export function bigArea(x, z) {
   if (pointInBounds(x, z, GARAGE.bounds, 2)) return 'garage';
   if (pointInBounds(x, z, DRAG.bounds, 2)) return 'drag';
   if (pointInBounds(x, z, BASEMENT.bounds, 2)) return 'basement'; // −1. Kat Eğlence Katı
+  if (pointInBounds(x, z, CARGO_DOCK.bounds, 2)) return 'dock'; // Mal Kabul Rampası (arka avlu)
   return 'city';
 }
 

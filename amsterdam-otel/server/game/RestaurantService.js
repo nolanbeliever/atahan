@@ -5,6 +5,7 @@ import { RESTAURANT, POINTS, ROOM_BY_ID, pointInBounds } from '../../shared/layo
 import { pathLength } from '../../shared/path.js';
 import { roomPrice } from '../../shared/hotel.js';
 import { VIP } from '../../shared/architecture.js';
+import { CARGO_EFFECTS } from '../../shared/cargo.js';
 import {
   RESTAURANT_RULES as R, BUFFET, DISHES, DISH_BY_ID, KITCHEN_INGREDIENT_BY_ID, COOK_METHODS, RESTAURANT_DINER_NAMES,
   LOBBY_TO_RESTAURANT, matchDish, dishByIngredients, restaurantRoute, restaurantSpawnFactor, stayFactor,
@@ -518,9 +519,13 @@ export class RestaurantService {
   /** Büfeyi tazele: kasadan malzeme parası; @returns hata metni ya da null */
   restockBuffet(byName) {
     if (this.buffet >= BUFFET.MAX) return 'Büfe zaten dolu.';
-    if (this.sim.money < BUFFET.REFILL_COST) return `Kasada malzeme parası yok (€${BUFFET.REFILL_COST}).`;
+    // Depoda restoran malzemesi (Mal Kabul Rampası) varsa tazeleme yarı fiyatına (1 birim stok)
+    const fresh = this.sim.cargo?.has('food') ?? false;
+    const cost = fresh ? Math.round(BUFFET.REFILL_COST * CARGO_EFFECTS.food.costMul) : BUFFET.REFILL_COST;
+    if (this.sim.money < cost) return `Kasada malzeme parası yok (€${cost}).`;
+    if (fresh) this.sim.cargo.use('food');
     this.buffet = Math.min(BUFFET.MAX, this.buffet + BUFFET.REFILL);
-    this.sim.spend(BUFFET.REFILL_COST, `🍳 Açık büfe tazelendi (${byName})`);
+    this.sim.spend(cost, `🍳 Açık büfe tazelendi (${byName})${fresh ? ' · depodan malzeme' : ''}`);
     this.changed();
     return null;
   }

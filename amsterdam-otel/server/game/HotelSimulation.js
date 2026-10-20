@@ -32,6 +32,7 @@ import { GarageService } from './GarageService.js';
 import { DragRaceService } from './DragRaceService.js';
 import { ValetService } from './ValetService.js';
 import { BasementService } from './BasementService.js';
+import { CargoDockService } from './CargoDockService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -106,6 +107,7 @@ export class HotelSimulation extends EventEmitter {
     this.drag = new DragRaceService(this); // drag pisti: zamanlama, düello, liderlik tablosu
     this.valet = new ValetService(this); // VIP vale + garajdaki oto yıkama
     this.basement = new BasementService(this); // −1. Kat VIP Eğlence Katı: bilardo, langırt, masa tenisi, atari, bowling
+    this.cargo = new CargoDockService(this); // Mal Kabul Rampası: toptancı tırları, paletler, transpalet, yük asansörü, depo stoku
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -184,6 +186,7 @@ export class HotelSimulation extends EventEmitter {
       restaurant: { ...this.restaurant.persisted(), staff: this.kitchen.persisted() },
       street: this.street.persisted(),
       basement: this.basement.persisted(),
+      cargo: this.cargo.persisted(),
     };
   }
 
@@ -205,6 +208,7 @@ export class HotelSimulation extends EventEmitter {
     this.kitchen.restore(h.restaurant?.staff);
     this.street.restore(h.street);
     this.basement.restore(h.basement);
+    this.cargo.restore(h.cargo);
     if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
     const t = h.today;
     if (t && typeof t === 'object') {
@@ -240,6 +244,7 @@ export class HotelSimulation extends EventEmitter {
       this.restaurant.shiftTime(now - this.pausedAt);
       this.kitchen.shiftTime(now - this.pausedAt);
       this.basement.shiftTime(now - this.pausedAt);
+      this.cargo.shiftTime(now - this.pausedAt);
       this.pausedAt = null;
     }
     this.lastTick = now;
@@ -290,6 +295,7 @@ export class HotelSimulation extends EventEmitter {
     this.drag.update(now);
     this.valet.update(now);
     this.basement.update(now);
+    this.cargo.update(now);
     this.house.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
@@ -318,6 +324,7 @@ export class HotelSimulation extends EventEmitter {
     this.notify(text, 'day');
     this.relations.onNewDay();
     this.street.onNewDay(); // Achterstraat dükkânlarının kirası kasaya, komisyon cüzdanlara
+    this.cargo.onNewDay(); // depo stoku bozulur / tükenir, toptancı fırsatı
     this.out(EVT.ECONOMY, this.economy());
     this.broadcastClock(now);
     this.house.scheduleSave(); // yeni gün kayda geçsin
@@ -362,6 +369,7 @@ export class HotelSimulation extends EventEmitter {
     this.bar.initPlayer(p);
     this.restaurant.initPlayer(p);
     this.valet.initPlayer(p);
+    this.cargo.initPlayer(p);
     this.house.initPlayer(p); // oturumluk ev erişimi + kayıtlı cüzdan
     this.relations.initPlayer(p); // kayıtlı arkadaşlık seviyeleri
     this.vehicles.initPlayer(p); // sahip olduğu araçlar son park yerinde belirir
@@ -387,6 +395,7 @@ export class HotelSimulation extends EventEmitter {
     this.drag.removePlayer(p); // drag yarışındaysa DNF
     this.valet.removePlayer(p); // VIP aracının anahtarı sendeyse müşteri arabasını geri alır
     this.basement.removePlayer(p); // Eğlence Katı: masadan / kulvardan / makineden kalkar
+    this.cargo.removePlayer(p); // transpalet bırakılır (taşınan palet rampaya)
     this.vehicles.removePlayer(p); // sürüyorsa park eder; araçları kayda geçer
     this.house.removePlayer(p); // bekleyen ziller, cüzdan ve ev sahibi kaydı
     this.players.delete(id);
@@ -660,6 +669,10 @@ export class HotelSimulation extends EventEmitter {
     return p ? this.basement.relay(p, data) : false;
   }
 
+  // ---- Mal Kabul Rampası & Transpalet ------------------------------------------------------
+
+  cargoAct(playerId, data) { return this.withPlayer(playerId, (p) => this.cargo.act(p, data, this.now())); }
+
   // ---- Yeraltı Kart Kulübü ---------------------------------------------------------
 
   casinoAct(playerId, data) { return this.withPlayer(playerId, (p) => this.casino.act(p, data, this.now())); }
@@ -777,6 +790,7 @@ export class HotelSimulation extends EventEmitter {
       drag: this.drag.serialize(), // drag pisti: faz, ışık ağacı zamanları, son sonuçlar, liderlik tablosu
       valet: this.valet.serialize(), // VIP vale işleri: anahtar, çamur noktaları, hasar
       basement: this.basement.serialize(), // Eğlence Katı: masalar, kulvarlar, atari makineleri, rekorlar
+      cargo: this.cargo.serialize(), // Mal Kabul: stok, tırlar, paletler, transpaletler, yük asansörü
     };
   }
 }

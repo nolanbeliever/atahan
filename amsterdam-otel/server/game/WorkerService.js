@@ -1,6 +1,7 @@
 import { EVT, ROOM_STATUS, TIP_MIN, TIP_MAX, roomFloor } from '../../shared/constants.js';
 import { ROOM_BY_ID, STAFF_ROOM } from '../../shared/layout.js';
 import { pathLength } from '../../shared/path.js';
+import { CARGO_EFFECTS } from '../../shared/cargo.js';
 import { ISSUE_IDS, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import {
   WORKER_RULES, WORKER_NAMES, REPUTATION, workerTaskMs, workerLevel,
@@ -337,7 +338,8 @@ export class WorkerService {
       return;
     }
     room.startedAt ??= now;
-    const ms = workerTaskMs(this.sim.growth.stars, this.level(w));
+    // Depoda temizlik malzemesi (Mal Kabul Rampası) varsa iş %30 daha kısa (1 birim stok)
+    const ms = Math.round(workerTaskMs(this.sim.growth.stars, this.level(w)) * (this.sim.cargo?.use('clean') ? CARGO_EFFECTS.clean.timeMul : 1));
     const [x, z] = this.lastPoint(w);
     const tgt = taskSpot(layout, w.task);
     const face = w.task.kind === 'trash' ? 0 : Math.atan2(tgt[0] - x, tgt[1] - z);

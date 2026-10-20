@@ -1,6 +1,7 @@
 import { EVT, GUEST_SPEED, GUEST_PHASE as GP, ROOM_STATUS, roomFloor } from '../../shared/constants.js';
 import { POINTS, ELEVATOR, ROOM_BY_ID } from '../../shared/layout.js';
 import { pathLength } from '../../shared/path.js';
+import { CARGO_EFFECTS } from '../../shared/cargo.js';
 import {
   BASEMENT, BASEMENT_GAMES, BASEMENT_RULES as R, ARCADE_GAMES_DEF, BASEMENT_NPC_NAMES, AI_NAME,
   stationDef, nearStation, bowlingStatus, basementRouteIn, basementRouteOut, basementSpawnFactor, isInsideBasement,
@@ -936,7 +937,8 @@ export class BasementService {
       this.stand(n, PH.PLAY, n.spot.at, n.spot.face, now);
       // Ücret varışta kasaya (VIP 2×)
       const g = BASEMENT_GAMES[n.session.game];
-      const fee = g.npcFee * (n.vip ? R.VIP_MUL : 1);
+      // Depoda eğlence katı malzemesi (Mal Kabul Rampası) varsa +€ (1 birim stok)
+      const fee = g.npcFee * (n.vip ? R.VIP_MUL : 1) + (this.sim.cargo?.use('fun') ? CARGO_EFFECTS.fun.bonus : 0);
       this.stats.npcIncome += fee;
       this.sim.earn(fee, `${g.icon} Eğlence Katı: ${g.name} (${n.name})`, { guest: false });
       return true;

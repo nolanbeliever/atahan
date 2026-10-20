@@ -655,6 +655,38 @@ tenisi, langırt ve bowling arkadaşlarla oynanır; atari makineleri tek kişili
   başına tek mesh, neon şeritler ışıksız MeshBasic (gerçek ışık eklenmez); skor ekranı ve atari ekranları yalnızca
   durum değişince çizilir; oyun / animasyon yokken kare çizilmez.
 
+## Mal Kabul Rampası & Transpalet (CargoDockManagement)
+
+Otelin arka avlusunda iki rampalı mal kabul salonu. **Achterstraat'ın batı ucundaki demir servis kapısından** (E) ya da
+hızlı ışınlanmadan (🚚 Mal Kabul Rampası) gidilir; salonun batı kapısından Achterstraat'a dönülür. Fizik 2B olduğu için
+avlu dünyanın ayrı bir köşesindedir (x 104..136, z 14..54; `shared/cargo.js` → `CARGO_DOCK`).
+
+- **Toptancı siparişi:** Resepsiyon PC → **🚚 Mal Kabul** sekmesi ya da salondaki **📋 sevkiyat ofisi** terminali. Palet
+  türleri: 🥩 restoran malzemesi (€90), 🥤 bar içecekleri — alkolsüz (€70), 🎳 eğlence katı malzemesi (€80), 🧴 temizlik &
+  oda malzemesi (€50); tür başına en fazla 4 palet, sipariş başına €40 nakliye. Bedel **otelin kasasından**. Aynı anda
+  en fazla 3 sipariş yolda. Bazı sabahlar bir türde %30 **toptancı fırsatı**; tür başına **otomatik sipariş** (stok 15
+  birimin altına inince 2 palet).
+- **NPC tırı:** 20–40 sn sonra avlu kapısından girer, boş rampaya geri geri yanaşır (geri vites ikazı); paletler dorsenin
+  içinde fiziksel nesnelerdir (2 × 8 yer, arkadan öne). Dorse boşalınca tır ayrılır. 6 dk dolu bekletilirse şoför
+  **bekletme ücreti** (€25, en fazla 2 kez) ister, sonra kalan paletleri rampaya indirip gider.
+- **🛻 Transpalet (2 adet, co-op):** park yerinde E ile alınır, FPV sürülür: **W/S** ileri-geri (yavaş), **A/D** ya da fare
+  dön (yerinde döner), **E** kaldır / indir, **Q** transpaletten in. Çatalları paletin altına sokup hizala (HUD: "palet
+  30 cm solda", açı; palet 4 yönlüdür) → E ile kaldır. Taşınan palet duvara / palete **sertçe çarparsa hasar görür**
+  (durum düşer → stok değeri azalır). **Yük asansörünün** kabinine (2 palet) indir, kolondaki **GÖNDER** ile asansörü
+  depoya yolla (7 sn): her palet **10 × durum** birim stok ekler. Diğer oyuncuların transpaleti ve taşıdığı palet
+  görünür; iki oyuncu birlikte indirebilir. Dokunmatikte joystick + Aksiyon düğmesi ("Kaldır / İndir / Gönder").
+- **Depo stoku ve etkileri** (her kullanım 1 birim; gün başında bozulma: mutfak %20, bar %10, diğerleri %5):
+  açık büfe tazeleme **yarı fiyatına** (€24 → €12), her bar içeceğinde **+€1** kâr, Eğlence Katı misafirleri **+€2**
+  öder, temizlikçiler **%30 daha hızlı**. Kancalar: `sim.cargo.has(type)` / `sim.cargo.use(type)`.
+- **Tır sistemi API'si:** `sim.cargo.deliver({ by, items: [{ type, count }], source })` — paletler Rampa 1'deki dorseye
+  (`CARGO_DOCK.truckBay`: dorse merkezi + yönü; doluysa Rampa 2, o da doluysa sıra) yerleşir; 16 paletlik dorselere
+  bölünür, tek seferde en fazla 32 palet.
+- **Sunucu yetkili:** paletler, transpalet sahipliği, hizalama (çatal ortası ↔ palet merkezi + açı), kabin, asansör,
+  sipariş ve para `CargoDockService`'te doğrulanır; durum `hotelState` ile kalıcıdır. Testlerde rastgele toptancı
+  olayları `cargoSuppliers: false` ile kapanır.
+- **Pil:** salon / avlu StaticBatcher ile malzeme başına tek mesh, lambalar ışıksız; avlu grubu yalnızca oradayken
+  görünür; tır / asansör animasyonu ve sürüş yokken kare çizilmez.
+
 ## Bar müdavimleriyle arkadaşlık
 
 Bar De Tulp'un müşterileri 12 kişilik sabit bir müdavim kadrosundan gelir (Sanne, Daan, Emma, Lars…); her birinin
@@ -733,6 +765,7 @@ amsterdam-otel/
 │       ├── RestaurantService.js # Gurme Restoran: masalar, müşteriler (otel misafirleri / VIP), açık büfe, mutfak adımları, memnuniyet
 │       ├── KitchenStaffService.js # Aşçı / garson NPC'leri: iş adımları (pişir → pass → masa), büfe tazeleme, seviye
 │       ├── BasementService.js   # −1. Kat Eğlence Katı: bilardo kuralları + bilgisayar rakip, bowling skoru, masa tenisi / langırt maçları, atari jetonu + rekorlar, NPC misafirler
+│       ├── CargoDockService.js  # Mal Kabul Rampası: toptancı siparişi, NPC tırları, paletler, transpalet, yük asansörü, depo stoku + etkileri, deliver() API
 │       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
 │       ├── MarketingService.js  # InstaHotel: gönderi doğrulama, beğeni / takipçi artışı, kampanya → turist akını (boost)
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
@@ -755,6 +788,7 @@ amsterdam-otel/
 │   ├── street.js                # Achterstraat mülkleri (fiyat, kira, cephe yerleşimi), King kuralları
 │   ├── restaurant.js            # Restoran: 24 malzeme, 7 tabaklık menü, pişirme yöntemleri, kurallar, personel, NPC şerit rotaları
 │   ├── basement.js              # Eğlence Katı: yerleşim, istasyonlar, fiyatlar, NPC rotaları, bowling skoru
+│   ├── cargo.js                 # Mal Kabul Rampası: avlu / salon / rampa / dorse / yük asansörü yerleşimi, palet türleri, kurallar, tır animasyonu
 │   ├── basementPhysics.js       # Bilardo + bowling için deterministik 2B fizik (sunucu ve istemci aynı kod)
 │   ├── architecture.js          # Lüks paketler (fiyat, koşul, kat / temizlikçi sınırı), VIP suit kuralları, lounge geliri
 │   ├── stage.js                 # Canlı müzik sahnesi: yer, gruplar (ücret, kalabalık, bonus), set takvimi, kalabalık noktaları
@@ -765,7 +799,7 @@ amsterdam-otel/
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css, basement.css)
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css, basement.css, cargo.css)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
@@ -800,6 +834,7 @@ amsterdam-otel/
 │       │   ├── StreetMonopoly.js    # Dükkân cepheleri + Achterstraat Oost, kapıdaki emlak kartı, "Achterstraat Real Estate" (telefon + PC), King rozeti / taç
 │       │   ├── KitchenSystem.js     # FPV mutfak: buzdolabı seçici, tava / fırın / tezgâh, tabaklama, servis, menü kütüphanesi, mutfak elleri
 │       │   ├── EntertainmentBasement.js # −1. Kat Eğlence Katı: merdiven / asansör, istasyon etkileşimi, oyun modu (FPV kamera, HUD), atari paneli, sesler (world/BasementBuilding.js)
+│       │   ├── CargoDockManagement.js # Mal Kabul Rampası: servis kapısı, FPV transpalet sürüşü, kaldır / indir, yük asansörü, tır animasyonu, 🚚 Mal Kabul sekmesi (world/CargoDockBuilding.js)
 │       │   ├── basement/            # PoolGame, BowlingGame, PongGame, FoosGame (FPV oyunlar), ArcadeGames (Neon Yılan, Tuğla Kırıcı, Lale İstilası)
 │       │   ├── HomeCounterfeitSystem.js # Ev matbaası: kurulum, baskı, polis baskını bandı, gizli bölme, polis
 │       │   ├── FastTravelSystem.js  # Hızlı ışınlanma paneli (M / telefonda 🗺️)
@@ -813,7 +848,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC), mal kabul (sipariş, tır, transpalet, asansör, stok etkileri)
 ```
 
 ## Sonraki aşamalar için notlar
