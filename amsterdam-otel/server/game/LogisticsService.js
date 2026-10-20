@@ -1,7 +1,11 @@
 import { EVT } from '../../shared/constants.js';
 import { CAR_BY_ID, isTruck, carSpeedCap } from '../../shared/cars.js';
-import { SITE_BY_ID, HOTEL_DELIVERY, siteDistance } from '../../shared/worldmap.js';
-import { CARGO_TYPES, CARGO_BY_ID, LOGI_RULES as R, offerTerms, deliveryPay, hitDamage } from '../../shared/logistics.js';
+import { SITE_BY_ID, HOTEL_DELIVERY, siteDistance, routeTo, destinationPoint } from '../../shared/worldmap.js';
+import {
+  CARGO_TYPES, CARGO_BY_ID, LOGI_RULES as R, offerTerms, deliveryPay, hitDamage, HAUL_COMPANIES, HAUL_GOODS, HAUL_GOOD_BY_ID, HAUL_RULES,
+  haulTerms,
+} from '../../shared/logistics.js';
+import { CAR_BY_ID as CARS } from '../../shared/cars.js';
 
 const int = (v) => (Number.isInteger(v) ? v : -1);
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -30,6 +34,10 @@ function prng(seed) {
  *    değeri, şoföre (cüzdan) ücret; dorse ayrılır. Ardından `sim.cargo?.deliver?.({ by, items, source })`
  *    çağrılır (Mal Kabul / transpalet sistemi paletleri indirir). `{ handled: true }` dönerse kasaya ayrıca
  *    değer yazılmaz (stok o sistemde işlenir).
+ *  - Kiralık şoförlük (job.kind 'haul'): tır gerekmez — nakliye firmasının tırı (kayda girmeyen geçici araba,
+ *    v.haul) avludaki tır parkına gelir, yalnızca işi alan sürer (arkadaşlar yolcu olabilir). Firmanın malını
+ *    bir depodan / limandan diğerine taşır; kasaya dokunulmaz, ücret cüzdana (HAUL_RULES.FEE_MUL ile düşük).
+ *    İş bitince (teslim / iptal / çıkış) tır firmaya döner (dünyadan kalkar).
  *  - Hasar: yüklü dorseyle çarpmaları istemci bildirir ({ act: 'hit', kmh }); hız bölge sınırıyla, sıklık
  *    0.7 sn ile sınırlanır. Durmuş sayılma (yükleme / teslim) sunucunun kendi hız ölçümüyle denetlenir.
  *
@@ -56,6 +64,7 @@ export class LogisticsService {
     this.sim = sim;
     this.rand = prng(0x7a11 ^ (sim.config.logisticsSeed ?? 0));
     this.offers = [];
+    this.hauls = []; // kiralık şoförlük ilanları
     this.jobs = new Map(); // id → iş
     this.byPlayer = new Map(); // oyuncu id → iş id
     this.track = new Map(); // oyuncu id → { x, z, t, speed, stillSince }
@@ -126,13 +135,33 @@ export class LogisticsService {
     return { id: `o${this.seq++}`, cargo: c.id, site: c.site, pallets, dist, ...terms, expires: now + R.OFFER_TTL_MS * (0.6 + this.rand() * 0.8) };
   }
 
+  /** Kiralık şoförlük ilanı: firma, yük, iki farklı yer (yükleme → boşaltma) */
+  makeHaul(now) {
+    const sites = HAUL_RULES.SITES;
+    const from = sites[Math.floor(this.rand() * sites.length)];
+    const rest = sites.filter((x) => x !== from);
+    const to = rest[Math.floor(this.rand() * rest.length)];
+    const goods = HAUL_GOODS[Math.floor(this.rand() * HAUL_GOODS.length)].id;
+    const company = HAUL_COMPANIES[Math.floor(this.rand() * HAUL_COMPANIES.length)];
+    const pallets = HAUL_RULES.MIN_PALLETS + Math.floor(this.rand() * (HAUL_RULES.MAX_PALLETS - HAUL_RULES.MIN_PALLETS + 1));
+    const a = destinationPoint(from);
+    const leg = routeTo(a[0], a[1], to)?.length ?? siteDistance(to);
+    const dist = Math.round(siteDistance(from) + leg);
+    return { id: `h${this.seq++}`, kind: 'haul', company, goods, site: from, to, pallets, dist, ...haulTerms(pallets, dist), expires: now + R.OFFER_TTL_MS * (0.6 + this.rand() * 0.8) };
+  }
+
   /** Eksik / süresi dolan teklifler tamamlanır. @returns {boolean} değişti mi */
   refill(now) {
-    const before = this.offers.length;
+    const before = this.offers.length + this.hauls.length;
     this.offers = this.offers.filter((o) => o.expires > now);
-    let changed = this.offers.length !== before;
+    this.hauls = this.hauls.filter((o) => o.expires > now);
+    let changed = this.offers.length + this.hauls.length !== before;
     while (this.offers.length < R.OFFERS) {
       this.offers.push(this.makeOffer(now));
+      changed = true;
+    }
+    while (this.hauls.length < HAUL_RULES.OFFERS) {
+      this.hauls.push(this.makeHaul(now));
       changed = true;
     }
     return changed;
@@ -149,12 +178,14 @@ export class LogisticsService {
     return {
       id: j.id, ownerId: j.ownerId, ownerName: j.ownerName, site: j.site, cargo: j.cargo, pallets: j.pallets, state: j.state,
       wholesale: j.wholesale, value: j.value, fee: j.fee, deadline: j.deadline, damage: r2(j.damage), legal: j.legal,
+      ...(j.kind === 'haul' ? { kind: 'haul', company: j.company, goods: j.goods, to: j.to, vehicleId: j.vehicleId } : {}),
     };
   }
 
   serialize() {
     return {
       offers: this.offers.map((o) => ({ ...o })),
+      hauls: this.hauls.map((o) => ({ ...o })),
       jobs: [...this.jobs.values()].map((j) => this.publicJob(j)),
       agents: [...this.agents.values()],
       stats: { ...this.stats },
@@ -234,6 +265,7 @@ export class LogisticsService {
 
   accept(p, offerId, now) {
     if (this.jobOf(p)) return { ok: false, error: 'Zaten bir sevkiyatın var — önce onu bitir ya da iptal et.' };
+    if (typeof offerId === 'string' && offerId.startsWith('h')) return this.acceptHaul(p, offerId, now);
     const hasTruck = (p.carRecs ?? []).some((r) => isTruck(r.m));
     if (!hasTruck) return { ok: false, error: 'Önce bir tır al (🚛 TruckCenter, lojistik avlusunda).' };
     this.refill(now);
@@ -255,6 +287,38 @@ export class LogisticsService {
     return { ok: true, job: this.publicJob(job), text: `${site.icon} ${site.name}: ${job.pallets} palet ${CARGO_BY_ID[job.cargo].name.toLocaleLowerCase('tr-TR')} — tırınla git, yükleme körfezinde dur ve E.` };
   }
 
+  /** Kiralık şoförlük: firmanın tırı avludaki tır parkına gelir; tır gerekmez, kasaya dokunulmaz */
+  acceptHaul(p, offerId, now) {
+    this.refill(now);
+    const i = this.hauls.findIndex((o) => o.id === offerId);
+    if (i < 0) return { ok: false, error: 'Bu ilan artık yok.' };
+    const o = this.hauls[i];
+    this.hauls.splice(i, 1);
+    const model = CARS[HAUL_RULES.TRUCK];
+    const spot = this.sim.garage.deliverySpot(model.id);
+    const v = this.sim.vehicles.spawn({ id: p.id, keyHash: null, name: o.company }, 'car', { x: spot.x, z: spot.z, yaw: spot.yaw });
+    v.model = model.id;
+    v.color = Math.floor(this.rand() * model.colors.length);
+    const job = {
+      id: `j${this.seq++}`, kind: 'haul', company: o.company, goods: o.goods, to: o.to, ownerId: p.id, ownerName: p.name,
+      site: o.site, cargo: null, pallets: o.pallets, dist: o.dist, wholesale: 0, value: 0, fee: o.fee, timeSec: o.timeSec, legal: true,
+      hidden: [], state: 'accepted', acceptedAt: now, loadedAt: 0, deadline: now + o.timeSec * 1000, damage: 0, vehicleId: v.id, lastHit: 0,
+    };
+    v.haul = job.id;
+    this.jobs.set(job.id, job);
+    this.byPlayer.set(p.id, job.id);
+    this.refill(now);
+    this.sim.vehicles.broadcast();
+    this.emitEvent('jobStart', { job, p });
+    this.changed();
+    const s = SITE_BY_ID[o.site];
+    const g = HAUL_GOOD_BY_ID[o.goods];
+    return {
+      ok: true, job: this.publicJob(job), bay: spot.bay,
+      text: `${o.company}: tırımız avludaki tır parkında${spot.bay ? ` (${spot.bay})` : ''} — ${o.pallets} palet ${g.name.toLocaleLowerCase('tr-TR')} · yükleme: ${s.icon} ${s.name} → boşaltma: ${SITE_BY_ID[o.to].icon} ${SITE_BY_ID[o.to].name}.`,
+    };
+  }
+
   /** Sürücüsü olduğu tır (yoksa hata mesajı) */
   myTruck(p) {
     const seat = p.vehicle;
@@ -271,10 +335,21 @@ export class LogisticsService {
     const { v, error } = this.myTruck(p);
     if (error) return { ok: false, error };
     const site = SITE_BY_ID[j.site];
+    if (j.kind === 'haul' && v.id !== j.vehicleId) return { ok: false, error: `${j.company}'in tırıyla yüklemelisin — avludaki tır parkında seni bekliyor.` };
     if (!inRect(site.load, p.x, p.z, 1.5)) return { ok: false, error: `Yükleme körfezine gir: ${site.name}.` };
     if (this.speedOf(p, now) * 3.6 > R.STOP_KMH) return { ok: false, error: 'Önce tamamen dur.' };
     const veto = this.emitEvent('load', { job: j, p, v });
     if (veto) return { ok: false, error: veto };
+    if (j.kind === 'haul') {
+      j.state = 'loaded';
+      j.loadedAt = now;
+      j.damage = 0;
+      v.trailer = { job: j.id, cargo: null, goods: j.goods, pallets: j.pallets };
+      this.sim.vehicles.broadcast();
+      this.emitEvent('loaded', { job: j, p, v });
+      this.changed();
+      return { ok: true, job: this.publicJob(j) };
+    }
     if (!(this.sim.money >= j.wholesale)) return { ok: false, error: `Otel kasasında toptan alım için €${j.wholesale.toLocaleString('nl-NL')} yok.` };
     this.sim.spend(j.wholesale, `🚛 Toptan alım: ${j.pallets} palet ${CARGO_BY_ID[j.cargo].name} (${site.short})`);
     j.state = 'loaded';
@@ -294,6 +369,7 @@ export class LogisticsService {
     const { v, error } = this.myTruck(p);
     if (error) return { ok: false, error };
     if (v.id !== j.vehicleId || !v.trailer) return { ok: false, error: 'Yük başka bir tırda.' };
+    if (j.kind === 'haul') return this.deliverHaul(j, p, v, now);
     if (!inRect(HOTEL_DELIVERY.zone, p.x, p.z, 1.5)) return { ok: false, error: 'Avludaki 🏨 mal kabul körfezine gir.' };
     if (this.speedOf(p, now) * 3.6 > R.STOP_KMH) return { ok: false, error: 'Önce tamamen dur.' };
     const veto = this.emitEvent('deliver', { job: j, p, v });
@@ -324,6 +400,41 @@ export class LogisticsService {
     return { ok: true, ...pay, handled, text: msg };
   }
 
+  /** Kiralık şoförlük teslimi: boşaltma yerinde; ücret (düşük) cüzdana, kasaya dokunulmaz, tır firmaya döner */
+  deliverHaul(j, p, v, now) {
+    const site = SITE_BY_ID[j.to];
+    if (!inRect(site.load, p.x, p.z, 1.5)) return { ok: false, error: `Boşaltma körfezine gir: ${site.name}.` };
+    if (this.speedOf(p, now) * 3.6 > R.STOP_KMH) return { ok: false, error: 'Önce tamamen dur.' };
+    const veto = this.emitEvent('deliver', { job: j, p, v });
+    if (veto) return { ok: false, error: veto };
+    const pay = deliveryPay(j, now);
+    if (pay.fee > 0) {
+      p.wallet += pay.fee;
+      this.sim.shop.sendSelf(p);
+    }
+    this.stats.deliveries++;
+    this.stats.pallets += j.pallets;
+    this.stats.km = r2(this.stats.km + j.dist / 1000);
+    this.stats.fees += pay.fee;
+    this.endJob(j, p, 'delivered', { ...pay, handled: true });
+    this.sim.house.scheduleSave?.();
+    const msg = `📦 ${j.company}: ${j.pallets} palet ${HAUL_GOOD_BY_ID[j.goods].name.toLocaleLowerCase('tr-TR')} teslim! Şoför ücreti +€${pay.fee}${pay.late ? ' (geç kaldın)' : ' (zamanında ⏱)'}${j.damage > 0.01 ? ` · hasar %${Math.round(j.damage * 100)}` : ''} — tır firmaya döndü.`;
+    this.sim.toPlayer(p.id, EVT.NOTIFY, { text: msg, kind: 'money' });
+    return { ok: true, ...pay, handled: true, text: msg };
+  }
+
+  /** Firmanın tırı dünyadan kalkar (sürücü / yolcu indirilir) */
+  returnHaulTruck(j) {
+    const v = this.sim.vehicles.vehicles.get(j.vehicleId);
+    if (!v || v.haul !== j.id) return;
+    for (const id of [v.driver, v.passenger]) {
+      const q = id != null ? this.sim.players.get(id) : null;
+      if (q?.vehicle?.id === v.id) this.sim.vehicles.dismount(q, { force: true });
+    }
+    this.sim.vehicles.vehicles.delete(v.id);
+    this.track.delete(j.ownerId);
+  }
+
   cancel(p) {
     const j = this.jobOf(p);
     if (!j) return { ok: false, error: 'Aktif sevkiyatın yok.' };
@@ -341,6 +452,10 @@ export class LogisticsService {
     const v = j.vehicleId != null ? this.sim.vehicles.vehicles.get(j.vehicleId) : null;
     if (v?.trailer) {
       v.trailer = null;
+      this.sim.vehicles.broadcast();
+    }
+    if (j.kind === 'haul') {
+      this.returnHaulTruck(j);
       this.sim.vehicles.broadcast();
     }
     this.jobs.delete(j.id);

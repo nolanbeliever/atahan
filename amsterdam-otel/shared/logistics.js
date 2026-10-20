@@ -10,6 +10,9 @@
 //    yükü stoğa kendisi işlerse ({ handled: true } döner) kasaya ayrıca değer yazılmaz.
 //  - Şoför ücreti (oyuncunun cüzdanına): mesafe ve palete göre; zamanında +%20, geç −%40, hasarla azalır.
 //  - Yükten önce iptal ücretsiz; yükten sonra iptal / oyundan çıkış → yük depoya iade, W'nin yarısı geri.
+//  - Kiralık şoförlük (HAUL_*): tır gerekmez — nakliye firmasının tırı avludaki tır parkına getirilir; başka
+//    firmanın malını bir depodan / limandan diğerine taşırsın. Kasaya dokunulmaz (mal senin / otelin değil);
+//    şoför ücreti cüzdana, kendi tırınla yapılan işe göre DÜŞÜK (HAUL_RULES.FEE_MUL). Teslimden sonra tır firmaya döner.
 
 const freeze = Object.freeze;
 const byId = (list) => freeze(Object.assign(Object.create(null), Object.fromEntries(list.map((x) => [x.id, x]))));
@@ -70,4 +73,38 @@ export function deliveryPay(job, now) {
 /** Çarpma hızından hasar payı */
 export function hitDamage(kmh) {
   return Math.min(LOGI_RULES.HIT_MAX, 0.02 + (kmh / 90) ** 2 * 0.32);
+}
+
+// ---- Kiralık şoförlük: başkalarının tırı, başkalarının malı -------------------------------------------
+
+/** Nakliye firmaları (kurgusal) */
+export const HAUL_COMPANIES = freeze(['Van Dijk Transport', 'Oranje Logistiek', 'Kaasland Vracht', 'Tulpen Express', 'Noordzee Cargo']);
+
+/** Firmaların taşıttığı (otelle ilgisi olmayan) yükler */
+export const HAUL_GOODS = freeze([
+  freeze({ id: 'furniture', icon: '🛋️', name: 'Mobilya' }),
+  freeze({ id: 'appliances', icon: '📺', name: 'Beyaz eşya & elektronik' }),
+  freeze({ id: 'flowers', icon: '💐', name: 'Çiçek & fide' }),
+  freeze({ id: 'textile', icon: '👕', name: 'Tekstil' }),
+  freeze({ id: 'paper', icon: '📦', name: 'Karton & kâğıt' }),
+  freeze({ id: 'tiles', icon: '🧱', name: 'Yapı malzemesi' }),
+]);
+export const HAUL_GOOD_BY_ID = byId(HAUL_GOODS);
+
+export const HAUL_RULES = freeze({
+  OFFERS: 3, // panodaki kiralık şoförlük ilanı
+  FEE_MUL: 0.45, // ücret: aynı mesafe / palette kendi tırınla yapılan işin %45'i
+  TRUCK: 'brabant-titan', // firmanın verdiği tır
+  SITES: freeze(['food', 'drinks', 'fun', 'port']), // yükleme / boşaltma yerleri (iki farklı yer)
+  MIN_PALLETS: 8,
+  MAX_PALLETS: 18,
+});
+
+/** Kiralık şoförlük ücreti + süre: dist = avlu → yükleme + yükleme → boşaltma (m) */
+export function haulTerms(pallets, distM) {
+  const R = LOGI_RULES;
+  const km = distM / 1000;
+  const fee = Math.round((R.FEE_BASE + R.FEE_PER_KM * km * (0.5 + pallets / 24)) * HAUL_RULES.FEE_MUL);
+  const timeSec = Math.round(distM / (R.AVG_KMH / 3.6) + R.SLACK_SEC);
+  return { wholesale: 0, value: 0, fee, timeSec };
 }

@@ -755,6 +755,12 @@ Resepsiyon PC → **👥 Personel 2.0**: bütün çalışanlar tek ekranda, rol 
   eğlence katı malzemesi, ithal gurme ürün. Yüklü dorseyle çarpma (duvar / bariyer / trafik) hasar yazar ve değeri
   düşürür. Yükten sonra iptal ya da oyundan çıkış: toptan fiyatın yarısı iade. Teslimde `sim.cargo.deliver(...)`
   çağrılır (Mal Kabul paletleri); `{ handled: true }` dönerse değer kasaya ayrıca yazılmaz.
+- **🚚 Kiralık şoförlük (başkalarının tırı, başkalarının malı):** panodaki ayrı ilanlar (3 adet) — **tır gerekmez**.
+  Kurgusal nakliye firmalarının (Van Dijk Transport, Oranje Logistiek…) tırı avludaki tır parkına getirilir; yalnızca
+  işi alan sürer (arkadaşlar yolcu olabilir). Firmanın malını (mobilya, beyaz eşya, çiçek, tekstil, karton, yapı
+  malzemesi) bir depodan / limandan **diğerine** taşırsın: yükleme körfezinde E: yükle → boşaltma körfezinde E: boşalt.
+  Kasaya ve otel stoğuna dokunulmaz; **şoför ücreti cüzdana ve düşüktür** (aynı mesafe / palette kendi tırınla yapılan
+  işin ~%45'i; zamanında ×1.2, geç ×0.6, hasarla azalır). Teslim, iptal ya da oyundan çıkışta tır firmaya döner.
 - **Trafik:** otoyolda deterministik süs araçları (tek InstancedMesh); sunucunun yapay araçları (`logi:agents`,
   ileride polis — tepe lambası yanıp söner) ayrıca çizilir.
 - **Eklenti kancaları** (LogisticsService başındaki yorum): iş nesnesi `{ legal, hidden: [] }`, `on('jobStart' |

@@ -5,7 +5,7 @@ import {
   HWY, SERVICE_YARD, HOTEL_DELIVERY, SITES, SITE_BY_ID, ROADS, YARDS, ROAD_KMH, isDrivable, yardAt, routeTo, constrainToRoads,
   laneAt, trunkAt, TRUNK_LENGTH, inHighwayRegion,
 } from '/shared/worldmap.js';
-import { CARGO_BY_ID, LOGI_RULES, deliveryPay } from '/shared/logistics.js';
+import { CARGO_BY_ID, LOGI_RULES, deliveryPay, HAUL_GOOD_BY_ID, HAUL_RULES } from '/shared/logistics.js';
 import { StaticBatcher } from '../world/StaticBatcher.js';
 import { canvasTexture, drawAsphalt, drawConcrete, rng, signMaterial, panel } from '../world/CarWorldKit.js';
 import { setTrailer, articulate, turnTractor } from '../world/TruckModels.js';
@@ -594,7 +594,7 @@ class Traffic {
 export class LargeWorldMap {
   constructor({ engine, net, hud, interaction, player, collision, modal, device, settings, sfx, garage, vehicles, phone, reception, state, getWallet }) {
     Object.assign(this, { engine, net, hud, interaction, player, collision, modal, device, settings, sfx, garage, vehicles, phone, reception, state, getWallet });
-    this.st = { offers: [], jobs: [], agents: [], stats: {} };
+    this.st = { offers: [], hauls: [], jobs: [], agents: [], stats: {} };
     this.selfId = null;
     this.inRegion = false;
     this.pending = false;
@@ -708,7 +708,7 @@ export class LargeWorldMap {
     for (const v of this.vehicles.list) {
       if (v.type !== 'car' || !isTruck(v.model)) continue;
       const m = this.vehicles.meshes.get(v.id);
-      if (m) setTrailer(m.obj, v.trailer?.cargo ?? null);
+      if (m) setTrailer(m.obj, v.trailer ? (v.trailer.cargo ?? 'haul') : null); // kiralık şoförlük dorsesi: firma yükü
     }
     this.rerender();
   }
@@ -740,6 +740,19 @@ export class LargeWorldMap {
     const truck = this.drivingTruck();
     const job = this.myJob;
     if (truck && job?.legal === false && this.illegal) return this.illegal.findTarget(px, pz, f, truck); // kaçak iş (IllegalLogistics)
+    if (truck && job?.kind === 'haul') {
+      // Kiralık şoförlük: firmanın tırıyla bir depodan / limandan diğerine
+      const at = { x: px, z: pz, marker: false };
+      const g = HAUL_GOOD_BY_ID[job.goods];
+      if (truck.id !== job.vehicleId) return null;
+      if (job.state === 'accepted' && pointIn(SITE_BY_ID[job.site].load, px, pz, 1)) {
+        return { ...at, short: 'Yükle', label: `📦 ${job.company}: ${job.pallets} palet ${g.name} yükle`, use: () => this.act('load') };
+      }
+      if (job.state === 'loaded' && truck.trailer && pointIn(SITE_BY_ID[job.to].load, px, pz, 1)) {
+        return { ...at, short: 'Teslim', label: `📦 ${SITE_BY_ID[job.to].short}: ${job.company} yükünü boşalt`, use: () => this.act('deliver') };
+      }
+      return null;
+    }
     if (truck) {
       const at = { x: px, z: pz, marker: false };
       if (job?.state === 'accepted') {
@@ -774,7 +787,10 @@ export class LargeWorldMap {
       return;
     }
     if (act === 'load') {
-      this.hud.toast('📦 Yüklendi! Dorse takıldı — otelin lojistik avlusundaki 🏨 mal kabul körfezine götür.', 'info');
+      const job = this.myJob;
+      this.hud.toast(job?.kind === 'haul'
+        ? `📦 Yüklendi! ${SITE_BY_ID[job.to].icon} ${SITE_BY_ID[job.to].name} boşaltma körfezine götür.`
+        : '📦 Yüklendi! Dorse takıldı — otelin lojistik avlusundaki 🏨 mal kabul körfezine götür.', 'info');
       if (this.settings.sound) this.sfx?.clink?.();
     } else if (act === 'deliver' && this.settings.sound) this.sfx?.coin?.();
     this.route = null;
@@ -842,8 +858,11 @@ export class LargeWorldMap {
   openMap() {
     this.drawMap(this.el.mapCanvas.getContext('2d'), 1020, 770, null);
     const job = this.myJob;
+    const goal = job?.kind === 'haul' && job.state !== 'accepted'
+      ? `${SITE_BY_ID[job.to].icon} ${SITE_BY_ID[job.to].name} (boşalt)`
+      : job?.state === 'accepted' ? `${SITE_BY_ID[job.site].icon} ${SITE_BY_ID[job.site].name} (yükle)` : '🏨 Otelin mal kabul körfezi (teslim)';
     this.el.legend.textContent = job
-      ? `Hedef: ${job.state === 'accepted' ? `${SITE_BY_ID[job.site].icon} ${SITE_BY_ID[job.site].name} (yükle)` : '🏨 Otelin mal kabul körfezi (teslim)'} · mor çizgi: rota`
+      ? `Hedef: ${goal} · mor çizgi: rota`
       : '🏨 Lojistik avlusu (otel) · 🥩 VersMarkt · 🧃 FrisDepot · 🎳 ArcadeWorks · ⚓ Liman';
     this.modal.open(this.el.mapPanel);
   }
@@ -866,8 +885,8 @@ export class LargeWorldMap {
     root.append(el('div', 'logi-head', `🎒 ${formatEuro(wallet)} · 🏨 Kasa ${formatEuro(kasa)} · 📦 ${st.deliveries ?? 0} teslimat · ${(st.km ?? 0).toFixed(1).replace('.', ',')} km`));
     if (this.msg) root.append(el('p', 'logi-msg', this.msg));
     const job = this.myJob;
-    if (job) root.append(job.legal === false && this.illegal ? this.illegal.jobCard(job) : this.jobCard(job));
-    else if (!trucks.length) root.append(el('p', 'logi-hint', '🚛 Sevkiyat almak için önce bir tır al (aşağıda TruckCenter). Tır, şehir dışındaki lojistik avlusunun tır parkına teslim edilir — otelin önündeki sokağın doğu ucundaki 🛣️ tünelden ya da 🗺️ Işınlan → 🚛 Lojistik avlusu ile gidilir.'));
+    if (job) root.append(job.legal === false && this.illegal ? this.illegal.jobCard(job) : job.kind === 'haul' ? this.haulCard(job) : this.jobCard(job));
+    else if (!trucks.length) root.append(el('p', 'logi-hint', '🚛 Tırın yoksa aşağıdaki 🚚 Kiralık şoförlük ilanlarıyla firmaların tırını sürebilirsin. Otel sevkiyatı için kendi tırını al (aşağıda TruckCenter). Tır, şehir dışındaki lojistik avlusunun tır parkına teslim edilir — otelin önündeki sokağın doğu ucundaki 🛣️ tünelden ya da 🗺️ Işınlan → 🚛 Lojistik avlusu ile gidilir.'));
     // Teklifler
     root.append(el('div', 'logi-sub', '📋 Sözleşme panosu'));
     const list = el('div', 'logi-offers');
@@ -889,6 +908,27 @@ export class LargeWorldMap {
     }
     if (!this.st.offers.length) list.append(el('p', 'logi-hint', 'Pano yükleniyor…'));
     root.append(list);
+    // Kiralık şoförlük: başkalarının tırı, başkalarının malı
+    root.append(el('div', 'logi-sub', '🚚 Kiralık şoförlük — firmanın tırı, firmanın malı (tır gerekmez, ücret düşük)'));
+    const hl = el('div', 'logi-offers');
+    for (const o of this.st.hauls ?? []) {
+      const g = HAUL_GOOD_BY_ID[o.goods];
+      const a = SITE_BY_ID[o.site];
+      const b = SITE_BY_ID[o.to];
+      const row = el('div', 'logi-offer');
+      row.append(el('div', 'lo-icon', g.icon));
+      const info = el('div', 'lo-info');
+      info.append(el('b', null, `${o.company}: ${o.pallets} palet ${g.name}`), el('small', null, `${a.icon} ${a.name} → ${b.icon} ${b.name} · ${fmtKm(o.dist)} · süre ${fmtTime(o.timeSec)}`));
+      info.append(el('small', null, `Tır firmadan (avludaki tır parkına gelir) · kasaya dokunulmaz · şoför ücreti ${formatEuro(o.fee)} · ${fmtTime((o.expires - now) / 1000)} sonra kalkar`));
+      const btn = el('button', 'lo-take', 'Al');
+      btn.type = 'button';
+      btn.disabled = !!job || this.pending;
+      btn.addEventListener('click', () => this.accept(o.id));
+      row.append(info, btn);
+      hl.append(row);
+    }
+    if (!(this.st.hauls ?? []).length) hl.append(el('p', 'logi-hint', 'İlan yükleniyor…'));
+    root.append(hl);
     // Tırlarım
     if (trucks.length) {
       root.append(el('div', 'logi-sub', '🅿️ Tırlarım'));
@@ -899,7 +939,8 @@ export class LargeWorldMap {
         const row = el('div', 'logi-mine');
         const dot = el('i');
         dot.style.background = m.colors[v.color]?.hex ?? '#888';
-        row.append(dot, el('span', null, `${m.name} — ${place}${v.trailer ? ` · 📦 ${CARGO_BY_ID[v.trailer.cargo]?.name}` : ''}${v.driver != null ? ' (sürülüyor)' : ''}`));
+        const load = v.trailer ? ` · 📦 ${CARGO_BY_ID[v.trailer.cargo]?.name ?? HAUL_GOOD_BY_ID[v.trailer.goods]?.name ?? ''}` : '';
+        row.append(dot, el('span', null, `${m.name}${v.haul ? ` (${v.ownerName} — firmanın tırı)` : ''} — ${place}${load}${v.driver != null ? ' (sürülüyor)' : ''}`));
         root.append(row);
       }
     }
@@ -967,6 +1008,32 @@ export class LargeWorldMap {
     return card;
   }
 
+  /** Kiralık şoförlük işi kartı */
+  haulCard(job) {
+    const a = SITE_BY_ID[job.site];
+    const b = SITE_BY_ID[job.to];
+    const g = HAUL_GOOD_BY_ID[job.goods];
+    const card = el('div', 'logi-job');
+    const left = (job.deadline - this.net.serverNow()) / 1000;
+    card.append(el('b', null, `${g.icon} ${job.company}: ${job.pallets} palet ${g.name}`));
+    const step = job.state === 'accepted'
+      ? `1/2 · Avludaki tır parkından firmanın tırına bin → ${a.icon} ${a.name} yükleme körfezi, dur, E: yükle`
+      : `2/2 · ${b.icon} ${b.name} boşaltma körfezine götür, dur, E: boşalt (tır sonra firmaya döner)`;
+    card.append(el('div', null, step));
+    const pay = deliveryPay(job, this.net.serverNow());
+    card.append(el('small', null, `${left > 0 ? `⏱ ${fmtTime(left)} kaldı` : '⏱ Gecikti!'} · hasar %${Math.round(job.damage * 100)} · sana ${formatEuro(job.state === 'loaded' ? pay.fee : Math.round(job.fee * LOGI_RULES.ONTIME_MUL))} (kendi tırınla yapılan işin ~%${Math.round(HAUL_RULES.FEE_MUL * 100)}'i)`));
+    const row = el('div', 'logi-job-btns');
+    const map = el('button', null, '🗺️ Harita');
+    map.type = 'button';
+    map.addEventListener('click', () => this.openMap());
+    const cancel = el('button', 'danger', 'İptal (tır firmaya döner)');
+    cancel.type = 'button';
+    cancel.addEventListener('click', () => this.cancel());
+    row.append(map, cancel);
+    card.append(row);
+    return card;
+  }
+
   async accept(offer) {
     if (this.pending) return;
     this.pending = true;
@@ -998,6 +1065,7 @@ export class LargeWorldMap {
     const job = this.myJob;
     if (!job) return null;
     if (job.legal === false) return job.state === 'accepted' ? 'port' : 'drinks'; // K-17 (liman) → Eski Kantar Deposu (FrisDepot)
+    if (job.kind === 'haul') return job.state === 'accepted' ? job.site : job.to; // kiralık şoförlük: depo → depo
     return job.state === 'accepted' ? job.site : 'hotel';
   }
 

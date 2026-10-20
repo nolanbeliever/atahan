@@ -308,6 +308,7 @@ export class VehicleService {
       ...(v.type === 'car' ? { model: v.model, color: v.color } : {}),
       ...(v.valet ? { valet: v.valet } : {}), // VIP vale işi (ValetService)
       ...(v.trailer ? { trailer: v.trailer } : {}), // tırdaki yüklü dorse (LogisticsService)
+      ...(v.haul ? { haul: v.haul } : {}), // kiralık şoförlük: nakliye firmasının tırı (LogisticsService)
     }));
   }
 

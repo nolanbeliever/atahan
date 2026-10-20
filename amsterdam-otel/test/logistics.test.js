@@ -11,7 +11,7 @@ import {
   HWY, SERVICE_YARD, HOTEL_DELIVERY, SITES, SITE_BY_ID, ROADS, isDrivable, routeTo, siteDistance, roadLimitKmh,
   constrainToRoads, laneAt, TRUNK_LENGTH, yardAt,
 } from '../shared/worldmap.js';
-import { CARGO_TYPES, CARGO_BY_ID, LOGI_RULES, offerTerms, deliveryPay } from '../shared/logistics.js';
+import { CARGO_TYPES, CARGO_BY_ID, LOGI_RULES, offerTerms, deliveryPay, HAUL_RULES, HAUL_GOOD_BY_ID, haulTerms } from '../shared/logistics.js';
 
 const config = {
   dayLengthSec: 100_000, weekendSpeed: 2, tickMs: 100, spawnMinMin: 40, spawnMaxMin: 90,
@@ -386,4 +386,74 @@ test('kalıcılık: tır avluda kalır, istatistikler saklanır; bozuk tır konu
   const g = s2.sim.garage;
   const rec = g.cleanRecord({ id: 'k9', m: 'zeeland-lx', c: 0, x: 0, z: -4, yaw: 0 }, []);
   assert.equal(rec.x, null);
+});
+
+test('kiralık şoförlük: tır gerekmez, firmanın tırı gelir; firmanın malı depodan depoya; kasaya dokunulmaz, ücret düşük; tır firmaya döner', () => {
+  const s = setup();
+  const { sim } = s;
+  const p = sim.addPlayer('Şoför', KEY_A);
+  const q = sim.addPlayer('Arkadaş', 'b'.repeat(32));
+  const board = logi(sim, p, { act: 'board' });
+  assert.equal(board.state.hauls.length, HAUL_RULES.OFFERS);
+  const h = board.state.hauls[0];
+  assert.notEqual(h.site, h.to, 'iki farklı yer');
+  assert.ok(HAUL_GOOD_BY_ID[h.goods]);
+  // Aynı mesafe / palette kendi tırınla yapılan işten düşük ücret
+  const own = Math.round(LOGI_RULES.FEE_BASE + LOGI_RULES.FEE_PER_KM * (h.dist / 1000) * (0.5 + h.pallets / 24));
+  assert.equal(h.fee, haulTerms(h.pallets, h.dist).fee);
+  assert.ok(h.fee < own * 0.5 && h.fee > 0);
+  // Tırı olmayan oyuncu alabilir; firmanın tırı avludaki tır parkına gelir (kayda girmez)
+  assert.equal((p.carRecs ?? []).length, 0);
+  const acc = logi(sim, p, { act: 'accept', offer: h.id });
+  assert.ok(acc.ok, acc.error);
+  const job = sim.logistics.jobOf(p);
+  assert.equal(job.kind, 'haul');
+  const v = sim.vehicles.vehicles.get(job.vehicleId);
+  assert.equal(v.model, HAUL_RULES.TRUCK);
+  assert.equal(v.ownerId, p.id);
+  assert.equal(v.haul, job.id);
+  assert.equal(yardAt(v.x, v.z), 'yard');
+  assert.equal((p.carRecs ?? []).length, 0, 'oyuncunun garajına girmez');
+  // Arkadaş yolcu olarak binebilir, sürücü koltuğu işi alanın
+  sim.movePlayer(q.id, v.x + 1.5, v.z, 0);
+  assert.equal(sim.vehicleAct(q.id, { act: 'mount', id: v.id }).seat, 'passenger');
+  sim.movePlayer(p.id, v.x + 1.5, v.z, 0);
+  assert.equal(sim.vehicleAct(p.id, { act: 'mount', id: v.id }).seat, 'driver');
+  // Yükleme: kasadan para çıkmaz
+  const A = SITE_BY_ID[h.site];
+  const B = SITE_BY_ID[h.to];
+  place(s, p, (A.load.minX + A.load.maxX) / 2, (A.load.minZ + A.load.maxZ) / 2);
+  const kasa = sim.money;
+  const ld = logi(sim, p, { act: 'load' });
+  assert.ok(ld.ok, ld.error);
+  assert.equal(sim.money, kasa);
+  assert.equal(v.trailer.goods, h.goods);
+  // Otele değil, firmanın boşaltma yerine teslim
+  place(s, p, HOTEL_DELIVERY.x, HOTEL_DELIVERY.z);
+  assert.equal(logi(sim, p, { act: 'deliver' }).ok, false);
+  place(s, p, (B.load.minX + B.load.maxX) / 2, (B.load.minZ + B.load.maxZ) / 2);
+  const w = p.wallet;
+  const cargoBefore = JSON.stringify(sim.cargo.serialize?.().stock ?? null);
+  const d = logi(sim, p, { act: 'deliver' });
+  assert.ok(d.ok, d.error);
+  assert.equal(d.fee, Math.round(h.fee * LOGI_RULES.ONTIME_MUL));
+  assert.equal(p.wallet, w + d.fee);
+  assert.equal(sim.money, kasa, 'kasaya dokunulmaz');
+  assert.equal(JSON.stringify(sim.cargo.serialize?.().stock ?? null), cargoBefore, 'otel stoğuna girmez');
+  // Tır firmaya döner: dünyadan kalkar, herkes iner
+  assert.equal(sim.vehicles.vehicles.has(v.id), false);
+  assert.equal(p.vehicle, null);
+  assert.equal(q.vehicle, null);
+  assert.equal(sim.logistics.jobOf(p), null);
+  // İptal ve oyundan çıkış da tırı geri götürür
+  const h2 = logi(sim, p, { act: 'board' }).state.hauls[0];
+  assert.ok(logi(sim, p, { act: 'accept', offer: h2.id }).ok);
+  const v2 = sim.logistics.jobOf(p).vehicleId;
+  assert.ok(logi(sim, p, { act: 'cancel' }).ok);
+  assert.equal(sim.vehicles.vehicles.has(v2), false);
+  const h3 = logi(sim, p, { act: 'board' }).state.hauls[0];
+  assert.ok(logi(sim, p, { act: 'accept', offer: h3.id }).ok);
+  const v3 = sim.logistics.jobOf(p).vehicleId;
+  sim.removePlayer(p.id);
+  assert.equal(sim.vehicles.vehicles.has(v3), false);
 });
