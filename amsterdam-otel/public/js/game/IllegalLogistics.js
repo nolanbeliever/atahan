@@ -272,7 +272,7 @@ export class IllegalLogistics {
       card.append(el('div', null, '2/2 · 🏚️ FrisDepot avlusunun batı köşesindeki Eski Kantar Deposu — polis yakında değilken dur, E: teslim'));
       card.append(el('small', null, `${left > 0 ? `⏱ ${fmtTime(left)} kaldı` : '⏱ Gecikti (kazanç ×0,7)'} · hasar %${Math.round(job.damage * 100)} · beklenen: sana ~${formatEuro(Math.round(job.pay * (1 - job.damage)))}`));
     }
-    card.append(el('small', 'ill-warn', `⚠️ Yük tırdayken polis ısısı artar (hız, çarpma, tarayıcı kapıları). Yakalanırsan mallara el konur, ceza ~${formatEuro(R.FINE_BASE + Math.round(job.pay * R.FINE_SHARE))}.`));
+    card.append(el('small', 'ill-warn', `⚠️ Yük tırdayken polis ısısı artar (otoyolda kalmak, çarpma, tarayıcı kapıları; hız aşımı sayılmaz). Yakalanırsan mallara el konur, ceza ~${formatEuro(R.FINE_BASE + Math.round(job.pay * R.FINE_SHARE))}.`));
     const row = el('div', 'logi-job-btns');
     const map = el('button', null, '🗺️ Harita');
     map.type = 'button';

@@ -1,6 +1,6 @@
 import { EVT } from '../../shared/constants.js';
 import { isTruck } from '../../shared/cars.js';
-import { inHighwayRegion, yardAt, roadLimitKmh, constrainToRoads, laneAt, trunkAt, TRUNK_LENGTH } from '../../shared/worldmap.js';
+import { inHighwayRegion, yardAt, constrainToRoads, laneAt, trunkAt, TRUNK_LENGTH, roadProject, roadPoint } from '../../shared/worldmap.js';
 import {
   CONTRA_GOODS, CONTRA_BY_ID, ILLEGAL_RULES as R, BOX_SLOTS, SLOT_ORDER, SCANNERS, CONTACT, SAFE_DROP,
   inContactZone, inDropZone, heatStars, policeWanted, contraTerms, catchFine, isDark, frame, slotPoint, trunkNear,
@@ -29,9 +29,9 @@ function prng(seed) {
  *    tablosuna `legal: false, hidden: [{ good, qty }]` ile yazılır (oyuncu başına tek iş kuralı korunur);
  *    LogisticsService'in yükle / teslim eylemleri bu işler için veto edilir — burada K-17'de yüklenir, Eski
  *    Kantar Deposu'nda teslim edilir. Malların bedeli ve kazanç oyuncunun CÜZDANINA.
- *  - Isı (0–100 → 5★): yük tırdayken otoyolda hareket, hız aşımı, çarpma (yük hasarı), tarayıcı kapıları, polis
+ *  - Isı (0–100 → 5★): yük tırdayken otoyolda hareket (hız aşımı sayılmaz), çarpma (yük hasarı), tarayıcı kapıları, polis
  *    aracına çarpma artırır. ≥1★ sivil araç izler, ≥2★ resmi polis gelir; polisler tırın ön / arka / sol / sağ
- *    yuvalarına yerleşip (kinematik, yol ağına kısıtlı) önden frenleyerek durdurmaya çalışır.
+ *    yuvalarına yerleşip (kinematik, yol koordinatlarında şeridi izleyerek) önden frenleyerek durdurmaya çalışır.
  *  - Yakalanma: ≥3 taraf kapalıyken hız 8 km/s altında 4 sn, ya da durmuşken polis 8 m içinde 6 sn → mallara
  *    el konur, cüzdandan ceza (0'ın altına inmez). Kaçış: 150 m içinde hiçbir ekip yokken 25 sn → takip biter.
  *  - Ajanlar LogisticsService.setAgent ile yayınlanır (LOGI_AGENTS, ≤5 Hz).
@@ -404,12 +404,71 @@ export class IllegalLogisticsService {
     this.logi.setAgent(id, agent);
   }
 
-  /** Ajan hedefi: polis yuvası (ön yuva kıskaçta yaklaşır), sivil 34 m geride (dorsenin ~20 m arkası) */
+  /**
+   * Ajan hedefi: polis yuvası (ön yuva kıskaçta yaklaşır), sivil 34 m geride (dorsenin ~20 m arkası).
+   * Tır bir yoldaysa yuva YOL koordinatlarında hesaplanır (virajda arka yuva yolun üstünde, tırın izinde kalır):
+   * { x, z, road, s, l }; avluda düz geometri.
+   */
   target(c, a, st) {
-    if (a.kind === 'civil') return slotPoint({ f: -34, r: 0 }, st.x, st.z, st.yaw);
-    const s = SLOT_BY_ID[a.slot];
-    const f = s.id === 'front' ? s.f - c.squeeze : s.f;
-    return slotPoint({ f, r: s.r }, st.x, st.z, st.yaw);
+    const slot = a.kind === 'civil' ? { f: -34, r: 0 } : SLOT_BY_ID[a.slot];
+    const f = slot.id === 'front' ? slot.f - c.squeeze : slot.f;
+    const tp = st.proj;
+    if (tp) {
+      const { fx, fz } = frame(st.yaw);
+      const dir = fx * tp.ux + fz * tp.uz >= 0 ? 1 : -1; // tır yolun s yönünde mi gidiyor
+      const lim = tp.half - 1.2;
+      const l = Math.max(-lim, Math.min(lim, tp.l + dir * slot.r)); // tırın sağı = dir × yolun sağı
+      const sT = tp.s + dir * f;
+      const w = roadPoint(tp.road, sT, l);
+      return { x: w.x, z: w.z, road: tp.road, s: sT, l };
+    }
+    return slotPoint({ f, r: slot.r }, st.x, st.z, st.yaw);
+  }
+
+  /**
+   * Ajanı hedefe doğru yol boyunca ilerlet: yoldaysa yol koordinatlarında (s boyunca, şerit değiştirme hızı
+   * sınırlı) — virajda kaymaz, şeridi izler; avludaysa düz + sürülebilir alana it. @returns {{x, z}}
+   */
+  advance(a, tg, want, dt, inRegion) {
+    // Kavşakta (ana gövde ↔ bağlantı yolu) yol seçimi sıçramasın: önce hedefin yolu, sonra ajanın son yolu
+    let ap = null;
+    if (inRegion) {
+      for (const id of [tg.road, a.road]) {
+        if (!id || ap) continue;
+        const pr = roadProject(a.x, a.z, id);
+        if (pr.d <= pr.half + 1.5) ap = pr;
+      }
+      ap ??= roadProject(a.x, a.z);
+    }
+    if (ap && ap.d <= ap.half + 1.5) {
+      a.road = ap.road;
+      let sT;
+      let lT;
+      if (tg.road === ap.road) {
+        sT = tg.s;
+        lT = tg.l;
+      } else {
+        // Hedef başka yolda / avluda: kendi yolunda hedefe en yakın noktaya (kavşağa) doğru sür
+        const tp = roadProject(tg.x, tg.z, ap.road);
+        sT = tp.s;
+        lT = tp.l;
+      }
+      const lim = ap.half - 1.2;
+      lT = Math.max(-lim, Math.min(lim, lT));
+      const ds = sT - ap.s;
+      const dl = lT - ap.l;
+      const stepS = Math.sign(ds) * Math.min(Math.abs(ds), want * dt);
+      const stepL = Math.sign(dl) * Math.min(Math.abs(dl), R.LANE_CHANGE * dt);
+      const q = roadPoint(ap.road, ap.s + stepS, Math.max(-lim, Math.min(lim, ap.l + stepL)));
+      return { x: q.x, z: q.z };
+    }
+    const dx = tg.x - a.x;
+    const dz = tg.z - a.z;
+    const d = Math.hypot(dx, dz);
+    const step = Math.min(d, want * dt);
+    const q = { x: a.x + (d > 1e-6 ? (dx / d) * step : 0), z: a.z + (d > 1e-6 ? (dz / d) * step : 0) };
+    if (inRegion) constrainToRoads(q, 1.0);
+    return q;
   }
 
   update(now) {
@@ -439,8 +498,6 @@ export class IllegalLogisticsService {
     if (driving && inRegion) {
       const onRoad = !yardAt(x, z);
       if (onRoad && kmh > 3) this.addHeat(p, c, R.HEAT_ROAD * dt * nightMul);
-      const lim = roadLimitKmh(x, z);
-      if (lim !== null && kmh > lim + 10) this.addHeat(p, c, R.HEAT_SPEED * dt * nightMul);
       if (c.job.damage > c.damage + 1e-6) {
         c.damage = c.job.damage;
         this.addHeat(p, c, R.HEAT_HIT);
@@ -461,7 +518,8 @@ export class IllegalLogisticsService {
     }
 
     // ---- Ajanlar ----
-    const pos = { x, z, yaw };
+    const tp = inRegion ? roadProject(x, z) : null;
+    const pos = { x, z, yaw, proj: tp && tp.d <= tp.half + 1.5 ? tp : null };
     if (this.sim.config.policeAgents !== false && inRegion && (driving || c.agents.size)) this.staff(c, pos);
     let nearest = Infinity;
     let nearestPolice = Infinity;
@@ -474,9 +532,7 @@ export class IllegalLogisticsService {
       const d = Math.hypot(dx, dz);
       // İstenen hız: tırın hızı + mesafe kapatma (yaklaşınca yumuşar)
       const want = Math.min(R.CHASE_MAX, Math.max(0, speed + Math.min(d * 1.4, R.CHASE_MAX)));
-      const step = Math.min(d, want * dt);
-      const q = { x: a.x + (d > 1e-6 ? (dx / d) * step : 0), z: a.z + (d > 1e-6 ? (dz / d) * step : 0) };
-      if (inRegion) constrainToRoads(q, 1.0);
+      const q = this.advance(a, tg, want, dt, inRegion);
       const moved = Math.hypot(q.x - a.x, q.z - a.z);
       a.speed = moved / dt;
       a.yaw = moved > 0.05 ? Math.atan2(-(q.x - a.x), -(q.z - a.z)) : yaw;

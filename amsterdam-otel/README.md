@@ -777,13 +777,15 @@ yakalanınca mallara el konur ve ceza kesilir.
   hasar düşürür). Navi rotayı K-17'ye, sonra depoya çizer. İş, lojistiğin iş tablosuna `legal: false` ile yazılır
   (oyuncu başına tek iş); otel teslimi ve depo yükleme kancalarla veto edilir. Yük tırdayken iptal = mallar yola
   dökülür, **takip sürer** (yakalanırsa yalnızca taban ceza).
-- **Isı (0–100 → ★):** yükleyince +6; otoyolda hareket +0,22/sn; sınırın 10 km/s üstü +1,6/sn; çarpma (yük hasarı) +7;
+- **Isı (0–100 → ★):** yükleyince +6; otoyolda hareket +0,22/sn (hız sınırını aşmak ısı yazmaz); çarpma (yük hasarı) +7;
   **📡 gümrük tarayıcı kapıları** (otoyolda iki köprü: liman çıkışı + orta) %55 olasılıkla (gece %35) +26; polis aracına
   çarpma +12 ve €400 ek ceza. Gece ısı artışı ×0,6. Takip yokken ve dururken ısı soğur.
 - **Ekipler:** ≥1★ işaretsiz **sivil araç** ~20 m geriden izler; ≥2★ 1, ≥3★ 3, ≥4★ 4 **resmi polis** — ana gövdede tırın
   150 m gerisinde belirir, en çok ~150 km/s ile yaklaşır ve tırın **arka / sol / sağ / ön** yuvalarına yerleşir (yuvalar
   çekicinin merkezine göre: arka 18 m geride — dorsenin arkası; yanlar ±4,2 m; ön 11 m ileride). Ajanlar sunucuda
-  kinematiktir ve yol ağına kısıtlıdır (`constrainToRoads`); `logi:agents` ile ≤5 Hz yayınlanır.
+  kinematiktir ve **şeritleri izler**: yoldayken yol koordinatlarında (yol boyunca s, yanal l) ilerler, yuvalar da tırın
+  yolu üzerinde hesaplanır — virajda kaymaz, yolun eğrisini takip eder; yanal geçiş (şerit değiştirme) en çok 4 m/sn.
+  Avluda düz gider ve sürülebilir alana itilir. `logi:agents` ile ≤5 Hz yayınlanır.
 - **Kıskaç ve yakalanma:** ≥3 taraf kapalıyken ön araç yavaşça 4,5 m'ye kadar yaklaşır (önden frenleyerek durdurur);
   polis araçları istemcide **katıdır** (tır itilir ve yavaşlar). Kıskaçta hız **8 km/s altında 4 sn** ya da durmuşken
   polis **8 m içinde 6 sn** (yaya kaçış: 10 m'de 2 sn) → **yakalandın**: mallara el konur, ceza = €1.500 + kazancın %35'i

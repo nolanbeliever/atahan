@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { HotelSimulation } from '../server/game/HotelSimulation.js';
 import { EVT } from '../shared/constants.js';
 import { CAR_BY_ID } from '../shared/cars.js';
-import { isDrivable, laneAt, SITE_BY_ID, yardAt, TRUNK_LENGTH } from '../shared/worldmap.js';
+import { isDrivable, laneAt, SITE_BY_ID, yardAt, TRUNK_LENGTH, roadProject } from '../shared/worldmap.js';
 import {
   CONTRA_GOODS, ILLEGAL_RULES as R, CONTACT, SAFE_DROP, SCANNERS, BOX_SLOTS, heatStars, policeWanted, catchFine, slotPoint,
   inContactZone, inDropZone,
@@ -289,4 +289,60 @@ test('bölge kontrolleri: yükleme K-17 dışında, teslim depo dışında redde
   assert.ok(ill(s, p, { act: 'load' }).ok);
   assert.equal(ill(s, p, { act: 'drop' }).ok, false);
   assert.ok(!inDropZone(p.x, p.z));
+});
+
+test('polis şeritleri izler: virajda yolun dışına kaymaz, tırın yolu üzerindeki yuvasına yerleşir; hız sınırını aşmak ısı yazmaz', () => {
+  const s = loadedRun();
+  const { sim, p } = s;
+  const c = s.chase();
+  const drive = (x, z, yaw) => { sim.movePlayer(p.id, x, z, yaw); s.tick(100); };
+  // En kıvrımlı yeri bul (ana gövdede yön değişimi en büyük olan nokta)
+  let best = { s: 0, turn: 0 };
+  for (let q = 160; q < TRUNK_LENGTH - 160; q += 10) {
+    const a = laneAt(q - 25, 1, 0);
+    const b = laneAt(q + 25, 1, 0);
+    const turn = Math.abs(Math.atan2(Math.sin(a.yaw - b.yaw), Math.cos(a.yaw - b.yaw)));
+    if (turn > best.turn) best = { s: q, turn };
+  }
+  assert.ok(best.turn > 0.3, 'haritada belirgin bir viraj var');
+  // Virajın 150 m öncesinden sağ şeritte ~16 m/sn (58 km/s) gerçekten sür; polisler her adımda yolun içinde olmalı
+  let sq = best.s - 150;
+  let l = laneAt(sq, 1, 0);
+  const v = sim.vehicles.vehicles.get(p.vehicle.id);
+  p.x = l.x; p.z = l.z; p.yaw = l.yaw; v.x = l.x; v.z = l.z; v.yaw = l.yaw;
+  sim.logistics.track.delete(p.id);
+  c.heat = 85; // 4 polis
+  let maxOff = 0;
+  for (let k = 0; k < 190; k++) {
+    sq += 1.6;
+    l = laneAt(sq, 1, 0);
+    drive(l.x, l.z, l.yaw);
+    c.heat = 85;
+    for (const a of c.agents.values()) {
+      const pr = roadProject(a.x, a.z, 'trunk');
+      maxOff = Math.max(maxOff, pr.d - (pr.half - 1.2));
+    }
+  }
+  assert.ok(c.agents.size >= 3, 'ekipler sahada');
+  assert.ok(maxOff < 0.05, `polis yolun içinde kalır (aşım ${maxOff.toFixed(2)} m)`);
+  // Arka yuvadaki polis tırın yolu üzerinde ~18 m geride (düz çizgide değil, yolun eğrisinde) ve aynı şeritte
+  const rear = [...c.agents.values()].find((a) => a.slot === 'rear');
+  const tp = roadProject(p.x, p.z, 'trunk');
+  const rp = roadProject(rear.x, rear.z, 'trunk');
+  assert.ok(Math.abs(tp.s - rp.s - 18) < 4, `arka yuva yol boyunca ~18 m geride (${(tp.s - rp.s).toFixed(1)})`);
+  assert.ok(Math.abs(rp.l - tp.l) < 1.5, 'aynı şeritte');
+  // Hız sınırı aşımı ısı yazmaz: hızlı sürüşte ısı yalnızca "otoyolda hareket" kadar artar
+  sim.illegal.endChase(p.id);
+  const c2 = sim.illegal.chaseOf(p.id, true);
+  c2.job = sim.logistics.jobOf(p);
+  c2.damage = c2.job.damage;
+  c2.heat = 0;
+  for (const sc of SCANNERS) c2.scanned[sc.id] = true; // gümrük kapısı rastgelesi bu ölçüme karışmasın
+  for (let k = 0; k < 30; k++) {
+    sq += 2.5; // ~25 m/sn ≈ 90 km/s
+    l = laneAt(sq, 1, 0);
+    drive(l.x, l.z, l.yaw);
+  }
+  assert.ok(c2.heat > 0, 'otoyolda hareket ısısı');
+  assert.ok(c2.heat <= R.HEAT_ROAD * 3.2 + 1e-6, `yalnızca yol ısısı (${c2.heat.toFixed(2)})`);
 });

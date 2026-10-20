@@ -39,7 +39,6 @@ export const ILLEGAL_RULES = freeze({
   // Isı (0–100) → yıldız = ceil(ısı / 20)
   HEAT_LOAD: 6, // yükleyince
   HEAT_ROAD: 0.22, // otoyolda hareket ederken / sn
-  HEAT_SPEED: 1.6, // sınırın 10 km/s üstünde / sn
   HEAT_HIT: 7, // yükte hasar (çarpma)
   HEAT_SCAN: 26, // tarayıcı kapısı yakalarsa
   SCAN_CHANCE: 0.55, // gece 0.35
@@ -53,6 +52,7 @@ export const ILLEGAL_RULES = freeze({
   POLICE_COUNT: [1, 3, 4],
   SPAWN_BEHIND: 150, // ana gövdede tırın bu kadar gerisinde belirir (önde: ileride)
   CHASE_MAX: 42, // m/sn (~150 km/s) yaklaşma hızı
+  LANE_CHANGE: 4, // m/sn: polisin şerit değiştirme (yanal) hızı — yol boyunca şeridi izler
   SLOT_TOL: 2.6, // yuvaya bu kadar yakın polis o tarafı "kapatır"
   BOX_SIDES: 3, // en az bu kadar taraf kapalıysa kıskaç
   CATCH_KMH: 8, // kıskaçtayken bu hızın altında

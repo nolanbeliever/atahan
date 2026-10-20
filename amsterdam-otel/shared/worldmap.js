@@ -151,6 +151,53 @@ for (const road of ROADS) {
     SEGS.push({ ax, az, bx, bz, len, ux: (bx - ax) / len, uz: (bz - az) / len, half: road.half, kmh: road.kmh, road: road.id });
   }
 }
+// Yol başına kümülatif uzunluk (yol koordinatları: s boyunca, l yanal — sağ = (−uz, ux))
+const ROAD_S = Object.fromEntries(ROADS.map((road) => {
+  const acc = [0];
+  for (let i = 1; i < road.pts.length; i++) acc.push(acc[i - 1] + Math.hypot(road.pts[i][0] - road.pts[i - 1][0], road.pts[i][1] - road.pts[i - 1][1]));
+  return [road.id, acc];
+}));
+const ROAD_BY_ID = Object.fromEntries(ROADS.map((r) => [r.id, r]));
+
+/**
+ * Noktayı bir yola izdüşür: { road, s, l, d, len, half } (l: sağa +). roadId verilmezse en yakın yol;
+ * yolların hiçbirinin şeridinde değilse (avlu) d > half olur.
+ */
+export function roadProject(x, z, roadId = null) {
+  let best = null;
+  for (const road of roadId ? [ROAD_BY_ID[roadId]] : ROADS) {
+    const c = closestOnPolyline(road.pts, x, z);
+    if (best && c.d >= best.d) continue;
+    const [ax, az] = road.pts[c.i];
+    const [bx, bz] = road.pts[c.i + 1];
+    const L = Math.hypot(bx - ax, bz - az) || 1;
+    const ux = (bx - ax) / L;
+    const uz = (bz - az) / L;
+    const acc = ROAD_S[road.id];
+    best = {
+      road: road.id, s: acc[c.i] + c.t * (acc[c.i + 1] - acc[c.i]), l: (x - c.x) * -uz + (z - c.z) * ux,
+      d: c.d, len: acc[acc.length - 1], half: road.half, ux, uz,
+    };
+  }
+  return best;
+}
+
+/** Yol koordinatından dünya konumu + yön: { x, z, ux, uz } (s yolun iki ucuna kırpılır) */
+export function roadPoint(roadId, s, l = 0) {
+  const road = ROAD_BY_ID[roadId];
+  const acc = ROAD_S[roadId];
+  const q = Math.max(0, Math.min(acc[acc.length - 1], s));
+  let i = 1;
+  while (i < acc.length - 1 && acc[i] < q) i++;
+  const seg = acc[i] - acc[i - 1] || 1;
+  const t = (q - acc[i - 1]) / seg;
+  const [ax, az] = road.pts[i - 1];
+  const [bx, bz] = road.pts[i];
+  const ux = (bx - ax) / seg;
+  const uz = (bz - az) / seg;
+  return { x: ax + (bx - ax) * t - uz * l, z: az + (bz - az) * t + ux * l, ux, uz };
+}
+
 // Avlu ve depo alanları (dikdörtgen sürülebilir alan)
 export const YARDS = freeze([
   freeze({ id: SERVICE_YARD.id, name: SERVICE_YARD.name, bounds: SERVICE_YARD.bounds }),
