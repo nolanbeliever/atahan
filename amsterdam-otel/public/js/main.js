@@ -38,6 +38,7 @@ import { ValetCarWash } from './game/ValetCarWash.js';
 import { DragRaceTrack } from './game/DragRaceTrack.js';
 import { LargeWorldMap } from './game/LargeWorldMap.js';
 import { IllegalLogistics } from './game/IllegalLogistics.js';
+import { PoliceRaidSystem } from './game/PoliceRaidSystem.js';
 import { MixologyBarSystem } from './game/MixologyBarSystem.js';
 import { GourmetRestaurant } from './game/GourmetRestaurant.js';
 import { KitchenSystem } from './game/KitchenSystem.js';
@@ -286,6 +287,8 @@ const logi = new LargeWorldMap({
 });
 // İllegal sevkiyat + polis kıskacı: gizli bölme, limandaki tanıdık, Eski Kantar Deposu, gümrük tarayıcıları, aranma HUD'u
 const illegal = new IllegalLogistics({ engine, net, hud, interaction, player, collision, modal, device, settings, sfx, logi, vehicles, getWallet: () => shop.wallet });
+// Kaçak yük indirme (Kantar deposu / otelin mal kabul alanı) + rastgele polis baskını: ilerleme çubuğu, baskın geri sayımı
+const raid = new PoliceRaidSystem({ engine, net, hud, illegal, settings });
 garage.partitionWorld([interaction.marker, ...valet.particles]); // yıkama parçacıkları garajda da görünsün
 // Neon / ampul parıltısı gece güçlenir: dünyanın gece seviyesi değişince (tek seferlik geçiş) bildir
 const setNightLevel = world.setNightLevel;
@@ -327,6 +330,7 @@ engine.addSystem((dt) => garage.update(dt)); // araba kokpiti: FOV, titreşim, m
 engine.addSystem((dt) => drag.update(dt)); // ışık ağacı, otomatik sahne, canlı süre (yalnızca pistte)
 engine.addSystem((dt) => valet.update(dt)); // yıkama tabancası, parçacıklar, çarpma algısı
 engine.addSystem(() => illegal.update()); // siren, polis aracına sürtünme (yalnızca şehir dışında takipteyken)
+engine.addSystem(() => raid.update()); // indirme ilerlemesi + baskın geri sayımı (yalnızca indirme sürerken)
 engine.addSystem((dt) => logi.update(dt)); // otoyol trafiği, navi, tır çarpma algısı (yalnızca şehir dışındayken)
 engine.addSystem(() => bar.update());
 engine.addSystem(() => restaurant.update()); // ocak ateşi / fırın / bıçak (yalnızca restorandayken)
@@ -549,6 +553,7 @@ net.on(EVT.WELCOME, (snap) => {
   logi.reset(snap.selfId);
   logi.onState(snap.logistics);
   illegal.reset();
+  raid.reset();
   stage.onState(snap.stage);
   boostList = snap.boosts ?? [];
   insta.applySnapshot(snap.insta);

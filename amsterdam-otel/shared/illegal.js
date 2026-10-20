@@ -6,34 +6,46 @@
 // çanta). Uyuşturucu, silah, tütün, alkol ya da insan YOKTUR. Polisle şiddet yoktur: yakalanınca mallara el
 // konur ve ceza kesilir; polis aracına çarpmak yalnızca ısıyı ve cezayı artırır.
 //
-// Akış: TruckCenter / Lojistik panosundan tıra gizli bölme takılır (cüzdandan) → bölmeli tırı olan oyuncu
-// panoda "🕶️ Limandaki tanıdık" tekliflerini görür → tekliflerden birini alır → limandaki K-17 konteynerinin
-// önünde durup E (malların bedeli cüzdandan) → FrisDepot'un batı köşesindeki Eski Kantar Deposu'na götürür,
-// polis yakında değilken durup E → kazanç cüzdana. Yük tırdayken "ısı" (0–100, 5 yıldız) yükselir; sivil
-// araç önce izler, sonra resmi polis tırı önden / arkadan / iki yandan sıkıştırır.
+// Akış: TruckCenter / Lojistik panosundan tıra gizli bölme takılır (cüzdandan) → bölmeli tırı olan oyuncuya
+// "🕶️ Limandaki tanıdık" her 5–10 dakikada bir TEK teklif gönderir (kişisel; ilk teklif bölme takılınca hemen)
+// → teklifi alır → limandaki K-17 konteynerinin önünde durup E (malların küçük peşin bedeli cüzdandan) →
+// iki teslim yerinden birine götürür: 🏚️ Eski Kantar Deposu (gizli depo, daha güvenli) ya da otelin lojistik
+// avlusundaki 🏨 mal kabul alanı (yakın ama riskli). Durup E → indirme ~10 sn sürer (tır durmalı); bu sırada
+// rastgele POLİS BASKINI gelebilir (PoliceRaidService). İndirme biterse kazanç (700–800 €) cüzdana.
+// Yük tırdayken "ısı" (0–100, 5 yıldız) yükselir; sivil araç önce izler, sonra resmi polis tırı sıkıştırır.
 
 import { trunkAt, TRUNK_LENGTH } from './worldmap.js';
 
 const freeze = Object.freeze;
 const byId = (list) => freeze(Object.assign(Object.create(null), Object.fromEntries(list.map((x) => [x.id, x]))));
 
-/** Kaçak mallar (kurgusal, gümrüksüz lüks tüketim) — bedel / kazanç kasa başına */
+/** Kaçak mallar (kurgusal, gümrüksüz lüks tüketim). Rakamlar mal türünden bağımsızdır (ILLEGAL_RULES.PAY_*). */
 export const CONTRA_GOODS = freeze([
-  freeze({ id: 'watch', icon: '⌚', name: 'Gümrüksüz İsviçre saati', unit: 'kutu', cost: 420, pay: 1150, min: 4, max: 9 }),
-  freeze({ id: 'perfume', icon: '🌸', name: 'Gümrüksüz marka parfüm', unit: 'koli', cost: 160, pay: 430, min: 8, max: 18 }),
-  freeze({ id: 'electronics', icon: '📱', name: 'Faturasız elektronik', unit: 'koli', cost: 300, pay: 820, min: 5, max: 12 }),
-  freeze({ id: 'bags', icon: '👜', name: 'Gümrüksüz tasarım çanta', unit: 'koli', cost: 260, pay: 700, min: 5, max: 12 }),
+  freeze({ id: 'watch', icon: '⌚', name: 'Gümrüksüz İsviçre saati', unit: 'kutu', min: 4, max: 9 }),
+  freeze({ id: 'perfume', icon: '🌸', name: 'Gümrüksüz marka parfüm', unit: 'koli', min: 8, max: 18 }),
+  freeze({ id: 'electronics', icon: '📱', name: 'Faturasız elektronik', unit: 'koli', min: 5, max: 12 }),
+  freeze({ id: 'bags', icon: '👜', name: 'Gümrüksüz tasarım çanta', unit: 'koli', min: 5, max: 12 }),
 ]);
 export const CONTRA_BY_ID = byId(CONTRA_GOODS);
 
 /** Kurallar / ekonomi */
 export const ILLEGAL_RULES = freeze({
   COMPARTMENT_PRICE: 12_000, // gizli bölme (tır başına, cüzdandan)
-  OFFERS: 3, // oyuncu başına tanıdık teklifi
-  OFFER_TTL_MS: 10 * 60_000,
-  NIGHT_PAY_MUL: 1.25, // gece (20:00–07:00) kazanç ×1.25, ısı artışı ×0.6
-  NIGHT_HEAT_MUL: 0.6,
+  // Teklif sıklığı (gerçek zaman, oyuncu başına): aynı anda en çok 1 teklif; teklif alınınca / süresi dolunca
+  // bir sonraki 5–10 dk sonra gelir. Bölme takılınca ilk teklif hemen gelir.
+  OFFERS: 1,
+  OFFER_EVERY_MIN_MS: 5 * 60_000,
+  OFFER_EVERY_MAX_MS: 10 * 60_000,
+  OFFER_TTL_MS: 6 * 60_000, // alınmayan teklif bu kadar sonra kalkar
+  // Ekonomi: kazanç (brüt, teslimde cüzdana) 700–800 €; malların peşin bedeli (yüklemede cüzdandan) 150–250 €.
+  // Geç teslim ×LATE_MUL, hasar kazancı orantılı düşürür. Gece kazanç çarpanı yoktur (yalnızca daha az dikkat).
+  PAY_MIN: 700,
+  PAY_MAX: 800,
+  COST_MIN: 150,
+  COST_MAX: 250,
+  NIGHT_HEAT_MUL: 0.6, // gece (20:00–07:00) ısı artışı ×0.6
   TIME_SEC: 420, // teslim süresi (geç kalınırsa kazanç ×0.7)
+  UNLOAD_SEC: 10, // kaçak yük indirme süresi (bkz. RAID_RULES.UNLOAD_MS)
   LATE_MUL: 0.7,
   STOP_KMH: 6, // yükleme / teslim için durmuş sayılma
   // Isı (0–100) → yıldız = ceil(ısı / 20)
@@ -63,7 +75,7 @@ export const ILLEGAL_RULES = freeze({
   ESCAPE_SEC: 25, // bu kadar kalırsa takip bırakılır (ısı 15'e iner)
   DROP_POLICE_DIST: 60, // teslimde bu mesafede polis olmamalı
   DECAY: 1.5, // takip yokken ısı düşüşü / sn (ısı < 40 iken)
-  FINE_BASE: 1500, // yakalanma cezası: taban + kazancın %35'i + çarpma cezaları (cüzdan 0'ın altına inmez)
+  FINE_BASE: 400, // yakalanma cezası: taban + kazancın %35'i + çarpma cezaları (cüzdan 0'ın altına inmez)
   FINE_SHARE: 0.35,
   AGENT_RADIUS: 2.4, // istemci çarpışması (polis aracı katı)
   BODY_FRONT: 3.5, // tır gövdesi (çarpma algısı): çekici önü …
@@ -120,10 +132,50 @@ export function policeWanted(heat) {
   return n;
 }
 
-/** Teklif rakamları */
-export function contraTerms(goodId, qty) {
-  const g = CONTRA_BY_ID[goodId];
-  return { cost: Math.round(g.cost * qty), pay: Math.round(g.pay * qty) };
+/**
+ * Teklif rakamları: u1, u2 ∈ [0, 1) (servisin kendi PRNG'si) → kazanç 700–800 €, peşin bedel 150–250 € (10'a yuvarlı)
+ */
+export function contraTerms(u1, u2) {
+  const R = ILLEGAL_RULES;
+  const step = (min, max, u) => Math.min(max, min + Math.floor(u * ((max - min) / 10 + 1)) * 10);
+  return { pay: step(R.PAY_MIN, R.PAY_MAX, u1), cost: step(R.COST_MIN, R.COST_MAX, u2) };
+}
+
+// ---- Kaçak yük indirme + polis baskını (PoliceRaidService) -------------------------------------------
+
+/**
+ * Teslim yerleri: 'depot' gizli depo (SAFE_DROP), 'hotel' otelin lojistik avlusundaki mal kabul alanı
+ * (worldmap.HOTEL_DELIVERY.zone; kaçak mal otel stoğuna GİRMEZ — alıcı oradan alır). Koordinatlar dışarıdan
+ * (illegal.js / worldmap.js) okunur; burada yalnızca riskler.
+ */
+export const DROP_SITES = freeze({
+  depot: freeze({ id: 'depot', name: 'Eski Kantar Deposu', icon: '🏚️', raid: 0.12 }),
+  hotel: freeze({ id: 'hotel', name: 'Otelin mal kabul alanı', icon: '🏨', raid: 0.35 }),
+});
+
+export const RAID_RULES = freeze({
+  UNLOAD_MS: 10_000, // indirme süresi (tır yerinde durmalı)
+  ZONE_TOL: 2, // indirme sırasında bölgeden bu kadar taşmak serbest (m)
+  NIGHT_MUL: 0.6, // gece baskın olasılığı ×0.6
+  HEAT_ADD: 0.4, // ısı 100'deyken olasılığa +0.40 (doğrusal)
+  MAX_CHANCE: 0.85,
+  WARN_MIN_MS: 1500, // indirme başladıktan sonra telsiz uyarısı ("Baskın!")
+  WARN_MAX_MS: 4000,
+  ETA_MS: 7000, // uyarıdan ekiplerin körfeze varışına
+  UNITS: 3, // baskın ekibi (ön, arka, yan)
+  FLEE_HEAT: 70, // baskından kaçan (indirmeyi yarıda bırakan) tırın ısısı en az
+  SEEN_HEAT: 12, // polis geç kaldıysa (indirme bitti) ısıya eklenen
+  HOTEL_REP: 3, // otelin avlusunda yakalanınca otel itibarı −3
+  SPAWN_BACK: 40, // ekipler avlu kapısının bu kadar gerisinde (yolda) belirir
+});
+
+/** Baskın olasılığı: yer × gece + ısı payı (0 … MAX_CHANCE) */
+export function raidChance(siteId, heat = 0, night = false) {
+  const site = DROP_SITES[siteId];
+  if (!site) return 0;
+  const R = RAID_RULES;
+  const base = site.raid * (night ? R.NIGHT_MUL : 1);
+  return Math.max(0, Math.min(R.MAX_CHANCE, base + (Math.max(0, Math.min(100, heat)) / 100) * R.HEAT_ADD));
 }
 
 /** Yakalanma cezası (cüzdan 0'ın altına inmez) */
