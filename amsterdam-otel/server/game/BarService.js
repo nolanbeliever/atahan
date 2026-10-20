@@ -173,7 +173,50 @@ export class BarService {
       if (h?.kind === 'glass') n++;
       else if (h?.kind === 'dirty') n += h.count;
     }
+    n += this.sim.barStaff?.glassesHeld() ?? 0; // barmen NPC'lerinin elindekiler
     return n;
+  }
+
+  // ---- Barmen NPC'leri (BarStaffService) ------------------------------------------------
+
+  /** Raftan temiz bardak al */
+  staffTakeGlass() {
+    if (this.rack <= 0) return false;
+    this.rack -= 1;
+    this.barChanged();
+    return true;
+  }
+
+  /** Yıkanan / boşaltılan bardaklar rafa */
+  staffReturnGlass(n) {
+    this.rack += n;
+    this.barChanged();
+  }
+
+  /** Tezgâhtaki kirli bardağı al */
+  staffCollect(i) {
+    const s = this.stools[i];
+    if (!s || s.glass !== 'dirty') return false;
+    s.glass = null;
+    this.barChanged();
+    return true;
+  }
+
+  /**
+   * Barmenin hazırladığı içeceği servis et (oyuncu servisiyle aynı ödeme: satış + bahşiş kasaya).
+   * @returns {{ tip, speed } | null} speed: sabrın ne kadarı kalmıştı (0–1)
+   */
+  staffServe(i, drinkId, now, by) {
+    const s = this.stools[i];
+    if (!s || s.state !== S.WAITING || s.order !== drinkId) return null;
+    const drink = DRINK_BY_ID[drinkId];
+    const tip = this.tipFor(drink, s, now);
+    const speed = clamp01((s.waitUntil - now) / s.patienceMs);
+    Object.assign(s, { state: S.DRINKING, waitUntil: 0, drinkEndsAt: now + R.DRINK_MS, glass: 'full', drink: drink.id });
+    this.sim.today.served += 1;
+    this.sim.earn(drink.price + tip, `Bar: ${drink.name} — barmen ${by} (+€${tip} bahşiş)`, { guest: false });
+    this.barChanged();
+    return { tip, speed };
   }
 
   /** Simülasyon duraklatılıp devam ettirildiğinde gerçek zaman damgalarını kaydır */

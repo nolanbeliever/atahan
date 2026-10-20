@@ -149,6 +149,7 @@ export class WorkerService {
       roomId: null,
       label: `🧹 ${w.name} · Sv.${lv}${w.phase === W.WORK ? ' · çalışıyor…' : ''}`,
       work: w.phase === W.WORK ? { until: w.phaseEndsAt } : null,
+      outfit: this.sim.staffhr?.outfitOf('worker', w.name) ?? null, // Personel 2.0 üniforması
     };
   }
 
@@ -338,8 +339,10 @@ export class WorkerService {
       return;
     }
     room.startedAt ??= now;
-    // Depoda temizlik malzemesi (Mal Kabul Rampası) varsa iş %30 daha kısa (1 birim stok)
-    const ms = Math.round(workerTaskMs(this.sim.growth.stars, this.level(w)) * (this.sim.cargo?.use('clean') ? CARGO_EFFECTS.clean.timeMul : 1));
+    // Depoda temizlik malzemesi (Mal Kabul Rampası) varsa iş %30 daha kısa (1 birim stok); moral / prim (Personel 2.0) ölçekler
+    const ms = Math.round(workerTaskMs(this.sim.growth.stars, this.level(w))
+      * (this.sim.cargo?.use('clean') ? CARGO_EFFECTS.clean.timeMul : 1)
+      * (this.sim.staffhr?.speedMul('worker', w.name) ?? 1));
     const [x, z] = this.lastPoint(w);
     const tgt = taskSpot(layout, w.task);
     const face = w.task.kind === 'trash' ? 0 : Math.atan2(tgt[0] - x, tgt[1] - z);
@@ -396,6 +399,9 @@ export class WorkerService {
   /** Oda bitti: bahşiş + tamirat teşekkürü KASAYA, itibar artar */
   finishRoom(w, room) {
     this.sim.today.cleaned += 1;
+    // Personel 2.0: misafir puanı odanın ne kadar çabuk temizlendiğine göre
+    const took = room.startedAt ? this.sim.now() - room.startedAt : 0;
+    this.sim.staffhr?.rate('worker', w.name, took < 30_000 ? 5 : took < 60_000 ? 4 : 3);
     const tip = TIP_MIN + Math.floor(this.rng() * (TIP_MAX - TIP_MIN + 1)) + room.repairs * MAINT_RULES.REPAIR_BONUS;
     room.startedAt = null;
     room.repairs = 0;

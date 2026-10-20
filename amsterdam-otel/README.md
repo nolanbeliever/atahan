@@ -687,6 +687,47 @@ avlu dünyanın ayrı bir köşesindedir (x 104..136, z 14..54; `shared/cargo.js
 - **Pil:** salon / avlu StaticBatcher ile malzeme başına tek mesh, lambalar ışıksız; avlu grubu yalnızca oradayken
   görünür; tır / asansör animasyonu ve sürüş yokken kare çizilmez.
 
+## VIP Bouncer — Eğlence Katı kapısı (VipBouncer)
+
+−1. Kat'a ("Neon Kelder") asansör / merdivenle inen NPC misafirler (otel misafirleri ve dışarıdan gelenler)
+kuzey duvarı boyunca **kadife ipin arkasında sıraya** girer. Kürsüde **E** → kapı modu: kamera sıranın başındaki
+misafire yakın plan; HUD'da **bu gecenin kıyafet kuralı**, misafirin **kartı** (🔑 oda kartı / 💌 davetiye),
+**tavrı** ve parça parça **kıyafeti** (3B karakterde de giydirilmiş: üst, alt, ayakkabı, ceket, aksesuar — herkes aynı
+kıyafeti görür). **✅ İçeri al (Y / 1)** · **❌ Geri çevir (N / 2)** · **✕ Kapıdan ayrıl (Q / Esc)**; dokunmatik düğmeler.
+
+- **Kural her gün değişir** (duvardaki "Bu gece" panosunda): 🎩 Şık Gece · 👔 Smart Casual · 🤍 Beyaz Parti · 💡 Neon Gece.
+  Kurallar **yalnızca kıyafet parçaları / renkleri ve davranışla** ilgilidir (ör. şık gecede tişört, kot, sneaker, terlik
+  yok; beyaz partide üst + alt beyaz). Ayrıca: **kara liste** (panoda 3 isim), **sahte davetiye** (otelin adı yanlış ya da
+  tarihi geçmiş) ve **sorunlu tavır** (bağırıyor, kavga arıyor) geri çevrilir. Beden, ten, cinsiyet, yaş ölçüt değildir.
+- **"Ortam" puanı (0–100):** doğru içeri alma +1, sorunluyu geri çevirme +2, uygun misafiri haksız geri çevirme −3 ve
+  −1 itibar, kurala uymayan kıyafetle giren −3. İçeri alınan sorunlu misafir 14–32 sn sonra **olay çıkarır** (−8 ortam,
+  −2 itibar, grubu dışarı çıkarılır). Ortam Eğlence Katı NPC ücretlerini **×0.8–×1.4** ve gelme sıklığını ölçekler;
+  her gün 60'a doğru yaklaşır. Oyuncunun her 4 doğru kararı +1 itibar.
+- **Kapıda kimse yoksa** misafirler 1.3 sn'de kontrolsüz girer (sorunlu olan %60 olay çıkarır). **Bouncer NPC**
+  (Personel 2.0'dan €450, en fazla 2) kürsüde kendisi kontrol eder; isabeti %70'ten seviye ve moralle artar
+  (en fazla %97). Oyuncu kürsüye geçince NPC kenara çekilir.
+- Sunucu yetkili (`BouncerService`): kuyruk, profil, karar doğrulaması (kürsüde olma, sıranın başı, kimlik, tip),
+  hız sınırı; kapının kendi rastgele üreticisi var (diğer sistemlerin RNG dizisini değiştirmez). Testlerde
+  `bouncerQueue: false` eski akışı (doğrudan oyun yerine) açar.
+
+## Personel Yönetimi 2.0 (HotelStaffHR2)
+
+Resepsiyon PC → **👥 Personel 2.0**: bütün çalışanlar tek ekranda, rol rol — 🧹 temizlikçi, 👨‍🍳 aşçı, 🤵 garson,
+**🍹 barmen (yeni)**, **🛡️ bouncer (yeni)**. Her pozisyon buradan işe alınır / çıkarılır (fiyatlar kasadan).
+
+- **Barmen** (€300, en fazla 3): Bar De Tulp açıkken en uzun bekleyen müşterinin içeceğini hazırlar (raf → musluklar →
+  gerekiyorsa çalkalayıcı → servis; satış + bahşiş kasaya), içilen bardakları toplayıp lavaboda yıkar. Oyuncu da aynı
+  anda barmenlik yapabilir; bardak sayısı korunur. Hız: otel yıldızı + seviye + moral.
+- **Üniforma:** role göre 4–5 renk / stil; NPC'nin gövde / önlük rengi herkeste değişir.
+- **Performans (0–100 → ★):** bugünkü iş sayısı (hedefe göre, 40) + müşteri puanı (35; oda temizlik hızı, servis
+  süresi, restoran memnuniyeti, kapı kararlarının doğruluğu) + hatasızlık (25; boşa giden tabak, yanlış kapı kararı).
+  Dünkü puan da gösterilir.
+- **Moral ve prim:** moral (0–100) iş süresini ×1.12 … ×0.88 ölçekler. **Günlük prim** €25 / €50 / €100 (kasadan,
+  kişi başı günde bir) morali +8 / +15 / +25 yükseltir ve bugün + yarın %10 hızlandırır. Son iki günde prim almayanın
+  morali her gün −8; hatalar −2.
+- Sunucu: `StaffHRService` (İK kaydı `rol:isim`, kalıcı), `BarStaffService` (barmen işleri); diğer servislere yalnızca
+  küçük kancalar (`speedMul`, `outfitOf`, `rate`, `mistake`).
+
 ## Bar müdavimleriyle arkadaşlık
 
 Bar De Tulp'un müşterileri 12 kişilik sabit bir müdavim kadrosundan gelir (Sanne, Daan, Emma, Lars…); her birinin
@@ -764,6 +805,9 @@ amsterdam-otel/
 │       ├── StreetMonopolyService.js # Cadde İmparatorluğu: cüzdandan mülk alımı, gün başı kira sahibine, King unvanı + prestij
 │       ├── RestaurantService.js # Gurme Restoran: masalar, müşteriler (otel misafirleri / VIP), açık büfe, mutfak adımları, memnuniyet
 │       ├── KitchenStaffService.js # Aşçı / garson NPC'leri: iş adımları (pişir → pass → masa), büfe tazeleme, seviye
+│       ├── BouncerService.js    # VIP Bouncer: kapı kuyruğu, kıyafet / kart / tavır profili, kararlar, Ortam puanı, olaylar, bouncer NPC
+│       ├── StaffHRService.js    # Personel 2.0: üniforma, moral, prim, günlük performans (bütün çalışanlar)
+│       ├── BarStaffService.js   # Barmen NPC'leri: sipariş hazırla → servis, kirli bardak → lavabo
 │       ├── BasementService.js   # −1. Kat Eğlence Katı: bilardo kuralları + bilgisayar rakip, bowling skoru, masa tenisi / langırt maçları, atari jetonu + rekorlar, NPC misafirler
 │       ├── CargoDockService.js  # Mal Kabul Rampası: toptancı siparişi, NPC tırları, paletler, transpalet, yük asansörü, depo stoku + etkileri, deliver() API
 │       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
@@ -787,6 +831,8 @@ amsterdam-otel/
 │   ├── hotel.js                 # Yıldız eşikleri, kat fiyatları, temizlikçi süreleri
 │   ├── street.js                # Achterstraat mülkleri (fiyat, kira, cephe yerleşimi), King kuralları
 │   ├── restaurant.js            # Restoran: 24 malzeme, 7 tabaklık menü, pişirme yöntemleri, kurallar, personel, NPC şerit rotaları
+│   ├── bouncer.js               # VIP Bouncer: kapı yerleşimi, kıyafet parçaları, gece kuralları, kara liste, ortam çarpanları
+│   ├── staffhr.js               # Personel 2.0: yeni pozisyonlar (barmen, bouncer), üniformalar, moral / prim, performans puanı
 │   ├── basement.js              # Eğlence Katı: yerleşim, istasyonlar, fiyatlar, NPC rotaları, bowling skoru
 │   ├── cargo.js                 # Mal Kabul Rampası: avlu / salon / rampa / dorse / yük asansörü yerleşimi, palet türleri, kurallar, tır animasyonu
 │   ├── basementPhysics.js       # Bilardo + bowling için deterministik 2B fizik (sunucu ve istemci aynı kod)
@@ -799,7 +845,7 @@ amsterdam-otel/
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css, basement.css, cargo.css)
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css, basement.css, cargo.css, bouncer.css, staffhr.css)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
@@ -833,6 +879,8 @@ amsterdam-otel/
 │       │   ├── GourmetRestaurant.js # Restoran binası (salon, büfe, pass, açık mutfak), tabak modelleri, sipariş baloncukları + listesi, aşçı / garson aksesuarları, PC personel bölümü
 │       │   ├── StreetMonopoly.js    # Dükkân cepheleri + Achterstraat Oost, kapıdaki emlak kartı, "Achterstraat Real Estate" (telefon + PC), King rozeti / taç
 │       │   ├── KitchenSystem.js     # FPV mutfak: buzdolabı seçici, tava / fırın / tezgâh, tabaklama, servis, menü kütüphanesi, mutfak elleri
+│       │   ├── VipBouncer.js    # VIP kapı: kadife ip, kürsü, "Bu gece" panosu, misafir kıyafetleri, kapı modu (yakın plan + karar HUD)
+│       │   ├── HotelStaffHR2.js # Resepsiyon PC → 👥 Personel 2.0: işe al / çıkar, üniforma, moral, prim, performans
 │       │   ├── EntertainmentBasement.js # −1. Kat Eğlence Katı: merdiven / asansör, istasyon etkileşimi, oyun modu (FPV kamera, HUD), atari paneli, sesler (world/BasementBuilding.js)
 │       │   ├── CargoDockManagement.js # Mal Kabul Rampası: servis kapısı, FPV transpalet sürüşü, kaldır / indir, yük asansörü, tır animasyonu, 🚚 Mal Kabul sekmesi (world/CargoDockBuilding.js)
 │       │   ├── basement/            # PoolGame, BowlingGame, PongGame, FoosGame (FPV oyunlar), ArcadeGames (Neon Yılan, Tuğla Kırıcı, Lale İstilası)

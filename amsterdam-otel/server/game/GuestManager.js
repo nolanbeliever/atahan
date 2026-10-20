@@ -49,6 +49,7 @@ export class GuestManager {
       speed: GUEST_SPEED, face: g.face, sit: g.sit, roomId: g.roomId,
       ...(g.tourist ? { tourist: true } : {}), // istemci sırt çantası / fotoğraf makinesi / şapka ekler
       ...(g.vip ? { vip: true, label: '⭐ VIP' } : {}), // istemci altın aksesuar + etiket
+      ...(g.dress ? { dress: g.dress } : {}), // VIP Bouncer: Eğlence Katı'na inerken giydiği kıyafet
     };
   }
 

@@ -13,7 +13,7 @@ let G = null;
 let blobMat = null;
 const mats = new Map();
 
-function mat(color) {
+export function mat(color) {
   let m = mats.get(color);
   if (!m) {
     m = new THREE.MeshLambertMaterial({ color });
@@ -63,12 +63,17 @@ export function makeCharacter(look = {}, opts = {}) {
   const hair = HAIR_COLORS[(look.hair ?? 0) % HAIR_COLORS.length];
 
   const inner = new THREE.Group(); // yürürken hafif zıplama için
-  inner.add(new THREE.Mesh(g.body, mat(bodyColor)));
+  const body = new THREE.Mesh(g.body, mat(bodyColor));
+  inner.add(body);
   inner.add(new THREE.Mesh(g.head, mat(skin)));
   inner.add(new THREE.Mesh(g.eyes, mat('#1a1a1a')));
   if (look.hat) inner.add(new THREE.Mesh(g.hat, mat('#2a2a2e')));
   else inner.add(new THREE.Mesh(g.hair, mat(hair)));
-  if (opts.staff) inner.add(new THREE.Mesh(g.apron, mat('#f4f1ea')));
+  let apron = null;
+  if (opts.staff) {
+    apron = new THREE.Mesh(g.apron, mat('#f4f1ea'));
+    inner.add(apron);
+  }
   group.add(inner);
 
   let bag = null;
@@ -81,6 +86,6 @@ export function makeCharacter(look = {}, opts = {}) {
   blob.renderOrder = 1;
   group.add(blob);
 
-  group.userData = { inner, bag, blob };
+  group.userData = { inner, bag, blob, body, apron }; // body / apron: Personel 2.0 üniforması, kapı kıyafeti
   return group;
 }

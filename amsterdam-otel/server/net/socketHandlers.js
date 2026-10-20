@@ -265,6 +265,17 @@ export function attachSocketHandlers(io, sim) {
       if (!player || !allowCargo()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
       reply(ack, sim.cargoAct(player.id, data));
     });
+    // ---- VIP Bouncer (kapı kararları) + Personel 2.0 (Resepsiyon PC) — doğrulama servislerde ----
+    const allowBouncer = rateLimiter(5, 8);
+    on(EVT.BOUNCER_ACT, (data, ack) => {
+      if (!player || !allowBouncer()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.bouncerAct(player.id, data));
+    });
+    const allowStaff = rateLimiter(4, 8);
+    on(EVT.STAFF_ACT, (data, ack) => {
+      if (!player || !allowStaff()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.staffAct(player.id, data));
+    });
 
     on('disconnect', () => {
       if (player) {

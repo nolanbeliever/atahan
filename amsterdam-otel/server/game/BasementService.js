@@ -11,10 +11,15 @@ import {
   BOWL, ALL_PINS, bowlSimulate, bowlSpeed,
 } from '../../shared/basementPhysics.js';
 import { roomToLobby, lobbyToRoom } from './routes.js';
+import { DOOR } from '../../shared/bouncer.js';
 
 // NPC fazları (otel misafirleri de bu fazlarla iner; GuestManager g.dining varken dokunmaz)
 const PH = Object.freeze({ IN: 'bmIn', PLAY: 'bmPlay', OUT: 'bmOut' });
 const LOBBY_LIFT = ELEVATOR.lobby.point;
+// VIP Bouncer kapısı: asansörden inen misafir sıraya girer (BouncerService)
+const DOOR_PHASE = 'bmDoor';
+const QUEUE_PHASE = 'bmQueue';
+const DOOR_ENTRY = [32.7, -11.1];
 const XFER_GRACE_MS = 1500;
 
 // İstemci girdileri: yalnızca doğru tipteki değer kabul edilir (Number()/String() ile çevrilmez)
@@ -135,6 +140,7 @@ export class BasementService {
     return {
       id: n.id, look: n.look, phase: n.phase, path: n.path, t0: n.t0,
       speed: GUEST_SPEED, face: n.face, sit: false, roomId: null, kind: 'gamer',
+      ...(n.dress ? { dress: n.dress } : {}), // VIP Bouncer: kapıda bakılan kıyafet
     };
   }
 
@@ -772,7 +778,8 @@ export class BasementService {
         if (this.spawnSession(now)) {
           changed = true;
           const f = basementSpawnFactor(this.sim.growth.stars, this.occupancy());
-          this.nextSpawnAt = now + (R.SPAWN_MIN_MS + this.rng() * (R.SPAWN_MAX_MS - R.SPAWN_MIN_MS)) * f;
+          const door = this.sim.bouncer?.spawnMul() ?? 1; // iyi ortam → daha sık misafir
+          this.nextSpawnAt = now + (R.SPAWN_MIN_MS + this.rng() * (R.SPAWN_MAX_MS - R.SPAWN_MIN_MS)) * f * door;
         } else {
           this.nextSpawnAt = now + R.RETRY_MS;
         }
@@ -872,7 +879,8 @@ export class BasementService {
         n.spot = sp;
         n.session = sess;
         this.npcs.set(n.id, n);
-        this.walk(n, PH.IN, [...roomToLobby([layout.path.stand], layout, [LOBBY_LIFT]), basementRouteIn(sp)], now);
+        this.sim.bouncer?.assign(n); // VIP Bouncer: görünür kıyafet + kart + tavır
+        this.walk(n, this.doorPhase(), [...roomToLobby([layout.path.stand], layout, [LOBBY_LIFT]), this.routeIn(sp)], now);
       } else {
         const street = this.rng() < 0.5 ? POINTS.streetWest : POINTS.streetEast;
         n = {
@@ -885,12 +893,49 @@ export class BasementService {
         n.spot = sp;
         n.session = sess;
         this.npcs.set(n.id, n);
-        this.walk(n, PH.IN, [[street, POINTS.doorOutside, POINTS.doorInside, LOBBY_LIFT], basementRouteIn(sp)], now);
+        this.sim.bouncer?.assign(n);
+        this.walk(n, this.doorPhase(), [[street, POINTS.doorOutside, POINTS.doorInside, LOBBY_LIFT], this.routeIn(sp)], now);
       }
       sess.members.push(n.id);
     });
     this.sessions.push(sess);
     return true;
+  }
+
+  // ---- VIP Bouncer kapısı (BouncerService) ---------------------------------------------------------
+
+  /** Kapı sistemi açıksa misafir önce sıraya (asansörden kadife ipe), değilse doğrudan oyun yerine */
+  doorPhase() { return this.sim.bouncer?.active ? DOOR_PHASE : PH.IN; }
+
+  routeIn(sp) { return this.sim.bouncer?.active ? [BASEMENT.elevator.point, DOOR_ENTRY] : basementRouteIn(sp); }
+
+  /** Kapıdan içeri alındı: kontrol noktasından salona, oyun yerine */
+  doorAdmit(n, now) {
+    this.walk(n, PH.IN, [[DOOR.check, DOOR.gate, ...basementRouteIn(n.spot).slice(1)]], now);
+  }
+
+  /** Geri çevrildi (ya da oturumu iptal oldu): sıranın arkasından asansöre ve eve / sokağa; ücret yok */
+  doorReject(n, now) {
+    const s = n.session;
+    const k = s.members.indexOf(n.id);
+    if (k >= 0) s.members.splice(k, 1);
+    const at = n.e.path[n.e.path.length - 1];
+    const out = [[at, ...DOOR.back, BASEMENT.elevator.point]];
+    if (n.hotel) {
+      const layout = ROOM_BY_ID[n.room];
+      out.push(...lobbyToRoom([LOBBY_LIFT], layout, [layout.path.stand]));
+    } else {
+      out.push([LOBBY_LIFT, POINTS.doorInside, POINTS.doorOutside, n.street]);
+    }
+    this.walk(n, PH.OUT, out, now);
+  }
+
+  /** Olay çıktı: oturumdaki herkes oyunu bırakıp çıkar */
+  endSession(s, now) {
+    if (!s || s.cancelled) return;
+    s.cancelled = true;
+    for (const id of s.members) this.npcLeave(this.npcs.get(id), now);
+    this.changed();
   }
 
   walk(n, phase, legs, now) {
@@ -924,9 +969,13 @@ export class BasementService {
   /** @returns {boolean} BASEMENT_STATE değişti mi */
   updateNpc(n, now) {
     const e = n.e;
-    if (e.phase === PH.PLAY || now < e.phaseEndsAt) return false;
+    if (e.phase === PH.PLAY || e.phase === QUEUE_PHASE || now < e.phaseEndsAt) return false;
     if (e.legs) {
       this.walk(n, e.phase, e.legs, now); // asansör: sonraki bacağın başına ışınlan
+      return false;
+    }
+    if (e.phase === DOOR_PHASE) {
+      this.sim.bouncer.arrive(n, now); // kapıdaki sıraya girer (BouncerService yönetir)
       return false;
     }
     if (e.phase === PH.IN) {
@@ -937,8 +986,10 @@ export class BasementService {
       this.stand(n, PH.PLAY, n.spot.at, n.spot.face, now);
       // Ücret varışta kasaya (VIP 2×)
       const g = BASEMENT_GAMES[n.session.game];
-      // Depoda eğlence katı malzemesi (Mal Kabul Rampası) varsa +€ (1 birim stok)
-      const fee = g.npcFee * (n.vip ? R.VIP_MUL : 1) + (this.sim.cargo?.use('fun') ? CARGO_EFFECTS.fun.bonus : 0);
+      // VIP 2×; kapıdaki "Ortam" puanı ücreti 0.8×–1.4× ölçekler (VIP Bouncer);
+      // depoda eğlence katı malzemesi (Mal Kabul Rampası) varsa +€ (1 birim stok)
+      const fee = Math.round(g.npcFee * (n.vip ? R.VIP_MUL : 1) * (this.sim.bouncer?.feeMul() ?? 1))
+        + (this.sim.cargo?.use('fun') ? CARGO_EFFECTS.fun.bonus : 0);
       this.stats.npcIncome += fee;
       this.sim.earn(fee, `${g.icon} Eğlence Katı: ${g.name} (${n.name})`, { guest: false });
       return true;
@@ -969,6 +1020,7 @@ export class BasementService {
     if (n.hotel) {
       const g = n.e;
       g.dining = false;
+      g.dress = null; // kapı kıyafeti yalnızca Eğlence Katı ziyareti boyunca
       const layout = ROOM_BY_ID[n.room];
       this.sim.guests.stand(g, GP.IN_ROOM, layout.path.stand, 0, now);
       return;
