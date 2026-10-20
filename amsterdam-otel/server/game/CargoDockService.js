@@ -274,7 +274,8 @@ export class CargoDockService {
     }
     this.changed();
     this.sim.house?.scheduleSave?.();
-    return { ok: true, bay: first ?? -1, pallets: total, ...(queued ? { queued: true } : {}) };
+    // handled: paletler (transpaletle) stoğa işlenir; tır sistemi yükün değerini kasaya ayrıca yazmaz
+    return { ok: true, handled: true, bay: first ?? -1, pallets: total, ...(queued ? { queued: true } : {}) };
   }
 
   supplierFor(counts) {

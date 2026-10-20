@@ -1,5 +1,6 @@
 import { CAR_RULES, carPhysics, carZone } from '/shared/cars.js';
 import { setBrake, setNeedle } from '../world/CarModels.js';
+import { roadLimitKmh } from '/shared/worldmap.js';
 
 const KMH = 3.6;
 
@@ -135,7 +136,8 @@ export class CarCockpit {
     setNeedle(obj, kmh);
     setBrake(obj, (thr < 0 && v > 0.1) || (Math.abs(v) < 0.1 && thr <= 0));
     // HUD (yalnızca değişince)
-    const limit = carZone(p.pos.x, p.pos.z) === 'drag' ? '' : String(CAR_RULES.CITY_KMH);
+    const road = roadLimitKmh(p.pos.x, p.pos.z); // şehir dışı: otoyol 100 / bağlantı 60 / avlu 30
+    const limit = road ? String(road) : carZone(p.pos.x, p.pos.z) === 'drag' ? '' : String(CAR_RULES.CITY_KMH);
     const rpmPct = Math.round(Math.min(1, dtr.rpm / this.car.def.redline) * 20) * 5;
     const key = `${Math.round(kmh)}|${dtr.gear}|${rpmPct}|${limit}`;
     if (key !== this.hudKey) {

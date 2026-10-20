@@ -107,7 +107,7 @@ test('yerleşim: park yerleri, geçitler ve varış noktaları doğru bölgelerd
   // Park yerleri birbirinin üstüne binmez
   const bays = GARAGE_LAYOUT.bays;
   for (let i = 0; i < bays.length; i++) for (let j = i + 1; j < bays.length; j++) assert.ok(Math.hypot(bays[i].x - bays[j].x, bays[i].z - bays[j].z) >= 2.5);
-  const areaOf = (x, z) => (pointInBounds(x, z, GARAGE.bounds) ? 'garage' : pointInBounds(x, z, DRAG.bounds) ? 'drag' : carZone(x, z) === 'street' ? 'street' : 'city');
+  const areaOf = (x, z) => (pointInBounds(x, z, GARAGE.bounds) ? 'garage' : pointInBounds(x, z, DRAG.bounds) ? 'drag' : carZone(x, z) === 'street' ? 'street' : carZone(x, z) === 'highway' ? 'highway' : 'city');
   for (const t of CAR_XFERS) {
     // Varış noktası hedef bölgede ve HİÇBİR tetik alanının içinde değil (geri sekme yok)
     assert.equal(areaOf(t.to.x, t.to.z), t.area, t.id);

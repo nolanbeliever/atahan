@@ -214,6 +214,12 @@ export function attachSocketHandlers(io, sim) {
       if (!player || !allowValet()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
       reply(ack, sim.valetAct(player.id, data));
     });
+    // ---- FPV lojistik tırı (tipler, konum, durma hızı, bakiye LogisticsService'te doğrulanır) ----
+    const allowLogi = rateLimiter(5, 10);
+    on(EVT.LOGI_ACT, (data, ack) => {
+      if (!player || !allowLogi()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.logisticsAct(player.id, data));
+    });
     // ---- Akıllı telefon: InstaHotel (gönderi, beğeni, akış, fotoğraf) ----
     // Fotoğraf ~90 KB'lık data URL: socket.io'nun varsayılan 1 MB mesaj sınırı yeterli (yükseltilmedi).
     // Tipler, fotoğraf biçimi, bütçe, kasa ve gönderi aralığı (20 sn) MarketingService'te doğrulanır.

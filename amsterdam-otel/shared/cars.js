@@ -8,10 +8,12 @@
 // Koordinatlar (2B dünya, +Z kuzey, yaw: ileri = (−sin yaw, −cos yaw)):
 //   garaj  x 60..100,  z −30..10   (layout.GARAGE)  — sokaktaki rampadan inilir
 //   drag   x 140..190, z −460..40  (layout.DRAG)    — garajdaki "🏁 Drag pisti" şeridinden sürülür
+//   otoyol x 240..1260, z −440..330 (worldmap.HWY)  — sokağın doğu ucundaki tünelden; avlu, depolar, liman
 
 import { GARAGE, DRAG, isOutdoors, isInsideSteeg, isInsideAlley, pointInBounds } from './layout.js';
 import { BASEMENT } from './basement.js';
 import { CARGO_DOCK } from './cargo.js';
+import { HWY, SERVICE_YARD, isDrivable, inHighwayRegion, highwayCap, yardAt } from './worldmap.js';
 
 const KMH = 3.6;
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -31,6 +33,8 @@ export const CAR_BODIES = freeze({
   coupe: freeze({ L: 4.55, W: 1.88, H: 1.3, belt: 0.82, ws: 0.72, rf: -0.18, rr: -0.95, deck: -1.85, nose: 0.66, tail: 0.82, clear: 0.15, wr: 0.34, wf: 1.42, wb: -1.35, eye: 1.03, seat: freeze({ x: 0.39, z: -0.72 }) }),
   gt: freeze({ L: 4.88, W: 1.96, H: 1.32, belt: 0.82, ws: 0.52, rf: -0.38, rr: -1.18, deck: -2.02, nose: 0.68, tail: 0.84, clear: 0.15, wr: 0.35, wf: 1.58, wb: -1.42, eye: 1.04, seat: freeze({ x: 0.4, z: -0.92 }) }),
   super: freeze({ L: 4.62, W: 2.02, H: 1.15, belt: 0.74, ws: 0.95, rf: 0.22, rr: -0.62, deck: -1.95, nose: 0.55, tail: 0.86, clear: 0.12, wr: 0.35, wf: 1.42, wb: -1.36, eye: 0.96, seat: freeze({ x: 0.4, z: -0.32 }), wing: true }),
+  // Çekici (tır): kabin önde (motor kabinin altında); dorse beşinci tekerden (fifth) arkaya uzanır
+  truck: freeze({ L: 6.3, W: 2.5, H: 3.85, belt: 1.95, ws: 2.95, rf: 2.9, rr: 0.95, deck: 0.9, nose: 1.4, tail: 1.2, clear: 0.42, wr: 0.52, wf: 1.95, wb: -1.85, eye: 2.55, seat: freeze({ x: 0.56, z: 1.75 }), fifth: -1.55, trailer: 13.6 }),
 });
 
 // ---- AutoGalerie kataloğu ---------------------------------------------------------------------
@@ -99,7 +103,37 @@ export const CAR_MODELS = freeze([
   }),
 ].map((m) => freeze({ ...m, name: `${m.brand} ${m.model}` })));
 
-export const CAR_BY_ID = byId(CAR_MODELS);
+// ---- Tırlar (TruckCenter, lojistik avlusu) — AutoGalerie listesinde değil; CAR_BY_ID'de (sürüş, kayıt) ----
+// t60: 0–60 km/s (sn, boş) · topKmh: hız sınırlayıcı · gears: vites · cyl: silindir · redline: dizel devir sınırı
+export const TRUCK_MODELS = freeze([
+  freeze({
+    id: 'zeeland-lx', brand: 'Zeeland', model: 'LX 460', body: 'truck', price: 95_000, topKmh: 90, t60: 14, hp: 460, gears: 12, cyl: 6, redline: 2300,
+    colors: pal('white', 'blue', 'red', 'silver', 'green'), cap: 26,
+    desc: 'Güvenilir uzun yol çekicisi: 12 ileri otomatik şanzıman, geniş yataklı kabin, az yakar.',
+  }),
+  freeze({
+    id: 'brabant-titan', brand: 'Brabant', model: 'Titan XF 530', body: 'truck', price: 128_000, topKmh: 90, t60: 12, hp: 530, gears: 12, cyl: 6, redline: 2300,
+    colors: pal('orange', 'black', 'white', 'sky', 'yellow'), cap: 30,
+    desc: 'Yüksek tavanlı Space kabin, retarder, şerit asistanı. Ağır yükte bile yokuş sevmez değil.',
+  }),
+  freeze({
+    id: 'noordkaap-v8', brand: 'Noordkaap', model: 'V8 Royal 660', body: 'truck', price: 175_000, topKmh: 90, t60: 10, hp: 660, gears: 14, cyl: 8, redline: 2200,
+    colors: pal('black', 'red', 'purple', 'cream', 'blue'), cap: 34,
+    desc: 'Krom ızgara, V8 gürlemesi, deri kabin. Limandan otele en ağır konteyneri bile çeker.',
+  }),
+].map((m) => freeze({ ...m, name: `${m.brand} ${m.model}` })));
+
+export const TRUCK_RULES = freeze({
+  MAX_PER_PLAYER: 2, // oyuncu başına en fazla tır (arabalarla birlikte CAR_RULES.MAX_PER_PLAYER içinde)
+  LOADED_ACCEL: 0.58, // dorse yüklüyken ivme çarpanı
+  BRAKE: 5.2, // boş tır frenleme (m/sn²)
+  BRAKE_LOADED: 4.2,
+  COAST: 0.35,
+  REVERSE: 3.2,
+});
+
+export const CAR_BY_ID = byId([...CAR_MODELS, ...TRUCK_MODELS]);
+export const isTruck = (model) => (typeof model === 'string' ? CAR_BY_ID[model] : model)?.body === 'truck';
 
 export const CAR_RULES = freeze({
   MAX_PER_PLAYER: 6, // oyuncu başına en fazla araba
@@ -122,8 +156,9 @@ export function carPhysics(model) {
   let ph = PHYS.get(model.id);
   if (!ph) {
     const vmax = model.topKmh / KMH;
-    const v100 = 100 / KMH;
-    const A = (vmax * Math.atanh(v100 / vmax)) / model.t100;
+    // Tır: 0–60 km/s süresinden (en yüksek hız 100'ün altında)
+    const vRef = (model.t60 ? 60 : 100) / KMH;
+    const A = (vmax * Math.atanh(vRef / vmax)) / (model.t60 ?? model.t100);
     ph = freeze({ vmax, A });
     PHYS.set(model.id, ph);
   }
@@ -141,6 +176,12 @@ export function carAccel(model, v) {
 export function carTurnRate(v) {
   const s = Math.abs(v);
   return Math.min(s / 5.2, 8.5 / Math.max(s, 1), 1.55);
+}
+
+/** Tır dönüşü: uzun dingil mesafesi → geniş dönüş yarıçapı (~9 m), hızda yanal sınır düşük */
+export function truckTurnRate(v) {
+  const s = Math.abs(v);
+  return Math.min(s / 9.5, 3.6 / Math.max(s, 1), 0.62);
 }
 
 // ---- Drag pisti ---------------------------------------------------------------------------------
@@ -267,6 +308,9 @@ export const CAR_XFERS = freeze([
   freeze({ id: 'toDrag', icon: '🏁', label: 'Drag pistine sür', zone: freeze({ minX: 96.6, maxX: 99.9, minZ: -24.4, maxZ: -18.6 }), to: freeze({ x: 165, z: 32, yaw: Math.PI / 2 }), area: 'drag', walk: true }),
   freeze({ id: 'toGarage', icon: '🅿️', label: 'Garaja dön', zone: freeze({ minX: 186.6, maxX: 189.9, minZ: 25, maxZ: 37 }), to: freeze({ x: 92.5, z: -21.5, yaw: Math.PI / 2 }), area: 'garage', walk: true }),
   freeze({ id: 'lobby', icon: '🛗', label: 'Asansörle lobiye çık', zone: freeze({ minX: 62.1, maxX: 65.9, minZ: 7.6, maxZ: 9.95 }), to: freeze({ x: 0, z: 3.0, yaw: Math.PI }), area: 'city', foot: true }),
+  // Otoyol tüneli: sokağın doğu ucu ⇄ lojistik avlusunun batı duvarı (tır şehre giremez: GarageService)
+  freeze({ id: 'toHighway', icon: '🛣️', label: 'A10 Ring — lojistik avlusuna', zone: freeze({ minX: 16.6, maxX: 17.95, minZ: -6.9, maxZ: -3.2 }), to: SERVICE_YARD.arrive, area: 'highway', walk: true }),
+  freeze({ id: 'toCity', icon: '🏙️', label: 'Şehre dön — otelin önü', zone: SERVICE_YARD.portal, to: freeze({ x: 14.6, z: -5.0, yaw: Math.PI / 2 }), area: 'street', walk: true }),
 ]);
 export const CAR_XFER_BY_ID = byId(CAR_XFERS);
 
@@ -280,10 +324,11 @@ export function isCarStreet(x, z) {
   return isOutdoors(x, z) && !isInsideSteeg(x, z) && !isInsideAlley(x, z) && z < -0.1;
 }
 
-/** Arabanın bulunabileceği bölge: 'garage' | 'street' | 'drag' | null */
+/** Arabanın bulunabileceği bölge: 'garage' | 'street' | 'drag' | 'highway' | null */
 export function carZone(x, z) {
   if (pointInBounds(x, z, GARAGE.bounds)) return 'garage';
   if (pointInBounds(x, z, DRAG.bounds)) return 'drag';
+  if (inHighwayRegion(x, z) && isDrivable(x, z, 1.2)) return 'highway'; // otoyol, avlu, depolar, liman
   if (isCarStreet(x, z)) return 'street';
   return null;
 }
@@ -294,6 +339,7 @@ export function bigArea(x, z) {
   if (pointInBounds(x, z, DRAG.bounds, 2)) return 'drag';
   if (pointInBounds(x, z, BASEMENT.bounds, 2)) return 'basement'; // −1. Kat Eğlence Katı
   if (pointInBounds(x, z, CARGO_DOCK.bounds, 2)) return 'dock'; // Mal Kabul Rampası (arka avlu)
+  if (inHighwayRegion(x, z, 2)) return 'highway'; // şehir dışı: otoyol, depolar, liman (LargeWorldMap)
   return 'city';
 }
 
@@ -303,12 +349,18 @@ export function bigArea(x, z) {
  */
 export function carSpeedCap(model, x, z) {
   const vmax = carPhysics(model).vmax;
+  if (inHighwayRegion(x, z, 2)) return highwayCap(vmax, x, z); // otoyol 100, bağlantı yolu 60, avlu 30 km/s
   if (carZone(x, z) !== 'drag') return CAR_RULES.CITY_KMH / KMH;
   const T = DRAG_TRACK;
   if (z < T.finishZ && x > T.strip.minX && x < T.strip.maxX) {
     return Math.min(vmax, Math.sqrt(2 * CAR_RULES.CHUTE * Math.max(0, z - T.stopZ)) + 2);
   }
   return vmax;
+}
+
+/** Tırın park edebileceği yer: avlu / depo / liman (otoyolun ortası değil) */
+export function canParkTruck(x, z) {
+  return yardAt(x, z) !== null;
 }
 
 /** Ön yolcu koltuğu (sağ): sürücünün konumu = arabanın merkezi */

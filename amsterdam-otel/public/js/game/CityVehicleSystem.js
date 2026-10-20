@@ -229,7 +229,7 @@ export class CityVehicleSystem {
       if (this.seat.seat === 'passenger') return { ...at, short: 'İn', label: '⬇ Arkadan in', use: () => this.dismount() };
       const sv = this.byId.get(this.seat.id);
       if (sv?.type === 'car') {
-        if (!this.cars.canPark(px, pz)) return { ...at, short: 'İn', label: '🚫 Burada park edilmez', use: () => this.hud.toast('Arabayı garajda, otelin önünde ya da drag alanında park edebilirsin.', 'info') };
+        if (!this.cars.canPark(px, pz)) return { ...at, short: 'İn', label: '🚫 Burada park edilmez', use: () => this.hud.toast('Garajda, otelin önünde, drag alanında ya da şehir dışındaki avlu / depolarda park edebilirsin.', 'info') };
       } else if (!isOutdoors(px, pz)) return { ...at, short: 'İn', label: '🚫 Burada park edilmez', use: () => this.hud.toast('Sokakta, steeg\'de ya da Achterstraat\'ta park edebilirsin.', 'info') };
       const def = this.defOf(sv);
       return { ...at, short: 'Park', label: `🅿️ ${def?.from ?? 'Araçtan'} in ve park et`, use: () => this.dismount() };

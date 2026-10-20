@@ -31,6 +31,7 @@ import { ArchitectureService } from './ArchitectureService.js';
 import { GarageService } from './GarageService.js';
 import { DragRaceService } from './DragRaceService.js';
 import { ValetService } from './ValetService.js';
+import { LogisticsService } from './LogisticsService.js';
 import { BasementService } from './BasementService.js';
 import { CargoDockService } from './CargoDockService.js';
 import { BarStaffService } from './BarStaffService.js';
@@ -109,6 +110,7 @@ export class HotelSimulation extends EventEmitter {
     this.garage = new GarageService(this); // yeraltı garajı, AutoGalerie, arabalar (VehicleService'te 'car')
     this.drag = new DragRaceService(this); // drag pisti: zamanlama, düello, liderlik tablosu
     this.valet = new ValetService(this); // VIP vale + garajdaki oto yıkama
+    this.logistics = new LogisticsService(this); // FPV lojistik tırı: sevkiyat panosu, yükleme, teslim (şehir dışı otoyol)
     this.basement = new BasementService(this); // −1. Kat VIP Eğlence Katı: bilardo, langırt, masa tenisi, atari, bowling
     this.cargo = new CargoDockService(this); // Mal Kabul Rampası: toptancı tırları, paletler, transpalet, yük asansörü, depo stoku
     this.barStaff = new BarStaffService(this); // barmen NPC'leri (Bar De Tulp)
@@ -189,6 +191,7 @@ export class HotelSimulation extends EventEmitter {
       garage: this.garage.persisted(),
       drag: this.drag.persisted(),
       valet: this.valet.persisted(),
+      logistics: this.logistics.persisted(),
       restaurant: { ...this.restaurant.persisted(), staff: this.kitchen.persisted() },
       street: this.street.persisted(),
       basement: this.basement.persisted(),
@@ -213,6 +216,7 @@ export class HotelSimulation extends EventEmitter {
     this.garage.restore(h.garage);
     this.drag.restore(h.drag);
     this.valet.restore(h.valet);
+    this.logistics.restore(h.logistics);
     this.restaurant.restore(h.restaurant);
     this.kitchen.restore(h.restaurant?.staff);
     this.street.restore(h.street);
@@ -308,6 +312,7 @@ export class HotelSimulation extends EventEmitter {
     this.marketing.update(now);
     this.drag.update(now);
     this.valet.update(now);
+    this.logistics.update(now);
     this.basement.update(now);
     this.cargo.update(now);
     this.barStaff.update(now);
@@ -413,6 +418,7 @@ export class HotelSimulation extends EventEmitter {
     this.relations.removePlayer(p); // evdeki misafiri gider
     this.drag.removePlayer(p); // drag yarışındaysa DNF
     this.valet.removePlayer(p); // VIP aracının anahtarı sendeyse müşteri arabasını geri alır
+    this.logistics.removePlayer(p); // süren sevkiyat iptal (yük tırdaysa depoya iade), dorse ayrılır
     this.basement.removePlayer(p); // Eğlence Katı: masadan / kulvardan / makineden kalkar
     this.cargo.removePlayer(p); // transpalet bırakılır (taşınan palet rampaya)
     this.bouncer.removePlayer(p); // kapıdaki kürsüden ayrılır
@@ -513,6 +519,7 @@ export class HotelSimulation extends EventEmitter {
     p.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
     this.dirtyPlayers.add(id);
     this.vehicles.afterMove(p);
+    this.logistics.onMove(p, this.now()); // tır hız ölçümü + polis eklentisi kancaları
     this.counterfeit.onMove(p); // gizli bölmeden yürüyerek çıkış
     this.drag.onMove(p, this.now()); // drag yarışı zaman örnekleri
     // Yataktan kalkıp yürüyen oyuncu uyanır
@@ -680,6 +687,8 @@ export class HotelSimulation extends EventEmitter {
   // ---- VIP vale + oto yıkama ----------------------------------------------------------
 
   valetAct(playerId, data) { return this.withPlayer(playerId, (p) => this.valet.act(p, data, this.now())); }
+
+  logisticsAct(playerId, data) { return this.withPlayer(playerId, (p) => this.logistics.act(p, data, this.now())); }
   // ---- −1. Kat VIP Eğlence Katı ------------------------------------------------------------
 
   basementAct(playerId, data) { return this.withPlayer(playerId, (p) => this.basement.act(p, data, this.now())); }
@@ -814,6 +823,7 @@ export class HotelSimulation extends EventEmitter {
       insta: this.marketing.serialize(this.players.get(selfId)), // InstaHotel akışı (fotoğraf yalnızca en yeni 4'te)
       drag: this.drag.serialize(), // drag pisti: faz, ışık ağacı zamanları, son sonuçlar, liderlik tablosu
       valet: this.valet.serialize(), // VIP vale işleri: anahtar, çamur noktaları, hasar
+      logistics: this.logistics.serialize(), // tır sevkiyatları: teklifler, işler, yapay araçlar
       basement: this.basement.serialize(), // Eğlence Katı: masalar, kulvarlar, atari makineleri, rekorlar
       cargo: this.cargo.serialize(), // Mal Kabul: stok, tırlar, paletler, transpaletler, yük asansörü
       bouncer: this.bouncer.serialize(), // VIP kapı: bu geceki kural, sıra, kontrol edilen misafir, ortam

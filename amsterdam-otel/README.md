@@ -728,6 +728,40 @@ Resepsiyon PC → **👥 Personel 2.0**: bütün çalışanlar tek ekranda, rol 
 - Sunucu: `StaffHRService` (İK kaydı `rol:isim`, kalıcı), `BarStaffService` (barmen işleri); diğer servislere yalnızca
   küçük kancalar (`speedMul`, `outfitOf`, `rate`, `mistake`).
 
+## FPV Lojistik Tırı & Devasa Harita — A10 Ring, depolar, liman (LargeWorldMap)
+
+Şehrin dışında, 2B dünyanın ayrı bir köşesinde (x 240..1260, z −440..330) büyük bir açık bölge: **A10 Ring otoyolu**
+(~914 m, yumuşak virajlı 2+2 şerit), otelin **lojistik avlusu**, üç toptancı deposu (**🥩 VersMarkt Gıda**, **🧃 FrisDepot
+İçecek**, **🎳 ArcadeWorks Eğlence Ekipmanı**) ve **⚓ Haven Zuid Konteyner Limanı**. Otelin önündeki sokağın doğu ucundaki
+**🛣️ tünelden** yürüyerek ya da arabayla gidilir (avlunun batı duvarındaki tünel şehre döner); hızlı ışınlanmada
+**🚛 Lojistik avlusu**. Geometri ve yol ağı `shared/worldmap.js`'tedir; sunucu ve istemci aynı değerleri kullanır.
+
+- **Harita:** yol şeritleri (asfalt, kesik / sürekli çizgiler), bariyerler, lambalar, ~500 ağaç, lale tarlaları, yel
+  değirmenleri, çıkış tabelaları (köprü), hız tabelaları, depo binaları, konteyner yığınları, vinçler, gemi.
+  Yoldan çıkılmaz: yol şeridi + avlu dikdörtgenleri çarpışma kısıtıdır (`Collision.constraints`). Hız sınırı:
+  otoyol 100, bağlantı yolu 60, avlu 30 km/s (sunucu hız denetimi aynı sınırla).
+- **🚛 TruckCenter** (avludaki bina, PC / telefon Lojistik sekmesi): Zeeland LX 460 (€95.000), Brabant Titan XF 530
+  (€128.000), Noordkaap V8 Royal 660 (€175.000) — **yalnızca kişisel cüzdandan**, oyuncu başına en fazla 2; avludaki tır
+  parkına (T-1…T-4) teslim edilir ve kalıcıdır. Tır şehre (tünelden) giremez; yalnızca avlu / depo / limanda park eder.
+- **Sürüş:** mevcut araba sürüşü + kokpit üzerine: ağır fizik (0–60 km/s 10–14 sn, yüklüyken ivme ×0.58, uzun fren,
+  geniş dönüş, 90 km/s sınırlayıcı), detaylı FPV kabin (geniş ön cam, yatay büyük direksiyon, 0–125 km/s kadranı,
+  takograf, dev aynalar), dizel motor sesi, dorse kıvrılması (çekicinin yoluna göre).
+- **🗺️ Navi:** bölgedeyken sürerken (ya da işin varken) köşede mini harita (5 Hz): yol ağı, mor rota çizgisi, hedef,
+  mesafe / tahmini süre, sıradaki çıkış ("↗ VersMarkt çıkışı · 370 m"); 🗺️ ile tam harita. Mobilde sol üstte.
+- **Sevkiyat (Resepsiyon PC "🚛 Lojistik" / telefonda 🚛):** sözleşme panosundan iş al → tırınla depoya / limana git,
+  sarı çerçeveli yükleme körfezinde dur, **E: yükle** → toptan fiyat **otel kasasından** düşer, dorse takılır → otelin
+  lojistik avlusundaki **🏨 mal kabul körfezinde** dur, **E: teslim** → kasaya yükün değeri (toptan × 1.45 × durum),
+  **şoför ücreti cüzdana** (mesafe + palet; zamanında ×1.2, geç ×0.6). Yük türleri: restoran malzemesi, alkolsüz içecek,
+  eğlence katı malzemesi, ithal gurme ürün. Yüklü dorseyle çarpma (duvar / bariyer / trafik) hasar yazar ve değeri
+  düşürür. Yükten sonra iptal ya da oyundan çıkış: toptan fiyatın yarısı iade. Teslimde `sim.cargo.deliver(...)`
+  çağrılır (Mal Kabul paletleri); `{ handled: true }` dönerse değer kasaya ayrıca yazılmaz.
+- **Trafik:** otoyolda deterministik süs araçları (tek InstancedMesh); sunucunun yapay araçları (`logi:agents`,
+  ileride polis — tepe lambası yanıp söner) ayrıca çizilir.
+- **Eklenti kancaları** (LogisticsService başındaki yorum): iş nesnesi `{ legal, hidden: [] }`, `on('jobStart' |
+  'loaded' | 'jobEnd' | 'stopped' | 'moved' | 'load' | 'deliver')` (+ `{ veto }`), `truckState(p)`, `setAgent / removeAgent`.
+- **Pil:** bölge ayrı grup (oradayken otel dünyası çizilmez; uzak düzlem 900 m + sis); tekrarlanan nesneler
+  InstancedMesh; statikler malzeme başına tek mesh; kare yalnızca sürerken ya da yakında trafik varken.
+
 ## Bar müdavimleriyle arkadaşlık
 
 Bar De Tulp'un müşterileri 12 kişilik sabit bir müdavim kadrosundan gelir (Sanne, Daan, Emma, Lars…); her birinin
@@ -810,6 +844,7 @@ amsterdam-otel/
 │       ├── BarStaffService.js   # Barmen NPC'leri: sipariş hazırla → servis, kirli bardak → lavabo
 │       ├── BasementService.js   # −1. Kat Eğlence Katı: bilardo kuralları + bilgisayar rakip, bowling skoru, masa tenisi / langırt maçları, atari jetonu + rekorlar, NPC misafirler
 │       ├── CargoDockService.js  # Mal Kabul Rampası: toptancı siparişi, NPC tırları, paletler, transpalet, yük asansörü, depo stoku + etkileri, deliver() API
+│       ├── LogisticsService.js  # FPV lojistik tırı: sözleşme panosu, yükleme (kasadan toptan), teslim (kasa + şoför ücreti), hasar, polis eklentisi kancaları
 │       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
 │       ├── MarketingService.js  # InstaHotel: gönderi doğrulama, beğeni / takipçi artışı, kampanya → turist akını (boost)
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
@@ -836,6 +871,8 @@ amsterdam-otel/
 │   ├── basement.js              # Eğlence Katı: yerleşim, istasyonlar, fiyatlar, NPC rotaları, bowling skoru
 │   ├── cargo.js                 # Mal Kabul Rampası: avlu / salon / rampa / dorse / yük asansörü yerleşimi, palet türleri, kurallar, tır animasyonu
 │   ├── basementPhysics.js       # Bilardo + bowling için deterministik 2B fizik (sunucu ve istemci aynı kod)
+│   ├── worldmap.js              # Devasa harita: otoyol bölgesi, yol ağı (ana gövde + çıkışlar), avlu / depolar / liman, sürülebilir alan, rota (navi), trafik şeritleri
+│   ├── logistics.js             # Tır sevkiyatı: yük türleri, ekonomi (toptan, değer, şoför ücreti), süre, hasar
 │   ├── architecture.js          # Lüks paketler (fiyat, koşul, kat / temizlikçi sınırı), VIP suit kuralları, lounge geliri
 │   ├── stage.js                 # Canlı müzik sahnesi: yer, gruplar (ücret, kalabalık, bonus), set takvimi, kalabalık noktaları
 │   ├── marketing.js             # InstaHotel: bütçeler, fotoğraf / açıklama doğrulama, konum etiketleri, turist kafilesi + kuyruk
@@ -845,12 +882,12 @@ amsterdam-otel/
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css, basement.css, cargo.css, bouncer.css, staffhr.css)
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css, basement.css, cargo.css, logistics.css, bouncer.css, staffhr.css)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
 │       ├── world/               # Otel, coffee shop, bar, Bizim Ev, Achterstraat evleri, steeg + araç büfesi, sahne (StageBuilding); dokular, malzemeler, çarpışma
-│       │                        #   GarageBuilding (garaj + sokak rampası), DragStripBuilding (pist + manzara), CarModels (prosedürel arabalar), CarWorldKit
+│       │                        #   GarageBuilding (garaj + sokak rampası), DragStripBuilding (pist + manzara), CarModels (prosedürel arabalar), TruckModels (tır + dorse, FPV kabin), CarWorldKit
 │       ├── controls/            # Klavye/fare, dokunmatik joystick, FPV oyuncu
 │       ├── game/                # Misafirler, diğer oyuncular, etkileşim, durum
 │       │   ├── CoffeeShopSystem.js  # Tezgâh/slot etkileşimi, paneller, envanter, tüketim
@@ -862,6 +899,7 @@ amsterdam-otel/
 │       │   ├── NpcRelationshipSystem.js # Bar müdavimleriyle diyalog, arkadaşlık çubuğu, evdeki misafir
 │       │   ├── ChatSystem.js        # Sohbet kutusu, mesaj geçmişi, konuşma balonları
 │       │   ├── CityVehicleSystem.js # Araç modelleri, FPV sürüş, arkaya binme, büfe, hız göstergesi
+│       │   ├── LargeWorldMap.js     # Devasa harita (otoyol, avlu, depolar, liman), navi mini haritası + tam harita, Lojistik panosu / TruckCenter, trafik, tır çarpma algısı
 │       │   ├── HotelMaintenanceSystem.js # Arıza görselleri ve 4 mini oyun (leke, ampul, musluk, sigorta)
 │       │   ├── ReceptionPC.js       # Resepsiyon bilgisayarı paneli, asansör, yıldız tabelası, kat filtresi
 │       │   ├── HotelWorkerSystem.js # Temizlikçi görünümü (kova/paspas) ve Çalışanlar sekmesi

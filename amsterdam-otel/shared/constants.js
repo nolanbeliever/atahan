@@ -158,6 +158,10 @@ export const EVT = Object.freeze({
   BOUNCER_STATE: 'bouncer:state', // sunucu → herkes: { code, day, blacklist, ambience, queue, front, post, staff, today, last }
   STAFF_ACT: 'staff:act', // istemci → sunucu (ack): { act: 'hire'|'fire'|'outfit'|'bonus', role, id?, name?, outfit?, amount? }
   STAFF_STATE: 'staff:state', // sunucu → herkes: { day, staff: [{ role, name, id, level, today, score, stars, morale, outfit… }] }
+  // FPV lojistik tırı + otoyol (LogisticsService): sözleşme panosu, yükleme, teslim, hasar
+  LOGI_ACT: 'logi:act', // istemci → sunucu (ack): { act: 'board'|'accept'|'load'|'deliver'|'cancel'|'hit', offer?, kmh? }
+  LOGI_STATE: 'logi:state', // sunucu → herkes: { offers, jobs, agents, stats }
+  LOGI_AGENTS: 'logi:agents', // sunucu → herkes: yapay araçlar [{ id, kind, x, z, yaw, speed, label }] (polis eklentisi)
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

@@ -114,7 +114,7 @@ test('sipariş: PC başında, bedel + nakliye kasadan; tır gelir, yanaşır; pa
 test('deliver(): tır sistemi API — Rampa 1, 16 paletlik dorselere bölünür, rampalar doluysa sıra', () => {
   const { sim, tick } = setup();
   const a = sim.cargo.deliver({ by: 'Deniz', items: [{ type: 'drinks', count: 3 }], source: 'truck' });
-  assert.deepEqual(a, { ok: true, bay: 0, pallets: 3 });
+  assert.deepEqual(a, { ok: true, handled: true, bay: 0, pallets: 3 });
   assert.equal(sim.cargo.bays[0].truck.npc, false);
   const b = sim.cargo.deliver({ by: { name: 'Ece' }, items: [{ type: 'food', count: 10 }, { type: 'fun', count: 10 }], source: 'truck' });
   assert.equal(b.ok, true);

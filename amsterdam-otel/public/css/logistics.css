@@ -1,0 +1,140 @@
+/* FPV lojistik tırı + devasa harita: navi mini haritası, tam harita, Lojistik panosu (PC / telefon / TruckCenter) */
+
+#navi {
+  position: fixed;
+  left: calc(10px + var(--safe-l, 0px));
+  bottom: calc(14px + var(--safe-b));
+  z-index: 9;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(14, 18, 24, .78);
+  border: 1px solid rgba(176, 92, 255, .45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+  pointer-events: none;
+}
+#navi[hidden] { display: none; }
+#navi canvas { display: block; border-radius: 10px; }
+.navi-info {
+  margin-top: 5px;
+  max-width: 210px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: pre-line;
+  color: #fff;
+}
+.navi-map {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, .3);
+  background: rgba(0, 0, 0, .55);
+  font-size: 17px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+/* Dokunmatik: joystick sol altta → navi sol üstte, saat kartının altında */
+body.touch #navi { bottom: auto; top: calc(104px + var(--safe-t)); }
+body.touch .navi-info { max-width: 150px; font-size: 11px; }
+body.phone-cam #navi { display: none !important; }
+
+.world-map-card { width: min(1060px, 100%); }
+.world-map-canvas { width: 100%; height: auto; border-radius: 12px; display: block; margin: 6px 0 8px; background: #2f4a2a; }
+.world-map-legend { font-size: 12.5px; }
+
+/* Lojistik panosu */
+.logi-card { width: min(720px, 100%); text-align: left; }
+.logi-body { max-height: min(72vh, 680px); overflow-y: auto; margin-bottom: 10px; }
+.logi { display: grid; gap: 8px; font-size: 13px; }
+.logi-head { font-weight: 700; color: #ffd27a; }
+.logi-msg { margin: 0; padding: 6px 9px; border-radius: 8px; background: rgba(255, 255, 255, .07); }
+.logi-hint { margin: 0; color: var(--muted); font-size: 12.5px; }
+.logi-sub { margin-top: 6px; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: #9fd3ff; }
+.logi-job {
+  display: grid;
+  gap: 4px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(176, 92, 255, .55);
+  background: rgba(176, 92, 255, .12);
+}
+.logi-job small { color: var(--muted); }
+.logi-job-btns { display: flex; gap: 6px; margin-top: 3px; }
+.logi-job-btns button { flex: 1 1 0; min-height: 32px; }
+.logi-offers { display: grid; gap: 6px; }
+.logi-offer {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .1);
+}
+.lo-icon { font-size: 22px; text-align: center; }
+.lo-info { display: grid; gap: 1px; }
+.lo-info small { color: var(--muted); font-size: 11.5px; }
+.lo-take { min-width: 54px; min-height: 34px; }
+.logi-mine { display: flex; align-items: center; gap: 7px; font-size: 12.5px; }
+.logi-mine i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.logi-trucks { display: grid; gap: 8px; }
+.truck-card {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .1);
+}
+.truck-art {
+  --paint: #888;
+  width: 64px;
+  height: 52px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 18px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+  background: linear-gradient(160deg, var(--paint) 55%, #1b1e22 56%);
+}
+.truck-info { display: grid; gap: 2px; }
+.truck-info small { color: var(--muted); font-size: 11.5px; }
+.truck-price { font-weight: 800; color: #ffd27a; }
+.truck-desc { font-size: 11.5px; color: var(--muted); }
+.truck-buy { min-height: 36px; }
+.logi.in-phone .truck-card { grid-template-columns: 48px 1fr; }
+.logi.in-phone .truck-art { width: 48px; height: 40px; font-size: 14px; }
+.logi.in-phone .truck-buy { grid-column: 1 / -1; }
+.logi.in-phone .truck-desc { display: none; }
+
+@media (max-width: 560px), (max-height: 460px) {
+  .truck-desc { display: none; }
+  .truck-card { grid-template-columns: 48px 1fr; }
+  .truck-art { width: 48px; height: 40px; font-size: 14px; }
+  .truck-buy { grid-column: 1 / -1; }
+}
+@media (max-height: 460px) {
+  body.touch #navi { top: calc(8px + var(--safe-t)); left: auto; right: calc(8px + var(--safe-r)); }
+}
+
+/* Telefon içinde: açık tema (telefon ekranı beyaz) */
+.logi.in-phone { color: #1b1f24; }
+.logi.in-phone .logi-head { color: #1f7a45; }
+.logi.in-phone .logi-sub { color: #24508f; }
+.logi.in-phone .logi-offer, .logi.in-phone .truck-card { background: #f3f5f8; border-color: #e1e5ea; }
+.logi.in-phone .lo-info small, .logi.in-phone .truck-info small, .logi.in-phone .logi-hint, .logi.in-phone .logi-job small { color: #5d6773; }
+.logi.in-phone .logi-job { background: #f1e8ff; border-color: #b05cff; }
+.logi.in-phone .truck-price { color: #1f7a45; }
+.logi.in-phone .logi-msg { background: #fff3e0; color: #a35a00; }
+.logi.in-phone .logi-offer { grid-template-columns: 28px 1fr; }
+.logi.in-phone .lo-take { grid-column: 1 / -1; }
+.logi.in-phone .car-colors button { border-color: #c9ced5; }
+.logi.in-phone .car-colors button.on { border-color: #1b1f24; }

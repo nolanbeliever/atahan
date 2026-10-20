@@ -6,6 +6,8 @@ const STEP = 0.12; // tünellemeyi önlemek için alt adım uzunluğu (duvar kal
 export class Collision {
   constructor() {
     this.boxes = [];
+    // Kutu dışı kısıtlar (ör. şehir dışı otoyol şeridi: LargeWorldMap) — fn(pos, r); kendi bölgesi dışında hemen döner
+    this.constraints = [];
   }
 
   /** @returns {{minX,maxX,minZ,maxZ,enabled}} sonradan açılıp kapatılabilir kutu */
@@ -67,5 +69,6 @@ export class Collision {
         }
       }
     }
+    for (let i = 0; i < this.constraints.length; i++) this.constraints[i](pos, r);
   }
 }
