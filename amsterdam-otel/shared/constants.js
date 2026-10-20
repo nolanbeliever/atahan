@@ -151,6 +151,11 @@ export const EVT = Object.freeze({
   BASEMENT_STATE: 'basement:state', // sunucu → herkes: masalar, kulvarlar, atari makineleri, rekorlar
   BASEMENT_SHOT: 'basement:shot', // sunucu → herkes: { game: 'pool'|'bowling', i, ... } atışın başlangıç durumu + sonucu (animasyon)
   BASEMENT_RT: 'basement:rt', // istemci ↔ sunucu: { g: 'pong'|'foos', i, s: [sayılar] } gerçek zamanlı raket / top / çubuk
+  // ---- VIP Bouncer + Personel 2.0 (server/game/BouncerService.js, StaffHRService.js, BarStaffService.js) ----
+  BOUNCER_ACT: 'bouncer:act', // istemci → sunucu (ack): { act: 'post' | 'leave' } | { act: 'decide', id, admit: boolean }
+  BOUNCER_STATE: 'bouncer:state', // sunucu → herkes: { code, day, blacklist, ambience, queue, front, post, staff, today, last }
+  STAFF_ACT: 'staff:act', // istemci → sunucu (ack): { act: 'hire'|'fire'|'outfit'|'bonus', role, id?, name?, outfit?, amount? }
+  STAFF_STATE: 'staff:state', // sunucu → herkes: { day, staff: [{ role, name, id, level, today, score, stars, morale, outfit… }] }
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

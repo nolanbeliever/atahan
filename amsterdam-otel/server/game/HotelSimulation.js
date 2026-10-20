@@ -32,6 +32,9 @@ import { GarageService } from './GarageService.js';
 import { DragRaceService } from './DragRaceService.js';
 import { ValetService } from './ValetService.js';
 import { BasementService } from './BasementService.js';
+import { BarStaffService } from './BarStaffService.js';
+import { BouncerService } from './BouncerService.js';
+import { StaffHRService } from './StaffHRService.js';
 import { ISSUE_BY_ID, MAINT_RULES, issueSpots } from '../../shared/maintenance.js';
 import { CHAT_RULES, cleanChat } from '../../shared/chat.js';
 
@@ -106,6 +109,9 @@ export class HotelSimulation extends EventEmitter {
     this.drag = new DragRaceService(this); // drag pisti: zamanlama, düello, liderlik tablosu
     this.valet = new ValetService(this); // VIP vale + garajdaki oto yıkama
     this.basement = new BasementService(this); // −1. Kat VIP Eğlence Katı: bilardo, langırt, masa tenisi, atari, bowling
+    this.barStaff = new BarStaffService(this); // barmen NPC'leri (Bar De Tulp)
+    this.bouncer = new BouncerService(this); // VIP Bouncer: Eğlence Katı kapısı, kıyafet kuralı, "Ortam" puanı
+    this.staffhr = new StaffHRService(this); // Personel 2.0: üniforma, moral, prim, performans
     this.players = new Map();
     this.nextPlayerNo = 1;
     this.money = 0;
@@ -184,6 +190,9 @@ export class HotelSimulation extends EventEmitter {
       restaurant: { ...this.restaurant.persisted(), staff: this.kitchen.persisted() },
       street: this.street.persisted(),
       basement: this.basement.persisted(),
+      barStaff: this.barStaff.persisted(),
+      bouncer: this.bouncer.persisted(),
+      staffhr: this.staffhr.persisted(),
     };
   }
 
@@ -205,6 +214,9 @@ export class HotelSimulation extends EventEmitter {
     this.kitchen.restore(h.restaurant?.staff);
     this.street.restore(h.street);
     this.basement.restore(h.basement);
+    this.barStaff.restore(h.barStaff);
+    this.bouncer.restore(h.bouncer);
+    this.staffhr.restore(h.staffhr);
     if (Number.isFinite(h.money) && h.money >= 0) this.money = h.money;
     const t = h.today;
     if (t && typeof t === 'object') {
@@ -240,6 +252,8 @@ export class HotelSimulation extends EventEmitter {
       this.restaurant.shiftTime(now - this.pausedAt);
       this.kitchen.shiftTime(now - this.pausedAt);
       this.basement.shiftTime(now - this.pausedAt);
+      this.barStaff.shiftTime(now - this.pausedAt);
+      this.bouncer.shiftTime(now - this.pausedAt);
       this.pausedAt = null;
     }
     this.lastTick = now;
@@ -290,6 +304,9 @@ export class HotelSimulation extends EventEmitter {
     this.drag.update(now);
     this.valet.update(now);
     this.basement.update(now);
+    this.barStaff.update(now);
+    this.bouncer.update(now);
+    this.staffhr.update(now);
     this.house.update(now);
 
     if (now - this.lastClockBroadcast >= this.config.clockBroadcastMs) this.broadcastClock(now);
@@ -318,6 +335,8 @@ export class HotelSimulation extends EventEmitter {
     this.notify(text, 'day');
     this.relations.onNewDay();
     this.street.onNewDay(); // Achterstraat dükkânlarının kirası kasaya, komisyon cüzdanlara
+    this.staffhr.onNewDay(); // dünün performansı, moral düşüşü (prim almayanlar)
+    this.bouncer.onNewDay(); // yeni kıyafet kuralı + kara liste, ortam 60'a yaklaşır
     this.out(EVT.ECONOMY, this.economy());
     this.broadcastClock(now);
     this.house.scheduleSave(); // yeni gün kayda geçsin
@@ -387,6 +406,7 @@ export class HotelSimulation extends EventEmitter {
     this.drag.removePlayer(p); // drag yarışındaysa DNF
     this.valet.removePlayer(p); // VIP aracının anahtarı sendeyse müşteri arabasını geri alır
     this.basement.removePlayer(p); // Eğlence Katı: masadan / kulvardan / makineden kalkar
+    this.bouncer.removePlayer(p); // kapıdaki kürsüden ayrılır
     this.vehicles.removePlayer(p); // sürüyorsa park eder; araçları kayda geçer
     this.house.removePlayer(p); // bekleyen ziller, cüzdan ve ev sahibi kaydı
     this.players.delete(id);
@@ -660,6 +680,12 @@ export class HotelSimulation extends EventEmitter {
     return p ? this.basement.relay(p, data) : false;
   }
 
+  // ---- VIP Bouncer + Personel 2.0 ------------------------------------------------------------
+
+  bouncerAct(playerId, data) { return this.withPlayer(playerId, (p) => this.bouncer.act(p, data, this.now())); }
+
+  staffAct(playerId, data) { return this.withPlayer(playerId, (p) => this.staffhr.act(p, data)); }
+
   // ---- Yeraltı Kart Kulübü ---------------------------------------------------------
 
   casinoAct(playerId, data) { return this.withPlayer(playerId, (p) => this.casino.act(p, data, this.now())); }
@@ -754,7 +780,7 @@ export class HotelSimulation extends EventEmitter {
       guests: [
         ...this.guests.serialize(), ...this.bar.serializeCustomers(), ...this.workers.serializeWires(),
         ...this.stage.serializeWires(), ...this.restaurant.serializeDiners(), ...this.kitchen.serializeWires(), ...this.valet.serializeWires(),
-        ...this.basement.serializeWires(),
+        ...this.basement.serializeWires(), ...this.barStaff.serializeWires(), ...this.bouncer.serializeWires(),
       ],
       players: [...this.players.values()].map((p) => this.publicPlayer(p)),
       economy: this.economy(),
@@ -777,6 +803,8 @@ export class HotelSimulation extends EventEmitter {
       drag: this.drag.serialize(), // drag pisti: faz, ışık ağacı zamanları, son sonuçlar, liderlik tablosu
       valet: this.valet.serialize(), // VIP vale işleri: anahtar, çamur noktaları, hasar
       basement: this.basement.serialize(), // Eğlence Katı: masalar, kulvarlar, atari makineleri, rekorlar
+      bouncer: this.bouncer.serialize(), // VIP kapı: bu geceki kural, sıra, kontrol edilen misafir, ortam
+      staff: this.staffhr.serialize(), // Personel 2.0: üniforma, moral, prim, performans
     };
   }
 }

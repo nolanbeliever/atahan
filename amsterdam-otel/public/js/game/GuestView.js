@@ -9,8 +9,10 @@ const KIND_OPTS = {
   worker: { color: '#2b6d8a', staff: true, bag: false },
   chef: { color: '#f3f1ea', bag: false }, // beyaz aşçı ceketi (şapka: GourmetRestaurant)
   waiter: { color: '#23262d', staff: true, bag: false }, // siyah yelek + önlük
+  barman: { color: '#1b1c20', staff: true, bag: false }, // barmen: siyah gömlek + önlük (Personel 2.0)
+  bouncer: { color: '#111214', bag: false }, // bouncer: siyah takım (VIP Bouncer)
 };
-const LABEL_COLOR = { worker: '#3ecf6e', chef: '#ffcf6b', waiter: '#9fd3ff' };
+const LABEL_COLOR = { worker: '#3ecf6e', chef: '#ffcf6b', waiter: '#9fd3ff', barman: '#ff9be8', bouncer: '#c9b8ff' };
 
 // Turist (InstaHotel kampanyası kafilesi): sırt çantası, boyunda fotoğraf makinesi, renkli güneş şapkası.
 // Geometri / malzemeler tüm turistlerde paylaşılır (ilk turistte bir kez üretilir).

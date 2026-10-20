@@ -1,0 +1,69 @@
+/* VIP Bouncer: kapı modu paneli (kural, ortam, kontrol edilen misafirin kartı / tavrı / kıyafeti, karar düğmeleri) */
+
+#bc-hud {
+  position: fixed;
+  top: calc(118px + var(--safe-t));
+  right: calc(8px + var(--safe-r));
+  width: 300px;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  z-index: 9;
+  pointer-events: auto;
+  font-size: 12.5px;
+  border-color: rgba(255, 210, 63, .45);
+  box-shadow: 0 0 14px rgba(255, 79, 224, .25);
+}
+#bc-hud[hidden] { display: none; }
+.bc-head { font-weight: 800; font-size: 14px; color: #ffd23f; margin-bottom: 4px; }
+.bc-code b { display: block; color: #ff9be8; font-size: 13.5px; }
+.bc-rule { color: var(--muted); line-height: 1.35; }
+.bc-rule.bc-black { color: #ffb3b3; margin-top: 2px; }
+.bc-amb { margin-top: 6px; font-weight: 700; }
+.bc-bar { height: 7px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; margin: 3px 0 6px; }
+.bc-bar > i { display: block; height: 100%; background: linear-gradient(90deg, #ff5a4f, #ffd23f 50%, #62ff4f); }
+.bc-guest { border-top: 1px solid rgba(255,255,255,.12); padding-top: 6px; }
+.bc-who { font-weight: 800; font-size: 14px; margin-bottom: 4px; }
+.bc-empty { color: var(--muted); padding: 8px 0; }
+.bc-card {
+  border-radius: 10px;
+  padding: 6px 9px;
+  margin-bottom: 5px;
+  background: linear-gradient(135deg, rgba(255,79,224,.18), rgba(40,231,255,.12));
+  border: 1px solid rgba(255,255,255,.18);
+}
+.bc-card.room { background: linear-gradient(135deg, rgba(62,207,110,.18), rgba(40,231,255,.12)); }
+.bc-card-t { font-size: 11.5px; color: var(--muted); }
+.bc-card-n { font-weight: 800; font-size: 14px; }
+.bc-card-m { font-size: 12px; color: #e6dcff; }
+.bc-cue { margin: 3px 0 5px; }
+.bc-cue.bad { color: #ff8a80; font-weight: 700; }
+.bc-dress { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.bc-dress li { display: flex; align-items: center; gap: 6px; }
+.bc-sw { width: 13px; height: 13px; border-radius: 3px; border: 1px solid rgba(255,255,255,.35); background: #555; flex: none; }
+.bc-sw.neon { box-shadow: 0 0 6px rgba(255,255,255,.8), 0 0 0 1px #fff; }
+.bc-last { margin-top: 6px; color: var(--muted); font-size: 12px; min-height: 1em; }
+.bc-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 7px; }
+.bc-btns button {
+  min-height: 40px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(255,255,255,.07);
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+}
+.bc-btns button:disabled { opacity: .4; cursor: default; }
+.bc-btns .bc-yes { border-color: rgba(98,255,79,.6); background: rgba(98,255,79,.14); }
+.bc-btns .bc-no { border-color: rgba(255,90,79,.6); background: rgba(255,90,79,.14); }
+.bc-btns .bc-quit { grid-column: 1 / -1; min-height: 32px; font-weight: 700; }
+
+@media (max-width: 560px) {
+  #bc-hud { width: 230px; top: calc(110px + var(--safe-t)); font-size: 11.5px; }
+}
+@media (max-height: 460px) {
+  #bc-hud { top: calc(8px + var(--safe-t)); width: 250px; max-height: calc(100vh - 16px); font-size: 11px; }
+  .bc-rule { display: none; }
+  .bc-btns button { min-height: 34px; }
+}
+body.phone-cam #bc-hud { display: none; }
+body.bc-door #panel-rooms, body.bc-door #rest-orders { display: none; } /* kapı modunda kalabalık paneller gizlenir */

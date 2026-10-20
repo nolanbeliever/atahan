@@ -122,6 +122,7 @@ export class KitchenStaffService {
       carry: s.carry,
       label: `${def.icon} ${title} ${s.name} · Sv.${this.level(s)}${step ? ` · ${step}` : ''}`,
       work: s.phase === K.WORK ? { until: s.phaseEndsAt } : null,
+      outfit: this.sim.staffhr?.outfitOf(s.role, s.name) ?? null, // Personel 2.0 üniforması
     };
   }
 
@@ -192,6 +193,7 @@ export class KitchenStaffService {
   }
 
   standWork(s, ms, face, now) {
+    ms *= this.sim.staffhr?.speedMul(s.role, s.name) ?? 1; // moral / prim (Personel 2.0)
     s.phase = K.WORK;
     s.path = [[...this.lastPoint(s)]];
     s.t0 = now;
@@ -347,6 +349,8 @@ export class KitchenStaffService {
               sl.reserved = 0;
               sl.dish = dishId;
               c.carry = null;
+              // Personel 2.0: restoran memnuniyeti aşçının puanı
+              this.sim.staffhr?.rate('chef', c.name, 3 + Math.round(2 * Math.min(1, Math.max(0, this.rest.sat / 100))));
               this.levelUp(c);
               this.rest.changed();
               return true;
@@ -508,8 +512,10 @@ export class KitchenStaffService {
   deliver(w, now) {
     const j = w.job;
     const t = this.rest.tables[j.table];
+    const left = t.waitUntil - now;
     if (t.state === 'waiting' && t.order === j.dish && this.rest.serveTable(j.table, j.dish, now)) {
       w.carry = null;
+      this.sim.staffhr?.rate('waiter', w.name, left > 60_000 ? 5 : left > 30_000 ? 4 : 3); // Personel 2.0
       this.levelUp(w);
       return true;
     }
@@ -521,7 +527,10 @@ export class KitchenStaffService {
       return true;
     }
     const free = this.rest.pass.findIndex((sl) => !sl.dish && !sl.reserved);
-    if (free < 0) return false; // tezgâh dolu: tabak gider
+    if (free < 0) {
+      this.sim.staffhr?.mistake('waiter', w.name); // tabak boşa gitti
+      return false; // tezgâh dolu: tabak gider
+    }
     j.table = null;
     j.steps.push({
       to: passWaiterPoint(free), face: 0, ms: 600, label: '↩ tabağı tezgâha geri koyuyor',
