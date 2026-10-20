@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { EVT } from '/shared/constants.js';
 import { CAR_BY_ID, formatEuro } from '/shared/cars.js';
-import { HWY, trunkAt, inHighwayRegion } from '/shared/worldmap.js';
+import { HWY, trunkAt, inHighwayRegion, HOTEL_DELIVERY } from '/shared/worldmap.js';
 import {
-  CONTRA_BY_ID, ILLEGAL_RULES as R, CONTACT, SAFE_DROP, SCANNERS, inContactZone, inDropZone, heatStars,
+  CONTRA_BY_ID, ILLEGAL_RULES as R, CONTACT, SAFE_DROP, SCANNERS, inContactZone, inDropZone, heatStars, DROP_SITES, raidChance, RAID_RULES,
 } from '/shared/illegal.js';
 import { makeCharacter } from './Characters.js';
 import { signMaterial, panel } from '../world/CarWorldKit.js';
@@ -19,10 +19,14 @@ const fmtTime = (sec) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 const SIDE_NAMES = { front: 'ön', rear: 'arka', left: 'sol', right: 'sağ' };
+const inRect = (b, x, z, tol = 0) => x > b.minX - tol && x < b.maxX + tol && z > b.minZ - tol && z < b.maxZ + tol;
+const pct = (v) => `%${Math.round(v * 100)}`;
 
 /**
  * İllegal sevkiyat + dinamik polis kıskacı (istemci). LargeWorldMap'e (logi) bağlanır:
- *  - Lojistik panosuna "🕶️ Gizli zula bölmesi" (tır başına, cüzdandan) ve "Limandaki tanıdık" teklifleri eklenir.
+ *  - Lojistik panosuna "🕶️ Gizli zula bölmesi" (tır başına, cüzdandan) ve "Limandaki tanıdık" teklifi eklenir
+ *    (5–10 dk'da bir tek teklif; kazanç 700–800 €). Mallar Eski Kantar Deposu'nda ya da otelin mal kabul alanında
+ *    indirilir; indirme + polis baskını HUD'u PoliceRaidSystem'dedir (this.raid).
  *  - Dünya: limanda K-17 konteyneri + tanıdık, FrisDepot'un batı köşesinde Eski Kantar Deposu, otoyolun üstünde
  *    iki gümrük tarayıcı kapısı (logi.world.group'a; yalnızca otoyol bölgesindeyken çizilir).
  *  - HUD: aranma yıldızları + ısı çubuğu + kıskaç / kaçış sayaçları; sunucunun telsiz mesajları NOTIFY ile gelir.
@@ -74,6 +78,7 @@ export class IllegalLogistics {
     if (s.caught) this.onCaught(s.caught);
     const hadChase = !!this.st.chase;
     this.st = { ...this.st, ...s };
+    this.raid?.onState(s);
     if (!s.chase && 'chase' in s && hadChase) this.engine.requestRender();
     this.renderHud();
     if (!('chase' in s && Object.keys(s).length === 1)) this.logi.rerender();
@@ -187,8 +192,13 @@ export class IllegalLogistics {
       if (job.state === 'accepted' && inContactZone(px, pz, 1)) {
         return { ...at, short: 'Yükle', label: `🕶️ K-17: malları gizli bölmeye al (peşin ${formatEuro(job.cost)}, cüzdandan)`, use: () => this.act('load') };
       }
-      if (job.state === 'loaded' && truck.trailer && inDropZone(px, pz, 1)) {
-        return { ...at, short: 'Teslim', label: '🏚️ Eski Kantar Deposu: malları indir', use: () => this.act('drop') };
+      if (job.state !== 'loaded' || !truck.trailer || this.st.unload) return null; // indirme sürerken istem yok
+      const heat = this.st.chase?.heat ?? 0;
+      if (inDropZone(px, pz, 1)) {
+        return { ...at, short: 'İndir', label: `🏚️ Eski Kantar Deposu: malları indir (~${R.UNLOAD_SEC} sn · baskın riski ${pct(raidChance('depot', heat, this.st.night))})`, use: () => this.act('drop', { site: 'depot' }) };
+      }
+      if (inRect(HOTEL_DELIVERY.zone, px, pz, 1)) {
+        return { ...at, short: 'İndir', label: `🏨 Mal kabul alanı: kaçak malları alıcıya indir (~${R.UNLOAD_SEC} sn · baskın riski ${pct(raidChance('hotel', heat, this.st.night))}!)`, use: () => this.act('drop', { site: 'hotel' }) };
       }
       return null;
     }
@@ -218,9 +228,8 @@ export class IllegalLogistics {
       this.hud.toast(res?.error || 'Olmadı.', 'warn');
       return res;
     }
-    if (res.text) this.hud.toast(res.text, act === 'drop' ? 'money' : 'info');
-    if (act === 'load' && this.settings.sound) this.sfx?.clink?.();
-    if (act === 'drop' && this.settings.sound) this.sfx?.coin?.();
+    if (res.text) this.hud.toast(res.text, 'info');
+    if ((act === 'load' || act === 'drop') && this.settings.sound) this.sfx?.clink?.();
     this.logi.route = null;
     this.logi.rerender();
     return res;
@@ -231,7 +240,7 @@ export class IllegalLogistics {
   turnHint(here, destSite) {
     const job = this.job;
     if (!job || here !== destSite) return '';
-    return job.state === 'accepted' ? '🕶️ K-17 konteynerinin önündeki sarı çerçevede dur → E' : '🏚️ Kantar deposunun önündeki sarı çerçevede dur → E';
+    return job.state === 'accepted' ? '🕶️ K-17 konteynerinin önündeki sarı çerçevede dur → E' : '🏚️ Kantar deposunun önündeki sarı çerçevede dur → E (ya da otelin 🏨 mal kabul alanı)';
   }
 
   drawMap(ctx, X, Z, view) {
@@ -242,14 +251,18 @@ export class IllegalLogistics {
       ctx.fillRect(X(t.x) - 2, Z(t.z) - 6, 4, 12);
     }
     if (!job) return;
-    const b = job.state === 'accepted' ? CONTACT.zone : SAFE_DROP.zone;
-    ctx.strokeStyle = '#f2c230';
-    ctx.lineWidth = 2;
     const k = Math.abs(X(1) - X(0));
-    ctx.strokeRect(X(b.minX), Z(b.minZ), (b.maxX - b.minX) * k, (b.maxZ - b.minZ) * k);
-    if (!view) {
-      ctx.fillStyle = '#ffe28a';
-      ctx.fillText(job.state === 'accepted' ? '🕶️ K-17' : '🏚️ Kantar', X(b.maxX) + 30, Z(b.minZ) - 4);
+    const zones = job.state === 'accepted'
+      ? [[CONTACT.zone, '🕶️ K-17', '#f2c230']]
+      : [[SAFE_DROP.zone, '🏚️ Kantar', '#f2c230'], [HOTEL_DELIVERY.zone, '🏨 Mal kabul (riskli)', '#ff6b6b']];
+    ctx.lineWidth = 2;
+    for (const [b, name, color] of zones) {
+      ctx.strokeStyle = color;
+      ctx.strokeRect(X(b.minX), Z(b.minZ), (b.maxX - b.minX) * k, (b.maxZ - b.minZ) * k);
+      if (!view) {
+        ctx.fillStyle = color === '#f2c230' ? '#ffe28a' : '#ffb3b3';
+        ctx.fillText(name, X(b.maxX) + 30, Z(b.minZ) - 4);
+      }
     }
   }
 
@@ -269,10 +282,10 @@ export class IllegalLogistics {
       card.append(el('div', null, `1/2 · ⚓ Limandaki K-17 konteynerine bölmeli tırınla git, dur, E: yükle (peşin ${formatEuro(job.cost)}, cüzdandan)`));
     } else {
       const left = (job.deadline - this.net.serverNow()) / 1000;
-      card.append(el('div', null, '2/2 · 🏚️ FrisDepot avlusunun batı köşesindeki Eski Kantar Deposu — polis yakında değilken dur, E: teslim'));
-      card.append(el('small', null, `${left > 0 ? `⏱ ${fmtTime(left)} kaldı` : '⏱ Gecikti (kazanç ×0,7)'} · hasar %${Math.round(job.damage * 100)} · beklenen: sana ~${formatEuro(Math.round(job.pay * (1 - job.damage)))}`));
+      card.append(el('div', null, `2/2 · İndir (~${R.UNLOAD_SEC} sn, tır yerinde durmalı): 🏚️ FrisDepot'un batı köşesindeki Eski Kantar Deposu (baskın ${pct(DROP_SITES.depot.raid)}) ya da otelin lojistik avlusundaki 🏨 mal kabul alanı (yakın ama baskın ${pct(DROP_SITES.hotel.raid)}; yakalanırsan otelin itibarı da düşer)`));
+      card.append(el('small', null, `${left > 0 ? `⏱ ${fmtTime(left)} kaldı` : '⏱ Gecikti (kazanç ×0,7)'} · hasar %${Math.round(job.damage * 100)} · kazanç: ~${formatEuro(Math.round(job.pay * (1 - job.damage)))}`));
     }
-    card.append(el('small', 'ill-warn', `⚠️ Yük tırdayken polis ısısı artar (otoyolda kalmak, çarpma, tarayıcı kapıları; hız aşımı sayılmaz). Yakalanırsan mallara el konur, ceza ~${formatEuro(R.FINE_BASE + Math.round(job.pay * R.FINE_SHARE))}.`));
+    card.append(el('small', 'ill-warn', `⚠️ Yük tırdayken polis ısısı artar (otoyolda kalmak, çarpma, tarayıcı kapıları; hız aşımı sayılmaz) — ısı baskın olasılığını da artırır. Baskın gelirse ekipler ~${Math.round(RAID_RULES.ETA_MS / 1000)} sn'de körfeze varır: indirmeyi bitir ya da kaç. Yakalanırsan mallara el konur, ceza ~${formatEuro(R.FINE_BASE + Math.round(job.pay * R.FINE_SHARE))}.`));
     const row = el('div', 'logi-job-btns');
     const map = el('button', null, '🗺️ Harita');
     map.type = 'button';
@@ -308,7 +321,7 @@ export class IllegalLogistics {
       sec.append(row);
     }
     if (st.trucks.some((t) => t.hidden)) {
-      sec.append(el('div', 'logi-sub', `🕶️ Limandaki tanıdık${st.night ? ' · 🌙 gece: kazanç ×1,25, daha az dikkat' : ''}`));
+      sec.append(el('div', 'logi-sub', `🕶️ Limandaki tanıdık — 5–10 dk'da bir tek iş${st.night ? ' · 🌙 gece: daha az dikkat, baskın riski düşük' : ''}`));
       const job = this.logi.myJob;
       const now = this.net.serverNow();
       const list = el('div', 'logi-offers');
@@ -317,8 +330,8 @@ export class IllegalLogistics {
         const row = el('div', 'logi-offer ill-offer');
         row.append(el('div', 'lo-icon', g.icon));
         const info = el('div', 'lo-info');
-        info.append(el('b', null, `${o.qty} ${g.unit} ${g.name}`), el('small', null, `⚓ K-17 → 🏚️ Eski Kantar Deposu · süre ${fmtTime(o.timeSec)} · ${fmtTime((o.expires - now) / 1000)} sonra kalkar`));
-        info.append(el('small', null, `Peşin ${formatEuro(o.cost)} (cüzdandan) → kazanç ${formatEuro(o.pay)} (cüzdana) · risk: polis kıskacı`));
+        info.append(el('b', null, `${o.qty} ${g.unit} ${g.name}`), el('small', null, `⚓ K-17 → 🏚️ Kantar deposu ya da 🏨 otelin mal kabul alanı · süre ${fmtTime(o.timeSec)} · ${fmtTime((o.expires - now) / 1000)} sonra kalkar`));
+        info.append(el('small', null, `Kazanç ${formatEuro(o.pay)} (cüzdana) · peşin mal bedeli ${formatEuro(o.cost)} (cüzdandan) · risk: polis kıskacı + baskın`));
         const btn = el('button', 'lo-take', 'Al');
         btn.type = 'button';
         btn.disabled = !!job || this.pending;
@@ -326,7 +339,10 @@ export class IllegalLogistics {
         row.append(info, btn);
         list.append(row);
       }
-      if (!st.offers.length) list.append(el('p', 'logi-hint', 'Tanıdık şu an sessiz…'));
+      if (!st.offers.length) {
+        const next = st.nextOfferIn != null ? ` Sonraki iş ~${Math.max(1, Math.ceil(st.nextOfferIn / 60_000))} dk içinde.` : '';
+        list.append(el('p', 'logi-hint', `Tanıdık şu an sessiz…${next}`));
+      }
       sec.append(list);
     }
     sec.append(el('p', 'logi-hint ill-note', 'Kaçak yük yalnızca gümrüksüz lüks mallardır (saat, parfüm, elektronik, çanta). Polisle şiddet yok: yakalanırsan mallara el konur ve ceza kesilir.'));
@@ -370,7 +386,8 @@ export class IllegalLogistics {
     else if (c.escapeIn != null) line = `🏁 Gözden kayboldun — ${Math.ceil(c.escapeIn)} sn daha uzak dur`;
     else if (c.police) line = `🚓 ${c.police} ekip peşinde${c.sides.length ? ` · ${c.sides.map((s) => SIDE_NAMES[s]).join(', ')} tarafta` : ''}`;
     else if (c.civil) line = '🕵️ İşaretsiz bir araç seni izliyor';
-    else if (c.loaded) line = job?.state === 'loaded' ? '🤫 Mallar bölmede — dikkat çekmeden 🏚️ Kantar deposuna' : '🤫 Sakin ol';
+    else if (this.st.unload) line = this.st.unload.raid ? '🚨 Baskın — indirmeyi bitir ya da kaç!' : '📦 Mallar indiriliyor — tır yerinde dursun';
+    else if (c.loaded) line = job?.state === 'loaded' ? '🤫 Mallar bölmede — 🏚️ Kantar deposuna ya da 🏨 mal kabul alanına (riskli)' : '🤫 Sakin ol';
     else line = '🌡️ Polis seni hâlâ arıyor — sakin sür';
     const key = JSON.stringify([n, Math.round(c.heat), line]);
     if (key === this.hudKey) return;

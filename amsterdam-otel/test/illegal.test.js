@@ -6,13 +6,13 @@ import { CAR_BY_ID } from '../shared/cars.js';
 import { isDrivable, laneAt, SITE_BY_ID, yardAt, TRUNK_LENGTH, roadProject } from '../shared/worldmap.js';
 import {
   CONTRA_GOODS, ILLEGAL_RULES as R, CONTACT, SAFE_DROP, SCANNERS, BOX_SLOTS, heatStars, policeWanted, catchFine, slotPoint,
-  inContactZone, inDropZone,
+  inContactZone, inDropZone, contraTerms, RAID_RULES,
 } from '../shared/illegal.js';
 
 const config = {
   dayLengthSec: 100_000, weekendSpeed: 2, tickMs: 100, spawnMinMin: 40, spawnMaxMin: 90,
   stayMinMin: 150, stayMaxMin: 420, clockBroadcastMs: 5000, maxPlayers: 16, startWallet: 400_000, starterBed: false,
-  restaurantDiners: false, valetCustomers: false, basementGuests: false, logisticsOffers: false,
+  restaurantDiners: false, valetCustomers: false, basementGuests: false, logisticsOffers: false, policeRaids: false,
 };
 const KEY_A = 'a'.repeat(32);
 
@@ -80,10 +80,15 @@ function loadedRun(opts) {
 
 test('kaçak mallar yalnızca kurgusal gümrüksüz lüks tüketim; tanıdık ve depo sürülebilir; yuvalar dorseyle çakışmaz', () => {
   const banned = /uyuşturucu|esrar|kokain|eroin|hap|silah|tabanca|mermi|cephane|sigara|tütün|puro|alkol|bira|şarap|viski|votka|insan|göçmen/i;
-  for (const g of CONTRA_GOODS) {
-    assert.doesNotMatch(`${g.id} ${g.name}`, banned, g.id);
-    assert.ok(g.pay > g.cost * 2, 'risk primi');
+  for (const g of CONTRA_GOODS) assert.doesNotMatch(`${g.id} ${g.name}`, banned, g.id);
+  // Kazanç 700–800 €, peşin bedel 150–250 € (uçlar dahil, 10'a yuvarlı)
+  for (const [u1, u2] of [[0, 0], [0.999999, 0.999999], [0.5, 0.25]]) {
+    const t = contraTerms(u1, u2);
+    assert.ok(t.pay >= R.PAY_MIN && t.pay <= R.PAY_MAX && t.pay % 10 === 0, `kazanç ${t.pay}`);
+    assert.ok(t.cost >= R.COST_MIN && t.cost <= R.COST_MAX && t.cost % 10 === 0, `bedel ${t.cost}`);
   }
+  assert.deepEqual(contraTerms(0, 0), { pay: 700, cost: 150 });
+  assert.deepEqual(contraTerms(0.999999, 0.999999), { pay: 800, cost: 250 });
   for (const z of [CONTACT.zone, SAFE_DROP.zone]) {
     for (const [x, zz] of [[z.minX + 1, z.minZ + 1], [z.maxX - 1, z.maxZ - 1], [(z.minX + z.maxX) / 2, (z.minZ + z.maxZ) / 2]]) assert.ok(isDrivable(x, zz), `${x},${zz}`);
   }
@@ -99,8 +104,8 @@ test('kaçak mallar yalnızca kurgusal gümrüksüz lüks tüketim; tanıdık ve
   assert.equal(heatStars(100), 5);
   assert.deepEqual([policeWanted(30), policeWanted(45), policeWanted(65), policeWanted(90)], [0, 1, 3, 4]);
   // Ceza cüzdanı eksiye düşürmez
-  assert.deepEqual(catchFine({ pay: 1000, rams: 0 }, 99.6), { due: 1850, paid: 99 });
-  assert.equal(catchFine({ pay: 1000, rams: 2 }, 1e9).paid, 1850 + 2 * R.RAM_FINE);
+  assert.deepEqual(catchFine({ pay: 1000, rams: 0 }, 99.6), { due: R.FINE_BASE + 350, paid: 99 });
+  assert.equal(catchFine({ pay: 1000, rams: 2 }, 1e9).paid, R.FINE_BASE + 350 + 2 * R.RAM_FINE);
   // Yuvalar: arka yuva dorsenin (~−14.5 m) arkasında, yanlar tır genişliğinin dışında
   const rear = BOX_SLOTS.find((x) => x.id === 'rear');
   assert.ok(rear.f - 2.3 < -14.5 - 0.5);
@@ -126,7 +131,7 @@ test('gizli bölme: cüzdandan, tır başına; teklifler yalnızca bölmeli tır
   const st = ill(s, p, { act: 'board' }).state;
   assert.equal(st.offers.length, R.OFFERS);
   assert.ok(st.trucks[0].hidden);
-  for (const o of st.offers) assert.ok(CONTRA_GOODS.some((g) => g.id === o.good) && o.pay > o.cost);
+  for (const o of st.offers) assert.ok(CONTRA_GOODS.some((g) => g.id === o.good) && o.pay >= R.PAY_MIN && o.pay <= R.PAY_MAX && o.cost < o.pay);
   // Başka oyuncu bu tıra bölme takamaz
   const q = sim.addPlayer('Başkası', 'b'.repeat(32));
   assert.equal(sim.illegalAct(q.id, { act: 'buy', vehicle: v.id }).ok, false);
@@ -243,9 +248,11 @@ test('kaçış: ekipler 150 m dışında 25 sn kalırsa takip biter, ısı düş
   c.agents.delete('pol-test');
   const w = p.wallet;
   const r = ill(s, p, { act: 'drop' });
-  assert.ok(r.ok, r.error);
-  assert.equal(p.wallet, w + r.pay);
-  assert.ok(r.pay > s.o.cost, 'kâr');
+  assert.ok(r.ok && r.unloading, r.error);
+  assert.equal(p.wallet, w, 'indirme sürüyor');
+  s.tick(RAID_RULES.UNLOAD_MS + 300);
+  assert.equal(p.wallet, w + s.o.pay, 'kazanç (zamanında, hasarsız)');
+  assert.ok(s.o.pay > s.o.cost, 'kâr');
   assert.equal(sim.logistics.jobOf(p), null);
   assert.equal(sim.illegal.chases.has(p.id), false);
   assert.equal(sim.illegal.stats.delivered, 1);

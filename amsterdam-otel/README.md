@@ -775,12 +775,16 @@ Lojistik tırının üzerine kurulu riskli yan iş. **Kaçak yük yalnızca kurg
 yakalanınca mallara el konur ve ceza kesilir.
 
 - **🕶️ Gizli zula bölmesi:** Lojistik panosundan (TruckCenter / PC / telefon) tır başına **€12.000, cüzdandan**; araba
-  kaydına bağlı, kalıcı. Bölmeli tırı olan oyuncu panoda **"Limandaki tanıdık"** tekliflerini görür (kişisel, 3 adet);
-  limandaki tanıdıkla yaya konuşunca da pano açılır.
-- **İş akışı:** teklifi al → bölmeli tırınla **⚓ limandaki K-17 konteynerinin** önündeki sarı çerçevede dur, **E** (malların
-  bedeli peşin, cüzdandan) → **🏚️ Eski Kantar Deposu**'na (FrisDepot avlusunun batı köşesi) götür; **60 m içinde polis
-  yokken** dur, **E** → kazanç cüzdana (bedelin ~2,7 katı; gece 20:00–07:00 ×1,25; 7 dk içinde, geç ×0,7;
-  hasar düşürür). Navi rotayı K-17'ye, sonra depoya çizer. İş, lojistiğin iş tablosuna `legal: false` ile yazılır
+  kaydına bağlı, kalıcı. Bölmeli tırı olan oyuncuya **"Limandaki tanıdık"** **5–10 dakikada bir TEK teklif** gönderir
+  (kişisel; ilk teklif bölme takılınca hemen, sonrakiler teklif alınınca ya da 6 dk'da süresi dolunca 5–10 gerçek dk
+  sonra — "📞 Yeni bir iş var" bildirimi, panoda "sonraki iş ~N dk"). Limandaki tanıdıkla yaya konuşunca da pano açılır.
+- **Ekonomi:** teklif başına **kazanç 700–800 €** (teslimde cüzdana, brüt) ve **peşin mal bedeli 150–250 €** (yüklemede
+  cüzdandan). Geç teslim (7 dk) ×0,7, hasar orantılı düşürür; gece kazanç çarpanı yoktur (yalnızca daha az dikkat).
+- **İş akışı:** teklifi al → bölmeli tırınla **⚓ limandaki K-17 konteynerinin** önündeki sarı çerçevede dur, **E** → iki
+  teslim yerinden birine götür: **🏚️ Eski Kantar Deposu** (FrisDepot avlusunun batı köşesi, gizli depo — baskın %12) ya da
+  otelin lojistik avlusundaki **🏨 mal kabul alanı** (yakın ama baskın %35; kaçak mal otel stoğuna girmez, alıcı oradan
+  alır). **60 m içinde polis yokken** dur, **E** → **indirme ~10 sn** (tır yerinde durmalı; kalkarsan yarıda kalır, yük
+  tırda) → kazanç cüzdana. Navi rotayı K-17'ye, sonra depoya çizer. İş, lojistiğin iş tablosuna `legal: false` ile yazılır
   (oyuncu başına tek iş); otel teslimi ve depo yükleme kancalarla veto edilir. Yük tırdayken iptal = mallar yola
   dökülür, **takip sürer** (yakalanırsa yalnızca taban ceza).
 - **Isı (0–100 → ★):** yükleyince +6; otoyolda hareket +0,22/sn (hız sınırını aşmak ısı yazmaz); çarpma (yük hasarı) +7;
@@ -794,9 +798,18 @@ yakalanınca mallara el konur ve ceza kesilir.
   Avluda düz gider ve sürülebilir alana itilir. `logi:agents` ile ≤5 Hz yayınlanır.
 - **Kıskaç ve yakalanma:** ≥3 taraf kapalıyken ön araç yavaşça 4,5 m'ye kadar yaklaşır (önden frenleyerek durdurur);
   polis araçları istemcide **katıdır** (tır itilir ve yavaşlar). Kıskaçta hız **8 km/s altında 4 sn** ya da durmuşken
-  polis **8 m içinde 6 sn** (yaya kaçış: 10 m'de 2 sn) → **yakalandın**: mallara el konur, ceza = €1.500 + kazancın %35'i
+  polis **8 m içinde 6 sn** (yaya kaçış: 10 m'de 2 sn) → **yakalandın**: mallara el konur, ceza = €400 + kazancın %35'i
   + çarpma cezaları, **cüzdandan (0'ın altına inmez)**. Kıskacın içinden "geçmek" sunucuda çarpma sayılır (ısı + ceza).
 - **Kaçış:** hiçbir ekip **150 m** içinde değilken **25 sn** → takip bırakılır, ısı 15'e iner.
+- **🚨 Polis baskını (PoliceRaidSystem / `PoliceRaidService`):** indirme başlarken bir kez zar atılır (gizli; servisin kendi
+  PRNG'si): olasılık = yer (depo 0,12 · otel avlusu 0,35) × gece 0,6 + ısı/100 × 0,4 (en çok 0,85). Baskın varsa indirme
+  başladıktan 1,5–4 sn sonra telsiz uyarısı ("🚨 Baskın!") ve siren; **3 ekip** avlu kapısının gerisinden çıkıp **7 sn'de**
+  körfeze (tırın önü / arkası / yanı) varır (`logi:agents` ile çizilir). HUD'da indirme çubuğu + ekiplerin varış geri sayımı.
+  - Ekipler **indirme bitmeden** varırsa ve tır hâlâ körfezdeyse → **yakalanma**: mallara el, ceza (cüzdan 0'ın altına
+    inmez); **otelin avlusundaysa otel itibarı −3** ve herkese duyuru.
+  - İndirme **önce biterse** → kazanç ödenir, ekipler boş körfeze varır (ısı +12).
+  - Uyarıdan sonra **tırla kaçarsan** → baskın ekibi kıskaç takibine devrolur (ısı en az 70), mallar tırda kalır.
+  Testlerde `policeRaids: false` baskını kapatır.
 - **HUD:** aranma yıldızları, ısı çubuğu, durum satırı (kapalı taraflar, yakalanmaya / kaçışa kalan süre), telsiz
   mesajları ("📻 Merkez: şüpheli tır A10'da batıya ilerliyor…"), mini haritada polis noktaları + tarayıcılar + hedef
   çerçevesi, sentez siren (yakındaki ekibe göre), yakalanınca kırmızı-mavi flaş. Mobilde küçülür.
@@ -887,7 +900,8 @@ amsterdam-otel/
 │       ├── BasementService.js   # −1. Kat Eğlence Katı: bilardo kuralları + bilgisayar rakip, bowling skoru, masa tenisi / langırt maçları, atari jetonu + rekorlar, NPC misafirler
 │       ├── CargoDockService.js  # Mal Kabul Rampası: toptancı siparişi, NPC tırları, paletler, transpalet, yük asansörü, depo stoku + etkileri, deliver() API
 │       ├── LogisticsService.js  # FPV lojistik tırı: sözleşme panosu, yükleme (kasadan toptan), teslim (kasa + şoför ücreti), hasar, polis eklentisi kancaları
-│       ├── IllegalLogisticsService.js # İllegal sevkiyat: gizli bölme, tanıdık teklifleri, ısı, polis kıskacı (yuvalar), yakalanma / kaçış, ceza
+│       ├── IllegalLogisticsService.js # İllegal sevkiyat: gizli bölme, tanıdık teklifleri (5–10 dk'da bir), ısı, polis kıskacı (yuvalar), yakalanma / kaçış, ceza
+│       ├── PoliceRaidService.js # Kaçak yük indirme (depo / otelin mal kabul alanı) + rastgele polis baskını: zar, uyarı, ekipler, yakalanma / kaçış
 │       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
 │       ├── MarketingService.js  # InstaHotel: gönderi doğrulama, beğeni / takipçi artışı, kampanya → turist akını (boost)
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
@@ -945,6 +959,7 @@ amsterdam-otel/
 │       │   ├── CityVehicleSystem.js # Araç modelleri, FPV sürüş, arkaya binme, büfe, hız göstergesi
 │       │   ├── LargeWorldMap.js     # Devasa harita (otoyol, avlu, depolar, liman), navi mini haritası + tam harita, Lojistik panosu / TruckCenter, trafik, tır çarpma algısı
 │       │   ├── IllegalLogistics.js  # Gizli bölme + tanıdık (pano), K-17 / Kantar deposu / tarayıcı kapıları, aranma HUD'u, katı polis araçları, siren
+│       │   ├── PoliceRaidSystem.js  # İndirme ilerleme çubuğu + baskın geri sayımı / siren (HUD)
 │       │   ├── HotelMaintenanceSystem.js # Arıza görselleri ve 4 mini oyun (leke, ampul, musluk, sigorta)
 │       │   ├── ReceptionPC.js       # Resepsiyon bilgisayarı paneli, asansör, yıldız tabelası, kat filtresi
 │       │   ├── HotelWorkerSystem.js # Temizlikçi görünümü (kova/paspas) ve Çalışanlar sekmesi
@@ -979,7 +994,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC), mal kabul (sipariş, tır, transpalet, asansör, stok etkileri), illegal sevkiyat (bölme, teklif, ısı, kıskaç, yakalanma, kaçış)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC), mal kabul (sipariş, tır, transpalet, asansör, stok etkileri), illegal sevkiyat (bölme, teklif, ısı, kıskaç, yakalanma, kaçış), polis baskını (teklif sıklığı, 700–800 € kazanç, indirme, baskın, kaçış)
 ```
 
 ## Sonraki aşamalar için notlar

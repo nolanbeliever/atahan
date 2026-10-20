@@ -1,10 +1,13 @@
 import { EVT } from '../../shared/constants.js';
 import { isTruck } from '../../shared/cars.js';
-import { inHighwayRegion, yardAt, constrainToRoads, laneAt, trunkAt, TRUNK_LENGTH, roadProject, roadPoint } from '../../shared/worldmap.js';
+import { inHighwayRegion, yardAt, constrainToRoads, laneAt, trunkAt, TRUNK_LENGTH, roadProject, roadPoint, HOTEL_DELIVERY } from '../../shared/worldmap.js';
 import {
   CONTRA_GOODS, CONTRA_BY_ID, ILLEGAL_RULES as R, BOX_SLOTS, SLOT_ORDER, SCANNERS, CONTACT, SAFE_DROP,
-  inContactZone, inDropZone, heatStars, policeWanted, contraTerms, catchFine, isDark, frame, slotPoint, trunkNear,
+  inContactZone, inDropZone, heatStars, policeWanted, contraTerms, catchFine, isDark, frame, slotPoint, trunkNear, DROP_SITES,
+  RAID_RULES,
 } from '../../shared/illegal.js';
+
+const inRect = (b, x, z, tol = 0) => x > b.minX - tol && x < b.maxX + tol && z > b.minZ - tol && z < b.maxZ + tol;
 
 const r2 = (v) => Math.round(v * 100) / 100;
 const SLOT_BY_ID = Object.fromEntries(BOX_SLOTS.map((s) => [s.id, s]));
@@ -25,10 +28,12 @@ function prng(seed) {
  * İllegal sevkiyat + dinamik polis kıskacı (sunucu yetkili). LogisticsService kancaları üzerine kuruludur.
  *
  *  - Gizli zula bölmesi: oyuncunun tırına (araba kaydı kimliği) takılan, cüzdandan ödenen kalıcı yükseltme.
- *  - Tanıdık teklifleri: yalnızca bölmeli tırı olan oyuncuya (kişisel, OFFERS adet). Kaçak iş, lojistiğin iş
- *    tablosuna `legal: false, hidden: [{ good, qty }]` ile yazılır (oyuncu başına tek iş kuralı korunur);
- *    LogisticsService'in yükle / teslim eylemleri bu işler için veto edilir — burada K-17'de yüklenir, Eski
- *    Kantar Deposu'nda teslim edilir. Malların bedeli ve kazanç oyuncunun CÜZDANINA.
+ *  - Tanıdık teklifleri: yalnızca bölmeli tırı olan oyuncuya, kişisel ve TEK TEK — aynı anda en çok 1 teklif;
+ *    teklif alınınca ya da süresi dolunca bir sonraki 5–10 gerçek dakika sonra gelir (ilki bölme takılınca hemen).
+ *    Kazanç 700–800 €, peşin bedel 150–250 € (ILLEGAL_RULES). Kaçak iş, lojistiğin iş tablosuna `legal: false,
+ *    hidden: [{ good, qty }]` ile yazılır (oyuncu başına tek iş kuralı korunur); LogisticsService'in yükle / teslim
+ *    eylemleri bu işler için veto edilir — burada K-17'de yüklenir; Eski Kantar Deposu'nda ya da otelin mal kabul
+ *    alanında İNDİRİLİR (PoliceRaidService: ~10 sn indirme, rastgele polis baskını). Bedel / kazanç CÜZDANDA.
  *  - Isı (0–100 → 5★): yük tırdayken otoyolda hareket (hız aşımı sayılmaz), çarpma (yük hasarı), tarayıcı kapıları, polis
  *    aracına çarpma artırır. ≥1★ sivil araç izler, ≥2★ resmi polis gelir; polisler tırın ön / arka / sol / sağ
  *    yuvalarına yerleşip (kinematik, yol koordinatlarında şeridi izleyerek) önden frenleyerek durdurmaya çalışır.
@@ -44,6 +49,8 @@ export class IllegalLogisticsService {
     this.compartments = new Map(); // sahip anahtarı (keyHash ya da p<id>) → Set(araba kaydı kimliği)
     this.offers = new Map(); // oyuncu id → teklifler
     this.chases = new Map(); // oyuncu id → takip durumu
+    this.nextOffer = new Map(); // oyuncu id → bir sonraki teklifin geleceği an (ms; yoksa ilk teklif hemen)
+    this.lastOfferCheck = 0;
     this.seq = 1;
     this.lastTick = 0;
     this.stats = { runs: 0, delivered: 0, caught: 0, escaped: 0, earned: 0, fines: 0, compartments: 0 };
@@ -114,6 +121,8 @@ export class IllegalLogisticsService {
       night: this.night,
       trucks: this.trucksOf(p).map((v) => ({ id: v.id, model: v.model, hidden: this.hasCompartment(p, v) })),
       offers: (this.offers.get(p.id) ?? []).filter((o) => o.expires > now),
+      nextOfferIn: this.nextOffer.has(p.id) ? Math.max(0, this.nextOffer.get(p.id) - now) : null,
+      unload: this.sim.raids?.view(p, now) ?? null, // kaçak yük indirme + baskın (PoliceRaidService)
       chase: c ? this.chaseView(c, now) : null,
       stats: { ...this.stats },
     };
@@ -143,6 +152,7 @@ export class IllegalLogisticsService {
 
   removePlayer(p) {
     this.offers.delete(p.id);
+    this.nextOffer.delete(p.id);
     this.endChase(p.id);
     if (!p.keyHash) this.compartments.delete(`p:${p.id}`);
   }
@@ -160,7 +170,7 @@ export class IllegalLogisticsService {
       }
       case 'accept': return this.accept(p, data.offer, now);
       case 'load': return this.load(p, now);
-      case 'drop': return this.drop(p, now);
+      case 'drop': return this.drop(p, now, data.site);
       default: return { ok: false, error: 'Geçersiz işlem.' };
     }
   }
@@ -187,18 +197,36 @@ export class IllegalLogisticsService {
   makeOffer(now) {
     const g = CONTRA_GOODS[Math.floor(this.rand() * CONTRA_GOODS.length)];
     const qty = g.min + Math.floor(this.rand() * (g.max - g.min + 1));
-    return { id: `x${this.seq++}`, good: g.id, qty, ...contraTerms(g.id, qty), timeSec: R.TIME_SEC, expires: now + R.OFFER_TTL_MS * (0.6 + this.rand() * 0.8) };
+    return { id: `x${this.seq++}`, good: g.id, qty, ...contraTerms(this.rand(), this.rand()), timeSec: R.TIME_SEC, expires: now + R.OFFER_TTL_MS };
   }
 
-  /** Bölmeli tırı olan oyuncunun teklifleri tamamlanır */
+  /** Bir sonraki teklifin gelme zamanı: şimdi + 5–10 dk */
+  scheduleOffer(p, now) {
+    this.nextOffer.set(p.id, now + R.OFFER_EVERY_MIN_MS + this.rand() * (R.OFFER_EVERY_MAX_MS - R.OFFER_EVERY_MIN_MS));
+  }
+
+  /**
+   * Bölmeli tırı olan oyuncunun teklifi: aynı anda en çok OFFERS (1). Teklif yoksa ve bekleme süresi dolduysa
+   * (ya da hiç teklif gelmediyse) yenisi gelir. @returns {boolean} yeni teklif geldi mi
+   */
   refill(p, now) {
     if (!this.trucksOf(p).some((v) => this.hasCompartment(p, v))) {
       this.offers.delete(p.id);
-      return;
+      this.nextOffer.delete(p.id);
+      return false;
     }
-    const list = (this.offers.get(p.id) ?? []).filter((o) => o.expires > now);
-    while (list.length < R.OFFERS) list.push(this.makeOffer(now));
+    const before = this.offers.get(p.id) ?? [];
+    const list = before.filter((o) => o.expires > now);
+    if (before.length && !list.length && !this.nextOffer.has(p.id)) this.scheduleOffer(p, now); // süresi doldu
+    let added = false;
+    const due = this.nextOffer.get(p.id);
+    if (list.length < R.OFFERS && (due === undefined || now >= due)) {
+      list.push(this.makeOffer(now));
+      this.nextOffer.delete(p.id);
+      added = true;
+    }
     this.offers.set(p.id, list);
+    return added;
   }
 
   accept(p, offerId, now) {
@@ -210,6 +238,7 @@ export class IllegalLogisticsService {
     const o = list[i];
     list.splice(i, 1);
     this.offers.set(p.id, list);
+    if (!list.length) this.scheduleOffer(p, now); // bir sonraki iş 5–10 dk sonra
     const L = this.logi;
     const job = {
       id: `j${L.seq++}`, ownerId: p.id, ownerName: p.name, site: CONTACT.site, cargo: 'import', pallets: 6, dist: 0,
@@ -255,16 +284,26 @@ export class IllegalLogisticsService {
     c.damage = 0;
     this.addHeat(p, c, R.HEAT_LOAD * (j.night ? R.NIGHT_HEAT_MUL : 1));
     this.sendPrivate(p);
-    return { ok: true, text: '🤫 Mallar gizli bölmede, üstü konteyner yüküyle örtüldü. Dikkat çekmeden 🏚️ Eski Kantar Deposu\'na (FrisDepot\'un batı köşesi) götür.' };
+    return { ok: true, text: '🤫 Mallar gizli bölmede, üstü konteyner yüküyle örtüldü. Dikkat çekmeden 🏚️ Eski Kantar Deposu\'na (FrisDepot\'un batı köşesi) ya da otelin 🏨 mal kabul alanına (riskli) götür.' };
   }
 
-  drop(p, now) {
+  /** Tırın bulunduğu kaçak teslim yeri: 'depot' (Eski Kantar Deposu) | 'hotel' (otelin mal kabul alanı) | null */
+  dropSiteAt(x, z, tol = 1.5) {
+    if (inDropZone(x, z, tol)) return 'depot';
+    if (inRect(HOTEL_DELIVERY.zone, x, z, tol)) return 'hotel';
+    return null;
+  }
+
+  /** Kaçak yükü indirmeye başla (indirme + baskın PoliceRaidService'te); site verilmezse konumdan bulunur */
+  drop(p, now, siteArg) {
     const j = this.jobOf(p);
     if (!j || j.state !== 'loaded') return { ok: false, error: 'Teslim edilecek kaçak yükün yok.' };
     const { v, error } = this.logi.myTruck(p);
     if (error) return { ok: false, error };
     if (v.id !== j.vehicleId) return { ok: false, error: 'Mallar başka bir tırda.' };
-    if (!inDropZone(p.x, p.z, 1.5)) return { ok: false, error: '🏚️ Eski Kantar Deposu\'nun önüne gir.' };
+    if (siteArg !== undefined && !(typeof siteArg === 'string' && DROP_SITES[siteArg])) return { ok: false, error: 'Geçersiz teslim yeri.' };
+    const site = this.dropSiteAt(p.x, p.z);
+    if (!site || (siteArg && siteArg !== site)) return { ok: false, error: '🏚️ Eski Kantar Deposu\'nun ya da 🏨 otelin mal kabul alanının önüne gir.' };
     if (this.logi.speedOf(p, now) * 3.6 > R.STOP_KMH) return { ok: false, error: 'Önce tamamen dur.' };
     const c = this.chases.get(p.id);
     if (c) {
@@ -272,22 +311,36 @@ export class IllegalLogisticsService {
         if (Math.hypot(a.x - p.x, a.z - p.z) < R.DROP_POLICE_DIST) return { ok: false, error: '🚓 Polis dibindeyken kapı açılmaz — önce takipten kurtul!' };
       }
     }
+    if (!this.sim.raids) return this.finishDrop(p, j, site, now);
+    return this.sim.raids.start(p, j, site, now);
+  }
+
+  /** İndirme tamamlandı: kazanç cüzdana (geç ×LATE_MUL, hasarla orantılı). seen: baskın ekibi geç kaldı */
+  finishDrop(p, j, site, now, { seen = false } = {}) {
     const late = now > j.deadline;
     const cond = Math.max(0, 1 - j.damage);
-    const pay = Math.round(j.pay * cond * (j.night ? R.NIGHT_PAY_MUL : 1) * (late ? R.LATE_MUL : 1));
+    const pay = Math.round(j.pay * cond * (late ? R.LATE_MUL : 1));
     if (pay > 0) {
       p.wallet += pay;
       this.sim.shop.sendSelf(p);
     }
     this.stats.delivered++;
     this.stats.earned += pay;
-    this.endChase(p.id);
+    if (seen) {
+      // Polis boş körfeze vardı: seni gördüler — ısı kalır (yük yok → takip soğuyup biter)
+      const c = this.chaseOf(p.id, true);
+      c.job = null;
+      this.addHeat(p, c, RAID_RULES.SEEN_HEAT);
+    } else {
+      this.endChase(p.id);
+    }
     this.logi.endJob(j, p, 'delivered', { value: 0, fee: pay, late, cond });
     this.sim.house.scheduleSave?.();
-    const text = `💼 Mallar teslim edildi — cüzdana +€${pay.toLocaleString('nl-NL')}${j.night ? ' (gece primi)' : ''}${late ? ' (geç kaldın)' : ''}${j.damage > 0.01 ? ` · hasar %${Math.round(j.damage * 100)}` : ''}.`;
+    const where = DROP_SITES[site];
+    const text = `💼 Mallar ${where.icon} ${where.name} önünde alıcıya teslim edildi — cüzdana +€${pay.toLocaleString('nl-NL')}${late ? ' (geç kaldın)' : ''}${j.damage > 0.01 ? ` · hasar %${Math.round(j.damage * 100)}` : ''}${seen ? ' · 🚓 baskın ekibi boş körfeze vardı!' : ''}.`;
     this.radio(p, text, 'money');
     this.sendPrivate(p);
-    return { ok: true, pay, late, text };
+    return { ok: true, pay, late, site, text };
   }
 
   // ---- Takip ---------------------------------------------------------------------------------------
@@ -341,8 +394,15 @@ export class IllegalLogisticsService {
   }
 
   caught(p, c) {
-    const job = c.job;
-    const fine = catchFine({ pay: job?.pay ?? 0, rams: c.rams }, p.wallet);
+    return this.confiscate(p, c.job, c.rams);
+  }
+
+  /**
+   * Yakalanma: mallara el konur (iş biter), cüzdandan ceza (0'ın altına inmez), takip biter.
+   * @param raid baskında körfezde yakalanma ise { site } (mesaj için)
+   */
+  confiscate(p, job, rams = 0, raid = null) {
+    const fine = catchFine({ pay: job?.pay ?? 0, rams }, p.wallet);
     if (fine.paid > 0) {
       p.wallet -= fine.paid;
       this.sim.shop.sendSelf(p);
@@ -352,9 +412,10 @@ export class IllegalLogisticsService {
     this.endChase(p.id);
     if (job) this.logi.endJob(job, p, 'caught');
     this.sim.house.scheduleSave?.();
-    const text = `🚔 Yakalandın! ${job ? 'Gizli bölmedeki mallara el konuldu. ' : ''}Ceza: €${fine.paid.toLocaleString('nl-NL')}${fine.paid < fine.due ? ` (cüzdandaki her şey — borç €${fine.due.toLocaleString('nl-NL')} idi)` : ''}.`;
+    const head = raid ? `🚨 Baskın! ${DROP_SITES[raid.site].icon} ${DROP_SITES[raid.site].name} önünde yakalandın. ` : '🚔 Yakalandın! ';
+    const text = `${head}${job ? 'Gizli bölmedeki mallara el konuldu. ' : ''}Ceza: €${fine.paid.toLocaleString('nl-NL')}${fine.paid < fine.due ? ` (cüzdandaki her şey — borç €${fine.due.toLocaleString('nl-NL')} idi)` : ''}.`;
     this.radio(p, text, 'warn');
-    this.sim.toPlayer(p.id, EVT.ILLEGAL_STATE, { ...this.privateState(p), caught: { fine: fine.paid, due: fine.due } });
+    this.sim.toPlayer(p.id, EVT.ILLEGAL_STATE, { ...this.privateState(p), caught: { fine: fine.paid, due: fine.due, raid: raid?.site ?? null } });
     return fine;
   }
 
@@ -474,6 +535,17 @@ export class IllegalLogisticsService {
   update(now) {
     const dt = this.lastTick ? Math.min(0.5, (now - this.lastTick) / 1000) : 0;
     this.lastTick = now;
+    // Tanıdığın yeni teklifi (5–10 dk'da bir): bölmeli tırı olan oyunculara saniyede bir bakılır
+    if (now - this.lastOfferCheck >= 1000) {
+      this.lastOfferCheck = now;
+      for (const p of this.sim.players.values()) {
+        if (!this.offers.has(p.id) && !this.nextOffer.has(p.id)) continue; // bölmesi yok / panoyu hiç açmadı
+        if (this.refill(p, now)) {
+          this.radio(p, '📞 Limandaki tanıdık: "Yeni bir iş var — Lojistik panosuna bak." (🕶️)', 'info');
+          this.sendPrivate(p);
+        }
+      }
+    }
     if (!dt) return;
     for (const c of [...this.chases.values()]) this.step(c, dt, now);
   }

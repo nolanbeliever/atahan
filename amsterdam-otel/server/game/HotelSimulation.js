@@ -33,6 +33,7 @@ import { DragRaceService } from './DragRaceService.js';
 import { ValetService } from './ValetService.js';
 import { LogisticsService } from './LogisticsService.js';
 import { IllegalLogisticsService } from './IllegalLogisticsService.js';
+import { PoliceRaidService } from './PoliceRaidService.js';
 import { BasementService } from './BasementService.js';
 import { CargoDockService } from './CargoDockService.js';
 import { BarStaffService } from './BarStaffService.js';
@@ -113,6 +114,7 @@ export class HotelSimulation extends EventEmitter {
     this.valet = new ValetService(this); // VIP vale + garajdaki oto yıkama
     this.logistics = new LogisticsService(this); // FPV lojistik tırı: sevkiyat panosu, yükleme, teslim (şehir dışı otoyol)
     this.illegal = new IllegalLogisticsService(this); // gizli bölme, kaçak (gümrüksüz) mal işleri, polis kıskacı (lojistik kancaları)
+    this.raids = new PoliceRaidService(this); // kaçak yük indirme (depo / otelin mal kabul alanı) + rastgele polis baskını
     this.basement = new BasementService(this); // −1. Kat VIP Eğlence Katı: bilardo, langırt, masa tenisi, atari, bowling
     this.cargo = new CargoDockService(this); // Mal Kabul Rampası: toptancı tırları, paletler, transpalet, yük asansörü, depo stoku
     this.barStaff = new BarStaffService(this); // barmen NPC'leri (Bar De Tulp)
@@ -195,6 +197,7 @@ export class HotelSimulation extends EventEmitter {
       valet: this.valet.persisted(),
       logistics: this.logistics.persisted(),
       illegal: this.illegal.persisted(),
+      raids: this.raids.persisted(),
       restaurant: { ...this.restaurant.persisted(), staff: this.kitchen.persisted() },
       street: this.street.persisted(),
       basement: this.basement.persisted(),
@@ -221,6 +224,7 @@ export class HotelSimulation extends EventEmitter {
     this.valet.restore(h.valet);
     this.logistics.restore(h.logistics);
     this.illegal.restore(h.illegal);
+    this.raids.restore(h.raids);
     this.restaurant.restore(h.restaurant);
     this.kitchen.restore(h.restaurant?.staff);
     this.street.restore(h.street);
@@ -267,6 +271,7 @@ export class HotelSimulation extends EventEmitter {
       this.cargo.shiftTime(now - this.pausedAt);
       this.barStaff.shiftTime(now - this.pausedAt);
       this.bouncer.shiftTime(now - this.pausedAt);
+      this.raids.shiftTime(now - this.pausedAt);
       this.pausedAt = null;
     }
     this.lastTick = now;
@@ -318,6 +323,7 @@ export class HotelSimulation extends EventEmitter {
     this.valet.update(now);
     this.logistics.update(now);
     this.illegal.update(now);
+    this.raids.update(now);
     this.basement.update(now);
     this.cargo.update(now);
     this.barStaff.update(now);
@@ -424,6 +430,7 @@ export class HotelSimulation extends EventEmitter {
     this.drag.removePlayer(p); // drag yarışındaysa DNF
     this.valet.removePlayer(p); // VIP aracının anahtarı sendeyse müşteri arabasını geri alır
     this.logistics.removePlayer(p); // süren sevkiyat iptal (yük tırdaysa depoya iade), dorse ayrılır
+    this.raids.removePlayer(p); // süren indirme / baskın ekipleri kalkar
     this.illegal.removePlayer(p); // takip / polis ajanları kalkar
     this.basement.removePlayer(p); // Eğlence Katı: masadan / kulvardan / makineden kalkar
     this.cargo.removePlayer(p); // transpalet bırakılır (taşınan palet rampaya)
