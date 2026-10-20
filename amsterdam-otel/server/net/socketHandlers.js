@@ -220,6 +220,12 @@ export function attachSocketHandlers(io, sim) {
       if (!player || !allowLogi()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
       reply(ack, sim.logisticsAct(player.id, data));
     });
+    // ---- İllegal sevkiyat (gizli bölme, tanıdık teklifleri; konum / bakiye / polis IllegalLogisticsService'te) ----
+    const allowIllegal = rateLimiter(5, 10);
+    on(EVT.ILLEGAL_ACT, (data, ack) => {
+      if (!player || !allowIllegal()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.illegalAct(player.id, data));
+    });
     // ---- Akıllı telefon: InstaHotel (gönderi, beğeni, akış, fotoğraf) ----
     // Fotoğraf ~90 KB'lık data URL: socket.io'nun varsayılan 1 MB mesaj sınırı yeterli (yükseltilmedi).
     // Tipler, fotoğraf biçimi, bütçe, kasa ve gönderi aralığı (20 sn) MarketingService'te doğrulanır.

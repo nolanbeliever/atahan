@@ -739,6 +739,7 @@ export class LargeWorldMap {
     if (!this.inRegion && !inHighwayRegion(px, pz, 4)) return null;
     const truck = this.drivingTruck();
     const job = this.myJob;
+    if (truck && job?.legal === false && this.illegal) return this.illegal.findTarget(px, pz, f, truck); // kaçak iş (IllegalLogistics)
     if (truck) {
       const at = { x: px, z: pz, marker: false };
       if (job?.state === 'accepted') {
@@ -751,6 +752,8 @@ export class LargeWorldMap {
       return null;
     }
     if (this.vehicles.seat) return null;
+    const extra = this.illegal?.findTarget(px, pz, f, null); // limandaki tanıdık (yaya)
+    if (extra) return extra;
     const K = SERVICE_YARD.dealer;
     const dx = K.point[0] - px;
     const dz = K.point[1] - pz;
@@ -863,7 +866,7 @@ export class LargeWorldMap {
     root.append(el('div', 'logi-head', `🎒 ${formatEuro(wallet)} · 🏨 Kasa ${formatEuro(kasa)} · 📦 ${st.deliveries ?? 0} teslimat · ${(st.km ?? 0).toFixed(1).replace('.', ',')} km`));
     if (this.msg) root.append(el('p', 'logi-msg', this.msg));
     const job = this.myJob;
-    if (job) root.append(this.jobCard(job));
+    if (job) root.append(job.legal === false && this.illegal ? this.illegal.jobCard(job) : this.jobCard(job));
     else if (!trucks.length) root.append(el('p', 'logi-hint', '🚛 Sevkiyat almak için önce bir tır al (aşağıda TruckCenter). Tır, şehir dışındaki lojistik avlusunun tır parkına teslim edilir — otelin önündeki sokağın doğu ucundaki 🛣️ tünelden ya da 🗺️ Işınlan → 🚛 Lojistik avlusu ile gidilir.'));
     // Teklifler
     root.append(el('div', 'logi-sub', '📋 Sözleşme panosu'));
@@ -936,6 +939,7 @@ export class LargeWorldMap {
       cat.append(card);
     }
     root.append(cat);
+    this.illegal?.renderBoard(root, where); // 🕶️ gizli bölme + limandaki tanıdık (IllegalLogistics)
     box.append(root);
   }
 
@@ -993,6 +997,7 @@ export class LargeWorldMap {
   destination() {
     const job = this.myJob;
     if (!job) return null;
+    if (job.legal === false) return job.state === 'accepted' ? 'port' : 'drinks'; // K-17 (liman) → Eski Kantar Deposu (FrisDepot)
     return job.state === 'accepted' ? job.site : 'hotel';
   }
 
@@ -1027,6 +1032,8 @@ export class LargeWorldMap {
   nextTurn(x, z, dest) {
     const destSite = dest === 'hotel' ? 'yard' : dest;
     const here = yardAt(x, z, 1);
+    const hint = this.illegal?.turnHint(here, destSite);
+    if (hint) return hint;
     if (here === destSite) return dest === 'hotel' ? '🏨 Sarı çerçeveli mal kabul körfezinde dur → E' : '📦 Sarı çerçeveli yükleme körfezinde dur → E';
     if (here) return '⬆ Otoyola çık';
     const r = this.route;
@@ -1102,6 +1109,7 @@ export class LargeWorldMap {
       ctx.fillText('🏨 Lojistik avlusu', X(290), Z(-50));
       for (const s of SITES) ctx.fillText(`${s.icon} ${s.short}`, X((s.bounds.minX + s.bounds.maxX) / 2), Z(s.bounds.minZ) - 6);
     }
+    this.illegal?.drawMap(ctx, X, Z, view); // kaçak iş hedefleri, tarayıcı kapıları
     // Yapay araçlar (polis)
     for (const a of this.st.agents ?? []) {
       ctx.fillStyle = a.kind === 'police' ? '#3b82ff' : '#cccccc';

@@ -762,6 +762,40 @@ Resepsiyon PC → **👥 Personel 2.0**: bütün çalışanlar tek ekranda, rol 
 - **Pil:** bölge ayrı grup (oradayken otel dünyası çizilmez; uzak düzlem 900 m + sis); tekrarlanan nesneler
   InstancedMesh; statikler malzeme başına tek mesh; kare yalnızca sürerken ya da yakında trafik varken.
 
+## İllegal Sevkiyat & Polis Kıskacı (IllegalLogistics)
+
+Lojistik tırının üzerine kurulu riskli yan iş. **Kaçak yük yalnızca kurgusal "gümrüksüz lüks mallar"dır** (⌚ saat,
+🌸 parfüm, 📱 elektronik, 👜 tasarım çanta); uyuşturucu, silah, tütün, alkol ya da insan yoktur. Polisle şiddet yoktur:
+yakalanınca mallara el konur ve ceza kesilir.
+
+- **🕶️ Gizli zula bölmesi:** Lojistik panosundan (TruckCenter / PC / telefon) tır başına **€12.000, cüzdandan**; araba
+  kaydına bağlı, kalıcı. Bölmeli tırı olan oyuncu panoda **"Limandaki tanıdık"** tekliflerini görür (kişisel, 3 adet);
+  limandaki tanıdıkla yaya konuşunca da pano açılır.
+- **İş akışı:** teklifi al → bölmeli tırınla **⚓ limandaki K-17 konteynerinin** önündeki sarı çerçevede dur, **E** (malların
+  bedeli peşin, cüzdandan) → **🏚️ Eski Kantar Deposu**'na (FrisDepot avlusunun batı köşesi) götür; **60 m içinde polis
+  yokken** dur, **E** → kazanç cüzdana (bedelin ~2,7 katı; gece 20:00–07:00 ×1,25; 7 dk içinde, geç ×0,7;
+  hasar düşürür). Navi rotayı K-17'ye, sonra depoya çizer. İş, lojistiğin iş tablosuna `legal: false` ile yazılır
+  (oyuncu başına tek iş); otel teslimi ve depo yükleme kancalarla veto edilir. Yük tırdayken iptal = mallar yola
+  dökülür, **takip sürer** (yakalanırsa yalnızca taban ceza).
+- **Isı (0–100 → ★):** yükleyince +6; otoyolda hareket +0,22/sn; sınırın 10 km/s üstü +1,6/sn; çarpma (yük hasarı) +7;
+  **📡 gümrük tarayıcı kapıları** (otoyolda iki köprü: liman çıkışı + orta) %55 olasılıkla (gece %35) +26; polis aracına
+  çarpma +12 ve €400 ek ceza. Gece ısı artışı ×0,6. Takip yokken ve dururken ısı soğur.
+- **Ekipler:** ≥1★ işaretsiz **sivil araç** ~20 m geriden izler; ≥2★ 1, ≥3★ 3, ≥4★ 4 **resmi polis** — ana gövdede tırın
+  150 m gerisinde belirir, en çok ~150 km/s ile yaklaşır ve tırın **arka / sol / sağ / ön** yuvalarına yerleşir (yuvalar
+  çekicinin merkezine göre: arka 18 m geride — dorsenin arkası; yanlar ±4,2 m; ön 11 m ileride). Ajanlar sunucuda
+  kinematiktir ve yol ağına kısıtlıdır (`constrainToRoads`); `logi:agents` ile ≤5 Hz yayınlanır.
+- **Kıskaç ve yakalanma:** ≥3 taraf kapalıyken ön araç yavaşça 4,5 m'ye kadar yaklaşır (önden frenleyerek durdurur);
+  polis araçları istemcide **katıdır** (tır itilir ve yavaşlar). Kıskaçta hız **8 km/s altında 4 sn** ya da durmuşken
+  polis **8 m içinde 6 sn** (yaya kaçış: 10 m'de 2 sn) → **yakalandın**: mallara el konur, ceza = €1.500 + kazancın %35'i
+  + çarpma cezaları, **cüzdandan (0'ın altına inmez)**. Kıskacın içinden "geçmek" sunucuda çarpma sayılır (ısı + ceza).
+- **Kaçış:** hiçbir ekip **150 m** içinde değilken **25 sn** → takip bırakılır, ısı 15'e iner.
+- **HUD:** aranma yıldızları, ısı çubuğu, durum satırı (kapalı taraflar, yakalanmaya / kaçışa kalan süre), telsiz
+  mesajları ("📻 Merkez: şüpheli tır A10'da batıya ilerliyor…"), mini haritada polis noktaları + tarayıcılar + hedef
+  çerçevesi, sentez siren (yakındaki ekibe göre), yakalanınca kırmızı-mavi flaş. Mobilde küçülür.
+- **Sunucu yetkili** (`IllegalLogisticsService`): bölme, teklif, konum, durma, bakiye, ısı, ekipler, yakalanma ve para
+  doğrulanır; hız sınırlı. Kendi tohumlu PRNG'si vardır (diğer sistemlerin RNG dizisini değiştirmez). Testlerde
+  `policeAgents: false` ekipleri kapatır. Bölmeler (oyuncu anahtarına göre) ve istatistikler kalıcıdır.
+
 ## Bar müdavimleriyle arkadaşlık
 
 Bar De Tulp'un müşterileri 12 kişilik sabit bir müdavim kadrosundan gelir (Sanne, Daan, Emma, Lars…); her birinin
@@ -845,6 +879,7 @@ amsterdam-otel/
 │       ├── BasementService.js   # −1. Kat Eğlence Katı: bilardo kuralları + bilgisayar rakip, bowling skoru, masa tenisi / langırt maçları, atari jetonu + rekorlar, NPC misafirler
 │       ├── CargoDockService.js  # Mal Kabul Rampası: toptancı siparişi, NPC tırları, paletler, transpalet, yük asansörü, depo stoku + etkileri, deliver() API
 │       ├── LogisticsService.js  # FPV lojistik tırı: sözleşme panosu, yükleme (kasadan toptan), teslim (kasa + şoför ücreti), hasar, polis eklentisi kancaları
+│       ├── IllegalLogisticsService.js # İllegal sevkiyat: gizli bölme, tanıdık teklifleri, ısı, polis kıskacı (yuvalar), yakalanma / kaçış, ceza
 │       ├── StageService.js      # Achterstraat sahnesi: satın alma, grup kiralama, set/mola, kalabalık NPC'leri, bar bonusu
 │       ├── MarketingService.js  # InstaHotel: gönderi doğrulama, beğeni / takipçi artışı, kampanya → turist akını (boost)
 │       ├── routes.js            # Lobi ↔ oda ↔ oda rotaları (asansör bacakları)
@@ -873,6 +908,7 @@ amsterdam-otel/
 │   ├── basementPhysics.js       # Bilardo + bowling için deterministik 2B fizik (sunucu ve istemci aynı kod)
 │   ├── worldmap.js              # Devasa harita: otoyol bölgesi, yol ağı (ana gövde + çıkışlar), avlu / depolar / liman, sürülebilir alan, rota (navi), trafik şeritleri
 │   ├── logistics.js             # Tır sevkiyatı: yük türleri, ekonomi (toptan, değer, şoför ücreti), süre, hasar
+│   ├── illegal.js               # İllegal sevkiyat: gümrüksüz mallar, ısı / ceza kuralları, kıskaç yuvaları, K-17, Eski Kantar Deposu, tarayıcılar
 │   ├── architecture.js          # Lüks paketler (fiyat, koşul, kat / temizlikçi sınırı), VIP suit kuralları, lounge geliri
 │   ├── stage.js                 # Canlı müzik sahnesi: yer, gruplar (ücret, kalabalık, bonus), set takvimi, kalabalık noktaları
 │   ├── marketing.js             # InstaHotel: bütçeler, fotoğraf / açıklama doğrulama, konum etiketleri, turist kafilesi + kuyruk
@@ -882,7 +918,7 @@ amsterdam-otel/
 │   └── path.js                  # Deterministik rota örnekleme
 ├── public/                      # İstemci (derleme yok)
 │   ├── index.html               # Canvas, HUD, dokunmatik kontroller, menüler
-│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css, basement.css, cargo.css, logistics.css, bouncer.css, staffhr.css)
+│   ├── css/style.css            # (+ hotel.css, exterior.css, casino.css, interactive-tv.css, stage.css, bar-drinks.css, phone.css, garage.css, restaurant.css, street.css, valet.css, basement.css, cargo.css, logistics.css, illegal.css, bouncer.css, staffhr.css)
 │   └── js/
 │       ├── main.js              # Her şeyi birbirine bağlar
 │       ├── core/                # Engine (FPS kilidi, uyku), Device, Settings, Sfx (WebAudio)
@@ -900,6 +936,7 @@ amsterdam-otel/
 │       │   ├── ChatSystem.js        # Sohbet kutusu, mesaj geçmişi, konuşma balonları
 │       │   ├── CityVehicleSystem.js # Araç modelleri, FPV sürüş, arkaya binme, büfe, hız göstergesi
 │       │   ├── LargeWorldMap.js     # Devasa harita (otoyol, avlu, depolar, liman), navi mini haritası + tam harita, Lojistik panosu / TruckCenter, trafik, tır çarpma algısı
+│       │   ├── IllegalLogistics.js  # Gizli bölme + tanıdık (pano), K-17 / Kantar deposu / tarayıcı kapıları, aranma HUD'u, katı polis araçları, siren
 │       │   ├── HotelMaintenanceSystem.js # Arıza görselleri ve 4 mini oyun (leke, ampul, musluk, sigorta)
 │       │   ├── ReceptionPC.js       # Resepsiyon bilgisayarı paneli, asansör, yıldız tabelası, kat filtresi
 │       │   ├── HotelWorkerSystem.js # Temizlikçi görünümü (kova/paspas) ve Çalışanlar sekmesi
@@ -934,7 +971,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC), mal kabul (sipariş, tır, transpalet, asansör, stok etkileri)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC), mal kabul (sipariş, tır, transpalet, asansör, stok etkileri), illegal sevkiyat (bölme, teklif, ısı, kıskaç, yakalanma, kaçış)
 ```
 
 ## Sonraki aşamalar için notlar

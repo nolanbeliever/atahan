@@ -162,6 +162,9 @@ export const EVT = Object.freeze({
   LOGI_ACT: 'logi:act', // istemci → sunucu (ack): { act: 'board'|'accept'|'load'|'deliver'|'cancel'|'hit', offer?, kmh? }
   LOGI_STATE: 'logi:state', // sunucu → herkes: { offers, jobs, agents, stats }
   LOGI_AGENTS: 'logi:agents', // sunucu → herkes: yapay araçlar [{ id, kind, x, z, yaw, speed, label }] (polis eklentisi)
+  // İllegal sevkiyat + polis kıskacı (IllegalLogisticsService): gizli bölme, tanıdık teklifleri, ısı / takip
+  ILLEGAL_ACT: 'illegal:act', // istemci → sunucu (ack): { act: 'state'|'buy'|'board'|'accept'|'load'|'drop', vehicle?, offer? }
+  ILLEGAL_STATE: 'illegal:state', // sunucu → oyuncuya: { price, night, trucks, offers, chase, stats, caught? } ya da yalnızca { chase }
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------
