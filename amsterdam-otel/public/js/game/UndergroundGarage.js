@@ -3,7 +3,9 @@ import { STEEG } from '/shared/layout.js';
 import {
   CAR_MODELS, CAR_BY_ID, CAR_BODIES, CAR_RULES, CAR_XFERS, CAR_XFER_BY_ID, GARAGE_LAYOUT, inXferZone, carZone, bigArea,
   carSpeedCap, carAccel, carTurnRate, carPhysics, carPassengerSeat, idealRun, formatEuro, formatUsd,
+  TRUCK_RULES, truckTurnRate, isTruck, canParkTruck,
 } from '/shared/cars.js';
+import { yardAt } from '/shared/worldmap.js';
 import { buildGarage, buildStreetRamp } from '../world/GarageBuilding.js';
 import { makeCarModel, setBrake } from '../world/CarModels.js';
 import { CarCockpit } from './CarCockpit.js';
@@ -144,7 +146,13 @@ export class UndergroundGarage {
         return { icon: '🚗', name: m?.name ?? 'Araba', to: 'Arabaya', from: 'Arabadan', poss: `${m?.brand ?? ''} arabası`.trim() };
       },
       driveDef: (v) => self.driveDef(v),
-      canPark: (x, z) => carZone(x, z) !== null,
+      // Otoyol bölgesinde yalnızca avlu / depo / limanda; tır yalnızca oralarda
+      canPark: (x, z) => {
+        const sv = self.vehicles.byId.get(self.vehicles.seat?.id);
+        if (sv && isTruck(sv.model)) return canParkTruck(x, z);
+        const zone = carZone(x, z);
+        return zone === 'highway' ? yardAt(x, z) !== null : zone !== null;
+      },
       passengerEye: (v) => CAR_BODIES[CAR_BY_ID[v.model]?.body]?.eye ?? 1.15,
       passengerPos: (v, x, z, yaw) => carPassengerSeat(x, z, yaw, CAR_BY_ID[v.model]?.body),
       onSeat: (seat, v) => self.onSeat(seat, v),
@@ -176,12 +184,15 @@ export class UndergroundGarage {
         pos.z += p.z - oz;
       }
     };
+    // Tır: ağır (yüklü dorsede ivme ×0.58), uzun fren, geniş dönüş, yavaş geri vites
+    const truck = isTruck(m);
+    const loaded = () => !!this.vehicles.byId.get(v.id)?.trailer;
     return {
-      speed: ph.vmax, accel: ph.A, turn: 1.5, eye: body.eye, reverse: CAR_RULES.REVERSE, radius: r,
-      accelAt: (s) => carAccel(m, s),
-      turnAt: (s) => carTurnRate(s),
-      brake: CAR_RULES.BRAKE,
-      coast: (s) => CAR_RULES.COAST + s * 0.012,
+      speed: ph.vmax, accel: ph.A, turn: 1.5, eye: body.eye, reverse: truck ? TRUCK_RULES.REVERSE : CAR_RULES.REVERSE, radius: r,
+      accelAt: truck ? (s) => carAccel(m, s) * (loaded() ? TRUCK_RULES.LOADED_ACCEL : 1) : (s) => carAccel(m, s),
+      turnAt: truck ? (s) => truckTurnRate(s) : (s) => carTurnRate(s),
+      get brake() { return truck ? (loaded() ? TRUCK_RULES.BRAKE_LOADED : TRUCK_RULES.BRAKE) : CAR_RULES.BRAKE; },
+      coast: truck ? (s) => TRUCK_RULES.COAST + s * 0.006 : (s) => CAR_RULES.COAST + s * 0.012,
       limit: (x, z) => carSpeedCap(m, x, z),
       move(pos, yaw, dx, dz) {
         const dist = Math.hypot(dx, dz);
@@ -193,7 +204,7 @@ export class UndergroundGarage {
         }
       },
       seat: { x: -body.seat.x, z: body.seat.z },
-      roll: 0.025,
+      roll: truck ? 0.012 : 0.025,
       freeLook: true,
     };
   }
@@ -205,7 +216,7 @@ export class UndergroundGarage {
       this.cockpit.start(v, CAR_BY_ID[v.model], m.obj);
       this.rebuildColliders(this.vehicles.list, v.id);
       const keys = this.device.touch ? 'Joystick ya da ⛽/🛑: gaz-fren · sağ taraf: etrafa bak' : 'W/S gaz-fren · A/D direksiyon · fare: etrafa bak · E: in';
-      this.hud.toast(`🚗 ${CAR_BY_ID[v.model].name} — ${keys}`, 'info');
+      this.hud.toast(`${isTruck(v.model) ? '🚛' : '🚗'} ${CAR_BY_ID[v.model].name} — ${keys}`, 'info');
     }
   }
 

@@ -151,6 +151,10 @@ export const EVT = Object.freeze({
   BASEMENT_STATE: 'basement:state', // sunucu → herkes: masalar, kulvarlar, atari makineleri, rekorlar
   BASEMENT_SHOT: 'basement:shot', // sunucu → herkes: { game: 'pool'|'bowling', i, ... } atışın başlangıç durumu + sonucu (animasyon)
   BASEMENT_RT: 'basement:rt', // istemci ↔ sunucu: { g: 'pong'|'foos', i, s: [sayılar] } gerçek zamanlı raket / top / çubuk
+  // FPV lojistik tırı + otoyol (LogisticsService): sözleşme panosu, yükleme, teslim, hasar
+  LOGI_ACT: 'logi:act', // istemci → sunucu (ack): { act: 'board'|'accept'|'load'|'deliver'|'cancel'|'hit', offer?, kmh? }
+  LOGI_STATE: 'logi:state', // sunucu → herkes: { offers, jobs, agents, stats }
+  LOGI_AGENTS: 'logi:agents', // sunucu → herkes: yapay araçlar [{ id, kind, x, z, yaw, speed, label }] (polis eklentisi)
 });
 
 // ---- Gece döngüsü ---------------------------------------------------------

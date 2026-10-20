@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CAR_BODIES, CAR_BY_ID } from '/shared/cars.js';
 import { StaticBatcher } from './StaticBatcher.js';
+import { makeTruckModel } from './TruckModels.js';
 
 /**
  * Prosedürel düşük poligonlu araba modelleri (kasa tipine göre: mikro, şehir, hatchback, SUV,
@@ -154,6 +155,7 @@ function wheel(r) {
  */
 export function makeCarModel(modelId, colorIdx) {
   const def = CAR_BY_ID[modelId] ?? CAR_BY_ID['kade-vier'];
+  if (def.body === 'truck') return makeTruckModel(def, colorIdx); // lojistik tırı (TruckModels.js)
   const B = CAR_BODIES[def.body];
   const color = def.colors[colorIdx]?.hex ?? def.colors[0].hex;
   const { L, W, H, belt, ws, rf, rr, deck, nose, tail, clear, wr, wf, wb } = B;
@@ -291,8 +293,8 @@ export function setBrake(car, on) {
   ud.brakeMat.color.setHex(on ? 0xff2a2a : 0x7a0f14);
 }
 
-/** Gösterge ibresi: 0 → 300 km/s, 270° */
+/** Gösterge ibresi: 0 → 300 km/s (tır 125), 270° */
 export function setNeedle(car, kmh) {
-  const k = Math.min(1, Math.max(0, kmh / 300));
+  const k = Math.min(1, Math.max(0, kmh / (car.userData.needleMax ?? 300))); // tır: 125 km/s kadran
   car.userData.needle.rotation.z = Math.PI * 0.75 - k * Math.PI * 1.5;
 }

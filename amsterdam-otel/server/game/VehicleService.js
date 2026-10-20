@@ -1,7 +1,7 @@
 import { EVT } from '../../shared/constants.js';
 import { VEHICLE_KIOSK, isOutdoors } from '../../shared/layout.js';
 import { VEHICLE_BY_ID, VEHICLE_RULES as R, passengerSeat } from '../../shared/vehicles.js';
-import { CAR_BY_ID, CAR_RULES, carPassengerSeat } from '../../shared/cars.js';
+import { CAR_BY_ID, CAR_RULES, carPassengerSeat, isTruck } from '../../shared/cars.js';
 
 const HASH_RE = /^[0-9a-f]{64}$/;
 const MAX_SAVED = 2000;
@@ -189,7 +189,8 @@ export class VehicleService {
     if (seat.seat === 'driver') {
       const car = v.type === 'car';
       if (!force && !this.canPark(v, p.x, p.z)) {
-        return { ok: false, error: car ? 'Buraya park edemezsin — garajda, otelin önünde ya da drag alanında in.' : 'Buraya park edemezsin — sokakta, steeg\'de ya da Achterstraat\'ta in.' };
+        if (car && isTruck(v.model)) return { ok: false, error: 'Tırı yalnızca avluya, depolara ya da limana park edebilirsin.' };
+        return { ok: false, error: car ? 'Buraya park edemezsin — garajda, otelin önünde, drag alanında ya da avlu / depolarda in.' : 'Buraya park edemezsin — sokakta, steeg\'de ya da Achterstraat\'ta in.' };
       }
       v.driver = null;
       p.vehicle = null;
@@ -293,7 +294,7 @@ export class VehicleService {
 
   /** Araç bu noktada park edebilir mi (bisiklet / scooter: açık hava; araba: garaj / sokak / drag) */
   canPark(v, x, z) {
-    return v.type === 'car' ? this.sim.garage.canPark(x, z) : isOutdoors(x, z);
+    return v.type === 'car' ? this.sim.garage.canPark(x, z, v) : isOutdoors(x, z);
   }
 
   privateState(p) {
@@ -306,6 +307,7 @@ export class VehicleService {
       x: v.x, z: v.z, yaw: v.yaw, driver: v.driver, passenger: v.passenger,
       ...(v.type === 'car' ? { model: v.model, color: v.color } : {}),
       ...(v.valet ? { valet: v.valet } : {}), // VIP vale işi (ValetService)
+      ...(v.trailer ? { trailer: v.trailer } : {}), // tırdaki yüklü dorse (LogisticsService)
     }));
   }
 

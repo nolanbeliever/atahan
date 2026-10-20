@@ -36,6 +36,7 @@ import { FastTravelSystem } from './game/FastTravelSystem.js';
 import { UndergroundGarage } from './game/UndergroundGarage.js';
 import { ValetCarWash } from './game/ValetCarWash.js';
 import { DragRaceTrack } from './game/DragRaceTrack.js';
+import { LargeWorldMap } from './game/LargeWorldMap.js';
 import { MixologyBarSystem } from './game/MixologyBarSystem.js';
 import { GourmetRestaurant } from './game/GourmetRestaurant.js';
 import { KitchenSystem } from './game/KitchenSystem.js';
@@ -262,6 +263,12 @@ const valet = new ValetCarWash({ engine, net, hud, interaction, player, vehicles
 const basement = new EntertainmentBasement({
   engine, net, hud, interaction, player, input, modal, device, settings, sfx, collision, garage, reception, guests, touch, remotes,
 });
+// Devasa açık dünya: şehir dışı otoyol, otelin lojistik avlusu, depolar, liman + FPV lojistik tırı (navi, sevkiyat panosu).
+// Garajın alan yöneticisine 'highway' alanı olarak eklenir; şehirdeki tünel ağzı otel dünyasının parçasıdır (partitionWorld'den önce).
+const logi = new LargeWorldMap({
+  engine, net, hud, interaction, player, collision, modal, device, settings, sfx, garage, vehicles, phone, reception, state,
+  getWallet: () => shop.wallet,
+});
 garage.partitionWorld([interaction.marker, ...valet.particles]); // yıkama parçacıkları garajda da görünsün
 // Neon / ampul parıltısı gece güçlenir: dünyanın gece seviyesi değişince (tek seferlik geçiş) bildir
 const setNightLevel = world.setNightLevel;
@@ -302,6 +309,7 @@ engine.addSystem(() => vehicles.update());
 engine.addSystem((dt) => garage.update(dt)); // araba kokpiti: FOV, titreşim, motor sesi, gösterge (yalnızca sürerken)
 engine.addSystem((dt) => drag.update(dt)); // ışık ağacı, otomatik sahne, canlı süre (yalnızca pistte)
 engine.addSystem((dt) => valet.update(dt)); // yıkama tabancası, parçacıklar, çarpma algısı
+engine.addSystem((dt) => logi.update(dt)); // otoyol trafiği, navi, tır çarpma algısı (yalnızca şehir dışındayken)
 engine.addSystem(() => bar.update());
 engine.addSystem(() => restaurant.update()); // ocak ateşi / fırın / bıçak (yalnızca restorandayken)
 engine.addSystem(() => kitchen.update()); // mutfak elleri + ilerleme çubuğu
@@ -513,6 +521,8 @@ net.on(EVT.WELCOME, (snap) => {
   press.setState(snap.counterfeit);
   drag.onState(snap.drag);
   valet.onState(snap.valet);
+  logi.reset(snap.selfId);
+  logi.onState(snap.logistics);
   stage.onState(snap.stage);
   boostList = snap.boosts ?? [];
   insta.applySnapshot(snap.insta);
@@ -658,6 +668,8 @@ net.on(EVT.VEHICLES, (list) => {
 net.on(EVT.VEHICLE_SEAT, (s) => vehicles.onSeat(s));
 net.on(EVT.DRAG_STATE, (s) => drag.onState(s));
 net.on(EVT.VALET_STATE, (s) => valet.onState(s));
+net.on(EVT.LOGI_STATE, (s) => logi.onState(s));
+net.on(EVT.LOGI_AGENTS, (list) => logi.onAgents(list));
 net.on(EVT.CHAT, (m) => chat.onMessage(m));
 net.on(EVT.HOUSE_ACCESS, (a) => visits.onAccess(a));
 net.on(EVT.EXTERIOR_STATE, (s) => exterior.onState(s));
@@ -729,6 +741,6 @@ navigator.getBattery?.().then((battery) => {
 // Geliştirme/test için konsoldan erişim
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
-  reception, workers, restaurant, kitchen, realty, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch, garage, drag, valet,
+  reception, workers, restaurant, kitchen, realty, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch, garage, drag, valet, logi,
   basement,
 };

@@ -14,6 +14,7 @@
 //                x=-8      -1.5  1.5        8
 
 import { BASEMENT, isInsideBasement } from './basement.js';
+import { SERVICE_YARD } from './worldmap.js';
 
 export const WALL_H = 3.2;
 export const WALL_T = 0.2;
@@ -34,7 +35,7 @@ export const AREAS = Object.freeze({
 // (dünyanın görünmeyen bir köşesinde) asansörle çıkılan üst katlar (z 48..106)
 // Uzak bölgeler (ışınlanma / asansör / rampa ile gidilir, aynı 2B dünyada ama birbirinden uzak):
 //   üst katlar 2–12 + çatı (x −20..20, z 46..340) · yeraltı garajı (x 60..100) · drag pisti (x 140..190)
-export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 190, minZ: -460, maxZ: 340 });
+export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 1260, minZ: -460, maxZ: 340 }); // x 240..1260: otoyol bölgesi (worldmap.HWY)
 
 // Yeraltı otoparkı / garajı (otelin "altında": sokaktaki rampadan inilir; bkz. UndergroundGarage)
 export const GARAGE = Object.freeze({
@@ -59,6 +60,7 @@ export const TELEPORTS = Object.freeze([
   { id: 'garage', name: 'Yeraltı garajı', icon: '🅿️', point: GARAGE.spawn, yaw: GARAGE.yaw },
   { id: 'drag', name: 'Drag pisti', icon: '🏁', point: DRAG.spawn, yaw: DRAG.yaw },
   { id: 'basement', name: 'Eğlence Katı', icon: '🎳', point: BASEMENT.spawn, yaw: 0 }, // −1. Kat (bkz. shared/basement.js)
+  { id: 'logistics', name: 'Lojistik avlusu', icon: '🚛', point: SERVICE_YARD.walkIn, yaw: -Math.PI / 2 }, // şehir dışı: tır parkı, otoyol (shared/worldmap.js)
 ]);
 
 // ---- Üst katlar --------------------------------------------------------------

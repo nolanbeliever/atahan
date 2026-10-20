@@ -1,7 +1,9 @@
 import { EVT } from '../../shared/constants.js';
 import {
   CAR_BY_ID, CAR_RULES as R, GARAGE_LAYOUT, CAR_XFER_BY_ID, inXferZone, carZone, carSpeedCap, carExitSpots, bigArea,
+  TRUCK_RULES, isTruck, canParkTruck,
 } from '../../shared/cars.js';
+import { SERVICE_YARD, yardAt } from '../../shared/worldmap.js';
 
 const HASH_RE = /^[0-9a-f]{64}$/;
 const CAR_ID_RE = /^k\d{1,6}$/;
@@ -29,6 +31,9 @@ const STREET_SPOTS = Object.freeze([
  *    olabilir; yol, bulunduğu yerin hız sınırı × 1.15 + 1.5 m/sn ile jeton kovasından düşülür
  *    (en fazla 0.8 sn birikir) — fazlası kırpılır. Işınlanmadan hemen sonra eski konumdan gelen
  *    gecikmiş paketler yok sayılır.
+ *  - Tırlar (TRUCK_MODELS, gövde 'truck') da araba kaydıdır ama yalnızca cüzdandan alınır, lojistik
+ *    avlusunun tır parkına (T-1…T-4) teslim edilir, yalnızca avlu / depo / limanda park eder ve şehre
+ *    (tünelden) giremez. Otoyolda arabalar da sürülebilir; otoyolun ortasına park edilmez.
  *  - Zamanlayıcı yok; her şey olay güdümlü.
  */
 export class GarageService {
@@ -69,7 +74,7 @@ export class GarageService {
     const x = num(raw.x);
     const z = num(raw.z);
     const yaw = num(raw.yaw);
-    const ok = Number.isFinite(x) && Number.isFinite(z) && carZone(x, z) !== null;
+    const ok = Number.isFinite(x) && Number.isFinite(z) && this.canPark(x, z, { model: def.id });
     return { id, m: def.id, c, x: ok ? r2(x) : null, z: ok ? r2(z) : null, yaw: ok && Number.isFinite(yaw) ? r2(yaw) : 0 };
   }
 
@@ -112,7 +117,7 @@ export class GarageService {
 
   spawnCar(p, rec) {
     let pos = rec.x !== null && rec.x !== undefined ? { x: rec.x, z: rec.z, yaw: rec.yaw } : null;
-    if (!pos || this.occupied(pos.x, pos.z, 2.2)) pos = this.deliverySpot();
+    if (!pos || this.occupied(pos.x, pos.z, 2.2)) pos = this.deliverySpot(rec.m);
     Object.assign(rec, { x: pos.x, z: pos.z, yaw: pos.yaw });
     const v = this.vehicles.spawn(p, 'car', pos);
     v.model = rec.m;
@@ -129,8 +134,13 @@ export class GarageService {
     return false;
   }
 
-  /** İlk boş numaralı park yeri; garaj doluysa otelin önü */
-  deliverySpot() {
+  /** İlk boş numaralı park yeri; garaj doluysa otelin önü. Tır: avludaki tır parkı */
+  deliverySpot(model = null) {
+    if (model && isTruck(model)) {
+      for (const b of SERVICE_YARD.truckBays) if (!this.occupied(b.x, b.z, 4)) return { x: b.x, z: b.z, yaw: b.yaw, bay: b.label };
+      const b = SERVICE_YARD.truckBays[0];
+      return { x: b.x, z: b.z + 10, yaw: b.yaw, bay: null };
+    }
     for (const b of GARAGE_LAYOUT.bays) {
       if (!this.occupied(b.x, b.z, 1.6)) return { x: b.x, z: b.z, yaw: b.yaw, bay: b.label };
     }
@@ -138,13 +148,21 @@ export class GarageService {
     return { ...STREET_SPOTS[0], bay: null };
   }
 
-  /** Arabalar yalnızca garajda, sokakta ve drag alanında park eder */
-  canPark(x, z) { return carZone(x, z) !== null; }
+  /**
+   * Arabalar garajda, sokakta, drag alanında ve otoyol bölgesinin avlu / depolarında park eder (yolun
+   * ortasında değil). Tır yalnızca avlu / depo / limanda.
+   */
+  canPark(x, z, v = null) {
+    if (v && isTruck(v.model)) return canParkTruck(x, z);
+    const zone = carZone(x, z);
+    if (zone === 'highway') return yardAt(x, z) !== null;
+    return zone !== null;
+  }
 
   /** Arabadan inen sürücünün yeri (sol kapı → sağ kapı → merkez) */
   exitSpot(v) {
     const body = CAR_BY_ID[v.model]?.body;
-    for (const s of carExitSpots(v.x, v.z, v.yaw, body)) if (carZone(s.x, s.z) !== null) return s;
+    for (const s of carExitSpots(v.x, v.z, v.yaw, body)) if (carZone(s.x, s.z) !== null || yardAt(s.x, s.z) !== null) return s;
     return { x: v.x, z: v.z };
   }
 
@@ -167,6 +185,11 @@ export class GarageService {
     if (source !== 'wallet' && source !== 'kasa') return { ok: false, error: 'Ödeme kaynağını seç (cüzdan ya da kasa).' };
     const list = this.carsOf(p);
     if (list.length >= R.MAX_PER_PLAYER) return { ok: false, error: `En fazla ${R.MAX_PER_PLAYER} araban olabilir — garaj dolu.` };
+    const truck = isTruck(def);
+    if (truck) {
+      if (source !== 'wallet') return { ok: false, error: 'Tır yalnızca kişisel cüzdandan alınır.' };
+      if (list.filter((r) => isTruck(r.m)).length >= TRUCK_RULES.MAX_PER_PLAYER) return { ok: false, error: `En fazla ${TRUCK_RULES.MAX_PER_PLAYER} tırın olabilir.` };
+    }
     const price = def.price;
     if (source === 'wallet') {
       if (!(p.wallet >= price)) return { ok: false, error: `Cüzdanında yeterli para yok (€${price.toLocaleString('nl-NL')} gerekli).` };
@@ -177,7 +200,7 @@ export class GarageService {
       this.sim.spend(price, `🚗 ${def.name} (${p.name})`);
     }
     const rec = { id: this.newId(list), m: def.id, c: color, x: null, z: null, yaw: 0 };
-    const spot = this.deliverySpot();
+    const spot = this.deliverySpot(def.id);
     Object.assign(rec, { x: spot.x, z: spot.z, yaw: spot.yaw });
     list.push(rec);
     if (p.keyHash) {
@@ -190,7 +213,7 @@ export class GarageService {
     const v = this.spawnCar(p, rec);
     this.save();
     this.vehicles.broadcast();
-    return { ok: true, id: v.id, model: def.id, bay: spot.bay, x: v.x, z: v.z };
+    return { ok: true, id: v.id, model: def.id, bay: spot.bay, x: v.x, z: v.z, truck };
   }
 
   /**
@@ -205,6 +228,7 @@ export class GarageService {
     const v = seat ? this.vehicles.vehicles.get(seat.id) : null;
     if (v && v.type !== 'car') return { ok: false, error: 'Bisiklet / scooter ile buradan geçilmez — önce park et.' };
     if (v && t.foot) return { ok: false, error: 'Asansöre arabayla binilmez — önce park et.' };
+    if (v && isTruck(v.model) && t.area !== 'highway') return { ok: false, error: '🚛 Tır şehrin dar sokaklarına girmez — avluya park et, yürüyerek geç.' };
     if (!inXferZone(t, p.x, p.z, 1.5)) return { ok: false, error: 'Geçide yaklaş.' };
     const now = this.sim.now();
     if (p.xfer && now - p.xfer.t < 1000) return { ok: false, error: 'Biraz bekle.' };
@@ -254,6 +278,7 @@ export class GarageService {
     }
     if (carZone(x, z) === null) return null; // arabayla bina / steeg / Achterstraat yok
     const def = CAR_BY_ID[v.model];
+    if (isTruck(def) && carZone(x, z) !== 'highway') return null; // tır yalnızca otoyol bölgesinde
     const cap = Math.max(carSpeedCap(def, p.x, p.z), carSpeedCap(def, x, z)) * R.SPEED_SLACK + R.SPEED_ADD;
     const max = cap * R.BURST_SEC;
     const g = p.carGuard ?? (p.carGuard = { t: now, budget: max });
@@ -274,4 +299,4 @@ export class GarageService {
   }
 }
 
-const AREA_TEXT = Object.freeze({ garage: 'garaja', street: 'sokağa', drag: 'drag pistine', city: 'lobiye' });
+const AREA_TEXT = Object.freeze({ garage: 'garaja', street: 'sokağa', drag: 'drag pistine', city: 'lobiye', highway: 'otoyola' });
