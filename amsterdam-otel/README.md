@@ -797,7 +797,7 @@ yakalanınca mallara el konur ve ceza kesilir.
   (kişisel; ilk teklif bölme takılınca hemen, sonrakiler teklif alınınca ya da 6 dk'da süresi dolunca 5–10 gerçek dk
   sonra — "📞 Yeni bir iş var" bildirimi, panoda "sonraki iş ~N dk"). Limandaki tanıdıkla yaya konuşunca da pano açılır.
 - **Ekonomi:** teklif başına **kazanç 700–800 €** (teslimde cüzdana, brüt) ve **peşin mal bedeli 150–250 €** (yüklemede
-  cüzdandan). Geç teslim (7 dk) ×0,7, hasar orantılı düşürür; gece kazanç çarpanı yoktur (yalnızca daha az dikkat).
+  cüzdandan). Geç teslim (12 dk) ×0,7, hasar orantılı düşürür; gece kazanç çarpanı yoktur (yalnızca daha az dikkat).
 - **İş akışı:** teklifi al → bölmeli tırınla **⚓ limandaki K-17 konteynerinin** önündeki sarı çerçevede dur, **E** → iki
   teslim yerinden birine götür: **🏚️ Eski Kantar Deposu** (FrisDepot avlusunun batı köşesi, gizli depo — baskın %12) ya da
   otelin lojistik avlusundaki **🏨 mal kabul alanı** (yakın ama baskın %35; kaçak mal otel stoğuna girmez, alıcı oradan

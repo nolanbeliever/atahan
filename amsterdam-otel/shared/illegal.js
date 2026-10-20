@@ -44,7 +44,7 @@ export const ILLEGAL_RULES = freeze({
   COST_MIN: 150,
   COST_MAX: 250,
   NIGHT_HEAT_MUL: 0.6, // gece (20:00–07:00) ısı artışı ×0.6
-  TIME_SEC: 420, // teslim süresi (geç kalınırsa kazanç ×0.7)
+  TIME_SEC: 720, // teslim süresi: limandan depoya ~330 sn (genişletilmiş harita) × pay; geç kalınırsa kazanç ×0.7
   UNLOAD_SEC: 10, // kaçak yük indirme süresi (bkz. RAID_RULES.UNLOAD_MS)
   LATE_MUL: 0.7,
   STOP_KMH: 6, // yükleme / teslim için durmuş sayılma
