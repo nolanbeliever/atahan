@@ -3,6 +3,7 @@ import {
 } from '../../shared/constants.js';
 import { ORDER_WEIGHT, drinkDifficulty } from '../../shared/drinks.js';
 import { BAR, POINTS, pointInBounds } from '../../shared/layout.js';
+import { CARGO_EFFECTS } from '../../shared/cargo.js';
 import { pathLength } from '../../shared/path.js';
 
 // Bar müşterisinin fazları (istemci GUEST_UPSERT'teki kind: 'bar' ile ayırt eder)
@@ -435,8 +436,9 @@ export class BarService {
     p.bar.hold = null;
     Object.assign(s, { state: S.DRINKING, waitUntil: 0, drinkEndsAt: now + R.DRINK_MS, glass: 'full', drink: drink.id });
     this.sim.today.served += 1;
-    // Satış + bahşiş otel kasasına
-    this.sim.earn(drink.price + tip, `Bar: ${drink.name} (+€${tip} bahşiş)`, { guest: false });
+    // Satış + bahşiş otel kasasına (depoda toptan içecek varsa +kâr, 1 birim stok)
+    const stocked = this.sim.cargo?.use('drinks') ? CARGO_EFFECTS.drinks.bonus : 0;
+    this.sim.earn(drink.price + tip + stocked, `Bar: ${drink.name} (+€${tip} bahşiş${stocked ? `, +€${stocked} toptan kâr` : ''})`, { guest: false });
     this.sim.toPlayer(p.id, EVT.NOTIFY, { text: `${drink.icon} ${drink.name} servis edildi · €${drink.price} + €${tip} bahşiş kasaya`, kind: 'money' });
     this.barChanged();
     return { tip };

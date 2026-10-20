@@ -259,6 +259,13 @@ export function attachSocketHandlers(io, sim) {
       if (player && allowRt()) sim.basementRt(player.id, data);
     });
 
+    // ---- Mal Kabul Rampası & Transpalet (konum, hizalama, bakiye CargoDockService'te doğrulanır) ----
+    const allowCargo = rateLimiter(8, 14);
+    on(EVT.CARGO_ACT, (data, ack) => {
+      if (!player || !allowCargo()) return reply(ack, { ok: false, error: 'Çok hızlı!' });
+      reply(ack, sim.cargoAct(player.id, data));
+    });
+
     on('disconnect', () => {
       if (player) {
         sockets.delete(player.id);

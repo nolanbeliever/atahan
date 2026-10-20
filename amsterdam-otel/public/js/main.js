@@ -46,6 +46,7 @@ import { SmartphoneSystem } from './game/SmartphoneSystem.js';
 import { InstaHotelMarketing } from './game/InstaHotelMarketing.js';
 import { HotelArchitectureUpgrades } from './game/HotelArchitectureUpgrades.js';
 import { EntertainmentBasement } from './game/EntertainmentBasement.js';
+import { CargoDockManagement } from './game/CargoDockManagement.js';
 import { ViewModel } from './game/ViewModel.js';
 import { Sfx } from './core/Sfx.js';
 import { Network } from './net/Network.js';
@@ -113,6 +114,7 @@ input.onAction((source) => {
   // Bar: eylem sürerken girdi yutulur; elde yiyecek varsa ve hedef yoksa ısırır
   // Restoran mutfağı: eylem sürerken (ya da buzdolabından malzemeler alınırken) girdi yutulur
   else if (basement.onAction(source)) return; // Eğlence Katı: oyun modunda Aksiyon oyuna gider
+  else if (cargo.onAction(source)) return; // Mal Kabul: transpaletteyken E = kaldır / indir
   else if (kitchen.onAction(source)) return;
   // Oto yıkama: püskürtürken girdi yutulur
   else if (valet.onAction(source)) return;
@@ -177,7 +179,7 @@ const visits = new HouseVisitingSystem({
 });
 // Dekorasyon modu komutları (B, R, C, X, 1-9) coffee shop'tan ÖNCE işlenir
 // Bar 'consume' (F) komutunu elde yiyecek varsa sahiplenir (coffee shop'a gitmez)
-input.onCommand((cmd) => basement.command(cmd) || phone.command(cmd) || exterior.command(cmd) || house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd) || kitchen.command(cmd) || recipes.command(cmd) || travel.command(cmd));
+input.onCommand((cmd) => cargo.command(cmd) || basement.command(cmd) || phone.command(cmd) || exterior.command(cmd) || house.command(cmd) || tv.command(cmd) || bar.command(cmd) || visits.command(cmd) || chat.command(cmd) || kitchen.command(cmd) || recipes.command(cmd) || travel.command(cmd));
 const shop = new CoffeeShopSystem({ net, hud, interaction, input, modal, device });
 // Shop'tan SONRA: boşta ipucu zincirini (idleHint) sarar
 const bar = new BarSystem({
@@ -262,6 +264,11 @@ const valet = new ValetCarWash({ engine, net, hud, interaction, player, vehicles
 const basement = new EntertainmentBasement({
   engine, net, hud, interaction, player, input, modal, device, settings, sfx, collision, garage, reception, guests, touch, remotes,
 });
+// Mal Kabul Rampası (Achterstraat'ın batı ucundaki servis kapısı / 🚚 ışınlanma): toptancı tırları, transpalet,
+// yük asansörü. Garajın alan yöneticisine 'dock' alanı olarak eklenir (partitionWorld'den önce).
+const cargo = new CargoDockManagement({
+  engine, net, hud, interaction, player, input, modal, device, settings, sfx, collision, garage, reception, touch, remotes,
+});
 garage.partitionWorld([interaction.marker, ...valet.particles]); // yıkama parçacıkları garajda da görünsün
 // Neon / ampul parıltısı gece güçlenir: dünyanın gece seviyesi değişince (tek seferlik geçiş) bildir
 const setNightLevel = world.setNightLevel;
@@ -306,6 +313,7 @@ engine.addSystem(() => bar.update());
 engine.addSystem(() => restaurant.update()); // ocak ateşi / fırın / bıçak (yalnızca restorandayken)
 engine.addSystem(() => kitchen.update()); // mutfak elleri + ilerleme çubuğu
 engine.addSystem((dt) => basement.update(dt)); // Eğlence Katı: top / labut animasyonları, oyun kamerası (yalnızca bodrumda)
+engine.addSystem((dt) => cargo.update(dt)); // Mal Kabul: transpalet sürüşü, tır / asansör animasyonları (yalnızca avluda)
 engine.addSystem(() => press.update()); // polis lambası (yalnızca polis kapıdayken)
 engine.addSystem((dt) => stage.update(dt));
 engine.addSystem(() => street.update());
@@ -410,6 +418,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (phone.onEscape()) return;
   if (basement.onEscape()) return; // oyun modundan çık
+  if (cargo.onEscape()) return; // transpaletten in
   if (house.build.active) {
     house.toggleBuild(false);
     return;
@@ -518,6 +527,8 @@ net.on(EVT.WELCOME, (snap) => {
   insta.applySnapshot(snap.insta);
   basement.reset(snap.selfId);
   basement.onState(snap.basement);
+  cargo.reset(snap.selfId);
+  cargo.onState(snap.cargo);
   hud.setRooms(state.rooms);
   hud.setMoney(snap.economy.money);
   guests.clear();
@@ -681,6 +692,7 @@ net.on(EVT.PLAYER_KITCHEN, (k) => {
 net.on(EVT.BASEMENT_STATE, (s) => basement.onState(s));
 net.on(EVT.BASEMENT_SHOT, (s) => basement.onShot(s));
 net.on(EVT.BASEMENT_RT, (s) => basement.onRt(s));
+net.on(EVT.CARGO_STATE, (s) => cargo.onState(s));
 
 // ---- Saat / FPS göstergesi (saniyede bir, render döngüsünden bağımsız) -------------
 
@@ -730,5 +742,5 @@ navigator.getBattery?.().then((battery) => {
 window.__otel = {
   engine, state, player, net, world, interaction, settingsPanel, shop, trip, modal, house, tv, bar, vm, sfx, hud, guests, remotes, visits, night, botany, friends, vehicles, maint, chat, exterior,
   reception, workers, restaurant, kitchen, realty, casino, recipes, mixology, stage, street, phone, insta, press, travel, arch, garage, drag, valet,
-  basement,
+  basement, cargo,
 };

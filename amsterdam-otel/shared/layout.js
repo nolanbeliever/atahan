@@ -14,6 +14,7 @@
 //                x=-8      -1.5  1.5        8
 
 import { BASEMENT, isInsideBasement } from './basement.js';
+import { CARGO_DOCK, isInsideCargoArea } from './cargo.js';
 
 export const WALL_H = 3.2;
 export const WALL_T = 0.2;
@@ -59,6 +60,7 @@ export const TELEPORTS = Object.freeze([
   { id: 'garage', name: 'Yeraltı garajı', icon: '🅿️', point: GARAGE.spawn, yaw: GARAGE.yaw },
   { id: 'drag', name: 'Drag pisti', icon: '🏁', point: DRAG.spawn, yaw: DRAG.yaw },
   { id: 'basement', name: 'Eğlence Katı', icon: '🎳', point: BASEMENT.spawn, yaw: 0 }, // −1. Kat (bkz. shared/basement.js)
+  { id: 'dock', name: 'Mal Kabul Rampası', icon: '🚚', point: CARGO_DOCK.spawn, yaw: CARGO_DOCK.door.yaw }, // arka avlu (bkz. shared/cargo.js)
 ]);
 
 // ---- Üst katlar --------------------------------------------------------------
@@ -609,6 +611,7 @@ export function areaAt(x, z) {
   if (isInsideCasino(x, z)) return 'casino';
   if (isInsideRestaurant(x, z)) return 'restaurant';
   if (isInsideBasement(x, z)) return 'basement';
+  if (isInsideCargoArea(x, z)) return 'dock';
   if (isInsideAlley(x, z) || isInsideAlleyEast(x, z)) return 'alley';
   if (isInsideSteeg(x, z)) return 'steeg';
   for (const h of PLAYER_HOUSES) if (isInsideHouseDef(h, x, z)) return h.id;
