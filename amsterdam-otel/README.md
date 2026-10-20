@@ -730,14 +730,22 @@ Resepsiyon PC → **👥 Personel 2.0**: bütün çalışanlar tek ekranda, rol 
 
 ## FPV Lojistik Tırı & Devasa Harita — A10 Ring, depolar, liman (LargeWorldMap)
 
-Şehrin dışında, 2B dünyanın ayrı bir köşesinde (x 240..1260, z −440..330) büyük bir açık bölge: **A10 Ring otoyolu**
-(~914 m, yumuşak virajlı 2+2 şerit), otelin **lojistik avlusu**, üç toptancı deposu (**🥩 VersMarkt Gıda**, **🧃 FrisDepot
-İçecek**, **🎳 ArcadeWorks Eğlence Ekipmanı**) ve **⚓ Haven Zuid Konteyner Limanı**. Otelin önündeki sokağın doğu ucundaki
+Şehrin dışında, 2B dünyanın ayrı bir köşesinde (x 240..7800, z −2300..1700; ~7,5 × 4 km) büyük bir açık bölge
+(`ExpandedWorldMap.js`): **A10 Ring otoyolu** (~7,3 km, geniş virajlı 2+2 şerit, 100 km/s), **A4 Noord** ayrımı (~2,3 km) →
+**🏭 Industrieweg** sanayi yolu (~1,5 km, 60 km/s), **Nieuw-Zuid çıkışı** (~740 m) → **🏙️ Nieuw-Zuid** şehir semti (3 × 3 ızgara:
+Tulpenlaan / Molenstraat / Havenlaan caddeleri, Kanaalweg / Dijkweg / Polderstraat sokakları; 50 km/s, kaldırımlar, 4–8 katlı
+apartman sıraları, **6 trafik ışıklı kavşak** + yaya geçitleri), otelin **lojistik avlusu**, üç toptancı deposu
+(**🥩 VersMarkt Gıda** ve **🎳 ArcadeWorks** Nieuw-Zuid'in güneyinde, **🧃 FrisDepot** Industrieweg'in sonunda) ve
+**⚓ Haven Zuid Konteyner Limanı** (A10'un doğu ucu). Her depoya gidiş-dönüş tır sınırlarıyla **10–15 dk** sürer
+(VersMarkt ~10,3, FrisDepot ~11,3, ArcadeWorks ~11,8, liman ~10,2 dk). Otelin önündeki sokağın doğu ucundaki
 **🛣️ tünelden** yürüyerek ya da arabayla gidilir (avlunun batı duvarındaki tünel şehre döner); hızlı ışınlanmada
 **🚛 Lojistik avlusu**. Geometri ve yol ağı `shared/worldmap.js`'tedir; sunucu ve istemci aynı değerleri kullanır.
 
-- **Harita:** yol şeritleri (asfalt, kesik / sürekli çizgiler), bariyerler, lambalar, ~500 ağaç, lale tarlaları, yel
-  değirmenleri, çıkış tabelaları (köprü), hız tabelaları, depo binaları, konteyner yığınları, vinçler, gemi.
+- **Harita:** yol şeritleri (asfalt, kesik / sürekli / çift sarı orta çizgi), bariyerler, lambalar, ağaçlar, lale tarlaları,
+  yel değirmenleri, çıkışlardan 250 m önce köprü tabelaları, hız tabelaları, sokak adı levhaları, depo binaları, sanayi
+  hangarları, konteyner yığınları, vinçler, gemi. 1 km'lik hücrelere bölünür; hepsi açılışta kurulur (paylaşılan malzeme,
+  `Engine.prewarm` hepsini derler), oyuncudan uzak hücreler gizlenir — gezerken shader derlenmez. Yol ağı bir graftır
+  (kavşak düğümleri + kenarlar); navi rotası tır sınırlarıyla en kısa süreli yoldur (Dijkstra).
   Yoldan çıkılmaz: yol şeridi + avlu dikdörtgenleri çarpışma kısıtıdır (`Collision.constraints`). Hız sınırı:
   otoyol 100, bağlantı yolu 60, avlu 30 km/s (sunucu hız denetimi aynı sınırla).
 - **🚛 TruckCenter** (avludaki bina, PC / telefon Lojistik sekmesi): Zeeland LX 460 (€95.000), Brabant Titan XF 530
@@ -747,11 +755,14 @@ Resepsiyon PC → **👥 Personel 2.0**: bütün çalışanlar tek ekranda, rol 
   geniş dönüş, 90 km/s sınırlayıcı), detaylı FPV kabin (geniş ön cam, yatay büyük direksiyon, 0–125 km/s kadranı,
   takograf, dev aynalar), dizel motor sesi, dorse kıvrılması (çekicinin yoluna göre).
 - **🗺️ Navi:** bölgedeyken sürerken (ya da işin varken) köşede mini harita (5 Hz): yol ağı, mor rota çizgisi, hedef,
-  mesafe / tahmini süre, sıradaki çıkış ("↗ VersMarkt çıkışı · 370 m"); 🗺️ ile tam harita. Mobilde sol üstte.
+  mesafe / tahmini süre, bulunulan yolun hız sınırı, sıradaki manevra rota adımlarından ("↱ 2,6 km sonra Nieuw-Zuid
+  çıkışı", "↰ 800 m sonra sola: Polderstraat"); mini harita yalnızca görünen yolları çizer, kavşak ışıklarını gösterir;
+  🗺️ ile tam harita (semt / sanayi / otoyol etiketleri). Mobilde sol üstte.
 - **Sevkiyat (Resepsiyon PC "🚛 Lojistik" / telefonda 🚛):** sözleşme panosundan iş al → tırınla depoya / limana git,
   sarı çerçeveli yükleme körfezinde dur, **E: yükle** → toptan fiyat **otel kasasından** düşer, dorse takılır → otelin
   lojistik avlusundaki **🏨 mal kabul körfezinde** dur, **E: teslim** → kasaya yükün değeri (toptan × 1.45 × durum),
-  **şoför ücreti cüzdana** (mesafe + palet; zamanında ×1.2, geç ×0.6). Yük türleri: restoran malzemesi, alkolsüz içecek,
+  **şoför ücreti cüzdana: zamanında €200–300** (rota uzunluğu + palet; geç teslimde yaklaşık yarısı). Süre = rota
+  süresi × 1,45 + 150 sn pay (trafik, ışıklar, yükleme). Yük türleri: restoran malzemesi, alkolsüz içecek,
   eğlence katı malzemesi, ithal gurme ürün. Yüklü dorseyle çarpma (duvar / bariyer / trafik) hasar yazar ve değeri
   düşürür. Yükten sonra iptal ya da oyundan çıkış: toptan fiyatın yarısı iade. Teslimde `sim.cargo.deliver(...)`
   çağrılır (Mal Kabul paletleri); `{ handled: true }` dönerse değer kasaya ayrıca yazılmaz.
@@ -759,10 +770,17 @@ Resepsiyon PC → **👥 Personel 2.0**: bütün çalışanlar tek ekranda, rol 
   Kurgusal nakliye firmalarının (Van Dijk Transport, Oranje Logistiek…) tırı avludaki tır parkına getirilir; yalnızca
   işi alan sürer (arkadaşlar yolcu olabilir). Firmanın malını (mobilya, beyaz eşya, çiçek, tekstil, karton, yapı
   malzemesi) bir depodan / limandan **diğerine** taşırsın: yükleme körfezinde E: yükle → boşaltma körfezinde E: boşalt.
-  Kasaya ve otel stoğuna dokunulmaz; **şoför ücreti cüzdana ve düşüktür** (aynı mesafe / palette kendi tırınla yapılan
-  işin ~%45'i; zamanında ×1.2, geç ×0.6, hasarla azalır). Teslim, iptal ya da oyundan çıkışta tır firmaya döner.
-- **Trafik:** otoyolda deterministik süs araçları (tek InstancedMesh); sunucunun yapay araçları (`logi:agents`,
-  ileride polis — tepe lambası yanıp söner) ayrıca çizilir.
+  Kasaya ve otel stoğuna dokunulmaz; **şoför ücreti cüzdana ve düşüktür: zamanında €90–150** (kendi tırınla yapılan
+  yasal işten hep az; geç teslimde yaklaşık yarısı, hasarla azalır). Süre avlu → yükleme → boşaltma rotasından hesaplanır. Teslim, iptal ya da oyundan çıkışta tır firmaya döner.
+- **🚗 Akıllı trafik (`TrafficSystemAI.js`, istemci, yerel):** masaüstünde 30, mobilde 14 araç oyuncunun çevresinde
+  (260–480 m'de görüş dışında doğar, 560 m'de kalkar) yol grafında **şerit takip eder** (yolun eğrisini izler; kavşakta
+  Bezier eğrisiyle döner, depo girişlerine girmez, yol sonunda geri döner). **IDM** takip mesafesiyle akıcı hızlanır /
+  frenler; öndeki araca ve **oyuncunun tırına (çekici + dorse)** göre yavaşlar, duran aracın yanından öbür şeride geçer.
+  Otoyolda yavaş aracı **sollar** (2 sn sinyal → yumuşak şerit değişimi → sağa döner), çıkıştan önce sağ şeride geçer;
+  dönüş / çıkış öncesi **sinyal** lambası yanıp söner, yavaşlarken **fren lambaları** yanar. Nieuw-Zuid'de **kırmızıda /
+  durabileceği sarıda durma çizgisinde bekler**; ışıksız kavşakta ana yoldaki ya da kavşağa daha yakın araca yol verir.
+  5 InstancedMesh (gövde, kabin, sol / sağ sinyal, fren); karesi ~0,15 ms. Sunucunun yapay araçları (`logi:agents`:
+  polis — tepe lambası yanıp söner) ayrıca çizilir.
 - **Eklenti kancaları** (LogisticsService başındaki yorum): iş nesnesi `{ legal, hidden: [] }`, `on('jobStart' |
   'loaded' | 'jobEnd' | 'stopped' | 'moved' | 'load' | 'deliver')` (+ `{ veto }`), `truckState(p)`, `setAgent / removeAgent`.
 - **Pil:** bölge ayrı grup (oradayken otel dünyası çizilmez; uzak düzlem 900 m + sis); tekrarlanan nesneler
@@ -928,7 +946,7 @@ amsterdam-otel/
 │   ├── basement.js              # Eğlence Katı: yerleşim, istasyonlar, fiyatlar, NPC rotaları, bowling skoru
 │   ├── cargo.js                 # Mal Kabul Rampası: avlu / salon / rampa / dorse / yük asansörü yerleşimi, palet türleri, kurallar, tır animasyonu
 │   ├── basementPhysics.js       # Bilardo + bowling için deterministik 2B fizik (sunucu ve istemci aynı kod)
-│   ├── worldmap.js              # Devasa harita: otoyol bölgesi, yol ağı (ana gövde + çıkışlar), avlu / depolar / liman, sürülebilir alan, rota (navi), trafik şeritleri
+│   ├── worldmap.js              # Devasa harita: A10 + A4 + Industrieweg + Nieuw-Zuid yol ağı, yol grafı (kavşaklar, Dijkstra rota + adımlar), trafik ışıkları, kavşak meydanları, avlu / depolar / liman, sürülebilir alan, hız sınırları
 │   ├── logistics.js             # Tır sevkiyatı: yük türleri, ekonomi (toptan, değer, şoför ücreti), süre, hasar
 │   ├── illegal.js               # İllegal sevkiyat: gümrüksüz mallar, ısı / ceza kuralları, kıskaç yuvaları, K-17, Eski Kantar Deposu, tarayıcılar
 │   ├── architecture.js          # Lüks paketler (fiyat, koşul, kat / temizlikçi sınırı), VIP suit kuralları, lounge geliri
@@ -957,7 +975,9 @@ amsterdam-otel/
 │       │   ├── NpcRelationshipSystem.js # Bar müdavimleriyle diyalog, arkadaşlık çubuğu, evdeki misafir
 │       │   ├── ChatSystem.js        # Sohbet kutusu, mesaj geçmişi, konuşma balonları
 │       │   ├── CityVehicleSystem.js # Araç modelleri, FPV sürüş, arkaya binme, büfe, hız göstergesi
-│       │   ├── LargeWorldMap.js     # Devasa harita (otoyol, avlu, depolar, liman), navi mini haritası + tam harita, Lojistik panosu / TruckCenter, trafik, tır çarpma algısı
+│       │   ├── LargeWorldMap.js     # Bölge yöneticisi: navi mini haritası + tam harita, Lojistik panosu / TruckCenter, tır çarpma algısı, sunucu ajanları
+│       │   ├── ExpandedWorldMap.js  # Genişletilmiş dünya geometrisi: 1 km hücreler, otoyollar, Nieuw-Zuid binaları / kaldırımlar / trafik ışıkları, sanayi, depolar, liman
+│       │   ├── TrafficSystemAI.js   # Akıllı trafik: şerit takibi, IDM takip mesafesi, sollama + sinyal, fren lambası, trafik ışığına uyma, yol verme
 │       │   ├── IllegalLogistics.js  # Gizli bölme + tanıdık (pano), K-17 / Kantar deposu / tarayıcı kapıları, aranma HUD'u, katı polis araçları, siren
 │       │   ├── PoliceRaidSystem.js  # İndirme ilerleme çubuğu + baskın geri sayımı / siren (HUD)
 │       │   ├── HotelMaintenanceSystem.js # Arıza görselleri ve 4 mini oyun (leke, ampul, musluk, sigorta)

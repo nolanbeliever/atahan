@@ -8,7 +8,7 @@
 // Koordinatlar (2B dünya, +Z kuzey, yaw: ileri = (−sin yaw, −cos yaw)):
 //   garaj  x 60..100,  z −30..10   (layout.GARAGE)  — sokaktaki rampadan inilir
 //   drag   x 140..190, z −460..40  (layout.DRAG)    — garajdaki "🏁 Drag pisti" şeridinden sürülür
-//   otoyol x 240..1260, z −440..330 (worldmap.HWY)  — sokağın doğu ucundaki tünelden; avlu, depolar, liman
+//   otoyol x 240..7800, z −2300..1700 (worldmap.HWY: A10, A4, Nieuw-Zuid, Industrieweg)  — sokağın doğu ucundaki tünelden; avlu, depolar, liman
 
 import { GARAGE, DRAG, isOutdoors, isInsideSteeg, isInsideAlley, pointInBounds } from './layout.js';
 import { BASEMENT } from './basement.js';

@@ -97,17 +97,17 @@ export const SLOT_ORDER = freeze(['rear', 'left', 'right', 'front']);
 /** Limandaki tanıdık (K-17 konteyneri): tırın merkezi bu dikdörtgende durunca E ile yüklenir */
 export const CONTACT = freeze({
   name: 'K-17 konteyneri — limandaki tanıdık',
-  zone: freeze({ minX: 1168, maxX: 1188, minZ: 12, maxZ: 30 }),
-  npc: freeze({ x: 1191.5, z: 21 }),
-  container: freeze({ x: 1194.5, z: 21 }),
+  zone: freeze({ minX: 7578, maxX: 7598, minZ: 12, maxZ: 30 }),
+  npc: freeze({ x: 7601.5, z: 21 }),
+  container: freeze({ x: 7604.5, z: 21 }),
   site: 'port',
 });
 
 /** Eski Kantar Deposu (FrisDepot avlusunun batı köşesi): kaçak malın teslim yeri */
 export const SAFE_DROP = freeze({
   name: 'Eski Kantar Deposu',
-  zone: freeze({ minX: 763, maxX: 781, minZ: -236, maxZ: -212 }),
-  shed: freeze({ minX: 761.5, maxX: 777, minZ: -243.6, maxZ: -238 }),
+  zone: freeze({ minX: 5263, maxX: 5281, minZ: -2094, maxZ: -2070 }),
+  shed: freeze({ minX: 5261.5, maxX: 5277, minZ: -2101.6, maxZ: -2096 }),
   site: 'drinks',
 });
 

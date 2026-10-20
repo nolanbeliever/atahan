@@ -36,7 +36,7 @@ export const AREAS = Object.freeze({
 // (dünyanın görünmeyen bir köşesinde) asansörle çıkılan üst katlar (z 48..106)
 // Uzak bölgeler (ışınlanma / asansör / rampa ile gidilir, aynı 2B dünyada ama birbirinden uzak):
 //   üst katlar 2–12 + çatı (x −20..20, z 46..340) · yeraltı garajı (x 60..100) · drag pisti (x 140..190)
-export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 1260, minZ: -460, maxZ: 340 }); // x 240..1260: otoyol bölgesi (worldmap.HWY)
+export const WORLD_BOUNDS = Object.freeze({ minX: -18, maxX: 7800, minZ: -2300, maxZ: 1700 }); // x 240..7800, z −2300..1700: genişletilmiş otoyol bölgesi (worldmap.HWY)
 
 // Yeraltı otoparkı / garajı (otelin "altında": sokaktaki rampadan inilir; bkz. UndergroundGarage)
 export const GARAGE = Object.freeze({
