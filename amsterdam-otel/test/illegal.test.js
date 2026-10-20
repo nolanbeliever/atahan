@@ -304,7 +304,7 @@ test('polis şeritleri izler: virajda yolun dışına kaymaz, tırın yolu üzer
     const turn = Math.abs(Math.atan2(Math.sin(a.yaw - b.yaw), Math.cos(a.yaw - b.yaw)));
     if (turn > best.turn) best = { s: q, turn };
   }
-  assert.ok(best.turn > 0.3, 'haritada belirgin bir viraj var');
+  assert.ok(best.turn > 0.04, 'haritada viraj var (A10 geniş yarıçaplı)');
   // Virajın 150 m öncesinden sağ şeritte ~16 m/sn (58 km/s) gerçekten sür; polisler her adımda yolun içinde olmalı
   let sq = best.s - 150;
   let l = laneAt(sq, 1, 0);

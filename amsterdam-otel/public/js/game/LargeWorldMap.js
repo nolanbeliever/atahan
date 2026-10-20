@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import { EVT } from '/shared/constants.js';
 import { TRUCK_MODELS, CAR_BY_ID, CAR_XFER_BY_ID, TRUCK_RULES, isTruck, formatEuro } from '/shared/cars.js';
 import {
-  HWY, SERVICE_YARD, HOTEL_DELIVERY, SITES, SITE_BY_ID, ROADS, YARDS, ROAD_KMH, isDrivable, yardAt, routeTo, constrainToRoads,
-  laneAt, trunkAt, TRUNK_LENGTH, inHighwayRegion,
+  HWY, SERVICE_YARD, HOTEL_DELIVERY, SITES, SITE_BY_ID, ROADS, YARDS, PLAZAS, SIGNALS, NIEUW_ZUID, isDrivable, yardAt, routeTo,
+  routeTimeSec, constrainToRoads, roadLimitKmh, roadProject, signalState, inHighwayRegion,
 } from '/shared/worldmap.js';
-import { CARGO_BY_ID, LOGI_RULES, deliveryPay, HAUL_GOOD_BY_ID, HAUL_RULES } from '/shared/logistics.js';
-import { StaticBatcher } from '../world/StaticBatcher.js';
-import { canvasTexture, drawAsphalt, drawConcrete, rng, signMaterial, panel } from '../world/CarWorldKit.js';
+import { CARGO_BY_ID, LOGI_RULES, deliveryPay, HAUL_GOOD_BY_ID, HAUL_RULES, onTimeFee } from '/shared/logistics.js';
+import { signMaterial, panel } from '../world/CarWorldKit.js';
+import { buildExpandedWorld } from './ExpandedWorldMap.js';
+import { TrafficSystemAI } from './TrafficSystemAI.js';
 import { setTrailer, articulate, turnTractor } from '../world/TruckModels.js';
 
 const NO = { cast: false, receive: false };
@@ -28,457 +29,6 @@ const fmtTime = (sec) => {
 // =====================================================================================================
 // Dünya geometrisi
 // =====================================================================================================
-
-function materials() {
-  const L = (o) => new THREE.MeshLambertMaterial(o);
-  const B = (o) => new THREE.MeshBasicMaterial(o);
-  const asph = canvasTexture(256, 256, drawAsphalt('#3b3e42', 21));
-  const conc = canvasTexture(256, 256, drawConcrete('#9a9c9e', 5, 0.2));
-  const grass = canvasTexture(128, 128, (g, w, h) => {
-    const r = rng(77);
-    g.fillStyle = '#58853f';
-    g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 1600; i++) {
-      g.fillStyle = r() > 0.5 ? 'rgba(130,180,90,0.22)' : 'rgba(30,64,24,0.22)';
-      g.fillRect(r() * w, r() * h, 1 + r() * 2, 2 + r() * 3);
-    }
-  });
-  const tulip = canvasTexture(256, 64, (g, w, h) => {
-    const cols = ['#d7263d', '#f2c230', '#e36fa8', '#ff7a1a', '#f4f1e8'];
-    const st = w / cols.length;
-    cols.forEach((c, i) => {
-      g.fillStyle = c;
-      g.fillRect(i * st, 0, st * 0.78, h);
-      g.fillStyle = '#3d6b2e';
-      g.fillRect(i * st + st * 0.78, 0, st * 0.22, h);
-    });
-  });
-  const shed = canvasTexture(128, 128, (g, w, h) => {
-    g.fillStyle = '#c9cdd1';
-    g.fillRect(0, 0, w, h);
-    g.fillStyle = 'rgba(0,0,0,0.12)';
-    for (let x = 0; x < w; x += 8) g.fillRect(x, 0, 2, h);
-  });
-  const water = canvasTexture(128, 128, (g, w, h) => {
-    const r = rng(9);
-    g.fillStyle = '#2f5d7c';
-    g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 300; i++) {
-      g.fillStyle = `rgba(255,255,255,${0.05 + r() * 0.08})`;
-      g.fillRect(r() * w, r() * h, 6 + r() * 10, 1);
-    }
-  });
-  return {
-    wAsph: L({ map: asph }),
-    wConc: L({ map: conc }),
-    wGrass: L({ map: grass }),
-    wTulip: L({ map: tulip }),
-    wShed: L({ map: shed }),
-    wWater: L({ map: water }),
-    wPaint: B({ color: 0xf1f1ea }),
-    wYellow: B({ color: 0xf2c230 }),
-    wRail: L({ color: 0xb9bfc6 }),
-    wPost: L({ color: 0x6b7178 }),
-    wBrick: L({ color: 0x8a4b32 }),
-    wDark: L({ color: 0x1b1e22 }),
-    wRoof: L({ color: 0x4d555d }),
-    wDoor: L({ color: 0x5f6b77 }),
-    wGreen: L({ color: 0x1f5d43 }),
-    wRed: L({ color: 0xc3202f }),
-    wOrange: L({ color: 0xf07b16 }),
-    wWhite: L({ color: 0xeeeeea }),
-    wWood: L({ color: 0x7a5a38 }),
-    wLamp: B({ color: 0xfff1c8 }),
-  };
-}
-
-/** Polyline boyunca şerit (ribbon) geometrisi: u enine (0..1), v boyuna (m / vScale) */
-function ribbon(pts, half, y, vScale = 8, from = -1, to = 1) {
-  const pos = [];
-  const uv = [];
-  const nor = [];
-  const idx = [];
-  let acc = 0;
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[Math.min(i, pts.length - 1)];
-    const a = pts[Math.max(0, i - 1)];
-    const b = pts[Math.min(pts.length - 1, i + 1)];
-    let dx = b[0] - a[0];
-    let dz = b[1] - a[1];
-    const l = Math.hypot(dx, dz) || 1;
-    dx /= l;
-    dz /= l;
-    // Sağ = (−dz, dx); sol kenar (−) / sağ kenar (+)
-    const rx = -dz;
-    const rz = dx;
-    if (i > 0) acc += Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]);
-    for (const [s, u] of [[from, 0], [to, 1]]) {
-      pos.push(p[0] + rx * half * s, y, p[1] + rz * half * s);
-      uv.push(u, acc / vScale);
-      nor.push(0, 1, 0);
-    }
-    if (i > 0) {
-      const k = i * 2;
-      idx.push(k - 2, k - 1, k, k - 1, k + 1, k); // yukarı bakan yüzler (CCW)
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(idx);
-  return g;
-}
-
-/** Polyline'ı eşit aralıklarla örnekle: [{ x, z, ux, uz, s }] */
-function sample(pts, step) {
-  const out = [];
-  let carry = 0;
-  let s = 0;
-  for (let i = 1; i < pts.length; i++) {
-    const [ax, az] = pts[i - 1];
-    const [bx, bz] = pts[i];
-    const len = Math.hypot(bx - ax, bz - az);
-    if (len < 1e-6) continue;
-    const ux = (bx - ax) / len;
-    const uz = (bz - az) / len;
-    let d = carry;
-    while (d <= len) {
-      out.push({ x: ax + ux * d, z: az + uz * d, ux, uz, s: s + d });
-      d += step;
-    }
-    carry = d - len;
-    s += len;
-  }
-  return out;
-}
-
-/** Kesik çizgi şeritleri (yol işaretleri): offset (sağa +), dash/gap uzunluğu */
-function dashes(pts, offset, w, dash, gap, y) {
-  const list = [];
-  for (const p of sample(pts, dash + gap)) {
-    const rx = -p.uz;
-    const rz = p.ux;
-    const cx = p.x + rx * offset + p.ux * dash * 0.5;
-    const cz = p.z + rz * offset + p.uz * dash * 0.5;
-    const g = new THREE.PlaneGeometry(w, dash).rotateX(-Math.PI / 2).rotateY(Math.atan2(p.ux, p.uz));
-    g.translate(cx, y, cz);
-    list.push(g);
-  }
-  return list;
-}
-
-function setInstance(mesh, i, x, y, z, ry, sx = 1, sy = 1, sz = 1) {
-  const m = new THREE.Matrix4();
-  m.compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new THREE.Vector3(sx, sy, sz));
-  mesh.setMatrixAt(i, m);
-}
-
-/** Bir nokta başka bir yolun / avlunun ağzında mı (bariyer boşluğu) */
-function nearOtherRoad(x, z, selfId) {
-  for (const r of ROADS) {
-    if (r.id === selfId) continue;
-    for (let i = 0; i < r.pts.length - 1; i++) {
-      const [ax, az] = r.pts[i];
-      const [bx, bz] = r.pts[i + 1];
-      const dx = bx - ax;
-      const dz = bz - az;
-      const L2 = dx * dx + dz * dz || 1;
-      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
-      if (Math.hypot(x - (ax + dx * t), z - (az + dz * t)) < r.half + 3) return true;
-    }
-  }
-  return yardAt(x, z, 3) !== null;
-}
-
-/**
- * Otoyol bölgesi: zemin, yollar, bariyerler, lambalar, ağaçlar, lale tarlaları, yel değirmenleri, tabelalar,
- * otelin lojistik avlusu, üç toptancı deposu ve konteyner limanı. Statikler malzeme başına tek mesh;
- * tekrarlanan nesneler (bariyer, lamba, ağaç, konteyner) InstancedMesh.
- */
-export function buildHighway({ collision }) {
-  const group = new THREE.Group();
-  group.name = 'highway';
-  const M = materials();
-  const b = new StaticBatcher();
-  const R = HWY.bounds;
-  // Zemin (tek düzlem, tekrarlı doku)
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(R.maxX - R.minX + 400, R.maxZ - R.minZ + 400).rotateX(-Math.PI / 2), M.wGrass);
-  M.wGrass.map.repeat.set((R.maxX - R.minX + 400) / 10, (R.maxZ - R.minZ + 400) / 10);
-  ground.position.set((R.minX + R.maxX) / 2, 0, (R.minZ + R.maxZ) / 2);
-  ground.matrixAutoUpdate = false;
-  ground.updateMatrix();
-  group.add(ground);
-  // Liman suyu (doğuda)
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(260, 900).rotateX(-Math.PI / 2), M.wWater);
-  M.wWater.map.repeat.set(20, 60);
-  water.position.set(R.maxX + 120, 0.02, 0);
-  water.matrixAutoUpdate = false;
-  water.updateMatrix();
-  group.add(water);
-
-  // Yollar + işaretler
-  for (const r of ROADS) {
-    b.add('wAsph', ribbon(r.pts, r.half, 0.03), NO);
-    const lw = HWY.laneW;
-    // Kenar çizgileri (sürekli)
-    b.add('wPaint', ribbon(r.pts, r.half - 0.35, 0.045, 8, -1, -0.97), NO);
-    b.add('wPaint', ribbon(r.pts, r.half - 0.35, 0.045, 8, 0.97, 1), NO);
-    // Orta çizgi (iki yön): otoyolda çift sürekli sarı, bağlantı yolunda kesik
-    if (r.kind === 'trunk') {
-      b.add('wYellow', ribbon(r.pts, 0.25, 0.045, 8, -1, -0.4), NO);
-      b.add('wYellow', ribbon(r.pts, 0.25, 0.045, 8, 0.4, 1), NO);
-      for (const off of [lw, -lw]) for (const g of dashes(r.pts, off, 0.15, 4, 8, 0.046)) b.add('wPaint', g, NO);
-    } else {
-      for (const g of dashes(r.pts, 0, 0.15, 3, 5, 0.046)) b.add('wPaint', g, NO);
-    }
-  }
-  // Avlular (beton zemin)
-  for (const y of YARDS) {
-    const yb = y.bounds;
-    b.floor('wConc', yb.minX, yb.maxX, yb.minZ, yb.maxZ, 0.035, { ...NO, uvScale: 0.12 });
-  }
-
-  // ---- Bariyerler (InstancedMesh), lambalar, ağaçlar ----
-  const railPts = [];
-  for (const r of ROADS) {
-    for (const p of sample(r.pts, 4)) {
-      for (const side of [-1, 1]) {
-        const x = p.x - p.uz * (r.half + 0.4) * side;
-        const z = p.z + p.ux * (r.half + 0.4) * side;
-        if (nearOtherRoad(x, z, r.id)) continue;
-        railPts.push([x, z, Math.atan2(p.ux, p.uz)]);
-      }
-    }
-  }
-  const rail = new THREE.InstancedMesh(new THREE.BoxGeometry(0.08, 0.32, 4.05).translate(0, 0.62, 0), M.wRail, railPts.length);
-  const post = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, 0.75, 0.1).translate(0, 0.375, 0), M.wPost, railPts.length);
-  railPts.forEach(([x, z, ry], i) => {
-    setInstance(rail, i, x, 0, z, ry);
-    setInstance(post, i, x, 0, z, ry);
-  });
-  group.add(rail, post);
-
-  const lampPts = sample(ROADS[0].pts, 45).map((p, i) => {
-    const side = i % 2 ? 1 : -1;
-    return [p.x - p.uz * (HWY.trunkHalf + 1.4) * side, p.z + p.ux * (HWY.trunkHalf + 1.4) * side, Math.atan2(p.ux, p.uz) + (side > 0 ? Math.PI / 2 : -Math.PI / 2)];
-  }).filter(([x, z]) => !nearOtherRoad(x, z, 'trunk'));
-  const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.09, 0.12, 9, 6).translate(0, 4.5, 0), M.wPost, lampPts.length);
-  const arm = new THREE.InstancedMesh(new THREE.BoxGeometry(0.12, 0.12, 2.6).translate(0, 8.9, 1.2), M.wPost, lampPts.length);
-  const head = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.14, 0.9).translate(0, 8.8, 2.4), M.wLamp, lampPts.length);
-  lampPts.forEach(([x, z, ry], i) => {
-    for (const m of [pole, arm, head]) setInstance(m, i, x, 0, z, ry);
-  });
-  group.add(pole, arm, head);
-
-  // Ağaçlar: yoldan, avlulardan ve tarlalardan uzak, tohumlu
-  const r = rng(4242);
-  const trees = [];
-  const fields = [[360, 90, 120, 60], [640, -240, 140, 80], [1000, -200, 120, 70], [700, 170, 150, 60], [420, -150, 110, 70]];
-  const inField = (x, z) => fields.some(([fx, fz, w, h]) => Math.abs(x - fx) < w / 2 + 4 && Math.abs(z - fz) < h / 2 + 4);
-  for (let i = 0; i < 2600 && trees.length < 520; i++) {
-    const x = R.minX + 10 + r() * (R.maxX - R.minX - 20);
-    const z = R.minZ + 10 + r() * (R.maxZ - R.minZ - 20);
-    if (isDrivable(x, z, 7) || yardAt(x, z, 8) || inField(x, z)) continue;
-    if (x > 1140) continue; // liman
-    trees.push([x, z, 0.75 + r() * 0.6]);
-  }
-  const trunkM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.18, 0.25, 2.6, 5).translate(0, 1.3, 0), M.wWood, trees.length);
-  const crown = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1.9, 0).translate(0, 3.9, 0), new THREE.MeshLambertMaterial({ color: 0x3f7a35, flatShading: true }), trees.length);
-  trees.forEach(([x, z, s], i) => {
-    setInstance(trunkM, i, x, 0, z, 0, s, s, s);
-    setInstance(crown, i, x, 0, z, i, s, s * (0.9 + (i % 5) * 0.06), s);
-  });
-  group.add(trunkM, crown);
-
-  // Lale tarlaları + yel değirmenleri
-  for (const [fx, fz, w, h] of fields) b.floor('wTulip', fx - w / 2, fx + w / 2, fz - h / 2, fz + h / 2, 0.025, { ...NO, uvScale: 0.05 });
-  for (const [x, z] of [[400, 150], [720, -300], [1080, -230]]) {
-    b.add('wWhite', new THREE.CylinderGeometry(2.2, 3.4, 13, 8), { position: [x, 6.5, z], ...NO });
-    b.add('wRoof', new THREE.ConeGeometry(2.6, 3, 8), { position: [x, 14.5, z], ...NO });
-    for (let k = 0; k < 4; k++) {
-      b.add('wWood', new THREE.BoxGeometry(0.6, 11, 0.12), { position: [x, 12, z - 3.2], rotation: [0, 0, (k * Math.PI) / 2 + 0.35], ...NO });
-    }
-    collision.add(x - 3, x + 3, z - 3, z + 3);
-  }
-
-  // ---- Otelin lojistik avlusu ----
-  const Y = SERVICE_YARD.bounds;
-  const fence = (x0, x1, z0, z1) => {
-    b.box('wDark', x0, x1, 0, 2.2, z0, z1, NO);
-    collision.add(x0, x1, z0, z1);
-  };
-  const P = SERVICE_YARD.portal;
-  // Kuzey: otelin arka cephesi (mal kabul rampası), güney / batı / doğu: duvar (ağızlar açık)
-  b.box('wBrick', Y.minX, Y.maxX, 0, 9, Y.maxZ, Y.maxZ + 1.2, NO);
-  collision.add(Y.minX, Y.maxX, Y.maxZ - 0.2, Y.maxZ + 1.2);
-  for (let x = Y.minX + 6; x < Y.maxX - 4; x += 8) {
-    b.box('wDoor', x - 1.6, x + 1.6, 1.2, 4.6, Y.maxZ - 0.04, Y.maxZ, NO); // rampa kapıları
-    for (let k = 0; k < 2; k++) b.box('wLamp', x - 1.5, x + 1.5, 6 + k * 1.4, 6.9 + k * 1.4, Y.maxZ - 0.05, Y.maxZ - 0.02, NO); // pencereler
-  }
-  b.box('wConc', HOTEL_DELIVERY.zone.minX - 2, HOTEL_DELIVERY.zone.maxX + 2, 0, 1.2, HOTEL_DELIVERY.dockZ, Y.maxZ, NO); // rampa platformu
-  collision.add(HOTEL_DELIVERY.zone.minX - 2, HOTEL_DELIVERY.zone.maxX + 2, HOTEL_DELIVERY.dockZ, Y.maxZ);
-  // Teslim körfezi işaretleri (sarı çerçeve)
-  const D = HOTEL_DELIVERY.zone;
-  for (const [x0, x1, z0, z1] of [[D.minX, D.maxX, D.minZ, D.minZ + 0.3], [D.minX, D.maxX, D.maxZ - 0.3, D.maxZ], [D.minX, D.minX + 0.3, D.minZ, D.maxZ], [D.maxX - 0.3, D.maxX, D.minZ, D.maxZ]]) {
-    b.floor('wYellow', x0, x1, z0, z1, 0.05, NO);
-  }
-  fence(Y.minX, Y.maxX, Y.minZ - 0.6, Y.minZ); // güney
-  fence(Y.minX - 0.6, Y.minX, Y.minZ, P.minZ); // batı (tünel ağzının iki yanı)
-  fence(Y.minX - 0.6, Y.minX, P.maxZ, Y.maxZ);
-  fence(Y.maxX, Y.maxX + 0.6, Y.minZ, -HWY.trunkHalf); // doğu (otoyol ağzının iki yanı)
-  fence(Y.maxX, Y.maxX + 0.6, HWY.trunkHalf, Y.maxZ);
-  // Tünel ağzı (şehre)
-  b.box('wConc', Y.minX - 3, Y.minX, 0, 6, P.minZ - 1.2, P.minZ, NO);
-  b.box('wConc', Y.minX - 3, Y.minX, 0, 6, P.maxZ, P.maxZ + 1.2, NO);
-  b.box('wConc', Y.minX - 3, Y.minX, 5, 6.5, P.minZ - 1.2, P.maxZ + 1.2, NO);
-  b.box('wDark', Y.minX - 3, Y.minX - 2.9, 0, 5, P.minZ, P.maxZ, NO);
-  // Tır parkı çizgileri
-  for (const t of SERVICE_YARD.truckBays) {
-    for (const sx of [-1, 1]) b.floor('wPaint', t.x + sx * 1.9 - 0.08, t.x + sx * 1.9 + 0.08, t.z - 7, t.z + 7, 0.05, NO);
-  }
-  // TruckCenter bayisi (küçük bina)
-  const K = SERVICE_YARD.dealer;
-  b.box('wWhite', K.x - 5, K.x + 5, 0, 3.6, Y.minZ + 0.2, K.z, NO);
-  b.box('wOrange', K.x - 5.2, K.x + 5.2, 3.6, 4.1, Y.minZ, K.z + 0.4, NO);
-  b.box('wDoor', K.x - 1, K.x + 1, 0, 2.3, K.z, K.z + 0.04, NO);
-  collision.add(K.x - 5, K.x + 5, Y.minZ, K.z);
-
-  // ---- Depolar + liman ----
-  for (const s of SITES) {
-    const sb = s.bounds;
-    if (s.id === 'port') continue;
-    // Depo binası (avlunun uzak kenarında), yükleme körfezi çerçevesi
-    const far = s.gate[1] < s.dock.z; // giriş güneyde → bina kuzeyde
-    const bz0 = far ? s.dock.z : sb.minZ;
-    const bz1 = far ? sb.maxZ : s.dock.z;
-    b.box('wShed', sb.minX + 2, sb.maxX - 2, 0, 11, bz0, bz1, { ...NO, uvScale: 0.25 });
-    b.box('wRoof', sb.minX + 1.5, sb.maxX - 1.5, 11, 11.6, bz0 - 0.5, bz1 + 0.5, NO);
-    collision.add(sb.minX + 2, sb.maxX - 2, bz0, bz1);
-    const faceZ = far ? bz0 : bz1;
-    for (let x = sb.minX + 7; x < sb.maxX - 5; x += 9) b.box('wDoor', x - 2, x + 2, 0.4, 5, faceZ - 0.05, faceZ + 0.05, NO);
-    const ld = s.load;
-    for (const [x0, x1, z0, z1] of [[ld.minX, ld.maxX, ld.minZ, ld.minZ + 0.3], [ld.minX, ld.maxX, ld.maxZ - 0.3, ld.maxZ], [ld.minX, ld.minX + 0.3, ld.minZ, ld.maxZ], [ld.maxX - 0.3, ld.maxX, ld.minZ, ld.maxZ]]) {
-      b.floor('wYellow', x0, x1, z0, z1, 0.05, NO);
-    }
-    // Çit (giriş açık)
-    const gx = s.gate[0];
-    const fz = far ? sb.minZ : sb.maxZ;
-    fence(sb.minX, gx - 7, fz - 0.3, fz + 0.3);
-    fence(gx + 7, sb.maxX, fz - 0.3, fz + 0.3);
-    fence(sb.minX - 0.6, sb.minX, sb.minZ, sb.maxZ);
-    fence(sb.maxX, sb.maxX + 0.6, sb.minZ, sb.maxZ);
-  }
-  // Liman: konteyner yığınları (InstancedMesh, renkli), iki portal vinç, rıhtım
-  const port = SITE_BY_ID.port;
-  const pb = port.bounds;
-  const boxes = [];
-  const cr = rng(31);
-  for (let gx = pb.minX + 22; gx < pb.maxX - 18; gx += 7) {
-    for (const zr of [[-100, -60], [40, 100]]) {
-      for (let z = zr[0]; z < zr[1]; z += 13) {
-        const h = 1 + Math.floor(cr() * 3);
-        for (let k = 0; k < h; k++) boxes.push([gx, z, k, cr()]);
-      }
-    }
-  }
-  const cont = new THREE.InstancedMesh(new THREE.BoxGeometry(2.44, 2.59, 12.2).translate(0, 1.3, 0), new THREE.MeshLambertMaterial({ color: 0xffffff }), boxes.length);
-  const palette = [0xc3202f, 0x24508f, 0x1f5d43, 0xf07b16, 0x8a8f96, 0xf2c230, 0x5b3a8c];
-  const col = new THREE.Color();
-  boxes.forEach(([x, z, k, c], i) => {
-    setInstance(cont, i, x, k * 2.6, z, 0);
-    cont.setColorAt(i, col.setHex(palette[Math.floor(c * palette.length)]));
-  });
-  group.add(cont);
-  for (const [x0, x1, z0, z1] of [[pb.minX + 18, pb.maxX - 14, -104, -54], [pb.minX + 18, pb.maxX - 14, 34, 104]]) collision.add(x0, x1, z0, z1);
-  for (const z of [-30, 30]) {
-    for (const sx of [-1, 1]) {
-      b.box('wOrange', pb.maxX - 6 + sx * 7 - 0.6, pb.maxX - 6 + sx * 7 + 0.6, 0, 26, z - 0.6, z + 0.6, NO);
-      collision.add(pb.maxX - 6 + sx * 7 - 0.6, pb.maxX - 6 + sx * 7 + 0.6, z - 0.6, z + 0.6);
-    }
-    b.box('wOrange', pb.maxX - 16, pb.maxX + 40, 25, 27.5, z - 1.2, z + 1.2, NO);
-  }
-  b.box('wConc', pb.maxX, pb.maxX + 4, -0.2, 0.6, pb.minZ, pb.maxZ, NO); // rıhtım
-  collision.add(pb.maxX - 0.2, pb.maxX + 0.6, pb.minZ, pb.maxZ);
-  // Gemi
-  b.box('wRed', pb.maxX + 14, pb.maxX + 34, -1, 6, -70, 60, NO);
-  b.box('wWhite', pb.maxX + 16, pb.maxX + 32, 6, 14, 40, 56, NO);
-  // Liman çiti (kuzey / güney)
-  fence(pb.minX, pb.maxX, pb.minZ - 0.6, pb.minZ);
-  fence(pb.minX, pb.maxX, pb.maxZ, pb.maxZ + 0.6);
-  fence(pb.minX - 0.6, pb.minX, pb.minZ, -HWY.trunkHalf);
-  fence(pb.minX - 0.6, pb.minX, HWY.trunkHalf, pb.maxZ);
-
-  b.build(M, group);
-
-  // ---- Tabelalar ----
-  const signs = [];
-  const sign = (lines, w, h, x, y, z, facing, opts = {}) => {
-    const m = panel(signMaterial(lines, { w: 512, h: Math.round((512 * h) / w), ...opts }), w, h, x, y, z, facing);
-    group.add(m);
-    signs.push(m);
-  };
-  sign(['🏨 Hotel De Tulp — Mal Kabul', 'Teslim körfezi · Lojistik avlusu'], 14, 2.6, HOTEL_DELIVERY.x, 7.8, Y.maxZ - 0.06, 'z-', { bg: '#1f5d43' });
-  sign(['🚛 TruckCenter', 'Tır satış · Zeeland · Brabant · Noordkaap'], 9, 1.7, K.x, 4.9, K.z + 0.45, 'z+', { bg: '#f07b16', fg: '#1b1e22' });
-  sign(['🏙️ Şehir / Otel', 'Tünel ⇠'], 6, 1.6, Y.minX + 0.05, 7.3, 0, 'x+', { bg: '#24508f' });
-  sign(['A10 Ring ⇢', 'VersMarkt · FrisDepot · ArcadeWorks · Haven Zuid'], 12, 2.2, Y.maxX - 2, 6.5, -HWY.trunkHalf - 1.5, 'x-', { bg: '#1f5d43' });
-  for (const s of SITES) {
-    const gx = s.gate[0];
-    const gz = s.gate[1];
-    sign([`${s.icon} ${s.short}`, s.name], 10, 2.2, gx, 5.5, gz + (s.id === 'port' ? 0 : s.gate[1] < s.dock.z ? -0.6 : 0.6), s.id === 'port' ? 'x-' : s.gate[1] < s.dock.z ? 'z-' : 'z+', { bg: '#24508f' });
-    if (s.id === 'port') continue;
-    // Çıkış tabelası: bağlantı yolunun ana gövdeye bağlandığı yerden ~120 m önce (avludan gelen yöne bakar)
-    const spur = ROADS.find((x) => x.site === s.id);
-    const j = spur.pts[0];
-    let best = 0;
-    for (let k = 0; k < ROADS[0].pts.length; k++) if (Math.hypot(ROADS[0].pts[k][0] - j[0], ROADS[0].pts[k][1] - j[1]) < Math.hypot(ROADS[0].pts[best][0] - j[0], ROADS[0].pts[best][1] - j[1])) best = k;
-    const back = ROADS[0].pts[Math.max(0, best - 9)];
-    const nxt = ROADS[0].pts[Math.max(1, best - 8)];
-    const yaw = Math.atan2(-(nxt[0] - back[0]), -(nxt[1] - back[1]));
-    const g = new THREE.Group();
-    g.position.set(back[0], 0, back[1]);
-    g.rotation.y = yaw;
-    const gm = new THREE.MeshLambertMaterial({ color: 0x6b7178 });
-    for (const sx of [-1, 1]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.3, 7, 0.3), gm);
-      leg.position.set(sx * (HWY.trunkHalf + 1), 3.5, 0);
-      g.add(leg);
-    }
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(HWY.trunkHalf * 2 + 2.4, 0.4, 0.4), gm);
-    beam.position.y = 7;
-    g.add(beam);
-    // Çıkış sağda mı solda mı (bağlantı yönü × yol yönü)
-    const ux = nxt[0] - back[0];
-    const uz = nxt[1] - back[1];
-    const sd = spur.pts[Math.min(4, spur.pts.length - 1)];
-    const right = -uz * (sd[0] - j[0]) + ux * (sd[1] - j[1]) > 0;
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(8, 2.4), signMaterial([`${right ? '' : '↖ '}${s.icon} ${s.short}${right ? ' ↗' : ''}`, `${s.name} · çıkış 120 m`], { bg: '#1f5d43', w: 512, h: 154 }));
-    face.position.set(HWY.trunkHalf * 0.45 * (right ? 1 : -1), 6.2, 0.25);
-    g.add(face);
-    group.add(g);
-  }
-  // Hız tabelaları
-  for (const k of [0.08, 0.35, 0.62, 0.88]) {
-    const p = trunkAt(TRUNK_LENGTH * k);
-    const x = p.x - p.uz * (HWY.trunkHalf + 1.2); // yolun sağı (avludan limana giderken)
-    const z = p.z + p.ux * (HWY.trunkHalf + 1.2);
-    const m = new THREE.Mesh(new THREE.CircleGeometry(0.6, 20), signMaterial([String(ROAD_KMH.trunk)], { bg: '#ffffff', fg: '#111111', w: 128, h: 128, border: true }));
-    m.position.set(x, 2.4, z);
-    m.rotation.y = Math.atan2(-p.ux, -p.uz);
-    group.add(m);
-  }
-  group.traverse((o) => {
-    if (o.isMesh && !o.isInstancedMesh) {
-      o.matrixAutoUpdate = false;
-      o.updateMatrix();
-    }
-  });
-  for (const m of [rail, post, pole, arm, head, trunkM, crown, cont]) {
-    m.matrixAutoUpdate = false;
-    m.computeBoundingSphere();
-  }
-  return { group, mats: M };
-}
 
 /** Şehir tarafı: otelin önündeki sokağın doğu ucunda tünel ağzı + tabela (otel dünyasının parçası) */
 function buildCityPortal(scene) {
@@ -505,72 +55,6 @@ function buildCityPortal(scene) {
 }
 
 // =====================================================================================================
-// Trafik (deterministik süs araçları) + sunucu ajanları (polis eklentisi)
-// =====================================================================================================
-
-const TRAFFIC_COLORS = [0xc3202f, 0x24508f, 0xeef0f2, 0x3d434b, 0xa9b0b8, 0x1f5d43, 0xf2c230, 0x121417];
-
-class Traffic {
-  constructor(group, count) {
-    this.count = count;
-    const body = new THREE.BoxGeometry(1.8, 0.8, 4.3).translate(0, 0.7, 0);
-    const cab = new THREE.BoxGeometry(1.6, 0.55, 2.2).translate(0, 1.37, -0.2);
-    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    this.body = new THREE.InstancedMesh(body, mat, count);
-    this.cab = new THREE.InstancedMesh(cab, new THREE.MeshLambertMaterial({ color: 0x1d2a36 }), count);
-    this.body.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.cab.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.body.frustumCulled = false;
-    this.cab.frustumCulled = false;
-    const r = rng(1919);
-    const c = new THREE.Color();
-    this.cars = [];
-    for (let i = 0; i < count; i++) {
-      const dir = i % 2 ? 1 : -1;
-      const lane = r() < 0.65 ? 0 : 1;
-      const speed = (lane === 0 ? 22 : 28) + r() * 5; // m/sn
-      this.cars.push({ dir, lane, speed, s0: r() * TRUNK_LENGTH, x: 0, z: 0 });
-      this.body.setColorAt(i, c.setHex(TRAFFIC_COLORS[i % TRAFFIC_COLORS.length]));
-    }
-    group.add(this.body, this.cab);
-    this._m = new THREE.Matrix4();
-    this._q = new THREE.Quaternion();
-    this._e = new THREE.Euler();
-    this._p = new THREE.Vector3();
-    this._s = new THREE.Vector3(1, 1, 1);
-  }
-
-  /** Zamana bağlı konumlar (her istemcide aynı): t sn */
-  update(t) {
-    const L = TRUNK_LENGTH;
-    for (let i = 0; i < this.cars.length; i++) {
-      const c = this.cars[i];
-      let s = (c.s0 + c.speed * t) % (2 * L);
-      if (s > L) s = 2 * L - s; // uçlarda karşı şeride döner (dönüş anında görünmez)
-      const fwd = Math.floor((c.s0 + c.speed * t) / L) % 2 === 0 ? c.dir : -c.dir;
-      const p = laneAt(s, fwd, c.lane);
-      const vis = s > 45 && s < L - 45; // avlu / liman ağzında görünmez (çarpışma da yok)
-      c.x = vis ? p.x : -1e6;
-      c.z = vis ? p.z : -1e6;
-      this._p.set(p.x, 0, p.z);
-      this._q.setFromEuler(this._e.set(0, p.yaw + Math.PI, 0));
-      this._s.setScalar(vis ? 1 : 0);
-      this._m.compose(this._p, this._q, this._s);
-      this.body.setMatrixAt(i, this._m);
-      this.cab.setMatrixAt(i, this._m);
-    }
-    this.body.instanceMatrix.needsUpdate = true;
-    this.cab.instanceMatrix.needsUpdate = true;
-  }
-
-  /** (x, z) noktasına r'den yakın trafik aracı */
-  near(x, z, r) {
-    for (const c of this.cars) if (Math.abs(c.x - x) < r && Math.abs(c.z - z) < r && Math.hypot(c.x - x, c.z - z) < r) return c;
-    return null;
-  }
-}
-
-// =====================================================================================================
 // Ana sınıf
 // =====================================================================================================
 
@@ -587,7 +71,7 @@ class Traffic {
  *    TruckCenter (tır satın al, cüzdandan). Avludaki TruckCenter binasında da E ile açılır.
  *  - Tırla yükleme körfezinde / mal kabul körfezinde durunca E: yükle / teslim et (park yerine geçer).
  *  - Yüklü dorseyle çarpma (ani hız kaybı ya da trafik aracına çarpma) → sunucuya hasar bildirimi.
- *  - Trafik: otoyolda deterministik süs araçları (InstancedMesh, tek draw call); sunucunun yapay araçları
+ *  - Trafik: TrafficSystemAI (şerit takibi, sinyal, ışıklar, takip mesafesi; InstancedMesh); sunucunun yapay araçları
  *    (LOGI_AGENTS: ileride polis) ayrı çizilir, polislerin tepe lambası yanıp söner.
  * Pil: bölge dışındayken hiçbir iş yapılmaz; trafik yalnızca bölgedeyken ve kare çizilirken güncellenir.
  */
@@ -609,12 +93,13 @@ export class LargeWorldMap {
     this.agentMeshes = new Map();
     this.boardAsked = false;
 
-    const world = buildHighway({ collision });
+    const world = buildExpandedWorld({ collision });
     this.world = world;
     engine.scene.add(world.group);
     garage.addArea('highway', world.group, HWY.far);
     this.portal = buildCityPortal(engine.scene);
-    this.traffic = new Traffic(world.group, device.touch ? 14 : 26);
+    this.traffic = new TrafficSystemAI(world.group, device.touch ? 14 : 30);
+    this.ego = { active: false, x: 0, z: 0, yaw: 0, vel: 0, truck: false };
     this.fog = new THREE.Fog(0xa9c7de, 220, HWY.far - 40);
     // Sis sahnede hep durur (şehirde etkisiz uzaklıkta): sis aç / kapa bütün shader'ları yeniden derletir
     this.fogNear = this.fog.near;
@@ -728,9 +213,11 @@ export class LargeWorldMap {
       this.fog.far = this.fogFar;
       this.fog.color.copy(scene.background?.isColor ? scene.background : this.fog.color);
       if (!this.boardAsked) this.requestBoard();
+      this.world.setView(this.player.pos.x, this.player.pos.z, true);
     } else {
       this.fog.near = 1e5; // şehirde etkisiz
       this.fog.far = 1e5 + 1;
+      this.traffic.reset();
     }
     this.el.navi.hidden = true;
     this.naviAt = 0;
@@ -909,7 +396,7 @@ export class LargeWorldMap {
       row.append(el('div', 'lo-icon', c.icon));
       const info = el('div', 'lo-info');
       info.append(el('b', null, `${o.pallets} palet ${c.name}`), el('small', null, `${s.icon} ${s.name} → 🏨 otel · ${fmtKm(o.dist * 2)} · süre ${fmtTime(o.timeSec)}`));
-      info.append(el('small', null, `Toptan ${formatEuro(o.wholesale)} (kasadan) → değer ${formatEuro(o.value)} · şoför ücreti ${formatEuro(o.fee)} · ${fmtTime((o.expires - now) / 1000)} sonra kalkar`));
+      info.append(el('small', null, `Toptan ${formatEuro(o.wholesale)} (kasadan) → değer ${formatEuro(o.value)} · şoför ücreti ${formatEuro(onTimeFee(o.fee))} (zamanında; geç: ${formatEuro(Math.round(o.fee * LOGI_RULES.LATE_MUL))}) · ${fmtTime((o.expires - now) / 1000)} sonra kalkar`));
       const btn = el('button', 'lo-take', 'Al');
       btn.type = 'button';
       btn.disabled = !!job || !trucks.length || this.pending;
@@ -930,7 +417,7 @@ export class LargeWorldMap {
       row.append(el('div', 'lo-icon', g.icon));
       const info = el('div', 'lo-info');
       info.append(el('b', null, `${o.company}: ${o.pallets} palet ${g.name}`), el('small', null, `${a.icon} ${a.name} → ${b.icon} ${b.name} · ${fmtKm(o.dist)} · süre ${fmtTime(o.timeSec)}`));
-      info.append(el('small', null, `Tır firmadan (avludaki tır parkına gelir) · kasaya dokunulmaz · şoför ücreti ${formatEuro(o.fee)} · ${fmtTime((o.expires - now) / 1000)} sonra kalkar`));
+      info.append(el('small', null, `Tır firmadan (avludaki tır parkına gelir) · kasaya dokunulmaz · şoför ücreti ${formatEuro(onTimeFee(o.fee))} (zamanında) · ${fmtTime((o.expires - now) / 1000)} sonra kalkar`));
       const btn = el('button', 'lo-take', 'Al');
       btn.type = 'button';
       btn.disabled = !!job || this.pending;
@@ -1006,7 +493,7 @@ export class LargeWorldMap {
       : '2/2 · 🏨 Otelin lojistik avlusundaki mal kabul körfezine götür, dur, E: teslim';
     card.append(el('div', null, step));
     const pay = deliveryPay(job, this.net.serverNow());
-    card.append(el('small', null, `${left > 0 ? `⏱ ${fmtTime(left)} kaldı` : '⏱ Gecikti!'} · hasar %${Math.round(job.damage * 100)} · beklenen: kasaya ${formatEuro(job.state === 'loaded' ? pay.value : job.value)}, sana ${formatEuro(job.state === 'loaded' ? pay.fee : Math.round(job.fee * LOGI_RULES.ONTIME_MUL))}`));
+    card.append(el('small', null, `${left > 0 ? `⏱ ${fmtTime(left)} kaldı` : '⏱ Gecikti!'} · hasar %${Math.round(job.damage * 100)} · beklenen: kasaya ${formatEuro(job.state === 'loaded' ? pay.value : job.value)}, sana ${formatEuro(job.state === 'loaded' ? pay.fee : onTimeFee(job.fee))}`));
     const row = el('div', 'logi-job-btns');
     const map = el('button', null, '🗺️ Harita');
     map.type = 'button';
@@ -1032,7 +519,7 @@ export class LargeWorldMap {
       : `2/2 · ${b.icon} ${b.name} boşaltma körfezine götür, dur, E: boşalt (tır sonra firmaya döner)`;
     card.append(el('div', null, step));
     const pay = deliveryPay(job, this.net.serverNow());
-    card.append(el('small', null, `${left > 0 ? `⏱ ${fmtTime(left)} kaldı` : '⏱ Gecikti!'} · hasar %${Math.round(job.damage * 100)} · sana ${formatEuro(job.state === 'loaded' ? pay.fee : Math.round(job.fee * LOGI_RULES.ONTIME_MUL))} (kendi tırınla yapılan işin ~%${Math.round(HAUL_RULES.FEE_MUL * 100)}'i)`));
+    card.append(el('small', null, `${left > 0 ? `⏱ ${fmtTime(left)} kaldı` : '⏱ Gecikti!'} · hasar %${Math.round(job.damage * 100)} · sana ${formatEuro(job.state === 'loaded' ? pay.fee : onTimeFee(job.fee))} (firma tırı: €${HAUL_RULES.FEE_MIN}–${HAUL_RULES.FEE_MAX}; kendi tırınla €${LOGI_RULES.FEE_MIN}–${LOGI_RULES.FEE_MAX})`));
     const row = el('div', 'logi-job-btns');
     const map = el('button', null, '🗺️ Harita');
     map.type = 'button';
@@ -1097,33 +584,35 @@ export class LargeWorldMap {
     // Metin
     let text = '';
     if (this.route) {
-      const v = Math.max(8, Math.abs(this.player.vel));
       const turn = this.nextTurn(x, z, dest);
-      text = `${fmtKm(this.route.length)} · ~${fmtTime(this.route.length / v)}${turn ? `\n${turn}` : ''}`;
+      text = `${fmtKm(this.route.length)} · ~${fmtTime(routeTimeSec(this.route) * 1.15)} · ⛔ ${roadLimitKmh(x, z)} km/s${turn ? `\n${turn}` : ''}`;
     } else {
-      const lim = ROAD_KMH;
-      text = `A10 Ring · ${lim.trunk} km/s`;
+      const p = roadProject(x, z);
+      const name = p && p.d <= p.half + 2 ? ROADS.find((r) => r.id === p.road)?.name : null;
+      text = `${name ?? 'Şehir dışı'} · ⛔ ${roadLimitKmh(x, z)} km/s`;
     }
     if (this.el.info.textContent !== text) this.el.info.textContent = text;
   }
 
-  /** Sıradaki manevra: hedefin çıkışı / otoyola katılma / avluya giriş */
+  /** Sıradaki manevra: rota adımlarından (kavşak dönüşü / çıkış / avluya giriş) */
   nextTurn(x, z, dest) {
     const destSite = dest === 'hotel' ? 'yard' : dest;
     const here = yardAt(x, z, 1);
     const hint = this.illegal?.turnHint(here, destSite);
     if (hint) return hint;
     if (here === destSite) return dest === 'hotel' ? '🏨 Sarı çerçeveli mal kabul körfezinde dur → E' : '📦 Sarı çerçeveli yükleme körfezinde dur → E';
-    if (here) return '⬆ Otoyola çık';
     const r = this.route;
     if (!r) return '';
-    if (destSite === 'yard') return `⬅ ${fmtKm(r.length)} sonra lojistik avlusu`;
-    if (destSite === 'port') return `⬆ Otoyolun sonu: ⚓ Liman`;
-    const spur = ROADS.find((s) => s.site === destSite);
-    const j = spur.pts[0];
-    const dj = Math.hypot(j[0] - x, j[1] - z);
-    if (dj < 25) return `↪ ${SITE_BY_ID[destSite].short} çıkışına gir`;
-    return `↗ ${SITE_BY_ID[destSite].short} çıkışı · ${fmtKm(dj)}`;
+    const step = r.steps?.find((st) => st.dist > 8) ?? r.steps?.[r.steps.length - 1];
+    if (!step) return '';
+    const ARROW = { left: '↰', right: '↱', straight: '⬆', uturn: '↶', arrive: '🏁' };
+    const d = fmtKm(step.dist);
+    if (here && step.dist < 60) return `${ARROW[step.turn] ?? '⬆'} Avludan çık: ${step.name}`;
+    if (step.turn === 'arrive') return `🏁 ${d} sonra ${step.name}`;
+    const exit = step.from === 'trunk' && step.kind !== 'trunk'; // otoyoldan çıkış
+    const join = step.kind === 'trunk' && step.from !== 'trunk';
+    const what = exit ? (/çıkış/.test(step.name) ? step.name : `${step.name} çıkışı`) : join ? `${step.name} — otoyola katıl` : step.turn === 'left' ? `sola: ${step.name}` : step.turn === 'right' ? `sağa: ${step.name}` : step.turn === 'uturn' ? 'geri dön' : `düz devam: ${step.name}`;
+    return `${ARROW[step.turn] ?? '⬆'} ${d} sonra ${what}`;
   }
 
   /**
@@ -1150,8 +639,20 @@ export class LargeWorldMap {
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = '#2a4f6b';
     ctx.fillRect(X(B.maxX), 0, w, h);
+    const vx0 = ox;
+    const vz0 = oz;
+    const vx1 = ox + w / k;
+    const vz1 = oz + h / k;
+    const vis = (b, pad = 0) => b.maxX + pad > vx0 && b.minX - pad < vx1 && b.maxZ + pad > vz0 && b.minZ - pad < vz1;
+    // Nieuw-Zuid (şehir dokusu)
+    const NZ = NIEUW_ZUID.bounds;
+    if (vis(NZ)) {
+      ctx.fillStyle = '#4a4f55';
+      ctx.fillRect(X(NZ.minX), Z(NZ.minZ), (NZ.maxX - NZ.minX) * k, (NZ.maxZ - NZ.minZ) * k);
+    }
     // Avlular
     for (const y of YARDS) {
+      if (!vis(y.bounds, 20)) continue;
       const b = y.bounds;
       ctx.fillStyle = y.id === 'yard' ? '#1f5d43' : '#59606a';
       ctx.fillRect(X(b.minX), Z(b.minZ), (b.maxX - b.minX) * k, (b.maxZ - b.minZ) * k);
@@ -1159,12 +660,33 @@ export class LargeWorldMap {
     // Yollar
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    for (const r of ROADS) {
-      ctx.strokeStyle = r.kind === 'trunk' ? '#d8d3c4' : '#b9b4a6';
-      ctx.lineWidth = Math.max(view ? 3 : 2, r.half * 2 * k);
+    this.roadBox ??= new Map(ROADS.map((r) => {
+      const xs = r.pts.map((p) => p[0]);
+      const zs = r.pts.map((p) => p[1]);
+      return [r.id, { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) }];
+    }));
+    const order = { urban: 0, spur: 1, trunk: 2 };
+    for (const r of [...ROADS].sort((a, b) => order[a.kind] - order[b.kind])) {
+      if (!vis(this.roadBox.get(r.id), 20)) continue;
+      ctx.strokeStyle = r.kind === 'trunk' ? '#f0c45a' : r.kind === 'spur' ? '#d8d3c4' : '#b9b4a6';
+      ctx.lineWidth = Math.max(view ? (r.kind === 'urban' ? 2.5 : 3.5) : r.kind === 'urban' ? 1.5 : 2.5, r.half * 2 * k);
       ctx.beginPath();
       r.pts.forEach(([x, z], i) => (i ? ctx.lineTo(X(x), Z(z)) : ctx.moveTo(X(x), Z(z))));
       ctx.stroke();
+    }
+    // Kavşak meydanları + trafik ışıkları (mini haritada)
+    ctx.fillStyle = '#b9b4a6';
+    for (const p of PLAZAS) if (vis({ minX: p.x, maxX: p.x, minZ: p.z, maxZ: p.z }, p.half)) ctx.fillRect(X(p.x - p.half), Z(p.z - p.half), p.half * 2 * k, p.half * 2 * k);
+    if (view) {
+      const t = this.net.serverNow() / 1000;
+      for (const sg of SIGNALS) {
+        if (!vis({ minX: sg.x, maxX: sg.x, minZ: sg.z, maxZ: sg.z }, 20)) continue;
+        const st = signalState(sg, 'ns', t);
+        ctx.fillStyle = st === 'g' ? '#33d17a' : st === 'y' ? '#f6d32d' : '#e01b24';
+        ctx.beginPath();
+        ctx.arc(X(sg.x), Z(sg.z), 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     // Rota
     const route = view ? this.route : (this.destination() ? routeTo(this.player.pos.x, this.player.pos.z, this.destination()) : null);
@@ -1185,8 +707,23 @@ export class LargeWorldMap {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     if (!view) {
-      ctx.fillText('🏨 Lojistik avlusu', X(290), Z(-50));
-      for (const s of SITES) ctx.fillText(`${s.icon} ${s.short}`, X((s.bounds.minX + s.bounds.maxX) / 2), Z(s.bounds.minZ) - 6);
+      ctx.textAlign = 'left';
+      ctx.fillText('🏨 Lojistik avlusu', Math.max(4, X(250)), Z(-50));
+      ctx.textAlign = 'center';
+      ctx.fillText('🏙️ Nieuw-Zuid', X((NZ.minX + NZ.maxX) / 2), Z(NZ.minZ) - 6);
+      ctx.fillText('🏭 Industrieweg', X(4500), Z(-2030));
+      ctx.fillText('A10 Ring', X(2400), Z(330));
+      ctx.fillText('A4', X(3560), Z(-900));
+      // Depo etiketleri: yan yana olanlar (VersMarkt / ArcadeWorks) dışa hizalanır, avlunun altına
+      for (const s of SITES) {
+        const cx = (s.bounds.minX + s.bounds.maxX) / 2;
+        const twin = SITES.find((o) => o !== s && Math.abs((o.bounds.minZ + o.bounds.maxZ) / 2 - (s.bounds.minZ + s.bounds.maxZ) / 2) < 200 && Math.abs((o.bounds.minX + o.bounds.maxX) / 2 - cx) < 1200);
+        const left = twin && (twin.bounds.minX + twin.bounds.maxX) / 2 > cx;
+        ctx.textAlign = twin ? (left ? 'right' : 'left') : X(cx) + 50 > w ? 'right' : 'center';
+        const below = s.bounds.minZ > NZ.minZ && s.bounds.minZ < NZ.maxZ + 200;
+        ctx.fillText(`${s.icon} ${s.short}`, X(twin ? (left ? s.bounds.maxX : s.bounds.minX) : cx), below ? Z(s.bounds.maxZ) + 16 : Z(s.bounds.minZ) - 6);
+      }
+      ctx.textAlign = 'center';
     }
     this.illegal?.drawMap(ctx, X, Z, view); // kaçak iş hedefleri, tarayıcı kapıları
     // Yapay araçlar (polis)
@@ -1317,12 +854,22 @@ export class LargeWorldMap {
     }
     const now = performance.now();
     const t = this.net.serverNow() / 1000;
-    this.traffic.update(t % 100000);
+    const { x, z } = this.player.pos;
+    this.world.setView(x, z);
+    this.world.updateSignals(t);
+    const e = this.ego;
+    e.active = true;
+    e.x = x;
+    e.z = z;
+    e.yaw = this.player.yaw;
+    e.vel = this.vehicles.seat ? this.player.vel : 0;
+    e.truck = !!this.drivingTruck();
+    this.traffic.update(dt, t, e);
     this.updateAgents(dt, t);
     this.checkHits(now);
     this.updateNavi(now);
-    // Kare yalnızca sürerken ya da yakında (250 m) trafik varken gerekir (avluda dururken pil)
-    return !!this.vehicles.seat || !!this.traffic.near(this.player.pos.x, this.player.pos.z, 250) || this.agentMeshes.size > 0;
+    // Kare yalnızca sürerken ya da yakında (150 m) trafik varken gerekir (avluda dururken pil)
+    return !!this.vehicles.seat || this.traffic.near100 || this.agentMeshes.size > 0;
   }
 }
 

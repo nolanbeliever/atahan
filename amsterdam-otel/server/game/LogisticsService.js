@@ -1,6 +1,6 @@
 import { EVT } from '../../shared/constants.js';
 import { CAR_BY_ID, isTruck, carSpeedCap } from '../../shared/cars.js';
-import { SITE_BY_ID, HOTEL_DELIVERY, siteDistance, routeTo, destinationPoint } from '../../shared/worldmap.js';
+import { SITE_BY_ID, HOTEL_DELIVERY, siteDistance, siteTripSec, routeTo, routeTimeSec, destinationPoint, SERVICE_YARD } from '../../shared/worldmap.js';
 import {
   CARGO_TYPES, CARGO_BY_ID, LOGI_RULES as R, offerTerms, deliveryPay, hitDamage, HAUL_COMPANIES, HAUL_GOODS, HAUL_GOOD_BY_ID, HAUL_RULES,
   haulTerms,
@@ -131,7 +131,7 @@ export class LogisticsService {
     const c = CARGO_TYPES[Math.floor(this.rand() * CARGO_TYPES.length)];
     const pallets = c.min + Math.floor(this.rand() * (c.max - c.min + 1));
     const dist = siteDistance(c.site);
-    const terms = offerTerms(c.id, pallets, dist);
+    const terms = offerTerms(c.id, pallets, dist, siteTripSec(c.site));
     return { id: `o${this.seq++}`, cargo: c.id, site: c.site, pallets, dist, ...terms, expires: now + R.OFFER_TTL_MS * (0.6 + this.rand() * 0.8) };
   }
 
@@ -145,9 +145,12 @@ export class LogisticsService {
     const company = HAUL_COMPANIES[Math.floor(this.rand() * HAUL_COMPANIES.length)];
     const pallets = HAUL_RULES.MIN_PALLETS + Math.floor(this.rand() * (HAUL_RULES.MAX_PALLETS - HAUL_RULES.MIN_PALLETS + 1));
     const a = destinationPoint(from);
-    const leg = routeTo(a[0], a[1], to)?.length ?? siteDistance(to);
-    const dist = Math.round(siteDistance(from) + leg);
-    return { id: `h${this.seq++}`, kind: 'haul', company, goods, site: from, to, pallets, dist, ...haulTerms(pallets, dist), expires: now + R.OFFER_TTL_MS * (0.6 + this.rand() * 0.8) };
+    const y = SERVICE_YARD.exit;
+    const first = routeTo(y[0], y[1], from);
+    const second = routeTo(a[0], a[1], to);
+    const dist = Math.round((first?.length ?? siteDistance(from)) + (second?.length ?? siteDistance(to)));
+    const drive = first && second ? routeTimeSec(first) + routeTimeSec(second) : null;
+    return { id: `h${this.seq++}`, kind: 'haul', company, goods, site: from, to, pallets, dist, ...haulTerms(pallets, dist, drive), expires: now + R.OFFER_TTL_MS * (0.6 + this.rand() * 0.8) };
   }
 
   /** Eksik / süresi dolan teklifler tamamlanır. @returns {boolean} değişti mi */

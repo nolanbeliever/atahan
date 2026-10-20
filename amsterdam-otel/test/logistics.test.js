@@ -9,7 +9,8 @@ import {
 } from '../shared/cars.js';
 import {
   HWY, SERVICE_YARD, HOTEL_DELIVERY, SITES, SITE_BY_ID, ROADS, isDrivable, routeTo, siteDistance, roadLimitKmh,
-  constrainToRoads, laneAt, TRUNK_LENGTH, yardAt,
+  constrainToRoads, laneAt, TRUNK_LENGTH, yardAt, roadPoint, siteTripSec, routeTimeSec, GRAPH, SIGNALS, SIGNAL_CYCLE, signalState,
+  YARDS, destinationPoint, trunkAt,
 } from '../shared/worldmap.js';
 import { CARGO_TYPES, CARGO_BY_ID, LOGI_RULES, offerTerms, deliveryPay, HAUL_RULES, HAUL_GOOD_BY_ID, haulTerms } from '../shared/logistics.js';
 
@@ -78,12 +79,16 @@ test('harita: otoyol bölgesi diğer bölgelerle çakışmaz, rotalar sürülebi
     const a = yards[i]; const c = yards[j];
     assert.ok(a.maxX <= c.minX || c.maxX <= a.minX || a.maxZ <= c.minZ || c.maxZ <= a.minZ, `${i}-${j}`);
   }
-  assert.ok(TRUNK_LENGTH > 800, 'otoyol en az ~800 m');
-  assert.ok(ROADS.length === 4);
+  assert.ok(TRUNK_LENGTH > 6000, 'A10 en az ~6 km');
+  assert.ok(ROADS.length >= 10);
+  for (const k of ['trunk', 'spur', 'urban']) assert.ok(ROADS.some((r) => r.kind === k), k);
   // Her siteden otele ve otelden her siteye rota: bütün noktalar sürülebilir, uzunluk düz çizgiden uzun
   for (const s of SITES) {
     const d = siteDistance(s.id);
-    assert.ok(d > 300 && d < 1500, `${s.id} ${d}`);
+    assert.ok(d > 5000 && d < 9000, `${s.id} ${d}`);
+    // Gidiş-dönüş (tır sınırlarıyla) 10–15 dk
+    const trip = siteTripSec(s.id);
+    assert.ok(trip >= 600 && trip <= 900, `${s.id} tur ${Math.round(trip)} sn`);
     for (const [from, to] of [[[HOTEL_DELIVERY.x, HOTEL_DELIVERY.z], s.id], [[(s.load.minX + s.load.maxX) / 2, (s.load.minZ + s.load.maxZ) / 2], 'hotel']]) {
       const r = routeTo(from[0], from[1], to);
       assert.ok(r && r.pts.length >= 3, `${s.id} rota`);
@@ -107,8 +112,10 @@ test('harita: otoyol bölgesi diğer bölgelerle çakışmaz, rotalar sürülebi
   // Hız sınırı: otoyol 100, bağlantı 60, avlu 30; araba 100'de kesilir, tır kendi sınırlayıcısında (90)
   assert.equal(roadLimitKmh(420, -2), 100);
   assert.equal(roadLimitKmh(SERVICE_YARD.arrive.x, SERVICE_YARD.arrive.z), 30);
-  const spur = ROADS.find((r) => r.id === 'spur-food');
-  assert.equal(roadLimitKmh(spur.pts[8][0], spur.pts[8][1]), 60);
+  const sp = roadPoint('spur-nz', 300);
+  assert.equal(roadLimitKmh(sp.x, sp.z), 60);
+  const ur = roadPoint('nz-dijkweg', 200);
+  assert.equal(roadLimitKmh(ur.x, ur.z), 50);
   assert.ok(Math.abs(carSpeedCap(CAR_BY_ID['valk-tempesta'], 420, -2) * 3.6 - 100) < 1e-6);
   assert.ok(Math.abs(carSpeedCap(CAR_BY_ID['zeeland-lx'], 420, -2) * 3.6 - 90) < 1e-6);
   // Kısıt: yoldan çıkan nokta şeride itilir; şerit içindeki nokta değişmez
@@ -122,8 +129,9 @@ test('harita: otoyol bölgesi diğer bölgelerle çakışmaz, rotalar sürülebi
   const c = laneAt(300, -1, 0);
   assert.ok(isDrivable(a.x, a.z) && isDrivable(c.x, c.z) && Math.hypot(a.x - c.x, a.z - c.z) > 8);
   // Bölgeler
-  assert.equal(bigArea(500, 160), 'highway');
-  assert.equal(carZone(500, 160), 'highway');
+  const tp = trunkAt(800);
+  assert.equal(bigArea(tp.x, tp.z), 'highway');
+  assert.equal(carZone(tp.x, tp.z), 'highway');
   assert.equal(carZone(420, 60), null, 'yolun dışı');
   assert.ok(TELEPORTS.some((t) => t.id === 'logistics' && yardAt(t.point[0], t.point[1]) === 'yard'));
   // Tünel: varış noktaları tetik alanlarında değil
@@ -132,6 +140,68 @@ test('harita: otoyol bölgesi diğer bölgelerle çakışmaz, rotalar sürülebi
     for (const u of CAR_XFERS) assert.ok(!inXferZone(u, t.to.x, t.to.z), `${id} → ${u.id}`);
   }
   assert.equal(carZone(CAR_XFER_BY_ID.toCity.to.x, CAR_XFER_BY_ID.toCity.to.z), 'street');
+});
+
+test('genişletilmiş harita: yol grafı bağlı, rota adımları, Nieuw-Zuid trafik ışıkları, yasal ücret €200–300', async () => {
+  const { CONTACT, SAFE_DROP } = await import('../shared/illegal.js');
+  // Graf bağlı: her avludan her avluya rota var; adımlar varışla biter
+  for (const a of YARDS) {
+    for (const b of ['hotel', ...SITES.map((x) => x.id)]) {
+      const from = a.id === 'yard' ? [HOTEL_DELIVERY.x, HOTEL_DELIVERY.z] : destinationPoint(a.id);
+      const r = routeTo(from[0], from[1], b);
+      assert.ok(r && r.length > 0 || (a.id === b || (a.id === 'yard' && b === 'hotel')), `${a.id} → ${b}`);
+      if (r && r.steps?.length) assert.equal(r.steps[r.steps.length - 1].turn, 'arrive');
+    }
+  }
+  const nodes = GRAPH.nodes;
+  const seen = new Set([0]);
+  const q = [0];
+  while (q.length) {
+    const n = q.pop();
+    for (const id of nodes[n].edges) {
+      const e = GRAPH.edges[id];
+      for (const m of [e.a, e.b]) if (!seen.has(m)) { seen.add(m); q.push(m); }
+    }
+  }
+  assert.equal(seen.size, nodes.length, 'bütün kavşaklar birbirine bağlı');
+  // Şehir içi rota: Nieuw-Zuid deposuna sağa / sola dönüşler ve çıkış adımı
+  const rf = routeTo(HOTEL_DELIVERY.x, HOTEL_DELIVERY.z, 'food');
+  assert.ok(rf.steps.some((st) => st.kind === 'urban' && (st.turn === 'left' || st.turn === 'right')), 'şehirde dönüş');
+  assert.ok(rf.steps.some((st) => st.kind === 'spur' && st.from === 'trunk'), 'otoyoldan çıkış');
+  assert.ok(routeTimeSec(rf) > 240);
+  // Trafik ışıkları: iki eksen aynı anda yeşil olmaz, döngüde her eksen yeşil görür
+  assert.ok(SIGNALS.length >= 4);
+  for (const sg of SIGNALS) {
+    let ns = 0;
+    let ew = 0;
+    for (let t = 0; t < SIGNAL_CYCLE; t += 0.5) {
+      const a = signalState(sg, 'ns', t);
+      const b = signalState(sg, 'ew', t);
+      assert.ok(!(a === 'g' && b === 'g') && !(a !== 'r' && b !== 'r'), `t ${t}`);
+      if (a === 'g') ns++;
+      if (b === 'g') ew++;
+    }
+    assert.ok(ns > 0 && ew > 0);
+  }
+  // Kaçak iş noktaları sürülebilir avlularda
+  const cz = CONTACT.zone;
+  assert.equal(yardAt((cz.minX + cz.maxX) / 2, (cz.minZ + cz.maxZ) / 2), 'port');
+  const dz = SAFE_DROP.zone;
+  assert.equal(yardAt((dz.minX + dz.maxX) / 2, (dz.minZ + dz.maxZ) / 2), SAFE_DROP.site);
+  // Yasal ücret: zamanında €200–300 (her yük, her palet sayısı); süre rota süresinin üstünde
+  for (const c of CARGO_TYPES) {
+    for (const n of [c.min, c.max]) {
+      const t = offerTerms(c.id, n, siteDistance(c.site), siteTripSec(c.site));
+      const paid = Math.round(t.fee * LOGI_RULES.ONTIME_MUL);
+      assert.ok(paid >= LOGI_RULES.FEE_MIN - 1 && paid <= LOGI_RULES.FEE_MAX + 1, `${c.id} ${n}: ${paid}`);
+      assert.ok(t.timeSec > siteTripSec(c.site) * 1.3, 'süre payı');
+    }
+  }
+  // Kiralık şoförlük yasal işten hep düşük
+  for (const km of [3, 8, 14]) for (const n of [HAUL_RULES.MIN_PALLETS, HAUL_RULES.MAX_PALLETS]) {
+    const paid = Math.round(haulTerms(n, km * 1000).fee * LOGI_RULES.ONTIME_MUL);
+    assert.ok(paid <= HAUL_RULES.FEE_MAX + 1 && paid < LOGI_RULES.FEE_MIN);
+  }
 });
 
 test('katalog: tırlar AutoGalerie listesinde değil, fizik ağır ve yavaş', () => {
@@ -364,7 +434,8 @@ test('kalıcılık: tır avluda kalır, istatistikler saklanır; bozuk tır konu
   const p = s.sim.addPlayer('Şoför', KEY_A);
   assert.ok(s.sim.carAct(p.id, { act: 'buy', model: 'noordkaap-v8', color: 2, source: 'wallet' }).ok);
   const t = trucksOf(s.sim, p)[0];
-  t.x = 520; t.z = 190; // VersMarkt avlusu
+  const fd = SITE_BY_ID.food.load;
+  t.x = (fd.minX + fd.maxX) / 2; t.z = (fd.minZ + fd.maxZ) / 2; // VersMarkt avlusu
   s.sim.logistics.stats.deliveries = 3;
   s.sim.house.saveNow?.();
   s.sim.removePlayer(p.id);
@@ -398,10 +469,10 @@ test('kiralık şoförlük: tır gerekmez, firmanın tırı gelir; firmanın mal
   const h = board.state.hauls[0];
   assert.notEqual(h.site, h.to, 'iki farklı yer');
   assert.ok(HAUL_GOOD_BY_ID[h.goods]);
-  // Aynı mesafe / palette kendi tırınla yapılan işten düşük ücret
-  const own = Math.round(LOGI_RULES.FEE_BASE + LOGI_RULES.FEE_PER_KM * (h.dist / 1000) * (0.5 + h.pallets / 24));
+  // Kendi tırınla yapılan yasal işten (€200–300) hep düşük: zamanında €90–150
   assert.equal(h.fee, haulTerms(h.pallets, h.dist).fee);
-  assert.ok(h.fee < own * 0.5 && h.fee > 0);
+  const paid = Math.round(h.fee * LOGI_RULES.ONTIME_MUL);
+  assert.ok(paid >= HAUL_RULES.FEE_MIN - 1 && paid <= HAUL_RULES.FEE_MAX + 1 && paid < LOGI_RULES.FEE_MIN, `kiralık ${paid}`);
   // Tırı olmayan oyuncu alabilir; firmanın tırı avludaki tır parkına gelir (kayda girmez)
   assert.equal((p.carRecs ?? []).length, 0);
   const acc = logi(sim, p, { act: 'accept', offer: h.id });
