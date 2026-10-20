@@ -478,6 +478,9 @@ const settingsPanel = new SettingsPanel({
 
 // ---- Ağ olayları ----------------------------------------------------------------
 
+// Shader ön derleme + doku yükleme: menüdeyken (motor duraklatılmış), oyunda ilk görüşte takılma olmasın
+engine.prewarm();
+
 net.on('connect', async () => {
   hud.setConnection('Bağlandı ✓');
   await net.syncClock();

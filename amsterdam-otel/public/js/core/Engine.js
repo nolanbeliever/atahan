@@ -6,6 +6,8 @@ const IDLE_FRAMES_BEFORE_SLEEP = 8;
 // hedefin DEGRADE_RATIO katını aşarsa kalite bir kademe düşürülür.
 const PERF_WINDOW = 90;
 const DEGRADE_RATIO = 1.35;
+// Tek seferlik takılmalar (ilk görüşte derleme, sekme değişimi) ortalamayı bozmasın
+const PERF_OUTLIER_MS = 250;
 
 /**
  * Render motoru ve TEK requestAnimationFrame döngüsü.
@@ -19,8 +21,13 @@ const DEGRADE_RATIO = 1.35;
  *    hiçbir kare istenmez.
  *  - Gölgeler statiktir: gölge haritası yalnızca bir kez (ya da istek
  *    üzerine) çizilir, her karede değil.
- *  - Uyarlanabilir kalite: cihaz hedef FPS'i tutturamazsa önce render
- *    ölçeği, sonra gölgeler, en son doku çözünürlüğü düşürülür.
+ *  - Uyarlanabilir kalite: cihaz hedef FPS'i tutturamazsa yalnızca render
+ *    ölçeği düşürülür (ucuz, takılma yapmaz). Gölgeyi kapatmak bütün shader'ları,
+ *    doku çözünürlüğünü düşürmek bütün dokuları yeniden derletir / yükletir —
+ *    oyun ortasında 1–2 sn donma ("takılıp sıçrama") yaptığı için otomatik
+ *    yapılmaz; Ayarlar → Kalite'den elle seçilir.
+ *  - Shader ön derleme (prewarm): menüdeyken sahnedeki bütün malzemeler (gizli
+ *    alanlar dahil) derlenir, dokular GPU'ya yüklenir; ilk görüşte takılma olmaz.
  */
 export class Engine {
   constructor({ canvas, device, quality, fpsCap }) {
@@ -231,9 +238,11 @@ export class Engine {
       this.lastRender = now;
       return;
     }
-    this.perf.sum += now - this.lastRender;
-    this.perf.n++;
+    const ms = now - this.lastRender;
     this.lastRender = now;
+    if (ms > PERF_OUTLIER_MS) return;
+    this.perf.sum += ms;
+    this.perf.n++;
     if (this.perf.n < PERF_WINDOW) return;
     const avg = this.perf.sum / this.perf.n;
     this.perf.sum = 0;
@@ -247,17 +256,39 @@ export class Engine {
       this.pixelRatio = Math.max(this.minPixelRatio, Math.round(this.pixelRatio * 0.85 * 100) / 100);
       this.resize();
       step = `render ölçeği ${this.pixelRatio}`;
-    } else if (this.renderer.shadowMap.enabled) {
-      this.setShadowsEnabled(false);
-      step = 'gölgeler kapatıldı';
-    } else if (!this.texturesReduced && this.onDegrade) {
-      this.texturesReduced = true;
-      this.onDegrade('textures');
-      step = 'doku çözünürlüğü yarıya indirildi';
     } else {
       return;
     }
     console.info(`[Motor] Ortalama kare ${avgMs.toFixed(1)} ms → ${step}`);
+  }
+
+  /**
+   * Shader ön derleme: sahnedeki bütün malzemeleri (görünmeyen alanlar dahil) KHR_parallel_shader_compile ile
+   * arka planda derler ve dokuları GPU'ya yükler. Menüdeyken çağrılır; oyunda ilk görüşte takılma olmaz.
+   * @returns {Promise<void>}
+   */
+  async prewarm() {
+    const r = this.renderer;
+    const t0 = performance.now();
+    const seen = new Set();
+    this.scene.traverse((o) => {
+      if (!o.material) return;
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        for (const k in m) {
+          const t = m[k];
+          if (t?.isTexture && !seen.has(t) && t.image) {
+            seen.add(t);
+            r.initTexture(t);
+          }
+        }
+      }
+    });
+    try {
+      await r.compileAsync(this.scene, this.camera);
+    } catch (err) {
+      console.warn('[Motor] Ön derleme atlandı:', err);
+    }
+    console.info(`[Motor] Ön derleme: ${r.info.programs.length} shader, ${seen.size} doku · ${Math.round(performance.now() - t0)} ms`);
   }
 
   setShadowsEnabled(on) {

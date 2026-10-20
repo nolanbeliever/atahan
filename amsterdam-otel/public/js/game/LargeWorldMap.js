@@ -616,6 +616,12 @@ export class LargeWorldMap {
     this.portal = buildCityPortal(engine.scene);
     this.traffic = new Traffic(world.group, device.touch ? 14 : 26);
     this.fog = new THREE.Fog(0xa9c7de, 220, HWY.far - 40);
+    // Sis sahnede hep durur (şehirde etkisiz uzaklıkta): sis aç / kapa bütün shader'ları yeniden derletir
+    this.fogNear = this.fog.near;
+    this.fogFar = this.fog.far;
+    this.fog.near = 1e5;
+    this.fog.far = 1e5 + 1;
+    engine.scene.fog = this.fog;
 
     // Yol kısıtı: sürerken ve yürürken (yalnızca bölgede; başka yerde hemen döner)
     collision.constraints.push((pos, r) => {
@@ -716,11 +722,16 @@ export class LargeWorldMap {
   onArea(id) {
     this.inRegion = id === 'highway';
     const scene = this.engine.scene;
+    if (scene.fog !== this.fog) scene.fog = this.fog;
     if (this.inRegion) {
-      scene.fog = this.fog;
+      this.fog.near = this.fogNear;
+      this.fog.far = this.fogFar;
       this.fog.color.copy(scene.background?.isColor ? scene.background : this.fog.color);
       if (!this.boardAsked) this.requestBoard();
-    } else if (scene.fog === this.fog) scene.fog = null;
+    } else {
+      this.fog.near = 1e5; // şehirde etkisiz
+      this.fog.far = 1e5 + 1;
+    }
     this.el.navi.hidden = true;
     this.naviAt = 0;
     for (const m of this.agentMeshes.values()) m.visible = this.inRegion;
