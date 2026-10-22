@@ -14,6 +14,8 @@ Snapchat'ten esinlenilmiş, tarayıcıda çalışan bir web uygulaması.
 - **Avatar tasarlama** (profil resmine dokun ✏️): Bitmoji tarzı avatar — 40 kıyafet, 15 saç modeli, 12 saç rengi, 8 ten tonu, göz/ağız/sakal, 14 aksesuar ve 12 arka plan; takım elbise, smokin, deri ceket, astronot, süper kahraman, taç gibi güzel parçalar Snoop Plus'a özel. Avatarın arkadaş listesinde, aramada ve sohbet başlığında görünür
 - **Snoop Plus fiyatlandırma** (✨): Snoop Plus aylık 200 TL — uygulamada ödeme yok, almak isteyenler adminlerle konuşur, admin `/admin.html`'den Plus verir
 - Metin mesajı gönderme
+- **Sohbette kaydetme**: mesaja basılı tut veya 💾 Kaydet'e dokun; snap'i açarken "Sohbette Kaydet" dersen kaybolmaz, iki taraf da tekrar açabilir
+- **Ekran görüntüsü uyarısı**: bilgisayarda snap'in ekran görüntüsü alınırsa gönderene bildirilir (iPhone/iPad'de tarayıcılar bunu algılayamaz)
 - Hem snap'lere hem mesajlara **yanıt verme**
 - **Streak**: karşılıklı her gün snap/mesaj atan arkadaşlar için 🔥 seri sayacı; her 50 günde bir taraflara 1 haftalık Snoop Plus hediye edilir
 - **Snoop Plus**: özel sohbet arka planları, en sevdiğin arkadaşı (⭐) seçme, 20 özel filtre, özel avatar kıyafet ve aksesuarları
@@ -26,6 +28,10 @@ Snapchat'ten esinlenilmiş, tarayıcıda çalışan bir web uygulaması.
 ### ⚠️ Admin hesabı hakkında
 
 Sunucu ilk açılışta otomatik olarak `adminruhi` / `hdabla` bilgileriyle bir admin hesabı oluşturur (istersen `ADMIN_USERNAME` / `ADMIN_PASSWORD` ortam değişkenleriyle değiştirebilirsin). Bu repo **public** olduğu için varsayılan şifre GitHub'da herkese açıktır — deploy ettikten hemen sonra admin hesabıyla giriş yapıp `/admin.html` sayfasındaki "Kendi şifreni değiştir" formundan şifreyi değiştir.
+
+## Kalıcı veriler (Render)
+
+Render'ın ücretsiz planı her yeniden başlatmada diski siler. Verilerin kalması için ücretsiz bir Postgres (Supabase veya Neon) bağlantı adresini Render'da `DATABASE_URL` ortam değişkeni olarak ekle. Sunucu açılışta verileri oradan geri yükler, her değişiklikten birkaç saniye sonra ve kapanırken oraya yedekler.
 
 ## Çalıştırma
 

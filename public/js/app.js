@@ -13,6 +13,7 @@ let cameraStream = null;
 let capturedDataUrl = null;
 let currentFacingMode = 'user';
 let pendingViewerTimer = null;
+let viewerMsg = null; // chat message shown in the snap viewer (null for local previews)
 let currentFilterId = 'none';
 let chatBackgrounds = [];
 
@@ -132,13 +133,23 @@ function connectSocket() {
     renderSidebar();
   });
 
-  socket.on('message:viewed', ({ id, viewedAt }) => {
-    for (const arr of messagesByFriend.values()) {
-      const m = arr.find((x) => x.id === id);
-      if (m) { m.viewedAt = viewedAt; m.hasImage = false; }
-    }
+  socket.on('message:viewed', ({ id, viewedAt, hasImage }) => {
+    const m = findMessageById(id);
+    if (m) { m.viewedAt = viewedAt; m.hasImage = !!hasImage; }
     const row = document.querySelector(`[data-msg-id="${id}"]`);
     if (row) updateSnapCardEl(row);
+  });
+
+  socket.on('message:saved', ({ id, saved, hasImage }) => {
+    const m = findMessageById(id);
+    if (m) { m.saved = saved; m.hasImage = hasImage; }
+    const row = document.querySelector(`[data-msg-id="${id}"]`);
+    if (row && m) updateSavedState(row, m);
+    if (viewerMsg && viewerMsg.id === id) { viewerMsg.saved = saved; updateViewerSaveBtn(); }
+  });
+
+  socket.on('snap:screenshot', ({ byId }) => {
+    toast(`📸 ${friendNameById(byId)} snap'inin ekran görüntüsünü aldı!`);
   });
 
   socket.on('friend:request', ({ from }) => {
@@ -522,10 +533,52 @@ function appendMessageDOM(msg, scroll = true) {
   replyBtn.textContent = '↩ Yanıtla';
   replyBtn.addEventListener('click', () => startReply(msg));
   actions.appendChild(replyBtn);
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'msg-save-btn';
+  saveBtn.addEventListener('click', () => toggleSaveMessage(msg));
+  actions.appendChild(saveBtn);
   row.appendChild(actions);
+  updateSavedState(row, msg);
+
+  // Snapchat-style: press and hold a message to save/unsave it.
+  let holdTimer = null;
+  const bodyEl = row.querySelector('.bubble, .snap-card');
+  bodyEl.addEventListener('touchstart', () => {
+    holdTimer = setTimeout(() => { holdTimer = 'fired'; toggleSaveMessage(msg); }, 550);
+  }, { passive: true });
+  const cancelHold = (e) => {
+    if (holdTimer === 'fired' && e.type === 'touchend') e.preventDefault(); // don't also open the snap
+    if (holdTimer !== 'fired') clearTimeout(holdTimer);
+    holdTimer = null;
+  };
+  bodyEl.addEventListener('touchend', cancelHold);
+  bodyEl.addEventListener('touchmove', cancelHold, { passive: true });
+  bodyEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
   box.appendChild(row);
   if (scroll) scrollMessagesToBottom();
+}
+
+function updateSavedState(row, msg) {
+  row.classList.toggle('saved', !!msg.saved);
+  const btn = row.querySelector('.msg-save-btn');
+  if (btn) btn.textContent = msg.saved ? '✓ Kaydedildi' : '💾 Kaydet';
+  if (msg.type === 'snap') updateSnapCardEl(row, msg);
+}
+
+async function toggleSaveMessage(msg) {
+  try {
+    const { message } = await postJSON(`/api/messages/${msg.id}/save`, { saved: !msg.saved });
+    msg.saved = message.saved;
+    msg.hasImage = message.hasImage;
+    const row = document.querySelector(`[data-msg-id="${msg.id}"]`);
+    if (row) updateSavedState(row, msg);
+    toast(msg.saved ? '💾 Sohbette kaydedildi' : 'Kayıt kaldırıldı');
+    return true;
+  } catch (e) {
+    toast(e.message);
+    return false;
+  }
 }
 
 function updateSnapCardEl(row, msgArg) {
@@ -536,6 +589,13 @@ function updateSnapCardEl(row, msgArg) {
   const isOwn = msg.senderId === me.id;
   card.className = 'snap-card';
   const cachedImg = localImageCache.get(msg.id);
+
+  if (msg.saved && msg.hasImage && (msg.viewedAt || isOwn)) {
+    card.classList.add('saved-snap');
+    card.textContent = '💾 Kaydedilmiş snap • Açmak için dokun';
+    card.onclick = () => viewSnap(msg);
+    return;
+  }
 
   if (isOwn) {
     if (msg.viewedAt) {
@@ -602,16 +662,44 @@ async function viewSnap(msg) {
   try {
     const { message } = await postJSON(`/api/messages/${msg.id}/view`);
     msg.viewedAt = message.viewedAt;
-    msg.hasImage = false;
+    msg.hasImage = message.hasImage;
+    msg.saved = message.saved;
     const row = document.querySelector(`[data-msg-id="${msg.id}"]`);
     if (row) updateSnapCardEl(row, msg);
-    openSnapViewer(message.imageData, message.caption);
+    openSnapViewer(message.imageData, message.caption, msg);
   } catch (e) {
     toast(e.message);
   }
 }
 
-function openSnapViewer(imageData, caption) {
+function updateViewerSaveBtn() {
+  const btn = $('viewer-save-btn');
+  btn.classList.toggle('hidden', !viewerMsg);
+  if (viewerMsg) btn.textContent = viewerMsg.saved ? '✓ Kaydedildi' : '💾 Sohbette Kaydet';
+}
+
+async function saveFromViewer() {
+  if (!viewerMsg) return;
+  const ok = await toggleSaveMessage(viewerMsg);
+  if (ok) updateViewerSaveBtn();
+}
+
+// Web pages can't detect screenshots on iPhone/iPad; this only catches the keyboard
+// shortcuts on a computer (PrintScreen, Cmd+Shift+3/4/5, Win+Shift+S).
+function detectScreenshotKey(e) {
+  if (!viewerMsg || viewerMsg.senderId === me.id || $('snap-viewer').classList.contains('hidden')) return;
+  const k = (e.key || '').toLowerCase();
+  const isShot = k === 'printscreen'
+    || (e.metaKey && e.shiftKey && ['3', '4', '5', 's'].includes(k));
+  if (isShot && !viewerMsg.screenshotReported) {
+    viewerMsg.screenshotReported = true;
+    postJSON(`/api/messages/${viewerMsg.id}/screenshot`).catch(() => {});
+  }
+}
+
+function openSnapViewer(imageData, caption, msg = null) {
+  viewerMsg = msg;
+  updateViewerSaveBtn();
   const viewer = $('snap-viewer');
   $('viewer-image').src = imageData;
   const capEl = $('viewer-caption');
@@ -635,6 +723,7 @@ function closeSnapViewer() {
   clearTimeout(pendingViewerTimer);
   $('snap-viewer').classList.add('hidden');
   $('viewer-image').src = '';
+  viewerMsg = null;
 }
 
 /* ---------- Camera ---------- */
@@ -1226,6 +1315,9 @@ function bindUI() {
   $('switch-camera-btn').addEventListener('click', switchCamera);
 
   $('viewer-close-btn').addEventListener('click', closeSnapViewer);
+  $('viewer-save-btn').addEventListener('click', saveFromViewer);
+  document.addEventListener('keydown', detectScreenshotKey);
+  document.addEventListener('keyup', (e) => { if ((e.key || '').toLowerCase() === 'printscreen') detectScreenshotKey(e); });
 
   $('admin-link-btn').addEventListener('click', () => { window.location.href = '/admin.html'; });
   $('best-friend-btn').addEventListener('click', toggleBestFriend);

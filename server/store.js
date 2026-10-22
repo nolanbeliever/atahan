@@ -257,6 +257,14 @@ const messages = {
   `),
   markViewed: db.prepare(`UPDATE messages SET viewed_at = datetime('now') WHERE id = ? AND viewed_at IS NULL`),
   clearImage: db.prepare(`UPDATE messages SET image_data = NULL WHERE id = ?`),
+  setSaved: db.prepare(`UPDATE messages SET saved = ? WHERE id = ?`),
+  // Opened snaps keep their image for a short grace period so the viewer can still tap
+  // "Kaydet" while looking at it; after that, unsaved ones disappear for good.
+  purgeOpenedSnaps: db.prepare(`
+    UPDATE messages SET image_data = NULL
+    WHERE type = 'snap' AND saved = 0 AND image_data IS NOT NULL
+      AND viewed_at IS NOT NULL AND viewed_at < datetime('now', '-2 minutes')
+  `),
   lastPerFriend: db.prepare(`
     SELECT m.*
     FROM messages m
@@ -278,7 +286,8 @@ function publicMessage(m, { includeImage = false } = {}) {
     type: m.type,
     content: m.content,
     imageData: m.type === 'snap' && includeImage ? m.image_data : undefined,
-    hasImage: m.type === 'snap' ? !!m.image_data : undefined,
+    hasImage: m.type === 'snap' ? !!m.image_data && (!m.viewed_at || !!m.saved) : undefined,
+    saved: !!m.saved,
     caption: m.caption,
     replyToId: m.reply_to_id,
     viewedAt: m.viewed_at,
@@ -303,16 +312,35 @@ function getConversation(userId, friendId) {
   return messages.conversation.all({ a: userId, b: friendId });
 }
 
+function isParticipant(m, userId) {
+  return m.sender_id === userId || m.receiver_id === userId;
+}
+
 function markSnapViewed(messageId, viewerId) {
   const m = messages.byId.get(messageId);
-  if (!m || m.receiver_id !== viewerId || m.type !== 'snap') return null;
-  if (m.viewed_at) return { alreadyViewed: true, message: m };
-  const imageData = m.image_data;
+  if (!m || m.type !== 'snap' || !isParticipant(m, viewerId)) return null;
+  // Saved snaps can be reopened by either side as long as they stay saved.
+  if (m.saved && m.image_data) return { alreadyViewed: false, message: m, firstView: false };
+  if (m.receiver_id !== viewerId || m.viewed_at || !m.image_data) return { alreadyViewed: true, message: m };
   messages.markViewed.run(messageId);
-  messages.clearImage.run(messageId);
-  const updated = messages.byId.get(messageId);
-  updated.image_data = imageData; // return the one-time image to the caller only
-  return { alreadyViewed: false, message: updated };
+  return { alreadyViewed: false, message: messages.byId.get(messageId), firstView: true };
+}
+
+function setMessageSaved(messageId, userId, saved) {
+  const m = messages.byId.get(messageId);
+  if (!m || !isParticipant(m, userId)) return null;
+  if (m.type === 'snap' && saved && m.viewed_at && !m.image_data) return { gone: true };
+  messages.setSaved.run(saved ? 1 : 0, messageId);
+  if (m.type === 'snap' && !saved && m.viewed_at) messages.clearImage.run(messageId);
+  return { message: messages.byId.get(messageId) };
+}
+
+function purgeOpenedSnaps() {
+  messages.purgeOpenedSnaps.run();
+}
+
+function getMessage(messageId) {
+  return messages.byId.get(messageId);
 }
 
 function getInbox(userId) {
@@ -353,6 +381,9 @@ function deleteGalleryItem(id, userId) {
 }
 
 module.exports = {
+  setMessageSaved,
+  purgeOpenedSnaps,
+  getMessage,
   setAvatarConfig,
   publicUser,
   privateUser,

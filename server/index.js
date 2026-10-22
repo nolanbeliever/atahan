@@ -314,9 +314,47 @@ app.post('/api/messages/:id/view', requireAuth, (req, res) => {
   }
   const { message: msg } = result;
   const payload = store.publicMessage(msg, { includeImage: true });
-  io.to(`user:${msg.sender_id}`).emit('message:viewed', { id: msg.id, viewedAt: msg.viewed_at });
+  if (result.firstView) {
+    io.to(`user:${msg.sender_id}`).emit('message:viewed', { id: msg.id, viewedAt: msg.viewed_at, hasImage: payload.hasImage });
+  }
   res.json({ message: payload });
 });
+
+app.post('/api/messages/:id/save', requireAuth, (req, res) => {
+  const saved = !!(req.body || {}).saved;
+  const result = store.setMessageSaved(Number(req.params.id), req.session.userId, saved);
+  if (!result) return res.status(404).json({ error: 'Bulunamadı.' });
+  if (result.gone) return res.status(410).json({ error: 'Bu snap kayboldu, artık kaydedilemez.' });
+  const payload = store.publicMessage(result.message);
+  const update = { id: payload.id, saved: payload.saved, hasImage: payload.hasImage };
+  io.to(`user:${payload.senderId}`).emit('message:saved', update);
+  io.to(`user:${payload.receiverId}`).emit('message:saved', update);
+  res.json({ message: payload });
+});
+
+// Browsers can't see real screenshots on iPhone/iPad; the client reports the ones it can
+// detect (screenshot shortcuts on a computer) and the snap's sender is told in the chat.
+app.post('/api/messages/:id/screenshot', requireAuth, (req, res) => {
+  const m = store.getMessage(Number(req.params.id));
+  const userId = req.session.userId;
+  if (!m || m.type !== 'snap' || m.sender_id === userId || m.receiver_id !== userId) {
+    return res.status(404).json({ error: 'Bulunamadı.' });
+  }
+  const notice = store.sendMessage({
+    senderId: userId,
+    receiverId: m.sender_id,
+    type: 'text',
+    content: '📸 Snap\'inin ekran görüntüsünü aldı!',
+    replyToId: m.id,
+  });
+  const payload = store.publicMessage(notice);
+  io.to(`user:${m.sender_id}`).emit('message:new', payload);
+  io.to(`user:${m.sender_id}`).emit('snap:screenshot', { byId: userId, messageId: m.id });
+  io.to(`user:${userId}`).emit('message:new', payload);
+  res.json({ ok: true });
+});
+
+setInterval(() => store.purgeOpenedSnaps(), 30 * 1000).unref();
 
 // ---------- Socket.IO ----------
 

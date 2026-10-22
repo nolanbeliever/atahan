@@ -1164,3 +1164,21 @@ input { font-family: inherit; }
   pointer-events: none;
 }
 .avatar-tabs, .avatar-preview-row, .avatar-sheet .game-sheet-header, #avatar-save-btn { flex-shrink: 0; }
+
+/* ---------- Saved in chat ---------- */
+.msg-row.saved .bubble,
+.msg-row.saved .snap-card { box-shadow: 0 0 0 2px var(--accent); }
+.msg-row.saved .msg-save-btn { color: var(--accent); }
+.snap-card.saved-snap { color: var(--accent); cursor: pointer; }
+.msg-row.own .snap-card.saved-snap { color: var(--accent); cursor: pointer; }
+.bubble, .snap-card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.viewer-save-btn {
+  background: var(--accent);
+  color: #0e0e10;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
