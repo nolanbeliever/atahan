@@ -222,6 +222,7 @@ export class IllegalLogistics {
   async act(act, extra = {}) {
     if (this.pending) return null;
     this.pending = true;
+    this.net.resendMove?.(); // önce güncel konum
     const res = await this.net.request(EVT.ILLEGAL_ACT, { act, ...extra });
     this.pending = false;
     if (!res?.ok) {

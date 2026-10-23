@@ -280,6 +280,7 @@ export class LargeWorldMap {
   async act(act) {
     if (this.pending) return;
     this.pending = true;
+    this.net.resendMove?.(); // önce güncel konum (aynı soket sırasıyla eylemden önce işlenir)
     const res = await this.net.request(EVT.LOGI_ACT, { act });
     this.pending = false;
     if (!res?.ok) {

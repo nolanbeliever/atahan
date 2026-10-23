@@ -31,6 +31,23 @@ export class Network {
     // Yeniden bağlanınca sunucu oyuncuyu baştan (lobide) oluşturur: aynı konum
     // "değişmedi" diye atlanmasın, ilk sendMove mutlaka gitsin
     this.socket.on('disconnect', () => { this.lastSent = null; });
+    // Kalp atışı: durunca son konum ~1 sn'de bir yeniden gider. Sunucu hız denetimi araç konumunu kırptıysa
+    // (ağ takılması, hızlı sürüş) duran aracın sunucudaki konumu da yetişir — yoksa "Yükle" ekranda görünür ama
+    // sunucu tırı birkaç metre geride sanıp "körfeze gir" der.
+    setInterval(() => {
+      if (this.lastSent && !this.pendingMove && Date.now() - this.lastMoveSent > 900) this.resendMove();
+    }, 1000);
+  }
+
+  /** Son konumu (değişmemiş olsa da) hemen yeniden gönder: eylemden önce sunucu konumu güncel olsun */
+  resendMove() {
+    if (this.pendingMove) {
+      this.flushMove();
+      return;
+    }
+    if (!this.lastSent || !this.socket.connected) return;
+    this.socket.emit(EVT.MOVE, this.lastSent);
+    this.lastMoveSent = Date.now();
   }
 
   on(event, fn) { this.socket.on(event, fn); }

@@ -3,7 +3,7 @@ import {
   CAR_BY_ID, CAR_RULES as R, GARAGE_LAYOUT, CAR_XFER_BY_ID, inXferZone, carZone, carSpeedCap, carExitSpots, bigArea,
   TRUCK_RULES, isTruck, canParkTruck,
 } from '../../shared/cars.js';
-import { SERVICE_YARD, yardAt } from '../../shared/worldmap.js';
+import { SERVICE_YARD, yardAt, inHighwayRegion, constrainToRoads } from '../../shared/worldmap.js';
 
 const HASH_RE = /^[0-9a-f]{64}$/;
 const CAR_ID_RE = /^k\d{1,6}$/;
@@ -276,6 +276,15 @@ export class GarageService {
       p.carGuard = null;
       return [x, z];
     }
+    // Otoyol bölgesinde sürülebilir alanın biraz dışına taşan konum (kenar, körfez köşesi, istemci kısıt farkı)
+    // reddedilmez, en yakın sürülebilir noktaya itilir: reddedilirse sunucu konumu donar, istemci sürmeye devam
+    // eder ve "Yükle" ekranda görünse de sunucu tırı geride sanır.
+    if (inHighwayRegion(x, z)) {
+      const q = { x, z };
+      constrainToRoads(q, 0);
+      x = q.x;
+      z = q.z;
+    }
     if (carZone(x, z) === null) return null; // arabayla bina / steeg / Achterstraat yok
     const def = CAR_BY_ID[v.model];
     if (isTruck(def) && carZone(x, z) !== 'highway') return null; // tır yalnızca otoyol bölgesinde
@@ -293,9 +302,9 @@ export class GarageService {
     const k = g.budget / d;
     g.budget = 0;
     this.sim.valet?.onClip(p, v, d); // VIP aracında hız ihlali küçük hasar yazar
-    const nx = r2(p.x + (x - p.x) * k);
-    const nz = r2(p.z + (z - p.z) * k);
-    return carZone(nx, nz) !== null ? [nx, nz] : null;
+    const c = { x: r2(p.x + (x - p.x) * k), z: r2(p.z + (z - p.z) * k) };
+    if (inHighwayRegion(c.x, c.z)) constrainToRoads(c, 0); // kırpılan ara nokta yol dışına düşmesin
+    return carZone(c.x, c.z) !== null ? [c.x, c.z] : null;
   }
 }
 

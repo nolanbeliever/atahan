@@ -146,7 +146,7 @@ export const CAR_RULES = freeze({
   USD: 1.08, // € → $ yaklaşık kur (yalnızca bilgi)
   SPEED_SLACK: 1.15, // sunucu hız denetimi: sınır × 1.15 + 1.5 m/sn
   SPEED_ADD: 1.5,
-  BURST_SEC: 0.8, // ağ gecikmesi için en fazla bu kadar saniyelik yol birikebilir
+  BURST_SEC: 2.5, // ağ gecikmesi / mobil takılmalar için en fazla bu kadar saniyelik yol birikebilir
   XFER_GRACE_MS: 1500, // ışınlanmadan sonra eski konumdan gelen gecikmiş paketler yok sayılır
 });
 

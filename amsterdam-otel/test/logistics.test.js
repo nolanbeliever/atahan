@@ -563,3 +563,30 @@ test('sevkiyat: otel kasası yetmezse toptan bedel cüzdandan, teslimde geri; k�
   assert.equal(no.ok, false);
   assert.match(no.error, /kasasında da cüzdanında da/);
 });
+
+test('hız denetimi araç konumunu kırpıp geride bıraksa da aynı konumun yeniden gönderilmesi (kalp atışı) yetiştirir; yükleme olur', () => {
+  const s = boardWithTruck();
+  const { sim, p, v } = s;
+  const board = logi(sim, p, { act: 'board' });
+  assert.ok(logi(sim, p, { act: 'accept', offer: board.state.offers[0].id }).ok);
+  const job = sim.logistics.jobOf(p);
+  const L = SITE_BY_ID[job.site].load;
+  const cx = (L.minX + L.maxX) / 2;
+  const cz = (L.minZ + L.maxZ) / 2;
+  // Körfezin 260 m gerisinden bir anda körfeze "atla" (ağ takılması gibi): sunucu kırpar, tır geride kalır
+  place(s, p, cx + 260, cz);
+  s.advance(200);
+  sim.movePlayer(p.id, cx, cz, 0);
+  assert.ok(Math.hypot(p.x - cx, p.z - cz) > 30, 'kırpıldı, geride');
+  assert.equal(logi(sim, p, { act: 'load' }).ok, false);
+  // İstemci durdu: aynı konum saniyede bir yeniden gelir → sunucu yetişir
+  for (let k = 0; k < 6; k++) {
+    s.advance(1000);
+    sim.movePlayer(p.id, cx, cz, 0);
+  }
+  assert.ok(Math.hypot(p.x - cx, p.z - cz) < 0.5, 'yetişti');
+  s.advance(1000);
+  const ld = logi(sim, p, { act: 'load' });
+  assert.ok(ld.ok, ld.error);
+  void v;
+});
