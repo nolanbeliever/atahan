@@ -3,7 +3,7 @@ import { CAR_BY_ID, isTruck, carSpeedCap } from '../../shared/cars.js';
 import { SITE_BY_ID, HOTEL_DELIVERY, siteDistance, siteTripSec, routeTo, routeTimeSec, destinationPoint, SERVICE_YARD } from '../../shared/worldmap.js';
 import {
   CARGO_TYPES, CARGO_BY_ID, LOGI_RULES as R, offerTerms, deliveryPay, hitDamage, HAUL_COMPANIES, HAUL_GOODS, HAUL_GOOD_BY_ID, HAUL_RULES,
-  haulTerms,
+  haulTerms, BAY_TOL,
 } from '../../shared/logistics.js';
 import { CAR_BY_ID as CARS } from '../../shared/cars.js';
 
@@ -339,7 +339,7 @@ export class LogisticsService {
     if (error) return { ok: false, error };
     const site = SITE_BY_ID[j.site];
     if (j.kind === 'haul' && v.id !== j.vehicleId) return { ok: false, error: `${j.company}'in tırıyla yüklemelisin — avludaki tır parkında seni bekliyor.` };
-    if (!inRect(site.load, p.x, p.z, 1.5)) return { ok: false, error: `Yükleme körfezine gir: ${site.name}.` };
+    if (!inRect(site.load, p.x, p.z, BAY_TOL + 1)) return { ok: false, error: `Yükleme körfezine gir: ${site.name}.` };
     if (this.speedOf(p, now) * 3.6 > R.STOP_KMH) return { ok: false, error: 'Önce tamamen dur.' };
     const veto = this.emitEvent('load', { job: j, p, v });
     if (veto) return { ok: false, error: veto };
@@ -353,8 +353,17 @@ export class LogisticsService {
       this.changed();
       return { ok: true, job: this.publicJob(j) };
     }
-    if (!(this.sim.money >= j.wholesale)) return { ok: false, error: `Otel kasasında toptan alım için €${j.wholesale.toLocaleString('nl-NL')} yok.` };
-    this.sim.spend(j.wholesale, `🚛 Toptan alım: ${j.pallets} palet ${CARGO_BY_ID[j.cargo].name} (${site.short})`);
+    // Toptan bedel otel kasasından; kasa yetmezse şoförün cüzdanından (teslimde cüzdana geri döner)
+    if (this.sim.money >= j.wholesale) {
+      this.sim.spend(j.wholesale, `🚛 Toptan alım: ${j.pallets} palet ${CARGO_BY_ID[j.cargo].name} (${site.short})`);
+      j.paidBy = 'kasa';
+    } else if (p.wallet >= j.wholesale) {
+      p.wallet -= j.wholesale;
+      this.sim.shop.sendSelf(p);
+      j.paidBy = 'wallet';
+    } else {
+      return { ok: false, error: `Toptan alım için €${j.wholesale.toLocaleString('nl-NL')} gerekli — otel kasasında da cüzdanında da yeterli para yok.` };
+    }
     j.state = 'loaded';
     j.loadedAt = now;
     j.vehicleId = v.id;
@@ -373,7 +382,7 @@ export class LogisticsService {
     if (error) return { ok: false, error };
     if (v.id !== j.vehicleId || !v.trailer) return { ok: false, error: 'Yük başka bir tırda.' };
     if (j.kind === 'haul') return this.deliverHaul(j, p, v, now);
-    if (!inRect(HOTEL_DELIVERY.zone, p.x, p.z, 1.5)) return { ok: false, error: 'Avludaki 🏨 mal kabul körfezine gir.' };
+    if (!inRect(HOTEL_DELIVERY.zone, p.x, p.z, BAY_TOL + 1)) return { ok: false, error: 'Avludaki 🏨 mal kabul körfezine gir.' };
     if (this.speedOf(p, now) * 3.6 > R.STOP_KMH) return { ok: false, error: 'Önce tamamen dur.' };
     const veto = this.emitEvent('deliver', { job: j, p, v });
     if (veto) return { ok: false, error: veto };
@@ -387,8 +396,9 @@ export class LogisticsService {
       console.error('[lojistik] cargo.deliver hatası:', err);
     }
     if (!handled && pay.value > 0) this.sim.earn(pay.value, `🚛 Sevkiyat teslim: ${j.pallets} palet ${CARGO_BY_ID[j.cargo].name}`, { guest: false });
-    if (pay.fee > 0) {
-      p.wallet += pay.fee;
+    const advance = j.paidBy === 'wallet' ? j.wholesale : 0; // cüzdandan ödenen toptan bedel geri
+    if (pay.fee > 0 || advance > 0) {
+      p.wallet += pay.fee + advance;
       this.sim.shop.sendSelf(p);
     }
     this.stats.deliveries++;
@@ -398,15 +408,15 @@ export class LogisticsService {
     this.stats.fees += pay.fee;
     this.endJob(j, p, 'delivered', { ...pay, handled });
     this.sim.house.scheduleSave?.();
-    const msg = `📦 Teslim edildi! Kasa +€${(handled ? 0 : pay.value).toLocaleString('nl-NL')}${handled ? ' (paletler 🚚 Mal Kabul Rampası\'nda — transpaletle indir)' : ''} · şoför ücreti +€${pay.fee}${pay.late ? ' (geç kaldın)' : ' (zamanında ⏱)'}${j.damage > 0.01 ? ` · hasar %${Math.round(j.damage * 100)}` : ''}`;
+    const msg = `📦 Teslim edildi! Kasa +€${(handled ? 0 : pay.value).toLocaleString('nl-NL')}${handled ? ' (paletler 🚚 Mal Kabul Rampası\'nda — transpaletle indir)' : ''} · şoför ücreti +€${pay.fee}${pay.late ? ' (geç kaldın)' : ' (zamanında ⏱)'}${advance ? ` · toptan bedel iadesi +€${advance}` : ''}${j.damage > 0.01 ? ` · hasar %${Math.round(j.damage * 100)}` : ''}`;
     this.sim.toPlayer(p.id, EVT.NOTIFY, { text: msg, kind: 'money' });
-    return { ok: true, ...pay, handled, text: msg };
+    return { ok: true, ...pay, handled, advance, text: msg };
   }
 
   /** Kiralık şoförlük teslimi: boşaltma yerinde; ücret (düşük) cüzdana, kasaya dokunulmaz, tır firmaya döner */
   deliverHaul(j, p, v, now) {
     const site = SITE_BY_ID[j.to];
-    if (!inRect(site.load, p.x, p.z, 1.5)) return { ok: false, error: `Boşaltma körfezine gir: ${site.name}.` };
+    if (!inRect(site.load, p.x, p.z, BAY_TOL + 1)) return { ok: false, error: `Boşaltma körfezine gir: ${site.name}.` };
     if (this.speedOf(p, now) * 3.6 > R.STOP_KMH) return { ok: false, error: 'Önce tamamen dur.' };
     const veto = this.emitEvent('deliver', { job: j, p, v });
     if (veto) return { ok: false, error: veto };
@@ -450,7 +460,13 @@ export class LogisticsService {
     let refund = 0;
     if (reason !== 'delivered' && j.state === 'loaded') {
       refund = Math.round(j.wholesale * R.CANCEL_REFUND);
-      if (refund > 0) this.sim.earn(refund, '🚛 Sevkiyat iptali: yük depoya iade', { guest: false });
+      if (refund > 0 && j.paidBy === 'wallet') {
+        const q = this.sim.players.get(j.ownerId);
+        if (q) {
+          q.wallet += refund;
+          this.sim.shop.sendSelf(q);
+        }
+      } else if (refund > 0) this.sim.earn(refund, '🚛 Sevkiyat iptali: yük depoya iade', { guest: false });
     }
     const v = j.vehicleId != null ? this.sim.vehicles.vehicles.get(j.vehicleId) : null;
     if (v?.trailer) {

@@ -28,6 +28,9 @@ export const CARGO_TYPES = freeze([
 ]);
 export const CARGO_BY_ID = byId(CARGO_TYPES);
 
+/** Körfez toleransı (m): tırın merkezi körfez dikdörtgeninin bu kadar dışında olsa da yükle / teslim et sayılır */
+export const BAY_TOL = 6;
+
 export const LOGI_RULES = freeze({
   OFFERS: 6, // panodaki teklif sayısı
   OFFER_TTL_MS: 12 * 60_000, // alınmayan teklif bu kadar sonra yenilenir

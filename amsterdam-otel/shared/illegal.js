@@ -155,7 +155,7 @@ export const DROP_SITES = freeze({
 
 export const RAID_RULES = freeze({
   UNLOAD_MS: 10_000, // indirme süresi (tır yerinde durmalı)
-  ZONE_TOL: 2, // indirme sırasında bölgeden bu kadar taşmak serbest (m)
+  ZONE_TOL: 9, // indirme sırasında bölgeden bu kadar taşmak serbest (m; başlama toleransı 7 m'nin üstünde)
   NIGHT_MUL: 0.6, // gece baskın olasılığı ×0.6
   HEAT_ADD: 0.4, // ısı 100'deyken olasılığa +0.40 (doğrusal)
   MAX_CHANCE: 0.85,

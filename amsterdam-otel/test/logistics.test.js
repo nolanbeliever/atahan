@@ -529,3 +529,37 @@ test('kiralık şoförlük: tır gerekmez, firmanın tırı gelir; firmanın mal
   sim.removePlayer(p.id);
   assert.equal(sim.vehicles.vehicles.has(v3), false);
 });
+
+test('sevkiyat: otel kasası yetmezse toptan bedel cüzdandan, teslimde geri; körfez toleransı', () => {
+  const s = boardWithTruck();
+  const { sim, p } = s;
+  const board = logi(sim, p, { act: 'board' });
+  const offer = board.state.offers[0];
+  assert.ok(logi(sim, p, { act: 'accept', offer: offer.id }).ok);
+  const job = sim.logistics.jobOf(p);
+  const site = SITE_BY_ID[job.site];
+  // Körfezin 5 m dışında da yüklenir (BAY_TOL)
+  place(s, p, site.load.maxX + 5, (site.load.minZ + site.load.maxZ) / 2);
+  sim.money = 10; // kasa boş
+  const w0 = p.wallet;
+  const ld = logi(sim, p, { act: 'load' });
+  assert.ok(ld.ok, ld.error);
+  assert.equal(sim.money, 10, 'kasaya dokunulmadı');
+  assert.equal(p.wallet, w0 - job.wholesale, 'cüzdandan ödendi');
+  place(s, p, HOTEL_DELIVERY.x, HOTEL_DELIVERY.z);
+  const d = logi(sim, p, { act: 'deliver' });
+  assert.ok(d.ok, d.error);
+  assert.equal(d.advance, job.wholesale);
+  assert.equal(p.wallet, w0 + d.fee, 'toptan bedel geri + şoför ücreti');
+  // Ne kasada ne cüzdanda para yoksa açık hata
+  const o2 = logi(sim, p, { act: 'board' }).state.offers[0];
+  assert.ok(logi(sim, p, { act: 'accept', offer: o2.id }).ok);
+  const j2 = sim.logistics.jobOf(p);
+  const s2 = SITE_BY_ID[j2.site];
+  place(s, p, (s2.load.minX + s2.load.maxX) / 2, (s2.load.minZ + s2.load.maxZ) / 2);
+  sim.money = 0;
+  p.wallet = 0;
+  const no = logi(sim, p, { act: 'load' });
+  assert.equal(no.ok, false);
+  assert.match(no.error, /kasasında da cüzdanında da/);
+});

@@ -5,7 +5,7 @@ import {
   HWY, SERVICE_YARD, HOTEL_DELIVERY, SITES, SITE_BY_ID, ROADS, YARDS, PLAZAS, SIGNALS, NIEUW_ZUID, isDrivable, yardAt, routeTo,
   routeTimeSec, constrainToRoads, roadLimitKmh, roadProject, signalState, inHighwayRegion,
 } from '/shared/worldmap.js';
-import { CARGO_BY_ID, LOGI_RULES, deliveryPay, HAUL_GOOD_BY_ID, HAUL_RULES, onTimeFee } from '/shared/logistics.js';
+import { CARGO_BY_ID, LOGI_RULES, deliveryPay, HAUL_GOOD_BY_ID, HAUL_RULES, onTimeFee, BAY_TOL } from '/shared/logistics.js';
 import { signMaterial, panel } from '../world/CarWorldKit.js';
 import { buildExpandedWorld } from './ExpandedWorldMap.js';
 import { TrafficSystemAI } from './TrafficSystemAI.js';
@@ -243,23 +243,25 @@ export class LargeWorldMap {
       const at = { x: px, z: pz, marker: false };
       const g = HAUL_GOOD_BY_ID[job.goods];
       if (truck.id !== job.vehicleId) return null;
-      if (job.state === 'accepted' && pointIn(SITE_BY_ID[job.site].load, px, pz, 1)) {
+      if (job.state === 'accepted' && pointIn(SITE_BY_ID[job.site].load, px, pz, BAY_TOL)) {
         return { ...at, short: 'Yükle', label: `📦 ${job.company}: ${job.pallets} palet ${g.name} yükle`, use: () => this.act('load') };
       }
-      if (job.state === 'loaded' && truck.trailer && pointIn(SITE_BY_ID[job.to].load, px, pz, 1)) {
+      if (job.state === 'loaded' && truck.trailer && pointIn(SITE_BY_ID[job.to].load, px, pz, BAY_TOL)) {
         return { ...at, short: 'Teslim', label: `📦 ${SITE_BY_ID[job.to].short}: ${job.company} yükünü boşalt`, use: () => this.act('deliver') };
       }
-      return null;
+      return bayHint(job.state === 'accepted' ? SITE_BY_ID[job.site].load : SITE_BY_ID[job.to].load, px, pz, job.state === 'accepted' ? 'yükleme' : 'boşaltma', this.hud);
     }
     if (truck) {
       const at = { x: px, z: pz, marker: false };
       if (job?.state === 'accepted') {
         const s = SITE_BY_ID[job.site];
-        if (pointIn(s.load, px, pz, 1)) return { ...at, short: 'Yükle', label: `📦 ${s.short}: ${job.pallets} palet ${CARGO_BY_ID[job.cargo].name} yükle (kasadan ${formatEuro(job.wholesale)})`, use: () => this.act('load') };
+        if (pointIn(s.load, px, pz, BAY_TOL)) return { ...at, short: 'Yükle', label: `📦 ${s.short}: ${job.pallets} palet ${CARGO_BY_ID[job.cargo].name} yükle (${formatEuro(job.wholesale)} — kasadan, kasa yetmezse cüzdandan)`, use: () => this.act('load') };
       }
-      if (job?.state === 'loaded' && truck.trailer && pointIn(HOTEL_DELIVERY.zone, px, pz, 1)) {
+      if (job?.state === 'loaded' && truck.trailer && pointIn(HOTEL_DELIVERY.zone, px, pz, BAY_TOL)) {
         return { ...at, short: 'Teslim', label: '🏨 Mal kabul: yükü teslim et', use: () => this.act('deliver') };
       }
+      if (job?.state === 'accepted') return bayHint(SITE_BY_ID[job.site].load, px, pz, 'yükleme', this.hud);
+      if (job?.state === 'loaded' && truck.trailer) return bayHint(HOTEL_DELIVERY.zone, px, pz, 'mal kabul', this.hud);
       return null;
     }
     if (this.vehicles.seat) return null;
@@ -489,7 +491,7 @@ export class LargeWorldMap {
     const left = (job.deadline - this.net.serverNow()) / 1000;
     card.append(el('b', null, `${c.icon} Aktif sevkiyat: ${job.pallets} palet ${c.name}`));
     const step = job.state === 'accepted'
-      ? `1/2 · ${s.icon} ${s.name} yükleme körfezine git, dur, E: yükle (kasadan ${formatEuro(job.wholesale)})`
+      ? `1/2 · ${s.icon} ${s.name} yükleme körfezine git, dur, E: yükle (${formatEuro(job.wholesale)} — kasadan, kasa yetmezse cüzdandan)`
       : '2/2 · 🏨 Otelin lojistik avlusundaki mal kabul körfezine götür, dur, E: teslim';
     card.append(el('div', null, step));
     const pay = deliveryPay(job, this.net.serverNow());
@@ -871,6 +873,19 @@ export class LargeWorldMap {
     // Kare yalnızca sürerken ya da yakında (150 m) trafik varken gerekir (avluda dururken pil)
     return !!this.vehicles.seat || this.traffic.near100 || this.agentMeshes.size > 0;
   }
+}
+
+/**
+ * Hedef körfeze yaklaşırken (35 m) yönlendirme istemi: E'ye basınca tırdan inmek yerine "körfeze gir" uyarısı
+ * gelir (yanlışlıkla inip park etme olmaz).
+ */
+function bayHint(b, x, z, what, hud) {
+  const cx = Math.min(Math.max(x, b.minX), b.maxX);
+  const cz = Math.min(Math.max(z, b.minZ), b.maxZ);
+  const d = Math.hypot(x - cx, z - cz) - BAY_TOL;
+  if (d > 35 || d <= 0) return null;
+  const txt = `🟨 ${what} körfezine gir (${Math.ceil(d)} m) — sarı çerçevenin içinde dur, sonra E`;
+  return { x, z, marker: false, short: 'Körfez', label: txt, use: () => hud.toast(txt, 'info') };
 }
 
 function pointIn(b, x, z, tol = 0) {

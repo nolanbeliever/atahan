@@ -189,15 +189,15 @@ export class IllegalLogistics {
     if (truck) {
       if (!job) return null;
       const at = { x: px, z: pz, marker: false };
-      if (job.state === 'accepted' && inContactZone(px, pz, 1)) {
+      if (job.state === 'accepted' && inContactZone(px, pz, 6)) {
         return { ...at, short: 'Yükle', label: `🕶️ K-17: malları gizli bölmeye al (peşin ${formatEuro(job.cost)}, cüzdandan)`, use: () => this.act('load') };
       }
       if (job.state !== 'loaded' || !truck.trailer || this.st.unload) return null; // indirme sürerken istem yok
       const heat = this.st.chase?.heat ?? 0;
-      if (inDropZone(px, pz, 1)) {
+      if (inDropZone(px, pz, 6)) {
         return { ...at, short: 'İndir', label: `🏚️ Eski Kantar Deposu: malları indir (~${R.UNLOAD_SEC} sn · baskın riski ${pct(raidChance('depot', heat, this.st.night))})`, use: () => this.act('drop', { site: 'depot' }) };
       }
-      if (inRect(HOTEL_DELIVERY.zone, px, pz, 1)) {
+      if (inRect(HOTEL_DELIVERY.zone, px, pz, 6)) {
         return { ...at, short: 'İndir', label: `🏨 Mal kabul alanı: kaçak malları alıcıya indir (~${R.UNLOAD_SEC} sn · baskın riski ${pct(raidChance('hotel', heat, this.st.night))}!)`, use: () => this.act('drop', { site: 'hotel' }) };
       }
       return null;

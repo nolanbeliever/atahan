@@ -263,7 +263,7 @@ export class IllegalLogisticsService {
     const { v, error } = this.logi.myTruck(p);
     if (error) return { ok: false, error };
     if (!this.hasCompartment(p, v)) return { ok: false, error: 'Bu tırda gizli bölme yok.' };
-    if (!inContactZone(p.x, p.z, 1.5)) return { ok: false, error: '⚓ Limandaki K-17 konteynerinin önüne gir.' };
+    if (!inContactZone(p.x, p.z, 7)) return { ok: false, error: '⚓ Limandaki K-17 konteynerinin önüne gir.' };
     if (this.logi.speedOf(p, now) * 3.6 > R.STOP_KMH) return { ok: false, error: 'Önce tamamen dur.' };
     if (!(p.wallet >= j.cost)) return { ok: false, error: `Tanıdık peşin istiyor: cüzdanında €${j.cost.toLocaleString('nl-NL')} yok.` };
     p.wallet -= j.cost;
@@ -288,7 +288,7 @@ export class IllegalLogisticsService {
   }
 
   /** Tırın bulunduğu kaçak teslim yeri: 'depot' (Eski Kantar Deposu) | 'hotel' (otelin mal kabul alanı) | null */
-  dropSiteAt(x, z, tol = 1.5) {
+  dropSiteAt(x, z, tol = 7) {
     if (inDropZone(x, z, tol)) return 'depot';
     if (inRect(HOTEL_DELIVERY.zone, x, z, tol)) return 'hotel';
     return null;
