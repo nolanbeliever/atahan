@@ -8,13 +8,13 @@
 //    V × durum (hasar) × zaman çarpanı yazılır ("tedarik değeri" — NPC tedarikçiye ödenmeyen para).
 //    Mükemmel teslimde otel ~%45 kâr eder; ağır hasarda zarar eder. Mal kabul sistemi (sim.cargo.deliver)
 //    yükü stoğa kendisi işlerse ({ handled: true } döner) kasaya ayrıca değer yazılmaz.
-//  - Şoför ücreti (oyuncunun cüzdanına): ZAMANINDA teslimde €200–300 (rota uzunluğu + palete göre; temel
+//  - Şoför ücreti (oyuncunun cüzdanına): ZAMANINDA teslimde €450–650 (rota uzunluğu + palete göre; temel
 //    ücret × ONTIME_MUL 1.2), geç kalınca ×0.6, hasarla azalır. Süre: rotanın tır sınırlarıyla sürüş süresi
 //    (gidiş-dönüş ~10–15 dk) × TIME_MUL + pay.
 //  - Yükten önce iptal ücretsiz; yükten sonra iptal / oyundan çıkış → yük depoya iade, W'nin yarısı geri.
 //  - Kiralık şoförlük (HAUL_*): tır gerekmez — nakliye firmasının tırı avludaki tır parkına getirilir; başka
 //    firmanın malını bir depodan / limandan diğerine taşırsın. Kasaya dokunulmaz (mal senin / otelin değil);
-//    şoför ücreti cüzdana, kendi tırınla yapılan işten DÜŞÜK (zamanında €90–150). Teslimden sonra tır firmaya döner.
+//    şoför ücreti cüzdana, kendi tırınla yapılan işten DÜŞÜK (zamanında €250–380). Teslimden sonra tır firmaya döner.
 
 const freeze = Object.freeze;
 const byId = (list) => freeze(Object.assign(Object.create(null), Object.fromEntries(list.map((x) => [x.id, x]))));
@@ -33,8 +33,8 @@ export const LOGI_RULES = freeze({
   OFFER_TTL_MS: 12 * 60_000, // alınmayan teklif bu kadar sonra yenilenir
   REFILL_MS: 20_000, // eksik teklif tamamlama aralığı
   VALUE_MUL: 1.45, // yükün otele değeri / toptan fiyat
-  FEE_MIN: 200, // zamanında teslimde şoför ücreti aralığı (€, cüzdana)
-  FEE_MAX: 300,
+  FEE_MIN: 450, // zamanında teslimde şoför ücreti aralığı (€, cüzdana)
+  FEE_MAX: 650,
   FEE_KM_FROM: 12, // gidiş-dönüş rota uzunluğu (km) bu aralıkta ücret aralığına yayılır
   FEE_KM_TO: 15.5,
   ONTIME_MUL: 1.2,
@@ -60,7 +60,7 @@ function feeFor(f, min, max) {
 }
 
 /**
- * Sözleşme rakamları: palet sayısından toptan fiyat, değer, şoför ücreti (temel; zamanında ×1.2 → €200–300), süre.
+ * Sözleşme rakamları: palet sayısından toptan fiyat, değer, şoför ücreti (temel; zamanında ×1.2 → €450–650), süre.
  * @param distM avludan siteye rota uzunluğu (m)
  * @param tripSec gidiş-dönüş tır sınırlarıyla sürüş süresi (sn, worldmap.siteTripSec); yoksa ortalama hızdan
  */
@@ -118,8 +118,8 @@ export const HAUL_GOOD_BY_ID = byId(HAUL_GOODS);
 
 export const HAUL_RULES = freeze({
   OFFERS: 3, // panodaki kiralık şoförlük ilanı
-  FEE_MIN: 90, // zamanında teslimde ücret aralığı (€): kendi tırınla yapılan yasal işten (200–300) hep düşük
-  FEE_MAX: 150,
+  FEE_MIN: 250, // zamanında teslimde ücret aralığı (€): kendi tırınla yapılan yasal işten (450–650) hep düşük
+  FEE_MAX: 380,
   FEE_KM_FROM: 6, // rota (avlu → yükleme → boşaltma) bu aralıkta ücret aralığına yayılır
   FEE_KM_TO: 12,
   TRUCK: 'brabant-titan', // firmanın verdiği tır
@@ -129,7 +129,7 @@ export const HAUL_RULES = freeze({
 });
 
 /**
- * Kiralık şoförlük ücreti (temel; zamanında ×1.2 → €90–150) + süre: dist = avlu → yükleme + yükleme → boşaltma (m)
+ * Kiralık şoförlük ücreti (temel; zamanında ×1.2 → €250–380) + süre: dist = avlu → yükleme + yükleme → boşaltma (m)
  * @param driveSec aynı rotanın tır sınırlarıyla sürüş süresi (sn); yoksa ortalama hızdan
  */
 export function haulTerms(pallets, distM, driveSec = null) {

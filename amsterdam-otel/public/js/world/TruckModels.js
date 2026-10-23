@@ -48,7 +48,7 @@ function canvasTex(w, h, draw) {
   return t;
 }
 
-/** Tır göstergesi: 0–125 km/s kadranı (ibre setNeedle'da needleMax ile) */
+/** Tır göstergesi: 0–160 km/s kadranı (ibre setNeedle'da needleMax ile) */
 function dialTexture() {
   if (shared.dial) return shared.dial;
   shared.dial = canvasTex(128, 128, (g) => {
@@ -68,7 +68,7 @@ function dialTexture() {
       g.moveTo(64 + Math.cos(a) * 46, 64 + Math.sin(a) * 46);
       g.lineTo(64 + Math.cos(a) * 58, 64 + Math.sin(a) * 58);
       g.stroke();
-      g.fillText(String(i * 25), 64 + Math.cos(a) * 33, 64 + Math.sin(a) * 33);
+      g.fillText(String(i * 32), 64 + Math.cos(a) * 33, 64 + Math.sin(a) * 33);
     }
     g.fillStyle = '#ff9d2e';
     g.font = 'bold 10px system-ui, sans-serif';
@@ -318,7 +318,7 @@ export function makeTruckModel(def, colorIdx) {
   root.add(blob);
 
   const ud = {
-    wheels, steer, r: wr, wheel: wheelG, needle, brakeMat: mats.brake, head, def, body: B, needleMax: 125,
+    wheels, steer, r: wr, wheel: wheelG, needle, brakeMat: mats.brake, head, def, body: B, needleMax: 160,
     truck: true, trailer: pivot, trailerYaw: 0, cargo: null, stripeMat,
   };
   root.userData = ud;

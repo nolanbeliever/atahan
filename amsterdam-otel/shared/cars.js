@@ -104,20 +104,20 @@ export const CAR_MODELS = freeze([
 ].map((m) => freeze({ ...m, name: `${m.brand} ${m.model}` })));
 
 // ---- Tırlar (TruckCenter, lojistik avlusu) — AutoGalerie listesinde değil; CAR_BY_ID'de (sürüş, kayıt) ----
-// t60: 0–60 km/s (sn, boş) · topKmh: hız sınırlayıcı · gears: vites · cyl: silindir · redline: dizel devir sınırı
+// t60: 0–60 km/s (sn, boş) · topKmh: en yüksek hız (sınırlayıcı yok) · gears: vites · cyl: silindir · redline: dizel devir sınırı
 export const TRUCK_MODELS = freeze([
   freeze({
-    id: 'zeeland-lx', brand: 'Zeeland', model: 'LX 460', body: 'truck', price: 95_000, topKmh: 90, t60: 14, hp: 460, gears: 12, cyl: 6, redline: 2300,
+    id: 'zeeland-lx', brand: 'Zeeland', model: 'LX 460', body: 'truck', price: 95_000, topKmh: 130, t60: 14, hp: 460, gears: 12, cyl: 6, redline: 2300,
     colors: pal('white', 'blue', 'red', 'silver', 'green'), cap: 26,
     desc: 'Güvenilir uzun yol çekicisi: 12 ileri otomatik şanzıman, geniş yataklı kabin, az yakar.',
   }),
   freeze({
-    id: 'brabant-titan', brand: 'Brabant', model: 'Titan XF 530', body: 'truck', price: 128_000, topKmh: 90, t60: 12, hp: 530, gears: 12, cyl: 6, redline: 2300,
+    id: 'brabant-titan', brand: 'Brabant', model: 'Titan XF 530', body: 'truck', price: 128_000, topKmh: 140, t60: 12, hp: 530, gears: 12, cyl: 6, redline: 2300,
     colors: pal('orange', 'black', 'white', 'sky', 'yellow'), cap: 30,
     desc: 'Yüksek tavanlı Space kabin, retarder, şerit asistanı. Ağır yükte bile yokuş sevmez değil.',
   }),
   freeze({
-    id: 'noordkaap-v8', brand: 'Noordkaap', model: 'V8 Royal 660', body: 'truck', price: 175_000, topKmh: 90, t60: 10, hp: 660, gears: 14, cyl: 8, redline: 2200,
+    id: 'noordkaap-v8', brand: 'Noordkaap', model: 'V8 Royal 660', body: 'truck', price: 175_000, topKmh: 150, t60: 10, hp: 660, gears: 14, cyl: 8, redline: 2200,
     colors: pal('black', 'red', 'purple', 'cream', 'blue'), cap: 34,
     desc: 'Krom ızgara, V8 gürlemesi, deri kabin. Limandan otele en ağır konteyneri bile çeker.',
   }),

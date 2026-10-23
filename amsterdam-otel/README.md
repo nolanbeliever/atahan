@@ -752,7 +752,7 @@ apartman sıraları, **6 trafik ışıklı kavşak** + yaya geçitleri), otelin 
   (€128.000), Noordkaap V8 Royal 660 (€175.000) — **yalnızca kişisel cüzdandan**, oyuncu başına en fazla 2; avludaki tır
   parkına (T-1…T-4) teslim edilir ve kalıcıdır. Tır şehre (tünelden) giremez; yalnızca avlu / depo / limanda park eder.
 - **Sürüş:** mevcut araba sürüşü + kokpit üzerine: ağır fizik (0–60 km/s 10–14 sn, yüklüyken ivme ×0.58, uzun fren,
-  geniş dönüş, 90 km/s sınırlayıcı), detaylı FPV kabin (geniş ön cam, yatay büyük direksiyon, 0–125 km/s kadranı,
+  geniş dönüş, hız sınırlayıcı yok: en yüksek hız 130–150 km/s; tabela sınırları yalnızca bilgi), detaylı FPV kabin (geniş ön cam, yatay büyük direksiyon, 0–160 km/s kadranı,
   takograf, dev aynalar), dizel motor sesi, dorse kıvrılması (çekicinin yoluna göre).
 - **🗺️ Navi:** bölgedeyken sürerken (ya da işin varken) köşede mini harita (5 Hz): yol ağı, mor rota çizgisi, hedef,
   mesafe / tahmini süre, bulunulan yolun hız sınırı, sıradaki manevra rota adımlarından ("↱ 2,6 km sonra Nieuw-Zuid
@@ -761,7 +761,7 @@ apartman sıraları, **6 trafik ışıklı kavşak** + yaya geçitleri), otelin 
 - **Sevkiyat (Resepsiyon PC "🚛 Lojistik" / telefonda 🚛):** sözleşme panosundan iş al → tırınla depoya / limana git,
   sarı çerçeveli yükleme körfezinde dur, **E: yükle** → toptan fiyat **otel kasasından** düşer, dorse takılır → otelin
   lojistik avlusundaki **🏨 mal kabul körfezinde** dur, **E: teslim** → kasaya yükün değeri (toptan × 1.45 × durum),
-  **şoför ücreti cüzdana: zamanında €200–300** (rota uzunluğu + palet; geç teslimde yaklaşık yarısı). Süre = rota
+  **şoför ücreti cüzdana: zamanında €450–650** (rota uzunluğu + palet; geç teslimde yaklaşık yarısı). Süre = rota
   süresi × 1,45 + 150 sn pay (trafik, ışıklar, yükleme). Yük türleri: restoran malzemesi, alkolsüz içecek,
   eğlence katı malzemesi, ithal gurme ürün. Yüklü dorseyle çarpma (duvar / bariyer / trafik) hasar yazar ve değeri
   düşürür. Yükten sonra iptal ya da oyundan çıkış: toptan fiyatın yarısı iade. Teslimde `sim.cargo.deliver(...)`
@@ -770,7 +770,7 @@ apartman sıraları, **6 trafik ışıklı kavşak** + yaya geçitleri), otelin 
   Kurgusal nakliye firmalarının (Van Dijk Transport, Oranje Logistiek…) tırı avludaki tır parkına getirilir; yalnızca
   işi alan sürer (arkadaşlar yolcu olabilir). Firmanın malını (mobilya, beyaz eşya, çiçek, tekstil, karton, yapı
   malzemesi) bir depodan / limandan **diğerine** taşırsın: yükleme körfezinde E: yükle → boşaltma körfezinde E: boşalt.
-  Kasaya ve otel stoğuna dokunulmaz; **şoför ücreti cüzdana ve düşüktür: zamanında €90–150** (kendi tırınla yapılan
+  Kasaya ve otel stoğuna dokunulmaz; **şoför ücreti cüzdana ve düşüktür: zamanında €250–380** (kendi tırınla yapılan
   yasal işten hep az; geç teslimde yaklaşık yarısı, hasarla azalır). Süre avlu → yükleme → boşaltma rotasından hesaplanır. Teslim, iptal ya da oyundan çıkışta tır firmaya döner.
 - **🚗 Akıllı trafik (`TrafficSystemAI.js`, istemci, yerel):** masaüstünde 30, mobilde 14 araç oyuncunun çevresinde
   (260–480 m'de görüş dışında doğar, 560 m'de kalkar) yol grafında **şerit takip eder** (yolun eğrisini izler; kavşakta
@@ -796,7 +796,7 @@ yakalanınca mallara el konur ve ceza kesilir.
   kaydına bağlı, kalıcı. Bölmeli tırı olan oyuncuya **"Limandaki tanıdık"** **5–10 dakikada bir TEK teklif** gönderir
   (kişisel; ilk teklif bölme takılınca hemen, sonrakiler teklif alınınca ya da 6 dk'da süresi dolunca 5–10 gerçek dk
   sonra — "📞 Yeni bir iş var" bildirimi, panoda "sonraki iş ~N dk"). Limandaki tanıdıkla yaya konuşunca da pano açılır.
-- **Ekonomi:** teklif başına **kazanç 700–800 €** (teslimde cüzdana, brüt) ve **peşin mal bedeli 150–250 €** (yüklemede
+- **Ekonomi:** teklif başına **kazanç 1.200–1.400 €** (teslimde cüzdana, brüt) ve **peşin mal bedeli 150–250 €** (yüklemede
   cüzdandan). Geç teslim (12 dk) ×0,7, hasar orantılı düşürür; gece kazanç çarpanı yoktur (yalnızca daha az dikkat).
 - **İş akışı:** teklifi al → bölmeli tırınla **⚓ limandaki K-17 konteynerinin** önündeki sarı çerçevede dur, **E** → iki
   teslim yerinden birine götür: **🏚️ Eski Kantar Deposu** (FrisDepot avlusunun batı köşesi, gizli depo — baskın %12) ya da
@@ -1014,7 +1014,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC), mal kabul (sipariş, tır, transpalet, asansör, stok etkileri), illegal sevkiyat (bölme, teklif, ısı, kıskaç, yakalanma, kaçış), polis baskını (teklif sıklığı, 700–800 € kazanç, indirme, baskın, kaçış)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC), mal kabul (sipariş, tır, transpalet, asansör, stok etkileri), illegal sevkiyat (bölme, teklif, ısı, kıskaç, yakalanma, kaçış), polis baskını (teklif sıklığı, 1.200–1.400 € kazanç, indirme, baskın, kaçış)
 ```
 
 ## Sonraki aşamalar için notlar

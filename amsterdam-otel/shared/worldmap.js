@@ -24,7 +24,7 @@
 
 const freeze = Object.freeze;
 const KMH = 3.6;
-/** Rota süresi hesabında tırın hız sınırlayıcısı (km/s) */
+/** Rota süresi hesabında tırın yasal seyir hızı (km/s) — sürüşte sınırlayıcı değildir (teslim süreleri buna göre) */
 export const TRUCK_KMH = 90;
 const r2 = (v) => Math.round(v * 100) / 100;
 const byId = (list) => freeze(Object.assign(Object.create(null), Object.fromEntries(list.map((x) => [x.id, x]))));
@@ -620,7 +620,7 @@ function turnOf(din, dout) {
 
 /**
  * Konumdan hedefe rota: { pts, length (m), steps: [{ x, z, dist, turn, road, name, kind }] }.
- * Hedef: 'hotel' ya da site kimliği. Graf üzerinde en kısa süre (tır sınırlayıcısıyla) aranır.
+ * Hedef: 'hotel' ya da site kimliği. Graf üzerinde en kısa süre (tırın yasal seyir hızıyla) aranır.
  */
 export function routeTo(x, z, dest) {
   const goal = destinationPoint(dest);
@@ -732,7 +732,7 @@ function finish(pts, steps) {
   return { pts: out, length, steps };
 }
 
-/** Rotanın tır sınırlarıyla sürüş süresi (sn): otoyol 90 (sınırlayıcı), bağlantı 60, şehir 50, avlu 30 km/s */
+/** Rotanın tır sınırlarıyla sürüş süresi (sn): otoyol 90 (yasal seyir), bağlantı 60, şehir 50, avlu 30 km/s */
 export function routeTimeSec(route) {
   if (!route) return 0;
   let t = 0;
@@ -779,6 +779,8 @@ export function siteTripSec(id) {
 
 /** Bölge hız sınırı (m/sn): araba için yol sınırı, model hızıyla sınırlı */
 export function highwayCap(vmax, x, z) {
-  const k = roadLimitKmh(x, z) ?? ROAD_KMH.yard;
-  return Math.min(vmax, k / KMH);
+  // Hız sınırlayıcı yok: tabelalardaki sınırlar yalnızca bilgi (ve rota süresi hesabı); araç kendi en yüksek hızına çıkar.
+  // Hız aşımı polis ısısı da yazmaz (IllegalLogisticsService).
+  void x; void z;
+  return vmax;
 }

@@ -109,15 +109,16 @@ test('harita: otoyol bölgesi diğer bölgelerle çakışmaz, rotalar sürülebi
     assert.equal(yardAt(t.x, t.z), 'yard');
     assert.ok(!pointInBounds(t.x, t.z, HOTEL_DELIVERY.zone));
   }
-  // Hız sınırı: otoyol 100, bağlantı 60, avlu 30; araba 100'de kesilir, tır kendi sınırlayıcısında (90)
+  // Tabela sınırları: otoyol 100, bağlantı 60, şehir 50, avlu 30 — yalnızca bilgi; hız sınırlayıcı yok (aracın en yüksek hızı)
   assert.equal(roadLimitKmh(420, -2), 100);
   assert.equal(roadLimitKmh(SERVICE_YARD.arrive.x, SERVICE_YARD.arrive.z), 30);
   const sp = roadPoint('spur-nz', 300);
   assert.equal(roadLimitKmh(sp.x, sp.z), 60);
   const ur = roadPoint('nz-dijkweg', 200);
   assert.equal(roadLimitKmh(ur.x, ur.z), 50);
-  assert.ok(Math.abs(carSpeedCap(CAR_BY_ID['valk-tempesta'], 420, -2) * 3.6 - 100) < 1e-6);
-  assert.ok(Math.abs(carSpeedCap(CAR_BY_ID['zeeland-lx'], 420, -2) * 3.6 - 90) < 1e-6);
+  assert.ok(Math.abs(carSpeedCap(CAR_BY_ID['valk-tempesta'], 420, -2) * 3.6 - CAR_BY_ID['valk-tempesta'].topKmh) < 1e-6);
+  assert.ok(Math.abs(carSpeedCap(CAR_BY_ID['zeeland-lx'], 420, -2) * 3.6 - CAR_BY_ID['zeeland-lx'].topKmh) < 1e-6);
+  assert.ok(Math.abs(carSpeedCap(CAR_BY_ID['zeeland-lx'], SERVICE_YARD.arrive.x, SERVICE_YARD.arrive.z) * 3.6 - CAR_BY_ID['zeeland-lx'].topKmh) < 1e-6, 'avluda da sınırlayıcı yok');
   // Kısıt: yoldan çıkan nokta şeride itilir; şerit içindeki nokta değişmez
   const pos = { x: 420, z: 40 };
   assert.ok(constrainToRoads(pos, 1.3));
@@ -142,7 +143,7 @@ test('harita: otoyol bölgesi diğer bölgelerle çakışmaz, rotalar sürülebi
   assert.equal(carZone(CAR_XFER_BY_ID.toCity.to.x, CAR_XFER_BY_ID.toCity.to.z), 'street');
 });
 
-test('genişletilmiş harita: yol grafı bağlı, rota adımları, Nieuw-Zuid trafik ışıkları, yasal ücret €200–300', async () => {
+test('genişletilmiş harita: yol grafı bağlı, rota adımları, Nieuw-Zuid trafik ışıkları, yasal ücret €450–650', async () => {
   const { CONTACT, SAFE_DROP } = await import('../shared/illegal.js');
   // Graf bağlı: her avludan her avluya rota var; adımlar varışla biter
   for (const a of YARDS) {
@@ -188,7 +189,7 @@ test('genişletilmiş harita: yol grafı bağlı, rota adımları, Nieuw-Zuid tr
   assert.equal(yardAt((cz.minX + cz.maxX) / 2, (cz.minZ + cz.maxZ) / 2), 'port');
   const dz = SAFE_DROP.zone;
   assert.equal(yardAt((dz.minX + dz.maxX) / 2, (dz.minZ + dz.maxZ) / 2), SAFE_DROP.site);
-  // Yasal ücret: zamanında €200–300 (her yük, her palet sayısı); süre rota süresinin üstünde
+  // Yasal ücret: zamanında €450–650 (her yük, her palet sayısı); süre rota süresinin üstünde
   for (const c of CARGO_TYPES) {
     for (const n of [c.min, c.max]) {
       const t = offerTerms(c.id, n, siteDistance(c.site), siteTripSec(c.site));
@@ -211,7 +212,7 @@ test('katalog: tırlar AutoGalerie listesinde değil, fizik ağır ve yavaş', (
     assert.equal(CAR_BY_ID[m.id], m);
     const ph = carPhysics(m);
     assert.ok(Number.isFinite(ph.A) && ph.A > 0.8 && ph.A < 3, `${m.id} A ${ph.A}`);
-    assert.ok(Math.abs(ph.vmax * 3.6 - 90) < 1e-9);
+    assert.ok(Math.abs(ph.vmax * 3.6 - m.topKmh) < 1e-9 && m.topKmh >= 130, 'sınırlayıcı yok: en yüksek hız ≥ 130 km/s');
     assert.ok(m.price >= 80_000);
   }
   for (const c of CARGO_TYPES) {
@@ -269,10 +270,10 @@ test('tır satın alma: yalnızca cüzdandan, en fazla 2, avludaki tır parkına
   assert.ok(go.ok, go.error);
   assert.equal(go.area, 'highway');
   assert.equal(car.x, SERVICE_YARD.arrive.x);
-  // Otoyolda araba hız denetimi: 100 km/s
+  // Sınırlayıcı yok: avluda 72 km/s de kabul edilir (aracın kendi en yüksek hızına kadar)
   s.advance(3000);
-  s.sim.movePlayer(p.id, car.x + 20, car.z, -Math.PI / 2); // 1 sn'de 20 m = 72 km/s ama avluda sınır 30
-  assert.ok(p.x < SERVICE_YARD.arrive.x + 20, 'avluda kırpıldı');
+  s.sim.movePlayer(p.id, car.x + 20, car.z, -Math.PI / 2); // 1 sn'de 20 m = 72 km/s
+  assert.ok(Math.abs(p.x - (SERVICE_YARD.arrive.x + 20)) < 0.5, 'kırpılmadı');
 });
 
 // ---- Sevkiyat ---------------------------------------------------------------------------------
@@ -311,7 +312,7 @@ test('sevkiyat: pano → iş al → depoda yükle (kasadan toptan) → çarpma h
   assert.ok(s.events(EVT.VEHICLES).at(-1).find((x) => x.id === v.id).trailer, 'dorse yayında');
   // Çarpma: hasar artar, 0.7 sn içinde ikincisi sayılmaz
   const h1 = logi(sim, p, { act: 'hit', kmh: 60 });
-  assert.ok(h1.damage > 0.05 && h1.damage <= 0.1, "avluda hız 30 km/s sınırıyla kırpılır");
+  assert.ok(h1.damage > 0.1 && h1.damage <= LOGI_RULES.HIT_MAX, 'çarpma hızı aracın en yüksek hızıyla sınırlı (sınırlayıcı yok)');
   assert.equal(logi(sim, p, { act: 'hit', kmh: 60 }).damage, h1.damage);
   assert.equal(logi(sim, p, { act: 'hit', kmh: 'çok' }).ok, false);
   // Teslim: mal kabul körfezi
@@ -469,7 +470,7 @@ test('kiralık şoförlük: tır gerekmez, firmanın tırı gelir; firmanın mal
   const h = board.state.hauls[0];
   assert.notEqual(h.site, h.to, 'iki farklı yer');
   assert.ok(HAUL_GOOD_BY_ID[h.goods]);
-  // Kendi tırınla yapılan yasal işten (€200–300) hep düşük: zamanında €90–150
+  // Kendi tırınla yapılan yasal işten (€450–650) hep düşük: zamanında €250–380
   assert.equal(h.fee, haulTerms(h.pallets, h.dist).fee);
   const paid = Math.round(h.fee * LOGI_RULES.ONTIME_MUL);
   assert.ok(paid >= HAUL_RULES.FEE_MIN - 1 && paid <= HAUL_RULES.FEE_MAX + 1 && paid < LOGI_RULES.FEE_MIN, `kiralık ${paid}`);

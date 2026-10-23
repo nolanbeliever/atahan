@@ -30,7 +30,7 @@ function prng(seed) {
  *  - Gizli zula bölmesi: oyuncunun tırına (araba kaydı kimliği) takılan, cüzdandan ödenen kalıcı yükseltme.
  *  - Tanıdık teklifleri: yalnızca bölmeli tırı olan oyuncuya, kişisel ve TEK TEK — aynı anda en çok 1 teklif;
  *    teklif alınınca ya da süresi dolunca bir sonraki 5–10 gerçek dakika sonra gelir (ilki bölme takılınca hemen).
- *    Kazanç 700–800 €, peşin bedel 150–250 € (ILLEGAL_RULES). Kaçak iş, lojistiğin iş tablosuna `legal: false,
+ *    Kazanç 1.200–1.400 €, peşin bedel 150–250 € (ILLEGAL_RULES). Kaçak iş, lojistiğin iş tablosuna `legal: false,
  *    hidden: [{ good, qty }]` ile yazılır (oyuncu başına tek iş kuralı korunur); LogisticsService'in yükle / teslim
  *    eylemleri bu işler için veto edilir — burada K-17'de yüklenir; Eski Kantar Deposu'nda ya da otelin mal kabul
  *    alanında İNDİRİLİR (PoliceRaidService: ~10 sn indirme, rastgele polis baskını). Bedel / kazanç CÜZDANDA.

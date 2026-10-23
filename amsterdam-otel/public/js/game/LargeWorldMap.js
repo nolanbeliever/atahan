@@ -453,7 +453,7 @@ export class LargeWorldMap {
       art.style.setProperty('--paint', m.colors[sel].hex);
       const info = el('div', 'truck-info');
       info.append(el('b', null, m.name), el('div', 'truck-price', formatEuro(m.price)));
-      info.append(el('small', null, `🐎 ${m.hp} bg · ${m.gears} vites · 0–60 ${m.t60} sn · sınırlayıcı ${m.topKmh} km/s`));
+      info.append(el('small', null, `🐎 ${m.hp} bg · ${m.gears} vites · 0–60 ${m.t60} sn · en yüksek hız ${m.topKmh} km/s`));
       info.append(el('div', 'truck-desc', m.desc));
       const colors = el('div', 'car-colors');
       m.colors.forEach((c, i) => {

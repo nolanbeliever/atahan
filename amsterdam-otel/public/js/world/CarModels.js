@@ -295,6 +295,6 @@ export function setBrake(car, on) {
 
 /** Gösterge ibresi: 0 → 300 km/s (tır 125), 270° */
 export function setNeedle(car, kmh) {
-  const k = Math.min(1, Math.max(0, kmh / (car.userData.needleMax ?? 300))); // tır: 125 km/s kadran
+  const k = Math.min(1, Math.max(0, kmh / (car.userData.needleMax ?? 300))); // tır: 160 km/s kadran
   car.userData.needle.rotation.z = Math.PI * 0.75 - k * Math.PI * 1.5;
 }

@@ -81,14 +81,14 @@ function loadedRun(opts) {
 test('kaçak mallar yalnızca kurgusal gümrüksüz lüks tüketim; tanıdık ve depo sürülebilir; yuvalar dorseyle çakışmaz', () => {
   const banned = /uyuşturucu|esrar|kokain|eroin|hap|silah|tabanca|mermi|cephane|sigara|tütün|puro|alkol|bira|şarap|viski|votka|insan|göçmen/i;
   for (const g of CONTRA_GOODS) assert.doesNotMatch(`${g.id} ${g.name}`, banned, g.id);
-  // Kazanç 700–800 €, peşin bedel 150–250 € (uçlar dahil, 10'a yuvarlı)
+  // Kazanç 1.200–1.400 €, peşin bedel 150–250 € (uçlar dahil, 10'a yuvarlı)
   for (const [u1, u2] of [[0, 0], [0.999999, 0.999999], [0.5, 0.25]]) {
     const t = contraTerms(u1, u2);
     assert.ok(t.pay >= R.PAY_MIN && t.pay <= R.PAY_MAX && t.pay % 10 === 0, `kazanç ${t.pay}`);
     assert.ok(t.cost >= R.COST_MIN && t.cost <= R.COST_MAX && t.cost % 10 === 0, `bedel ${t.cost}`);
   }
-  assert.deepEqual(contraTerms(0, 0), { pay: 700, cost: 150 });
-  assert.deepEqual(contraTerms(0.999999, 0.999999), { pay: 800, cost: 250 });
+  assert.deepEqual(contraTerms(0, 0), { pay: 1200, cost: 150 });
+  assert.deepEqual(contraTerms(0.999999, 0.999999), { pay: 1400, cost: 250 });
   for (const z of [CONTACT.zone, SAFE_DROP.zone]) {
     for (const [x, zz] of [[z.minX + 1, z.minZ + 1], [z.maxX - 1, z.maxZ - 1], [(z.minX + z.maxX) / 2, (z.minZ + z.maxZ) / 2]]) assert.ok(isDrivable(x, zz), `${x},${zz}`);
   }
