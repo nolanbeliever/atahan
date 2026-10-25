@@ -43,7 +43,6 @@ export const ILLEGAL_RULES = freeze({
   PAY_MAX: 5000,
   COST_MIN: 150,
   COST_MAX: 250,
-  NIGHT_HEAT_MUL: 0.6, // gece (20:00–07:00) ısı artışı ×0.6
   TIME_SEC: 720, // teslim süresi: limandan depoya ~330 sn (genişletilmiş harita) × pay; geç kalınırsa kazanç ×0.7
   UNLOAD_SEC: 10, // kaçak yük indirme süresi (bkz. RAID_RULES.UNLOAD_MS)
   LATE_MUL: 0.7,
@@ -53,8 +52,7 @@ export const ILLEGAL_RULES = freeze({
   HEAT_ROAD: 0.22, // otoyolda hareket ederken / sn
   HEAT_HIT: 7, // yükte hasar (çarpma)
   HEAT_SCAN: 26, // tarayıcı kapısı yakalarsa
-  SCAN_CHANCE: 0.55, // gece 0.35
-  SCAN_CHANCE_NIGHT: 0.35,
+  SCAN_CHANCE: 0.55, // gündüz / gece farkı yok (oyun hep gündüz)
   HEAT_RAM: 12, // polis aracına çarpma
   RAM_FINE: 400, // çarpma başına ek ceza
   RAM_COOLDOWN_MS: 2000,
@@ -156,7 +154,6 @@ export const DROP_SITES = freeze({
 export const RAID_RULES = freeze({
   UNLOAD_MS: 10_000, // indirme süresi (tır yerinde durmalı)
   ZONE_TOL: 9, // indirme sırasında bölgeden bu kadar taşmak serbest (m; başlama toleransı 7 m'nin üstünde)
-  NIGHT_MUL: 0.6, // gece baskın olasılığı ×0.6
   HEAT_ADD: 0.4, // ısı 100'deyken olasılığa +0.40 (doğrusal)
   MAX_CHANCE: 0.85,
   WARN_MIN_MS: 1500, // indirme başladıktan sonra telsiz uyarısı ("Baskın!")
@@ -169,12 +166,12 @@ export const RAID_RULES = freeze({
   SPAWN_BACK: 40, // ekipler avlu kapısının bu kadar gerisinde (yolda) belirir
 });
 
-/** Baskın olasılığı: yer × gece + ısı payı (0 … MAX_CHANCE) */
-export function raidChance(siteId, heat = 0, night = false) {
+/** Baskın olasılığı: yer + ısı payı (0 … MAX_CHANCE); saatten bağımsız */
+export function raidChance(siteId, heat = 0) {
   const site = DROP_SITES[siteId];
   if (!site) return 0;
   const R = RAID_RULES;
-  const base = site.raid * (night ? R.NIGHT_MUL : 1);
+  const base = site.raid;
   return Math.max(0, Math.min(R.MAX_CHANCE, base + (Math.max(0, Math.min(100, heat)) / 100) * R.HEAT_ADD));
 }
 
@@ -184,9 +181,6 @@ export function catchFine(job, wallet) {
   const due = Math.round(R.FINE_BASE + job.pay * R.FINE_SHARE + (job.rams ?? 0) * R.RAM_FINE);
   return { due, paid: Math.max(0, Math.min(due, Math.floor(wallet))) };
 }
-
-/** Gece mi (oyun saati dakikası): 20:00–07:00 */
-export const isDark = (minute) => minute >= 20 * 60 || minute < 7 * 60;
 
 /** Tırın ileri / sağ birim vektörleri (yaw 0 → −z'ye bakar) */
 export function frame(yaw) {

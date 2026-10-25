@@ -28,7 +28,7 @@ const RAID_SLOTS = Object.freeze([
  *
  *  - İndirme: tır teslim yerinde (🏚️ Eski Kantar Deposu ya da 🏨 otelin mal kabul alanı) DURURKEN
  *    RAID_RULES.UNLOAD_MS (10 sn) sürer. Tır bölgeden çıkarsa indirme yarıda kalır (yük tırda kalır).
- *  - Baskın olasılığı başta bir kez çekilir (servisin kendi PRNG'si): yer (depo 0.12, otel 0.35) × gece 0.6
+ *  - Baskın olasılığı başta bir kez çekilir (servisin kendi PRNG'si): yer (depo 0.12, otel 0.35) (saatten bağımsız)
  *    + ısı/100 × 0.4 (en çok 0.85). Oyuncuya önceden söylenmez.
  *  - Baskın: indirme başladıktan 1.5–4 sn sonra telsiz uyarısı ("🚨 Baskın!") gelir; 3 ekip
  *    avlu kapısının gerisinden çıkıp 7 sn'de körfeze (tırın önü / arkası / yanı) varır (logistics.setAgent ile
@@ -84,7 +84,7 @@ export class PoliceRaidService {
     const cur = this.sessions.get(p.id);
     if (cur) return { ok: false, error: 'İndirme zaten sürüyor — tır yerinde dursun.' };
     const heat = this.illegal.chases.get(p.id)?.heat ?? 0;
-    const chance = this.sim.config.policeRaids === false ? 0 : raidChance(site, heat, this.illegal.night);
+    const chance = this.sim.config.policeRaids === false ? 0 : raidChance(site, heat);
     const roll = this.rand();
     const raid = this.forceNext === 'raid' ? true : this.forceNext === 'none' ? false : roll < chance;
     this.forceNext = null;

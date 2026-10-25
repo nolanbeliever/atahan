@@ -37,7 +37,7 @@ const pct = (v) => `%${Math.round(v * 100)}`;
 export class IllegalLogistics {
   constructor({ engine, net, hud, interaction, player, collision, modal, device, settings, sfx, logi, vehicles, getWallet }) {
     Object.assign(this, { engine, net, hud, interaction, player, collision, modal, device, settings, sfx, logi, vehicles, getWallet });
-    this.st = { price: R.COMPARTMENT_PRICE, night: false, trucks: [], offers: [], chase: null, stats: {} };
+    this.st = { price: R.COMPARTMENT_PRICE, trucks: [], offers: [], chase: null, stats: {} };
     this.pending = false;
     this.asked = false;
     this.bumped = 0;
@@ -195,10 +195,10 @@ export class IllegalLogistics {
       if (job.state !== 'loaded' || !truck.trailer || this.st.unload) return null; // indirme sürerken istem yok
       const heat = this.st.chase?.heat ?? 0;
       if (inDropZone(px, pz, 6)) {
-        return { ...at, short: 'İndir', label: `🏚️ Eski Kantar Deposu: malları indir (~${R.UNLOAD_SEC} sn · baskın riski ${pct(raidChance('depot', heat, this.st.night))})`, use: () => this.act('drop', { site: 'depot' }) };
+        return { ...at, short: 'İndir', label: `🏚️ Eski Kantar Deposu: malları indir (~${R.UNLOAD_SEC} sn · baskın riski ${pct(raidChance('depot', heat))})`, use: () => this.act('drop', { site: 'depot' }) };
       }
       if (inRect(HOTEL_DELIVERY.zone, px, pz, 6)) {
-        return { ...at, short: 'İndir', label: `🏨 Mal kabul alanı: kaçak malları alıcıya indir (~${R.UNLOAD_SEC} sn · baskın riski ${pct(raidChance('hotel', heat, this.st.night))}!)`, use: () => this.act('drop', { site: 'hotel' }) };
+        return { ...at, short: 'İndir', label: `🏨 Mal kabul alanı: kaçak malları alıcıya indir (~${R.UNLOAD_SEC} sn · baskın riski ${pct(raidChance('hotel', heat))}!)`, use: () => this.act('drop', { site: 'hotel' }) };
       }
       return null;
     }
@@ -322,7 +322,7 @@ export class IllegalLogistics {
       sec.append(row);
     }
     if (st.trucks.some((t) => t.hidden)) {
-      sec.append(el('div', 'logi-sub', `🕶️ Limandaki tanıdık — 5–10 dk'da bir tek iş${st.night ? ' · 🌙 gece: daha az dikkat, baskın riski düşük' : ''}`));
+      sec.append(el('div', 'logi-sub', '🕶️ Limandaki tanıdık — 5–10 dk\'da bir tek iş'));
       const job = this.logi.myJob;
       const now = this.net.serverNow();
       const list = el('div', 'logi-offers');

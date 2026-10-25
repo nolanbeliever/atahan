@@ -99,10 +99,10 @@ test('tanıdık teklifleri tek tek, 5–10 dk arayla gelir; kazanç 700–800 �
   if (!st3.offers.length) assert.ok(st3.nextOfferIn > 0 && st3.nextOfferIn <= 10 * MIN);
 });
 
-test('baskın olasılığı: otel avlusu > gizli depo, gece düşer, ısıyla artar, üst sınır; policeRaids:false → baskın yok', () => {
+test('baskın olasılığı: otel avlusu > gizli depo, saatten bağımsız, ısıyla artar, üst sınır; policeRaids:false → baskın yok', () => {
   assert.ok(raidChance('hotel') > raidChance('depot'));
   assert.equal(raidChance('depot'), DROP_SITES.depot.raid);
-  assert.ok(raidChance('hotel', 0, true) < raidChance('hotel', 0, false));
+  assert.equal(raidChance('hotel', 0), DROP_SITES.hotel.raid, 'saatten bağımsız (gece indirimi yok)');
   assert.ok(raidChance('depot', 80) > raidChance('depot', 0));
   assert.ok(raidChance('hotel', 100) <= RR.MAX_CHANCE);
   assert.equal(raidChance('nowhere'), 0);

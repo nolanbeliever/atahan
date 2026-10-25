@@ -173,7 +173,7 @@ test('kaçak iş: K-17\'de yüklenir (bedel cüzdandan), otel teslimi veto, ıs�
   assert.deepEqual(job.hidden, [{ good: o.good, qty: o.qty }]);
   assert.equal(p.wallet, 400_000 - (sim.garage ? CAR_BY_ID['zeeland-lx'].price : 0) - R.COMPARTMENT_PRICE - o.cost);
   assert.ok(s.v.trailer, 'dorse görünür (örtü yük)');
-  assert.ok(s.chase().heat >= R.HEAT_LOAD * R.NIGHT_HEAT_MUL - 1e-9);
+  assert.ok(s.chase().heat >= R.HEAT_LOAD - 1e-9, "yükleme ısısı (gece indirimi yok)");
   // LogisticsService'in yükle / teslim eylemleri bu iş için reddedilir
   assert.equal(sim.logisticsAct(p.id, { act: 'deliver' }).ok, false);
   // Otoyolda sür: ısı artar (zaman + tarayıcı)

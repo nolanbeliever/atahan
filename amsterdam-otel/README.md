@@ -807,8 +807,8 @@ yakalanınca mallara el konur ve ceza kesilir.
   (oyuncu başına tek iş); otel teslimi ve depo yükleme kancalarla veto edilir. Yük tırdayken iptal = mallar yola
   dökülür, **takip sürer** (yakalanırsa yalnızca taban ceza).
 - **Isı (0–100 → ★):** yükleyince +6; otoyolda hareket +0,22/sn (hız sınırını aşmak ısı yazmaz); çarpma (yük hasarı) +7;
-  **📡 gümrük tarayıcı kapıları** (otoyolda iki köprü: liman çıkışı + orta) %55 olasılıkla (gece %35) +26; polis aracına
-  çarpma +12 ve €400 ek ceza. Gece ısı artışı ×0,6. Takip yokken ve dururken ısı soğur.
+  **📡 gümrük tarayıcı kapıları** (otoyolda iki köprü: liman çıkışı + orta) %55 olasılıkla +26; polis aracına
+  çarpma +12 ve €400 ek ceza. Gece etkisi yok (oyun hep gündüz). Takip yokken ve dururken ısı soğur.
 - **Ekipler:** ≥1★ işaretsiz **sivil araç** ~20 m geriden izler; ≥2★ 1, ≥3★ 3, ≥4★ 4 **resmi polis** — ana gövdede tırın
   150 m gerisinde belirir, en çok ~150 km/s ile yaklaşır ve tırın **arka / sol / sağ / ön** yuvalarına yerleşir (yuvalar
   çekicinin merkezine göre: arka 18 m geride — dorsenin arkası; yanlar ±4,2 m; ön 11 m ileride). Ajanlar sunucuda
@@ -821,7 +821,7 @@ yakalanınca mallara el konur ve ceza kesilir.
   + çarpma cezaları, **cüzdandan (0'ın altına inmez)**. Kıskacın içinden "geçmek" sunucuda çarpma sayılır (ısı + ceza).
 - **Kaçış:** hiçbir ekip **150 m** içinde değilken **25 sn** → takip bırakılır, ısı 15'e iner.
 - **🚨 Polis baskını (PoliceRaidSystem / `PoliceRaidService`):** indirme başlarken bir kez zar atılır (gizli; servisin kendi
-  PRNG'si): olasılık = yer (depo 0,12 · otel avlusu 0,35) × gece 0,6 + ısı/100 × 0,4 (en çok 0,85). Baskın varsa indirme
+  PRNG'si): olasılık = yer (depo 0,12 · otel avlusu 0,35) + ısı/100 × 0,4 (en çok 0,85). Baskın varsa indirme
   başladıktan 1,5–4 sn sonra telsiz uyarısı ("🚨 Baskın!") ve siren; **3 ekip** avlu kapısının gerisinden çıkıp **7 sn'de**
   körfeze (tırın önü / arkası / yanı) varır (`logi:agents` ile çizilir). HUD'da indirme çubuğu + ekiplerin varış geri sayımı.
   - Ekipler **indirme bitmeden** varırsa ve tır hâlâ körfezdeyse → **yakalanma**: mallara el, ceza (cüzdan 0'ın altına

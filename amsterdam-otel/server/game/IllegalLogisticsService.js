@@ -3,7 +3,7 @@ import { isTruck } from '../../shared/cars.js';
 import { inHighwayRegion, yardAt, constrainToRoads, laneAt, trunkAt, TRUNK_LENGTH, roadProject, roadPoint, HOTEL_DELIVERY } from '../../shared/worldmap.js';
 import {
   CONTRA_GOODS, CONTRA_BY_ID, ILLEGAL_RULES as R, BOX_SLOTS, SLOT_ORDER, SCANNERS, CONTACT, SAFE_DROP,
-  inContactZone, inDropZone, heatStars, policeWanted, contraTerms, catchFine, isDark, frame, slotPoint, trunkNear, DROP_SITES,
+  inContactZone, inDropZone, heatStars, policeWanted, contraTerms, catchFine, frame, slotPoint, trunkNear, DROP_SITES,
   RAID_RULES,
 } from '../../shared/illegal.js';
 
@@ -104,8 +104,6 @@ export class IllegalLogisticsService {
     return [...this.sim.vehicles.vehicles.values()].filter((v) => v.type === 'car' && v.ownerId === p.id && isTruck(v.model));
   }
 
-  get night() { return isDark(this.sim.clock.minute); }
-
   jobOf(p) {
     const j = this.logi.jobOf(p);
     return j && j.legal === false ? j : null;
@@ -118,7 +116,6 @@ export class IllegalLogisticsService {
     return {
       price: R.COMPARTMENT_PRICE,
       job: j ? { id: j.id, hidden: j.hidden, cost: j.cost, pay: j.pay } : null, // kaçak yükün ayrıntısı yalnızca sahibine
-      night: this.night,
       trucks: this.trucksOf(p).map((v) => ({ id: v.id, model: v.model, hidden: this.hasCompartment(p, v) })),
       offers: (this.offers.get(p.id) ?? []).filter((o) => o.expires > now),
       nextOfferIn: this.nextOffer.has(p.id) ? Math.max(0, this.nextOffer.get(p.id) - now) : null,
@@ -273,7 +270,6 @@ export class IllegalLogisticsService {
     j.deadline = now + j.timeSec * 1000;
     j.vehicleId = v.id;
     j.damage = 0;
-    j.night = this.night;
     v.trailer = { job: j.id, cargo: j.cargo, pallets: j.pallets };
     this.sim.vehicles.broadcast();
     this.logi.emitEvent('loaded', { job: j, p, v });
@@ -282,7 +278,7 @@ export class IllegalLogisticsService {
     const c = this.chaseOf(p.id, true);
     c.job = j;
     c.damage = 0;
-    this.addHeat(p, c, R.HEAT_LOAD * (j.night ? R.NIGHT_HEAT_MUL : 1));
+    this.addHeat(p, c, R.HEAT_LOAD);
     this.sendPrivate(p);
     return { ok: true, text: '🤫 Mallar gizli bölmede, üstü konteyner yüküyle örtüldü. Dikkat çekmeden 🏚️ Eski Kantar Deposu\'na (FrisDepot\'un batı köşesi) ya da otelin 🏨 mal kabul alanına (riskli) götür.' };
   }
@@ -564,12 +560,11 @@ export class IllegalLogisticsService {
     const speed = st ? this.logi.speedOf(p, now) : 0;
     const kmh = speed * 3.6;
     const inRegion = inHighwayRegion(x, z, 4);
-    const nightMul = this.night ? R.NIGHT_HEAT_MUL : 1;
 
     // ---- Isı ----
     if (driving && inRegion) {
       const onRoad = !yardAt(x, z);
-      if (onRoad && kmh > 3) this.addHeat(p, c, R.HEAT_ROAD * dt * nightMul);
+      if (onRoad && kmh > 3) this.addHeat(p, c, R.HEAT_ROAD * dt);
       if (c.job.damage > c.damage + 1e-6) {
         c.damage = c.job.damage;
         this.addHeat(p, c, R.HEAT_HIT);
@@ -579,7 +574,7 @@ export class IllegalLogisticsService {
         const near = n.d < 14 && Math.abs(n.s - sc.s) < 9;
         if (near && !c.scanned[sc.id]) {
           c.scanned[sc.id] = true;
-          if (this.rand() < (this.night ? R.SCAN_CHANCE_NIGHT : R.SCAN_CHANCE)) {
+          if (this.rand() < R.SCAN_CHANCE) {
             this.addHeat(p, c, R.HEAT_SCAN);
             this.radio(p, `📡 ${sc.name}: dorsede şüpheli yoğunluk! Ekipler uyarıldı.`);
           } else {
