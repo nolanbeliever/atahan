@@ -796,7 +796,7 @@ yakalanınca mallara el konur ve ceza kesilir.
   kaydına bağlı, kalıcı. Bölmeli tırı olan oyuncuya **"Limandaki tanıdık"** **5–10 dakikada bir TEK teklif** gönderir
   (kişisel; ilk teklif bölme takılınca hemen, sonrakiler teklif alınınca ya da 6 dk'da süresi dolunca 5–10 gerçek dk
   sonra — "📞 Yeni bir iş var" bildirimi, panoda "sonraki iş ~N dk"). Limandaki tanıdıkla yaya konuşunca da pano açılır.
-- **Ekonomi:** teklif başına **kazanç 1.200–1.400 €** (teslimde cüzdana, brüt) ve **peşin mal bedeli 150–250 €** (yüklemede
+- **Ekonomi:** teklif başına **kazanç 4.000–5.000 €** (teslimde cüzdana, brüt) ve **peşin mal bedeli 150–250 €** (yüklemede
   cüzdandan). Geç teslim (12 dk) ×0,7, hasar orantılı düşürür; gece kazanç çarpanı yoktur (yalnızca daha az dikkat).
 - **İş akışı:** teklifi al → bölmeli tırınla **⚓ limandaki K-17 konteynerinin** önündeki sarı çerçevede dur, **E** → iki
   teslim yerinden birine götür: **🏚️ Eski Kantar Deposu** (FrisDepot avlusunun batı köşesi, gizli depo — baskın %12) ya da
@@ -1014,7 +1014,7 @@ amsterdam-otel/
 │       │   └── FurnitureModels.js   # Köşe renkli düşük poligonlu mobilya modelleri
 │       ├── net/Network.js       # Socket.io istemcisi, saat senkronu
 │       └── ui/                  # HUD, ayarlar paneli
-└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC), mal kabul (sipariş, tır, transpalet, asansör, stok etkileri), illegal sevkiyat (bölme, teklif, ısı, kıskaç, yakalanma, kaçış), polis baskını (teklif sıklığı, 1.200–1.400 € kazanç, indirme, baskın, kaçış)
+└── test/                        # Sunucu testleri (node:test): simülasyon, coffee shop, evler, bar (30 içecek), gece + bahçe, arkadaşlık, ulaşım + tamirat, büyüme (kat, temizlikçi), lüks paketler (architecture), sahne, InstaHotel (gönderi, kampanya, kuyruk), garaj + AutoGalerie, drag pisti, gurme restoran (mutfak, otel misafiri / VIP, büfe, aşçı / garson), cadde imparatorluğu (alım, kira, King), VIP vale + oto yıkama, Eğlence Katı (fizik, bilardo kuralları, bowling skoru, maçlar, atari, NPC), mal kabul (sipariş, tır, transpalet, asansör, stok etkileri), illegal sevkiyat (bölme, teklif, ısı, kıskaç, yakalanma, kaçış), polis baskını (teklif sıklığı, 4.000–5.000 € kazanç, indirme, baskın, kaçış)
 ```
 
 ## Sonraki aşamalar için notlar

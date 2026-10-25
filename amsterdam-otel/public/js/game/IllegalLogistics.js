@@ -25,7 +25,7 @@ const pct = (v) => `%${Math.round(v * 100)}`;
 /**
  * İllegal sevkiyat + dinamik polis kıskacı (istemci). LargeWorldMap'e (logi) bağlanır:
  *  - Lojistik panosuna "🕶️ Gizli zula bölmesi" (tır başına, cüzdandan) ve "Limandaki tanıdık" teklifi eklenir
- *    (5–10 dk'da bir tek teklif; kazanç 1.200–1.400 €). Mallar Eski Kantar Deposu'nda ya da otelin mal kabul alanında
+ *    (5–10 dk'da bir tek teklif; kazanç 4.000–5.000 €). Mallar Eski Kantar Deposu'nda ya da otelin mal kabul alanında
  *    indirilir; indirme + polis baskını HUD'u PoliceRaidSystem'dedir (this.raid).
  *  - Dünya: limanda K-17 konteyneri + tanıdık, FrisDepot'un batı köşesinde Eski Kantar Deposu, otoyolun üstünde
  *    iki gümrük tarayıcı kapısı (logi.world.group'a; yalnızca otoyol bölgesindeyken çizilir).

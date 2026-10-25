@@ -11,7 +11,7 @@
 // → teklifi alır → limandaki K-17 konteynerinin önünde durup E (malların küçük peşin bedeli cüzdandan) →
 // iki teslim yerinden birine götürür: 🏚️ Eski Kantar Deposu (gizli depo, daha güvenli) ya da otelin lojistik
 // avlusundaki 🏨 mal kabul alanı (yakın ama riskli). Durup E → indirme ~10 sn sürer (tır durmalı); bu sırada
-// rastgele POLİS BASKINI gelebilir (PoliceRaidService). İndirme biterse kazanç (1.200–1.400 €) cüzdana.
+// rastgele POLİS BASKINI gelebilir (PoliceRaidService). İndirme biterse kazanç (4.000–5.000 €) cüzdana.
 // Yük tırdayken "ısı" (0–100, 5 yıldız) yükselir; sivil araç önce izler, sonra resmi polis tırı sıkıştırır.
 
 import { trunkAt, TRUNK_LENGTH } from './worldmap.js';
@@ -37,10 +37,10 @@ export const ILLEGAL_RULES = freeze({
   OFFER_EVERY_MIN_MS: 5 * 60_000,
   OFFER_EVERY_MAX_MS: 10 * 60_000,
   OFFER_TTL_MS: 6 * 60_000, // alınmayan teklif bu kadar sonra kalkar
-  // Ekonomi: kazanç (brüt, teslimde cüzdana) 1.200–1.400 €; malların peşin bedeli (yüklemede cüzdandan) 150–250 €.
+  // Ekonomi: kazanç (brüt, teslimde cüzdana) 4.000–5.000 €; malların peşin bedeli (yüklemede cüzdandan) 150–250 €.
   // Geç teslim ×LATE_MUL, hasar kazancı orantılı düşürür. Gece kazanç çarpanı yoktur (yalnızca daha az dikkat).
-  PAY_MIN: 1200,
-  PAY_MAX: 1400,
+  PAY_MIN: 4000,
+  PAY_MAX: 5000,
   COST_MIN: 150,
   COST_MAX: 250,
   NIGHT_HEAT_MUL: 0.6, // gece (20:00–07:00) ısı artışı ×0.6
@@ -133,7 +133,7 @@ export function policeWanted(heat) {
 }
 
 /**
- * Teklif rakamları: u1, u2 ∈ [0, 1) (servisin kendi PRNG'si) → kazanç 1.200–1.400 €, peşin bedel 150–250 € (10'a yuvarlı)
+ * Teklif rakamları: u1, u2 ∈ [0, 1) (servisin kendi PRNG'si) → kazanç 4.000–5.000 €, peşin bedel 150–250 € (10'a yuvarlı)
  */
 export function contraTerms(u1, u2) {
   const R = ILLEGAL_RULES;
