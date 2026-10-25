@@ -13,9 +13,9 @@ export const config = Object.freeze({
   port: num('PORT', 3000),
   // Bir oyun gününün (07:00 → 23:00) gerçek süresi (saniye)
   dayLengthSec: num('DAY_LENGTH_SEC', 240),
-  // Gecenin (23:00 → 07:00) gerçek süresi (saniye). Herkes yatakta uyursa erken biter.
-  // 0 → gece atlanır (eski davranış).
-  nightLengthSec: num('NIGHT_LENGTH_SEC', 150, 0),
+  // Gecenin (23:00 → 07:00) gerçek süresi (saniye). Varsayılan 0: gece yok — 23:00'te doğrudan ertesi sabah
+  // 07:00'ye geçilir, oyun hep gündüz. >0 verilirse gece geri gelir (herkes yatakta uyursa erken biter).
+  nightLengthSec: num('NIGHT_LENGTH_SEC', 0, 0),
   // Hafta sonu (otel kapalı) günleri kaç kat hızlı aksın
   weekendSpeed: num('WEEKEND_SPEED', 2),
   // Simülasyon adımı. Misafir hareketi istemcide hesaplandığı için

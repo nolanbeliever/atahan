@@ -36,7 +36,7 @@ Bu klasörde oyuna özel bir Blueprint dosyası var: [`render.yaml`](render.yaml
 | --- | --- | --- |
 | `PORT` | `3000` | Sunucu portu |
 | `DAY_LENGTH_SEC` | `240` | Bir oyun gününün (07:00 → 23:00) gerçek süresi |
-| `NIGHT_LENGTH_SEC` | `150` | Gecenin (23:00 → 07:00) gerçek süresi; herkes uyursa erken biter. `0` → gece atlanır |
+| `NIGHT_LENGTH_SEC` | `0` | Gece yok, oyun hep gündüz: 23:00'te doğrudan ertesi sabah 07:00. `>0` verilirse gece (23:00 → 07:00) bu kadar saniye sürer; herkes uyursa erken biter |
 | `WEEKEND_SPEED` | `2` | Hafta sonu (otel kapalı) günleri kaç kat hızlı aksın |
 | `START_DAY` | `0` | Başlangıç günü (0 = Pazartesi … 5 = Cumartesi, 6 = Pazar) |
 | `START_HOUR` | `7` | Başlangıç saati (7–22) |
@@ -383,12 +383,13 @@ Misafir çıkınca odada dağınık yatak ve çöplere ek olarak 1–2 arıza ç
 
 ## Gece döngüsü — eve dön, yatağında uyu
 
-- Saat **23:00**'te otel kapanır ve gece başlar: gökyüzü kararır, pencereler lacivert olur, HUD'da **🌙 GECE · EVE GİT** yazar.
-  21:00'den itibaren alacakaranlık başlar. Işık geçişi birkaç saniyelik tek seferlik bir animasyondur; gölge haritası
-  yeniden çizilmez, gece boyunca karede ek iş yoktur.
+- **Varsayılan: gece yok, oyun hep gündüz.** Saat 23:00 olunca doğrudan ertesi sabah 07:00'ye geçilir; gökyüzü hiç
+  kararmaz, akşam alacakaranlığı da yoktur. Aşağıdaki gece akışı yalnızca `NIGHT_LENGTH_SEC` > 0 verilirse çalışır:
+- (Gece açıksa) Saat **23:00**'te otel kapanır ve gece başlar: gökyüzü kararır, pencereler lacivert olur, HUD'da
+  **🌙 GECE · EVE GİT** yazar. Işık geçişi birkaç saniyelik tek seferlik bir animasyondur.
 - Achterstraat'taki evine git, yatağa bakıp **E** → yatarsın, ekran kararır ve kaç oyuncunun uyuduğu yazar.
   **Çevrimiçi herkes uyuyunca sabah 07:00 olur** ve yeni gün başlar. 21:00'den sonra erkenden de yatılabilir.
-- Biri hiç yatmazsa gece `NIGHT_LENGTH_SEC` (varsayılan 150 sn) sonunda kendiliğinden biter (AFK oyuncu kimseyi kilitlemez).
+- Biri hiç yatmazsa gece `NIGHT_LENGTH_SEC` sn sonunda kendiliğinden biter (AFK oyuncu kimseyi kilitlemez).
   Uyumayan son oyuncu oyundan çıkarsa ve kalanların hepsi uyuyorsa sabah hemen olur.
 - Her yeni ev sahibine bir kez **hediye yatak** verilir (arka köşede). Taşıyıp satabilirsin ama hediye yatağın iadesi yoktur;
   yeni yatak dekor marketinden €15. Kendi evinde, Bizim Ev'de ya da içeri alındığın evde uyuyabilirsin.

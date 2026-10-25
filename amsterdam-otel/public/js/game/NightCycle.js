@@ -3,7 +3,6 @@ import { FURNITURE_BY_ID, itemBox } from '/shared/house.js';
 import { HOUSE_BY_ID, houseAt } from '/shared/layout.js';
 
 const FADE_SEC = 2.2; // gece / gündüz ışık geçişi
-const DUSK = 0.45; // 21:00–23:00 alacakaranlık seviyesi
 
 /**
  * Gece döngüsü (istemci):
@@ -58,7 +57,8 @@ export class NightCycle {
       this.interaction.invalidate();
       this.engine.requestRender();
     }
-    const target = night ? 1 : minute >= NIGHT.SLEEP_FROM_MIN && minute < DAY_END_MIN ? DUSK : 0;
+    // Hep gündüz: akşam alacakaranlığı yok; karanlık yalnızca gece açıksa (NIGHT_LENGTH_SEC > 0)
+    const target = night ? 1 : 0;
     if (target !== this.target) {
       this.target = target;
       this.fade = { from: this.level, at: performance.now() };
