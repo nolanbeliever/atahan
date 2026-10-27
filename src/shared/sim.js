@@ -21,6 +21,7 @@ export class Sim {
     this.nav = world.nav;
     this.rng = new RNG((opts.seed || world.seed) ^ 0x5eed);
     this.mp = !!opts.mp;
+    this.trustPos = !!opts.trustPos; // dev/testing only: skip movement validation
     this.time = opts.time ?? 18.6; // hours
     this.day = 1;
     this.dayLength = opts.dayLength || 1440; // real seconds per 24h
@@ -57,6 +58,16 @@ export class Sim {
     this.players.set(id, p);
     return p;
   }
+  // server-side respawn at the safehouse (client teleports are otherwise rejected)
+  respawnPlayer(id) {
+    const p = this.players.get(id);
+    if (!p) return null;
+    if (p.veh >= 0) this.exitVehicle(id);
+    const s = this.W.pois.safebed || this.W.pois.start;
+    Object.assign(p, { x: s.x, y: 0, z: s.z, hp: 100, alive: true, t: this.clock });
+    return { x: s.x, y: 0, z: s.z };
+  }
+
   removePlayer(id) {
     const p = this.players.get(id);
     if (!p) return;
@@ -71,7 +82,7 @@ export class Sim {
     const dt = Math.max(0.016, this.clock - p.t);
     p.t = this.clock;
     let corr = null;
-    if (this.mp && p.veh < 0 && s.veh < 0) {
+    if (this.mp && !this.trustPos && p.veh < 0 && s.veh < 0) {
       const d = Math.hypot(s.x - p.x, s.z - p.z);
       if (d > 9 * dt + 1.5) corr = { x: p.x, y: p.y, z: p.z };
     }

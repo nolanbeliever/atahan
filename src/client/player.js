@@ -413,7 +413,7 @@ export class ViewModel {
     if (imported) {
       // imported model is centred; shift so the grip sits in the hand
       const g = new THREE.Group();
-      imported.position.set(0, id === 'm4' ? 0.02 : 0.0, id === 'm4' ? -0.2 : -0.06);
+      imported.position.set(0, id === 'm4' ? 0.02 : -0.045, id === 'm4' ? -0.2 : -0.09);
       g.add(imported);
       g.userData.imported = true;
       return g;

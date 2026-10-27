@@ -555,7 +555,7 @@ export class Game {
     this.autosave();
   }
   useRadio() {
-    if (this.missions.id() === 'radio') {
+    if (this.settings.missions && this.missions.id() === 'radio') {
       const poi = this.W.pois.police;
       this.session.radio(poi.x, poi.z);
       this.hud.toast('"…Zone 4 survivor, we read you. Evac inbound in three minutes. Hold out!"', true);
@@ -676,6 +676,7 @@ export class Game {
     Object.assign(p, { hp: 100, stamina: 100, hunger: 80, thirst: 80, infection: 0, bleed: 0, dead: false, crouch: false });
     if (p.veh !== null) this.session.vexit();
     const st = this.W.pois.safebed || this.W.pois.start;
+    this.session.respawn();
     p.spawn(st.x, 0, st.z, 0);
     p.inv.add('bandage', 1);
     document.getElementById('death').classList.add('hidden');

@@ -54,7 +54,7 @@ function prepare(root, def) {
 // Converted from the user's OBJ files with tools/obj2glb.mjs. Oriented so the barrel
 // points along -z (camera forward) with the grip below; `flip`/`rot` fix source axes.
 export const WEAPON_FILES = {
-  pistol: { url: 'models/weapons/glock19.glb', length: 0.19, flip: false, skipLow: true },
+  pistol: { url: 'models/weapons/glock19.glb', length: 0.19, flip: true, skipLow: true }, // source barrel points +z: flip so it faces away from the player
   m4: { url: 'models/weapons/m4a1.glb', length: 0.86, flip: false },
 };
 const wcache = new Map();

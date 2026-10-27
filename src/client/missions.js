@@ -14,6 +14,7 @@ export const MISSIONS = [
 export class Missions {
   constructor(game) { this.g = game; this.idx = 0; this.progress = 0; this.timer = 0; this.done = false; }
   current() {
+    if (!this.g.settings.missions) return null;
     if (this.done || this.idx >= MISSIONS.length) return null;
     const m = MISSIONS[this.idx];
     const g = this.g, p = g.player;
@@ -47,12 +48,13 @@ export class Missions {
   }
   // called on gameplay events
   onItem(id, n) {
+    if (!this.g.settings.missions) return;
     const m = this.id(), d = ITEMS[id];
     if (m === 'supplies' && (d.type === 'food' || d.type === 'drink')) { this.progress += n; if (this.progress >= 3) this.advance(); }
   }
   update(dt) {
     const m = this.id(), g = this.g, p = g.player;
-    if (!m) return;
+    if (!m || !g.settings.missions) return;
     if (m === 'armory' && (p.inv.has('pistol') || p.inv.has('shotgun'))) this.advance();
     else if (m === 'meds' && (p.inv.has('medkit') || p.inv.has('antibiotics'))) this.advance();
     else if (m === 'fuel' && (p.inv.has('fuelcan') || g.stats.refuels > 0)) this.advance();

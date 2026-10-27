@@ -37,6 +37,7 @@ export class LocalSession {
   radio(x, z) { this.sim.startHorde(x, z, 18); }
   sleep(toHour) { const s = this.sim; let h = toHour - s.time; if (h < 0) h += 24; s.time = toHour; if (h > 0 && s.time < s.time - h) s.day++; for (const z of s.zombies) if (!z.dead && Math.hypot(z.x - s.players.get(this.id).x, z.z - s.players.get(this.id).z) < 60) { z.target = null; s.setState(z, 'wander'); } }
   chat() {}
+  respawn() { this.sim.respawnPlayer(this.id); }
   close() {}
   get time() { return this.sim.time; }
 }
@@ -176,6 +177,7 @@ export class RemoteSession {
   radio() { this.send({ t: 'radio' }); }
   sleep() {}
   chat(msg) { this.send({ t: 'chat', msg }); }
+  respawn() { this.send({ t: 'respawn' }); }
   close() { try { this.ws.close(); } catch (e) { /* */ } }
   get time() { return this.view.time; }
 }

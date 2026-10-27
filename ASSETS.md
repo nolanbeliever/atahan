@@ -18,6 +18,9 @@ could not verify from this environment.
 | Decals: blood, oil, cracks, puddles, patches, rugs, body bags, glass, helipad, posters, signage | Canvas-painted | Project licence | Yes | `src/client/materials.js` |
 | Sky, clouds, stars, moon | GLSL shader | Project licence | Yes | `src/client/sky.js` |
 | Sound: ambience, rain, footsteps, guns, melee, zombies, doors, engine, heartbeat, thunder, helicopter | WebAudio synthesis | Project licence | Yes | `src/client/audio.js` |
+| **Toyota Hilux** (glTF, single PBR-textured mesh) | **Supplied by the user** in this session (`toyotahilux002gltf.rar`; STL/OBJ/MAX/Blend variants also provided) | **Not verified — the user must confirm the licence permits use/redistribution** | **Yes**: drivable pickup truck | `public/models/hilux/` (textures downscaled 4096→1024 JPEG, Blender light node removed) |
+| **Glock 19** (OBJ, 6 materials) | **Supplied by the user** (`GLOCK19FTOBJ.rar`; Blend/FBX/textures also provided) | **Not verified — user must confirm** | **Yes**: pistol viewmodel + third-person weapon (procedural fallback on the low preset) | `public/models/weapons/glock19.glb` (converted with `tools/obj2glb.mjs`; normal/logo textures not used) |
+| **M4A1 low-poly** (OBJ + Unity PBR textures) | **Supplied by the user** (`M4A1_LowPoly.*`, `Textures_Unity.rar`; UE4 textures also provided) | **Not verified — user must confirm** | **Yes**: new "M4A1 carbine" automatic rifle | `public/models/weapons/m4a1.glb` (albedo/normal/metal-roughness repacked to glTF, 1024 px) |
 | three.js | npm `three` | MIT | Yes (library) | `package.json` |
 | Vite | npm `vite` | MIT | Build tool | `package.json` |
 | ws | npm `ws` | MIT | Server library | `server/package.json` |

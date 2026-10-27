@@ -68,7 +68,8 @@ export function rollLoot(table, rng, guaranteed) {
       if (x <= 0) {
         const n = rng.int(a, b);
         const ex = out.find(o => o.id === id);
-        if (ex && ITEMS[id].stack > 1) ex.n += n; else out.push({ id, n });
+        if (ex && ITEMS[id].stack > 1) ex.n += n;
+        else if (!ex || !isWeapon(id)) out.push({ id, n }); // never two of the same weapon in one container
         break;
       }
     }

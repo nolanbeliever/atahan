@@ -53,7 +53,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 
 function makeRoom(host, pub) {
   const W = generateWorld(SEED);
-  const sim = new Sim(W, { mp: true, maxZombies: 40, time: 18.4, dayLength: 1440 });
+  const sim = new Sim(W, { mp: true, maxZombies: 40, time: 18.4, dayLength: 1440, trustPos: process.env.DD_TRUST_CLIENT_POS === '1' });
   const room = { code: code(), host, pub: !!pub, W, sim, clients: new Map(), empty: 0, tick: 0 };
   rooms.set(room.code, room);
   console.log(`[room ${room.code}] created by ${host}`);
@@ -156,6 +156,7 @@ function handleGame(ws, room, sim, id, m) {
     case 'refuel': sim.refuel(id, num(m.vid, -1), Math.min(10, Math.max(0, num(m.amount)))); break;
     case 'noise': { const p = sim.players.get(id); if (p && Math.hypot(num(m.x) - p.x, num(m.z) - p.z) < 5) sim.noise(p.x, p.z, Math.min(45, num(m.r)), 'player'); break; }
     case 'radio': { const poi = room.W.pois.police; if (!sim.horde) sim.startHorde(poi.x, poi.z, 14 + room.clients.size * 4); break; }
+    case 'respawn': { const pos = sim.respawnPlayer(id); if (pos) send(ws, { t: 'corr', ...pos }); break; }
     case 'chat': sim.emit({ t: 'chat', name: ws.name, msg: clean(m.msg, 120) }); break;
   }
 }

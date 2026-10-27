@@ -76,7 +76,7 @@ function defaultServer() {
 }
 
 // ---------------------------------------------------------------- settings UI
-const KEYS = ['preset', 'renderScale', 'fov', 'brightness', 'adaptive', 'showFps', 'master', 'sfx', 'ambient', 'sens', 'touchSens', 'touchScale', 'touchOpacity', 'invertY', 'leftHanded', 'autoSprint', 'aimAssist', 'headBob', 'thirdPerson', 'dayLength', 'name'];
+const KEYS = ['preset', 'renderScale', 'fov', 'brightness', 'adaptive', 'showFps', 'master', 'sfx', 'ambient', 'sens', 'touchSens', 'touchScale', 'touchOpacity', 'invertY', 'leftHanded', 'autoSprint', 'aimAssist', 'headBob', 'thirdPerson', 'missions', 'dayLength', 'name'];
 function fmt(k, v) { if (k === 'dayLength') return Math.round(v / 60) + ' min'; if (k === 'fov') return v + '°'; return Number(v).toFixed(2); }
 function loadSettingsUI() {
   for (const k of KEYS) {
@@ -174,6 +174,10 @@ function quitToMenu(msg) {
 $('pResume').onclick = () => { audio.ui(); game.pause(false); };
 $('pSave').onclick = () => { if (game.session.mp) { game.hud.toast('Saving is singleplayer only'); return; } game.autosave(); game.hud.toast('Game saved'); audio.ui(); };
 $('pSettings').onclick = () => { loadSettingsUI(); openSub('settings', 'pause'); };
+const missionLabel = () => { $('pMissions').textContent = `Objectives: ${settings.missions ? 'On' : 'Off (free roam)'}`; };
+missionLabel();
+$('pMissions').onclick = () => { audio.ui(); settings.missions = !settings.missions; settings.save(); missionLabel(); };
+settings.onChange(missionLabel);
 $('pControls').onclick = () => openSub('controls', 'pause');
 $('pQuit').onclick = () => quitToMenu();
 $('dRespawn').onclick = () => { game.respawn(); };

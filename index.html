@@ -110,6 +110,7 @@
           <label class="chk"><input type="checkbox" id="s-headBob" /> Head bob</label>
         </div>
         <div class="tab hidden" data-tab="game">
+          <label class="chk"><input type="checkbox" id="s-missions" /> Show objectives (turn off for free-roam survival)</label>
           <label class="chk"><input type="checkbox" id="s-thirdPerson" /> Third-person camera by default</label>
           <label>Day length (minutes per 24 h) <input type="range" id="s-dayLength" min="600" max="3600" step="60" /><output></output></label>
           <label>Survivor name <input type="text" id="s-name" maxlength="16" placeholder="Survivor" /></label>
@@ -164,6 +165,7 @@
         <p class="note" id="pauseInfo"></p>
         <button id="pResume" class="primary">Resume</button>
         <button id="pSave">Save game</button>
+        <button id="pMissions">Objectives: On</button>
         <button id="pSettings">Settings</button>
         <button id="pControls">Controls</button>
         <button id="pQuit" class="ghost">Quit to menu</button>

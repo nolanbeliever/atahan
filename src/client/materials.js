@@ -349,7 +349,9 @@ export class Materials {
       const d = MAT_DEF[key];
       const map = this.tex(P[key], this.size, d.tile);
       const m = new THREE.MeshStandardMaterial({ map, roughness: d.rough, metalness: d.metal || 0, vertexColors: true, side: d.side || THREE.FrontSide });
-      if (bumpOK && d.bump) { m.bumpMap = map; m.bumpScale = d.bump; }
+      // Bump mapping is intentionally off: its derivative-based normals can go NaN at
+      // grazing angles on large ground planes, and bloom then smears the NaN across the frame.
+      void bumpOK;
       m.userData.wet = key === 'asphalt' || key === 'sidewalk' || key === 'roofTar' || key === 'concreteDark';
       m.userData.baseRough = d.rough;
       return m;

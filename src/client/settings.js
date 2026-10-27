@@ -22,7 +22,7 @@ const DEFAULTS = {
   preset: null, name: '', fov: 75, sens: 1.0, touchSens: 1.0, invertY: false, thirdPerson: false,
   master: 0.8, sfx: 1.0, ambient: 0.7, brightness: 1.0, showFps: false, adaptive: true,
   touchScale: 1.0, touchOpacity: 0.75, leftHanded: false, autoSprint: true, aimAssist: true,
-  dayLength: 1440, server: '', renderScale: 1.0, headBob: true,
+  dayLength: 1440, missions: true, server: '', renderScale: 1.0, headBob: true,
 };
 
 export class Settings {
