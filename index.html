@@ -114,6 +114,10 @@
           <label class="chk"><input type="checkbox" id="s-thirdPerson" /> Third-person camera by default</label>
           <label>Day length (minutes per 24 h) <input type="range" id="s-dayLength" min="600" max="3600" step="60" /><output></output></label>
           <label>Survivor name <input type="text" id="s-name" maxlength="16" placeholder="Survivor" /></label>
+          <h3>Cloud save</h3>
+          <p class="note">Your progress is saved on the server so you can continue on another device. Keep this code private — anyone with it can load or overwrite your save.</p>
+          <div class="row"><b id="cloudCode" style="font-size:20px;letter-spacing:0.12em;user-select:text;-webkit-user-select:text">····-····-····</b><button id="cloudCopy" class="ghost">Copy</button><span id="cloudStatus" class="note"></span></div>
+          <div class="row"><input type="text" id="cloudInput" maxlength="14" placeholder="XXXX-XXXX-XXXX" style="text-transform:uppercase" /><button id="cloudUse">Use this code</button></div>
         </div>
         <div class="row"><button id="settingsBack" class="primary">Done</button></div>
       </div>

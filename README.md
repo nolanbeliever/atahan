@@ -37,6 +37,36 @@ Any Node 18+ host that supports WebSockets works (Render, Railway, Fly.io, a VPS
 Behind HTTPS you must use `wss://`. A reverse proxy (nginx, Caddy) needs the usual
 `Upgrade`/`Connection` headers.
 
+## Deploy on Render with Neon cloud saves
+
+One Render web service hosts everything: the game page, multiplayer (WebSocket) and
+the cloud-save API. Saves are stored in Neon Postgres.
+
+1. **Neon:** create a project at https://neon.tech and copy its connection string
+   (`postgresql://user:password@ep-....neon.tech/neondb?sslmode=require`).
+   The server creates its table (`dd_saves`) automatically on first start.
+2. **GitHub:** push this repository to a GitHub repo.
+3. **Render:** New → Blueprint → pick the repo. Render reads `render.yaml`, then asks
+   for `DATABASE_URL`: paste the Neon connection string there (in the dashboard,
+   never in code).
+4. Open `https://<your-service>.onrender.com`. Singleplayer, multiplayer and cloud saves
+   all use that one address. `/health` shows `"saves":"postgres"` when Neon is connected.
+
+Free Render services sleep after ~15 minutes without traffic, so the first visit after
+that takes up to a minute to wake up. Without `DATABASE_URL` the server still runs and
+keeps cloud saves in memory only.
+
+### How cloud saves work
+
+* Each device gets a save code such as `K7QX-9MZD-2HPA` (Settings → Gameplay → Cloud save).
+* Singleplayer autosaves the whole game to the device and to the server (slot `sp`).
+* Multiplayer saves your character (backpack, health, stats) to slot `mp` and restores it
+  when you join any room.
+* To continue on another device, enter your code under "Use this code". The newest save
+  (device or cloud) is used. Anyone who has the code can load or overwrite that save,
+  so keep it private.
+* API: `GET|PUT /api/save/<code>/<sp|mp>` (JSON, 1 MB limit, 30 writes per minute per IP).
+
 ## Controls
 
 * **Desktop:** WASD move · mouse look (click to capture) · Shift sprint · Space jump/handbrake · C crouch ·
@@ -88,6 +118,11 @@ node tools/smoke.cjs [--mobile]  # boots the game in headless Chromium, screensh
 node tools/gameplay.cjs          # touch joystick/look/multitouch, combat, loot, doors, driving, saving
 DD_TRUST_CLIENT_POS=1 node server/server.js &   # dev flag: lets the test teleport players
 node tools/mp-test.cjs           # two browsers: rooms, sync, shared doors/loot/zombies, kills, disconnect
+npm run test:db                  # cloud-save store + API against a real Postgres wire server (PGlite)
+node server/pg-dev.js &          # local Postgres for development
+DATABASE_URL="postgres://postgres@127.0.0.1:55432/postgres?sslmode=disable" node server/server.js &
+URL=http://localhost:8787/ node tools/gameplay.cjs
+node tools/cloud-test.cjs        # device A saves, device B enters A's code and continues
 ```
 
 `DD_TRUST_CLIENT_POS=1` disables the server's movement validation and is for automated
@@ -114,6 +149,9 @@ src/client/
   session.js    LocalSession (singleplayer) / RemoteSession (WebSocket)
   input.js, hud.js, audio.js, sky.js, effects.js, materials.js, models.js, assets.js, missions.js
 server/server.js  rooms, validation, snapshots, static hosting
+server/db.js      cloud-save store (Postgres/Neon or in-memory) + /api/save HTTP API
+src/client/cloud.js  save codes, cloud load/save with local fallback
+render.yaml       Render blueprint
 ```
 
 ## Known limitations

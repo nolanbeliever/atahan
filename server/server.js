@@ -13,6 +13,9 @@ import { WebSocketServer } from 'ws';
 import { generateWorld } from '../src/shared/world.js';
 import { Sim } from '../src/shared/sim.js';
 import { ITEMS } from '../src/shared/items.js';
+import { createStore, handleSaveApi } from './db.js';
+
+const store = await createStore();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
@@ -25,7 +28,8 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent((req.url || '/').split('?')[0]);
-  if (url === '/health') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: [...rooms.values()].reduce((n, r) => n + r.clients.size, 0) })); return; }
+  if (url === '/health') { res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' }); res.end(JSON.stringify({ ok: true, game: 'dead-district', saves: store.kind, rooms: rooms.size, players: [...rooms.values()].reduce((n, r) => n + r.clients.size, 0) })); return; }
+  if (url.startsWith('/api/save/')) { handleSaveApi(store, req, res, url); return; }
   let file = path.join(DIST, url === '/' ? 'index.html' : url);
   if (!file.startsWith(DIST)) { res.writeHead(403); res.end(); return; }
   fs.stat(file, (err, st) => {

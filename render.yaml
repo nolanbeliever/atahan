@@ -1,0 +1,16 @@
+# Render Blueprint: one web service hosts the game client, the multiplayer
+# WebSocket server and the cloud-save API. Saves go to Neon via DATABASE_URL.
+services:
+  - type: web
+    name: dead-district
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build && npm ci --prefix server --omit=dev
+    startCommand: node server/server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false # paste your Neon connection string in the Render dashboard

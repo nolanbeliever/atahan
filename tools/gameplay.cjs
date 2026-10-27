@@ -10,7 +10,7 @@ const ok = (name, cond, extra = '') => { console.log(`${cond ? 'PASS' : 'FAIL'} 
   const errs = [];
   page.on('pageerror', e => errs.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
-  await page.goto('http://localhost:4173/');
+  await page.goto('' + (process.env.URL || 'http://localhost:4173/') + '');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.click('#btnNew');

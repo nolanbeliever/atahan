@@ -127,11 +127,12 @@ export class Game {
   }
 
   // spawn the local player (new game or loaded state)
-  begin(save) {
+  begin(save, mpSave) {
     const p = this.player, W = this.W, s = this.session;
     const st = W.pois.start;
     p.spawn(st.x, 0, st.z, 0);
     if (save) this.applySave(save);
+    else if (mpSave) this.applyMpSave(mpSave);
     else {
       p.inv.add('crowbar', 1); p.inv.add('bandage', 1); p.inv.add('water', 1); p.inv.add('chips', 1);
       p.equip('crowbar');
@@ -243,7 +244,7 @@ export class Game {
       r.clearDepth();
       r.render(vm.scene, vm.cam);
     }
-    if (!this.session.mp && !this.paused) { this.saveT -= dt; if (this.saveT <= 0) { this.saveT = 90; this.autosave(); } }
+    if (!this.paused || this.session.mp) { this.saveT -= dt; if (this.saveT <= 0) { this.saveT = this.session.mp ? 60 : 90; this.autosave(); } }
   }
 
   adaptive(avg) {
@@ -552,7 +553,7 @@ export class Game {
     const p = this.player;
     p.hp = Math.min(100, p.hp + 35); p.stamina = 100; p.hunger = Math.max(0, p.hunger - 15); p.thirst = Math.max(0, p.thirst - 20);
     this.hud.toast('You slept until morning. Game saved.', true);
-    this.autosave();
+    this.autosave(true);
   }
   useRadio() {
     if (this.settings.missions && this.missions.id() === 'radio') {
@@ -686,13 +687,28 @@ export class Game {
     this.input.releaseAll(); this.input.unlock();
     document.getElementById('win').classList.remove('hidden');
     document.getElementById('winTxt').textContent = `The helicopter lifts off from the police station. You survived ${this.session.view.day || 1} day(s), killed ${this.stats.kills} zombies and drove ${Math.round(this.stats.driven)} m.`;
-    this.autosave();
+    this.autosave(true);
   }
 
-  // ------------------------------------------------------------------ saves (singleplayer)
-  autosave() {
-    if (this.session.mp || this.player.dead) return;
-    try { localStorage.setItem('dd_save', JSON.stringify(this.makeSave())); } catch (e) { console.warn('save failed', e); }
+  // ------------------------------------------------------------------ saves
+  // Singleplayer: localStorage + cloud slot 'sp' (whole world state).
+  // Multiplayer: cloud slot 'mp' (your character: backpack, vitals, stats).
+  autosave(force = false) {
+    if (this.player.dead) return;
+    if (this.session.mp) { if (this.cloud) this.cloud.save('mp', this.makeMpSave(), force); return; }
+    const data = this.makeSave();
+    try { localStorage.setItem('dd_save', JSON.stringify(data)); } catch (e) { console.warn('save failed', e); }
+    if (this.cloud) this.cloud.save('sp', data, force);
+  }
+  makeMpSave() {
+    const p = this.player;
+    return { v: 1, saved: Date.now(), inv: p.inv.toJSON(), vitals: { hp: Math.max(25, p.hp), hunger: p.hunger, thirst: p.thirst, infection: p.infection, battery: p.battery }, stats: this.stats };
+  }
+  applyMpSave(d) {
+    const p = this.player;
+    if (d.inv) p.inv.load(d.inv);
+    if (d.vitals) Object.assign(p, d.vitals);
+    if (d.stats) Object.assign(this.stats, d.stats);
   }
   makeSave() {
     const s = this.session.sim, p = this.player, W = this.W;

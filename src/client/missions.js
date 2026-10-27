@@ -44,7 +44,7 @@ export class Missions {
     const n = MISSIONS[this.idx];
     if (n.time) this.timer = n.time;
     setTimeout(() => this.g.hud.toast(`New objective: ${n.title}`), 1200);
-    this.g.autosave();
+    this.g.autosave(true);
   }
   // called on gameplay events
   onItem(id, n) {

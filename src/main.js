@@ -5,6 +5,7 @@ import { AudioSys } from './client/audio.js';
 import { Game } from './client/game.js';
 import { LocalSession, RemoteSession } from './client/session.js';
 import { generateWorld } from './shared/world.js';
+import { Cloud } from './client/cloud.js';
 import * as THREE from 'three';
 
 const $ = (id) => document.getElementById(id);
@@ -12,6 +13,7 @@ const settings = new Settings();
 const audio = new AudioSys(settings);
 const canvas = $('c');
 const input = new Input(canvas, settings);
+const cloud = new Cloud(settings);
 let game = null;
 let world = null;
 
@@ -41,23 +43,45 @@ function openSub(id, from) { returnTo = from; for (const s of ['menu', 'settings
 function back() { for (const s of ['settings', 'controls', 'credits', 'mp']) $(s).classList.add('hidden'); if (returnTo === 'pause') $('pause').classList.remove('hidden'); else $('menu').classList.remove('hidden'); }
 document.querySelectorAll('.back').forEach(b => b.onclick = () => { audio.ui(); back(); });
 
+function localSave() { try { return JSON.parse(localStorage.getItem('dd_save') || 'null'); } catch (e) { return null; } }
+let cloudSave = null;
+// Newest of the local and cloud saves.
+function bestSave() { const l = localSave(); if (!cloudSave) return l; if (!l) return cloudSave; return (cloudSave.saved || 0) > (l.saved || 0) ? cloudSave : l; }
 function refreshMenu() {
-  let save = null;
-  try { save = JSON.parse(localStorage.getItem('dd_save') || 'null'); } catch (e) { save = null; }
+  const save = bestSave();
   $('btnContinue').classList.toggle('hidden', !save);
   $('menuDay').textContent = save ? save.day : 1;
   $('btnNew').textContent = save ? 'Singleplayer — New game' : 'Singleplayer — Play';
 }
+async function syncCloud() {
+  cloudSave = await cloud.load('sp');
+  refreshCloudUI();
+  refreshMenu();
+}
+function refreshCloudUI() {
+  $('cloudCode').textContent = cloud.code;
+  $('cloudStatus').textContent = cloud.status === 'online' ? '☁ synced to server' : cloud.status === 'offline' ? '☁ server unreachable — saving on this device only' : '☁ ' + cloud.status;
+}
 refreshMenu();
+syncCloud();
+
+$('cloudCopy').onclick = () => { try { navigator.clipboard.writeText(cloud.code); $('cloudStatus').textContent = 'Copied'; } catch (e) { /* select manually */ } };
+$('cloudUse').onclick = async () => {
+  const c = $('cloudInput').value;
+  if (!cloud.setCode(c)) { $('cloudStatus').textContent = 'That code looks wrong (format XXXX-XXXX-XXXX)'; return; }
+  $('cloudStatus').textContent = 'Loading…';
+  await syncCloud();
+  $('cloudStatus').textContent = cloudSave ? `Found a save (day ${cloudSave.day}). Use Continue on the main menu.` : 'No save on the server for this code yet.';
+};
 
 $('btnContinue').onclick = () => { audio.init(); startSP(true); };
 $('btnNew').onclick = () => {
   audio.init();
-  if (localStorage.getItem('dd_save') && !confirm('Start a new game? Your current save will be overwritten when the game autosaves.')) return;
+  if (bestSave() && !confirm('Start a new game? Your current save will be overwritten when the game autosaves.')) return;
   startSP(false);
 };
 $('btnMP').onclick = () => { audio.init(); audio.ui(); $('mp-url').value = settings.server || defaultServer(); $('mp-name').value = settings.name || ''; openSub('mp', 'menu'); };
-$('btnSettings').onclick = () => { audio.ui(); loadSettingsUI(); openSub('settings', 'menu'); };
+$('btnSettings').onclick = () => { audio.ui(); loadSettingsUI(); refreshCloudUI(); openSub('settings', 'menu'); };
 $('btnControls').onclick = () => { audio.ui(); openSub('controls', 'menu'); };
 $('btnCredits').onclick = () => { audio.ui(); openSub('credits', 'menu'); };
 const fsEl = document.documentElement;
@@ -136,21 +160,22 @@ async function startSP(cont) {
   const progress = progressFn();
   try {
     let save = null;
-    if (cont) { try { save = JSON.parse(localStorage.getItem('dd_save')); } catch (e) { save = null; } }
+    if (cont) { cloudSave = (await cloud.load('sp')) || cloudSave; save = bestSave(); }
     const W = await loadWorld(progress);
     const session = new LocalSession(W, { maxZombies: settings.gfx.zombies, dayLength: settings.dayLength, time: 18.4 });
     await launch(W, session, save, progress);
   } catch (e) { showErr(e.stack || e.message); show('menu'); }
 }
 
-async function launch(W, session, save, progress) {
+async function launch(W, session, save, progress, mpSave) {
   if (game) { game.dispose(); game = null; }
   game = new Game(canvas, settings, audio, input);
   game.onQuit = (msg) => quitToMenu(msg);
+  game.cloud = cloud;
   await game.init(W, session, progress);
   progress(0.75, 'Raising buildings');
   await new Promise(r => setTimeout(r, 0));
-  game.begin(save);
+  game.begin(save, mpSave);
   progress(0.95, 'Compiling shaders');
   await new Promise(r => setTimeout(r, 0));
   try { game.renderer.compile(game.scene, game.camera); } catch (e) { /* optional */ }
@@ -161,7 +186,8 @@ async function launch(W, session, save, progress) {
 }
 
 function quitToMenu(msg) {
-  if (game) { if (!game.session.mp) game.autosave(); game.dispose(); game = null; }
+  if (game) { game.autosave(true); game.dispose(); game = null; }
+  syncCloud();
   for (const id of ['pause', 'death', 'win', 'inv', 'loot', 'map']) $(id).classList.add('hidden');
   $('hud').classList.add('hidden');
   input.enabled = false; input.unlock();
@@ -172,7 +198,7 @@ function quitToMenu(msg) {
 
 // pause / death / win buttons
 $('pResume').onclick = () => { audio.ui(); game.pause(false); };
-$('pSave').onclick = () => { if (game.session.mp) { game.hud.toast('Saving is singleplayer only'); return; } game.autosave(); game.hud.toast('Game saved'); audio.ui(); };
+$('pSave').onclick = () => { game.autosave(true); game.hud.toast(game.session.mp ? 'Character saved to the cloud' : 'Game saved'); audio.ui(); };
 $('pSettings').onclick = () => { loadSettingsUI(); openSub('settings', 'pause'); };
 const missionLabel = () => { $('pMissions').textContent = `Objectives: ${settings.missions ? 'On' : 'Off (free roam)'}`; };
 missionLabel();
@@ -236,7 +262,9 @@ async function joinedRoom(d) {
     world = W;
     progress(0.3, 'Syncing with server');
     remote.applyJoin(d, W);
-    await launch(W, remote, null, progress);
+    progress(0.32, 'Loading your character');
+    const mpSave = await cloud.load('mp');
+    await launch(W, remote, null, progress, mpSave);
     game.roomCode = d.code;
     game.hud.toast(`Joined room ${d.code} — share this code with friends`, true);
   } catch (e) { showErr(e.stack || e.message); show('mp'); }
@@ -248,7 +276,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { if (!game.paused && !game.session.mp) game.pause(true); audio.suspend(); input.releaseAll(); }
   else audio.resume();
 });
-addEventListener('pagehide', () => { if (game && !game.session.mp) game.autosave(); });
+addEventListener('pagehide', () => { if (game) game.autosave(true); });
 document.addEventListener('pointerlockchange', () => {
   if (!game || !game.running || input.touchMode) return;
   if (!document.pointerLockElement && !game.paused && !game.panel && !game.player.dead && $('win').classList.contains('hidden')) game.pause(true);
