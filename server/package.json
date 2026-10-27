@@ -1,0 +1,10 @@
+{
+  "name": "dead-district-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Authoritative WebSocket server for Dead District multiplayer. Imports the shared simulation from ../src/shared.",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" }
+}

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0b0d10" />
+  <title>Dead District</title>
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="c"></canvas>
+
+    <div id="hud" class="hidden">
+      <div id="vignette"></div>
+      <div id="hurtfx"></div>
+      <div id="dmgdir"></div>
+      <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+      <div id="hitmarker"></div>
+      <div id="topbar">
+        <div id="clock">18:30</div>
+        <div id="compass"><div id="compassStrip"></div><div id="compassMark"></div></div>
+        <div id="zone">Street</div>
+      </div>
+      <div id="mission"><div class="mt"></div><div class="md"></div><div class="mdist"></div></div>
+      <canvas id="minimap" width="160" height="160"></canvas>
+      <div id="vitals">
+        <div class="bar hp"><span>HP</span><b><i></i></b></div>
+        <div class="bar st"><span>ST</span><b><i></i></b></div>
+        <div class="bar fo"><span>🍖</span><b><i></i></b></div>
+        <div class="bar wa"><span>💧</span><b><i></i></b></div>
+        <div id="status"></div>
+      </div>
+      <div id="weaponbox"><div id="wname">Fists</div><div id="ammo"></div></div>
+      <div id="vehhud" class="hidden"><div id="vspeed">0</div><div class="vunit">km/h</div><div id="vfuel">⛽ 0%</div><div id="vhp">🔧 100%</div></div>
+      <div id="prompt" class="hidden"></div>
+      <div id="usebar" class="hidden"><i></i><span></span></div>
+      <div id="toasts"></div>
+      <div id="fps" class="hidden"></div>
+      <div id="netinfo" class="hidden"></div>
+      <button id="pauseBtn" data-act="pause" aria-label="Pause">❚❚</button>
+
+      <div id="touch" class="hidden">
+        <div id="joyzone"><div id="joybase"><div id="joyknob"></div></div><div id="joyhint">MOVE</div></div>
+        <div id="lookzone"></div>
+        <div class="tb big" id="tb-fire" data-act="fire">✸<small>ATTACK</small></div>
+        <div class="tb" id="tb-jump" data-act="jump">⤒<small>JUMP</small></div>
+        <div class="tb" id="tb-crouch" data-act="crouch">⤓<small>CROUCH</small></div>
+        <div class="tb" id="tb-interact" data-act="interact">✋<small>USE</small></div>
+        <div class="tb" id="tb-reload" data-act="reload">↻<small>RELOAD</small></div>
+        <div class="tb sm" id="tb-swap" data-act="swap">⇄<small>WEAPON</small></div>
+        <div class="tb sm" id="tb-light" data-act="light">🔦<small>LIGHT</small></div>
+        <div class="tb sm" id="tb-cam" data-act="cam">👁<small>VIEW</small></div>
+        <div class="tb sm" id="tb-inv" data-act="inv">🎒<small>BAG</small></div>
+        <div class="tb sm" id="tb-map" data-act="map">🗺<small>MAP</small></div>
+        <div class="tb sm" id="tb-sprint" data-act="sprint">»<small>SPRINT</small></div>
+        <div class="tb" id="tb-hand" data-act="hand">◼<small>BRAKE</small></div>
+        <div class="tb sm" id="tb-horn" data-act="horn">📯<small>HORN</small></div>
+      </div>
+    </div>
+
+    <div id="menu" class="screen">
+      <div class="menu-bg"></div>
+      <div class="menu-inner">
+        <h1>DEAD<span>DISTRICT</span></h1>
+        <p class="tag">Quarantine Zone 4 · Day <span id="menuDay">1</span></p>
+        <div class="menu-buttons">
+          <button id="btnContinue" class="primary hidden">Continue</button>
+          <button id="btnNew" class="primary">Singleplayer — New game</button>
+          <button id="btnMP">Multiplayer</button>
+          <button id="btnSettings">Settings</button>
+          <button id="btnControls">Controls</button>
+          <button id="btnCredits">Assets &amp; credits</button>
+          <button id="btnFullscreen" class="ghost">Fullscreen</button>
+        </div>
+        <p class="hint" id="deviceHint"></p>
+      </div>
+    </div>
+
+    <div id="settings" class="screen panel hidden">
+      <div class="panel-inner">
+        <h2>Settings</h2>
+        <div class="tabs"><button data-tab="gfx" class="on">Graphics</button><button data-tab="audio">Audio</button><button data-tab="ctrl">Controls</button><button data-tab="game">Gameplay</button></div>
+        <div class="tab" data-tab="gfx">
+          <label>Quality preset <select id="s-preset"><option value="low">Mobile performance</option><option value="medium">Balanced</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
+          <label>Render scale <input type="range" id="s-renderScale" min="0.5" max="1.25" step="0.05" /><output></output></label>
+          <label>Field of view <input type="range" id="s-fov" min="60" max="100" step="1" /><output></output></label>
+          <label>Brightness <input type="range" id="s-brightness" min="0.6" max="1.8" step="0.05" /><output></output></label>
+          <label class="chk"><input type="checkbox" id="s-adaptive" /> Adaptive resolution (keeps frame rate stable)</label>
+          <label class="chk"><input type="checkbox" id="s-showFps" /> Show FPS</label>
+          <p class="note">Preset changes to shadows, textures and view distance apply when you start or reload a game.</p>
+        </div>
+        <div class="tab hidden" data-tab="audio">
+          <label>Master <input type="range" id="s-master" min="0" max="1" step="0.05" /><output></output></label>
+          <label>Effects <input type="range" id="s-sfx" min="0" max="1" step="0.05" /><output></output></label>
+          <label>Ambience <input type="range" id="s-ambient" min="0" max="1" step="0.05" /><output></output></label>
+        </div>
+        <div class="tab hidden" data-tab="ctrl">
+          <label>Mouse sensitivity <input type="range" id="s-sens" min="0.2" max="3" step="0.05" /><output></output></label>
+          <label>Touch look sensitivity <input type="range" id="s-touchSens" min="0.3" max="3" step="0.05" /><output></output></label>
+          <label>Touch button size <input type="range" id="s-touchScale" min="0.75" max="1.4" step="0.05" /><output></output></label>
+          <label>Touch button opacity <input type="range" id="s-touchOpacity" min="0.3" max="1" step="0.05" /><output></output></label>
+          <label class="chk"><input type="checkbox" id="s-invertY" /> Invert look Y</label>
+          <label class="chk"><input type="checkbox" id="s-leftHanded" /> Left-handed touch layout</label>
+          <label class="chk"><input type="checkbox" id="s-autoSprint" /> Sprint when joystick is pushed to the edge</label>
+          <label class="chk"><input type="checkbox" id="s-aimAssist" /> Touch aim assist</label>
+          <label class="chk"><input type="checkbox" id="s-headBob" /> Head bob</label>
+        </div>
+        <div class="tab hidden" data-tab="game">
+          <label class="chk"><input type="checkbox" id="s-thirdPerson" /> Third-person camera by default</label>
+          <label>Day length (minutes per 24 h) <input type="range" id="s-dayLength" min="600" max="3600" step="60" /><output></output></label>
+          <label>Survivor name <input type="text" id="s-name" maxlength="16" placeholder="Survivor" /></label>
+        </div>
+        <div class="row"><button id="settingsBack" class="primary">Done</button></div>
+      </div>
+    </div>
+
+    <div id="controls" class="screen panel hidden">
+      <div class="panel-inner">
+        <h2>Controls</h2>
+        <div class="cols">
+          <div><h3>Keyboard &amp; mouse</h3>
+            <p><b>WASD</b> move · <b>Mouse</b> look (click to capture)<br><b>Shift</b> sprint · <b>Space</b> jump / handbrake · <b>C</b> crouch<br><b>Left click</b> attack / fire · <b>R</b> reload · <b>1-4 / Q / wheel</b> weapons<br><b>E</b> interact / enter &amp; exit vehicles · <b>F</b> flashlight / headlights<br><b>V</b> first / third person · <b>I / Tab</b> inventory · <b>M</b> map · <b>X</b> quick heal<br><b>H</b> horn · <b>Esc</b> pause</p></div>
+          <div><h3>Touch (iPad / iPhone)</h3>
+            <p><b>Left thumb</b>: floating joystick (push to the edge to sprint)<br><b>Right thumb</b>: drag anywhere to look; drag across ATTACK to aim while firing<br>Buttons: attack, jump, crouch, use, reload, weapon, light, view, bag, map.<br>Driving: joystick = throttle / steer, BRAKE = handbrake, USE = exit.</p></div>
+        </div>
+        <div class="row"><button class="primary back">Back</button></div>
+      </div>
+    </div>
+
+    <div id="credits" class="screen panel hidden">
+      <div class="panel-inner scroll">
+        <h2>Assets &amp; credits</h2>
+        <p>Every model, texture and sound in this build is generated in code at runtime: the city architecture, interiors, props, vehicles, characters and animations, procedural PBR textures (canvas), and synthesised WebAudio. No third-party art files are bundled. See <code>ASSETS.md</code> in the project for the manifest and how to drop in licensed GLB models.</p>
+        <p>Engine: three.js (MIT). Build: Vite (MIT). Multiplayer server: Node.js + ws (MIT).</p>
+        <div class="row"><button class="primary back">Back</button></div>
+      </div>
+    </div>
+
+    <div id="mp" class="screen panel hidden">
+      <div class="panel-inner">
+        <h2>Multiplayer</h2>
+        <label>Server address <input type="text" id="mp-url" placeholder="wss://your-server.example or ws://localhost:8787" /></label>
+        <label>Your name <input type="text" id="mp-name" maxlength="16" placeholder="Survivor" /></label>
+        <div class="row"><button id="mp-connect" class="primary">Connect</button><span id="mp-status" class="note"></span></div>
+        <div id="mp-lobby" class="hidden">
+          <div class="row"><button id="mp-create" class="primary">Create session</button><label class="chk inline"><input type="checkbox" id="mp-public" checked /> Listed publicly</label></div>
+          <div class="row"><input type="text" id="mp-code" maxlength="5" placeholder="ROOM CODE" style="text-transform:uppercase" /><button id="mp-join">Join by code</button><button id="mp-refresh" class="ghost">Refresh</button></div>
+          <div id="mp-rooms"></div>
+        </div>
+        <p class="note">Multiplayer needs the Dead District server running (see README: <code>npm run server</code>). Singleplayer never needs a server.</p>
+        <div class="row"><button class="back">Back</button></div>
+      </div>
+    </div>
+
+    <div id="loading" class="screen hidden"><div class="load-inner"><h2>Entering the district…</h2><div class="pbar"><i id="loadbar"></i></div><p id="loadtxt">Generating city</p></div></div>
+
+    <div id="pause" class="screen panel hidden">
+      <div class="panel-inner small">
+        <h2>Paused</h2>
+        <p class="note" id="pauseInfo"></p>
+        <button id="pResume" class="primary">Resume</button>
+        <button id="pSave">Save game</button>
+        <button id="pSettings">Settings</button>
+        <button id="pControls">Controls</button>
+        <button id="pQuit" class="ghost">Quit to menu</button>
+      </div>
+    </div>
+
+    <div id="inv" class="screen panel hidden">
+      <div class="panel-inner wide">
+        <div class="invhead"><h2>Backpack</h2><span id="invCap"></span><button class="x" id="invClose">✕</button></div>
+        <div class="invbody">
+          <div id="invGrid"></div>
+          <div id="invDetail"><div class="dname">Select an item</div><div class="ddesc"></div><div class="dbtns"></div></div>
+        </div>
+        <div id="invStats"></div>
+      </div>
+    </div>
+
+    <div id="loot" class="screen panel hidden">
+      <div class="panel-inner wide">
+        <div class="invhead"><h2 id="lootTitle">Container</h2><button class="x" id="lootClose">✕</button></div>
+        <div id="lootItems"></div>
+        <div class="row"><button id="lootAll" class="primary">Take all</button></div>
+        <h3>Your backpack <small>(tap to stash)</small></h3>
+        <div id="lootMine"></div>
+      </div>
+    </div>
+
+    <div id="map" class="screen panel hidden">
+      <div class="panel-inner wide mapwrap"><div class="invhead"><h2>District map</h2><button class="x" id="mapClose">✕</button></div><canvas id="mapCanvas" width="752" height="752"></canvas></div>
+    </div>
+
+    <div id="death" class="screen hidden"><div class="panel-inner small center"><h2 class="red">YOU DIED</h2><p id="deathTxt"></p><button id="dRespawn" class="primary">Respawn at safehouse</button><button id="dLoad">Load last save</button><button id="dQuit" class="ghost">Main menu</button></div></div>
+    <div id="win" class="screen hidden"><div class="panel-inner small center"><h2>EVACUATED</h2><p id="winTxt"></p><button id="wContinue" class="primary">Keep surviving (free roam)</button><button id="wQuit" class="ghost">Main menu</button></div></div>
+    <div id="rotate" class="hidden"><div><div class="phone">📱↻</div><p>Rotate to landscape for the best experience.</p><button id="rotateDismiss">Play in portrait</button></div></div>
+    <div id="errbox" class="hidden"></div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
